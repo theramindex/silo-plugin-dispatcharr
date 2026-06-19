@@ -605,10 +605,15 @@ const playerPageHTMLTemplate = `<!doctype html>
       .playback-scrim { pointer-events: none; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.34) 16%, rgba(0,0,0,0.08) 46%, rgba(0,0,0,0.28) 64%, rgba(0,0,0,0.96) 100%); }
       .player-top { position: absolute; inset: 1.25rem 1.25rem auto; display: flex; align-items: center; justify-content: flex-end; gap: 1rem; z-index: 2; }
       .player-top-actions, .player-bottom-actions { display: flex; align-items: center; gap: 0.55rem; }
+      .player-audio { position: relative; }
       .player-icon, .player-chip { border: 1px solid rgba(255,255,255,0.12); background: rgba(30,30,31,0.72); color: white; box-shadow: 0 0.35rem 1.4rem rgba(0,0,0,0.2); backdrop-filter: blur(18px); }
       .player-icon { width: 2.65rem; height: 2.65rem; border-radius: 999px; display: inline-grid; place-items: center; font-size: 1.15rem; }
       .player-chip { min-height: 2.4rem; border-radius: 999px; padding: 0 0.82rem; font-weight: 850; }
       .player-icon:hover, .player-chip:hover { background: rgba(52,52,54,0.86); }
+      .player-menu { position: absolute; top: calc(100% + 0.45rem); right: 0; display: none; min-width: 13rem; max-width: min(18rem, 70vw); padding: 0.35rem; border: 1px solid rgba(255,255,255,0.14); border-radius: 0.8rem; background: rgba(20,20,21,0.94); box-shadow: 0 1rem 2rem rgba(0,0,0,0.36); backdrop-filter: blur(18px); }
+      .player-menu.open { display: grid; gap: 0.2rem; }
+      .player-menu button { border: 0; border-radius: 0.55rem; background: transparent; color: rgba(255,255,255,0.82); padding: 0.55rem 0.65rem; text-align: left; font-weight: 750; }
+      .player-menu button:hover, .player-menu button.active { background: rgba(255,255,255,0.1); color: white; }
       .player-bottom { position: absolute; inset: auto 0 0; z-index: 2; padding: 0 1.25rem 1.15rem; background: linear-gradient(180deg, transparent, rgba(0,0,0,0.54) 32%, rgba(0,0,0,0.86)); }
       .player-meta { min-width: 0; max-width: min(45rem, 64vw); text-shadow: 0 0.15rem 1rem rgba(0,0,0,0.65); }
       .player-logo { width: 3.6rem; height: 2.45rem; object-fit: contain; border-radius: 0.55rem; background: rgba(255,255,255,0.82); margin-bottom: 0.45rem; padding: 0.18rem; }
@@ -676,7 +681,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       const path = window.location.pathname;
       const base = path.endsWith("/dispatcharr/player") ? path.slice(0, -"/dispatcharr/player".length) : (path.endsWith("/dispatcharr") ? path.slice(0, -"/dispatcharr".length) : "");
       const prefsKey = "silo.ramindex.dispatcharr.preferences.v1";
-      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false };
+      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, audioMenuOpen: false, selectedAudioTrack: 0 };
 
       function route(url) { return base + url; }
       function byId(id) { return document.getElementById(id); }
@@ -880,7 +885,8 @@ const playerPageHTMLTemplate = `<!doctype html>
         const description = program.description || categoryNameText;
         const start = timeLabel(program.startUnix) || "LIVE";
         const end = timeLabel(program.endUnix) || "Now";
-        byId("view").innerHTML = "<section class=\"playback-shell\"><video id=\"player\" class=\"playback-video\" autoplay playsinline></video><div class=\"playback-scrim\"></div><div class=\"player-top\"><div class=\"player-top-actions\"><button class=\"player-chip\" data-player-action=\"quality\">UNK v</button><button class=\"player-icon\" data-player-action=\"mute\" aria-label=\"Mute\">" + (state.muted ? "M" : "A") + "</button><button class=\"player-icon\" data-player-action=\"fullscreen\" aria-label=\"Fullscreen\">[]</button><button class=\"player-icon\" data-player-action=\"guide\" aria-label=\"Guide\">#</button><button class=\"player-icon\" data-player-action=\"more\" aria-label=\"More\">...</button></div></div><div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel) + "<div class=\"player-kicker\">" + escapeHTML(channelName) + "</div><h2 class=\"player-title\">" + escapeHTML(title) + "</h2><p class=\"player-description\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span class=\"player-tag\">AV</span></div></div><div class=\"player-bottom-actions\"><button class=\"player-icon\" data-player-action=\"favorite\" aria-label=\"Favorite\">" + (channel && favoriteMap()[channel.id] ? "*" : "+") + "</button><button class=\"player-icon\" data-player-action=\"guide\" aria-label=\"Open guide\">G</button><button class=\"player-icon\" data-player-action=\"more\" aria-label=\"Details\">D</button><button class=\"player-icon\" data-player-action=\"mute\" aria-label=\"Audio\">A</button></div></div><div class=\"timeline\"><span>" + escapeHTML(start) + "</span><div class=\"timeline-bar\"><div class=\"timeline-fill\"></div><div class=\"timeline-knob\"></div></div><span><span class=\"live-dot\"></span>LIVE&nbsp;&nbsp;" + escapeHTML(end) + "</span></div></div></section>";
+        byId("view").innerHTML = "<section class=\"playback-shell\"><video id=\"player\" class=\"playback-video\" autoplay playsinline></video><div class=\"playback-scrim\"></div><div class=\"player-top\"><div class=\"player-top-actions\"><div class=\"player-audio\"><button id=\"player-audio-button\" class=\"player-chip\" data-player-action=\"audio-menu\" aria-haspopup=\"true\" aria-expanded=\"false\">Audio v</button><div id=\"player-audio-menu\" class=\"player-menu\" role=\"menu\"></div></div><button class=\"player-icon\" data-player-action=\"mute\" aria-label=\"Mute\">" + (state.muted ? "M" : "A") + "</button><button class=\"player-icon\" data-player-action=\"fullscreen\" aria-label=\"Fullscreen\">[]</button><button class=\"player-icon\" data-player-action=\"guide\" aria-label=\"Guide\">#</button><button class=\"player-icon\" data-player-action=\"more\" aria-label=\"More\">...</button></div></div><div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel) + "<div class=\"player-kicker\">" + escapeHTML(channelName) + "</div><h2 class=\"player-title\">" + escapeHTML(title) + "</h2><p class=\"player-description\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span class=\"player-tag\">AV</span></div></div><div class=\"player-bottom-actions\"><button class=\"player-icon\" data-player-action=\"favorite\" aria-label=\"Favorite\">" + (channel && favoriteMap()[channel.id] ? "*" : "+") + "</button><button class=\"player-icon\" data-player-action=\"guide\" aria-label=\"Open guide\">G</button><button class=\"player-icon\" data-player-action=\"more\" aria-label=\"Details\">D</button><button class=\"player-icon\" data-player-action=\"mute\" aria-label=\"Audio\">A</button></div></div><div class=\"timeline\"><span>" + escapeHTML(start) + "</span><div class=\"timeline-bar\"><div class=\"timeline-fill\"></div><div class=\"timeline-knob\"></div></div><span><span class=\"live-dot\"></span>LIVE&nbsp;&nbsp;" + escapeHTML(end) + "</span></div></div></section>";
+        updateAudioMenu();
       }
       function renderGuidePage() {
         const categories = items(state.app.categories);
@@ -914,10 +920,57 @@ const playerPageHTMLTemplate = `<!doctype html>
       function colorClass(index) {
         return ["purple", "green", "red", "gray", "blue"][index % 5];
       }
+      function audioTrackList() {
+        const video = byId("player");
+        if (!video || !video.audioTracks || typeof video.audioTracks.length !== "number") return [];
+        const tracks = [];
+        for (let index = 0; index < video.audioTracks.length; index++) tracks.push(video.audioTracks[index]);
+        return tracks;
+      }
+      function audioTrackName(track, index) {
+        return track && (track.label || track.language || track.kind || track.id) ? (track.label || track.language || track.kind || track.id) : "Audio " + (index + 1);
+      }
+      function updateAudioMenu() {
+        const button = byId("player-audio-button");
+        const menu = byId("player-audio-menu");
+        if (!button || !menu) return;
+        const tracks = audioTrackList();
+        const activeIndex = tracks.findIndex(function(track) { return !!track.enabled; });
+        state.selectedAudioTrack = activeIndex >= 0 ? activeIndex : state.selectedAudioTrack;
+        const activeLabel = tracks.length ? audioTrackName(tracks[state.selectedAudioTrack] || tracks[0], state.selectedAudioTrack || 0) : "Default audio";
+        button.textContent = activeLabel + " v";
+        button.setAttribute("aria-expanded", state.audioMenuOpen ? "true" : "false");
+        menu.classList.toggle("open", state.audioMenuOpen);
+        menu.innerHTML = tracks.length ? tracks.map(function(track, index) {
+          return "<button type=\"button\" role=\"menuitem\" data-player-action=\"audio-track\" data-audio-index=\"" + index + "\" class=\"" + (index === state.selectedAudioTrack ? "active" : "") + "\">" + escapeHTML(audioTrackName(track, index)) + "</button>";
+        }).join("") : "<button type=\"button\" role=\"menuitem\" class=\"active\" data-player-action=\"audio-track\" data-audio-index=\"0\">Default audio</button>";
+      }
+      function selectAudioTrack(index) {
+        const tracks = audioTrackList();
+        if (!tracks.length) {
+          state.selectedAudioTrack = 0;
+          state.audioMenuOpen = false;
+          updateAudioMenu();
+          return;
+        }
+        tracks.forEach(function(track, trackIndex) { track.enabled = trackIndex === index; });
+        state.selectedAudioTrack = index;
+        state.audioMenuOpen = false;
+        updateAudioMenu();
+      }
       function setVideoSource(url) {
         const video = byId("player");
         if (!video) return;
         video.muted = state.muted;
+        state.selectedAudioTrack = 0;
+        state.audioMenuOpen = false;
+        updateAudioMenu();
+        if (video.audioTracks && video.audioTracks.addEventListener) {
+          video.audioTracks.addEventListener("addtrack", updateAudioMenu);
+          video.audioTracks.addEventListener("removetrack", updateAudioMenu);
+          video.audioTracks.addEventListener("change", updateAudioMenu);
+        }
+        video.addEventListener("loadedmetadata", updateAudioMenu, { once: true });
         if (state.hls) { state.hls.destroy(); state.hls = null; }
         if (state.tsPlayer) { state.tsPlayer.destroy(); state.tsPlayer = null; }
         const isHLS = url.indexOf(".m3u8") !== -1;
@@ -932,6 +985,8 @@ const playerPageHTMLTemplate = `<!doctype html>
         } else {
           video.src = url;
         }
+        setTimeout(updateAudioMenu, 500);
+        setTimeout(updateAudioMenu, 1800);
         video.play().catch(function() {});
       }
       async function playChannel(channel) {
@@ -976,6 +1031,15 @@ const playerPageHTMLTemplate = `<!doctype html>
           state.muted = !state.muted;
           if (video) video.muted = state.muted;
           document.querySelectorAll("[data-player-action='mute']").forEach(function(item) { item.textContent = state.muted ? "M" : "A"; });
+          return;
+        }
+        if (action === "audio-menu") {
+          state.audioMenuOpen = !state.audioMenuOpen;
+          updateAudioMenu();
+          return;
+        }
+        if (action === "audio-track") {
+          selectAudioTrack(Number(button && button.getAttribute("data-audio-index")) || 0);
           return;
         }
         if (action === "favorite" && state.currentChannel) {
