@@ -920,11 +920,12 @@ const playerPageHTMLTemplate = `<!doctype html>
         video.muted = state.muted;
         if (state.hls) { state.hls.destroy(); state.hls = null; }
         if (state.tsPlayer) { state.tsPlayer.destroy(); state.tsPlayer = null; }
-        if (window.Hls && Hls.isSupported() && url.indexOf(".m3u8") !== -1) {
+        const isHLS = url.indexOf(".m3u8") !== -1;
+        if (window.Hls && Hls.isSupported() && isHLS) {
           state.hls = new Hls();
           state.hls.loadSource(url);
           state.hls.attachMedia(video);
-        } else if (window.mpegts && mpegts.isSupported() && url.indexOf(".ts") !== -1) {
+        } else if (window.mpegts && mpegts.isSupported() && !isHLS) {
           state.tsPlayer = mpegts.createPlayer({ type: "mpegts", isLive: true, url: url });
           state.tsPlayer.attachMediaElement(video);
           state.tsPlayer.load();
