@@ -94,9 +94,9 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 	switch request.GetPath() {
 	case "/dispatcharr", "/dispatcharr/player":
 		return htmlResponse(http.StatusOK, playerPageHTML), nil
-	case "/dispatcharr/assets/hls.min.js":
+	case "/dispatcharr/assets/hls.min.js", "/assets/hls.min.js":
 		return assetResponse("assets/hls.min.js")
-	case "/dispatcharr/assets/mpegts.min.js":
+	case "/dispatcharr/assets/mpegts.min.js", "/assets/mpegts.min.js":
 		return assetResponse("assets/mpegts.min.js")
 	case "/dispatcharr/status", "/dispatcharr/api/status":
 		return s.respondJSON(http.StatusOK, BuildHealthPayload(s.store.Current()))

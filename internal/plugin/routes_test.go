@@ -373,7 +373,7 @@ func TestHTTPRoutesServerPlayerAssetRoutes(t *testing.T) {
 	t.Parallel()
 
 	server := NewHTTPRoutesServer(cache.NewStore())
-	for _, path := range []string{"/dispatcharr/assets/hls.min.js", "/dispatcharr/assets/mpegts.min.js"} {
+	for _, path := range []string{"/dispatcharr/assets/hls.min.js", "/dispatcharr/assets/mpegts.min.js", "/assets/hls.min.js", "/assets/mpegts.min.js"} {
 		response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: path})
 		if err != nil {
 			t.Fatalf("asset route %s: %v", path, err)
