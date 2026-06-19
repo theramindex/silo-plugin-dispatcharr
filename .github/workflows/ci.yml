@@ -77,7 +77,7 @@ jobs:
             -version "${VERSION}" \
             -goos "${{ matrix.goos }}" \
             -goarch "${{ matrix.goarch }}" \
-            -plugin-id "silo.dispatcharr"
+            -plugin-id "silo.ramindex.dispatcharr"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
