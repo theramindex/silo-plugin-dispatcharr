@@ -1277,7 +1277,7 @@ const playerPageHTMLTemplate = `<!doctype html>
             button.setAttribute("aria-label", isFavorite ? "Remove channel from favorites" : "Favorite channel");
           }
           savePrefs();
-          postJSON("/dispatcharr/api/favorites", { id: id, favorite: !!favoriteMap()[id] }).catch(function() {});
+          postJSON("/dispatcharr/api/favorites", { id: id, enabled: !!favoriteMap()[id] }).catch(function() {});
           renderRail();
         }
       }
