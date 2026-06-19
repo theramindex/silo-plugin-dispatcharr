@@ -1,7 +1,10 @@
 package cache
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"sync"
+	"time"
 
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
 )
@@ -16,10 +19,22 @@ type Store struct {
 	mu          sync.RWMutex
 	snapshot    Snapshot
 	preferences Preferences
+	sessions    map[string]WatchSession
+}
+
+type WatchSession struct {
+	ID                string `json:"id"`
+	ItemKind          string `json:"itemKind"`
+	ItemID            string `json:"itemId"`
+	ItemName          string `json:"itemName,omitempty"`
+	StartedAtUnix     int64  `json:"startedAtUnix"`
+	LastHeartbeatUnix int64  `json:"lastHeartbeatUnix"`
+	EndedAtUnix       int64  `json:"endedAtUnix,omitempty"`
+	EndReason         string `json:"endReason,omitempty"`
 }
 
 func NewStore() *Store {
-	return &Store{preferences: defaultPreferences()}
+	return &Store{preferences: defaultPreferences(), sessions: map[string]WatchSession{}}
 }
 
 func (s *Store) Current() Snapshot {
@@ -48,6 +63,92 @@ func (s *Store) Preferences() Preferences {
 	preferences.RecentChannels = append([]string(nil), s.preferences.RecentChannels...)
 	preferences.ContinueWatching = cloneAnyMap(s.preferences.ContinueWatching)
 	return preferences
+}
+
+func (s *Store) StartWatch(kind, id, name string) (WatchSession, Preferences) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.ensurePreferences()
+	s.ensureSessions()
+	now := time.Now().Unix()
+	session := WatchSession{
+		ID:                newSessionID(),
+		ItemKind:          kind,
+		ItemID:            id,
+		ItemName:          name,
+		StartedAtUnix:     now,
+		LastHeartbeatUnix: now,
+	}
+	s.sessions[session.ID] = session
+
+	if kind == "channel" && id != "" {
+		s.preferences.RecentChannels = prependUnique(s.preferences.RecentChannels, id, 24)
+		plays := 1
+		if previous, ok := s.preferences.ContinueWatching[id].(map[string]any); ok {
+			if value, ok := previous["plays"].(float64); ok {
+				plays = int(value) + 1
+			}
+		}
+		s.preferences.ContinueWatching[id] = map[string]any{
+			"kind":     kind,
+			"name":     name,
+			"playedAt": now,
+			"plays":    plays,
+		}
+		if plays >= 3 && !s.preferences.Favorites[id] {
+			s.preferences.AutoFavorites[id] = true
+		}
+	}
+
+	return session, s.preferencesSnapshotLocked()
+}
+
+func (s *Store) HeartbeatWatch(id string) (WatchSession, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.ensureSessions()
+	session, ok := s.sessions[id]
+	if !ok || session.EndedAtUnix != 0 {
+		return WatchSession{}, false
+	}
+	session.LastHeartbeatUnix = time.Now().Unix()
+	s.sessions[id] = session
+	return session, true
+}
+
+func (s *Store) StopWatch(id, reason string) (WatchSession, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.ensureSessions()
+	session, ok := s.sessions[id]
+	if !ok {
+		return WatchSession{}, false
+	}
+	if session.EndedAtUnix == 0 {
+		session.EndedAtUnix = time.Now().Unix()
+		if reason == "" {
+			reason = "stopped"
+		}
+		session.EndReason = reason
+		s.sessions[id] = session
+	}
+	return session, true
+}
+
+func (s *Store) ActiveSessions() []WatchSession {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	sessions := make([]WatchSession, 0, len(s.sessions))
+	for _, session := range s.sessions {
+		if session.EndedAtUnix == 0 {
+			sessions = append(sessions, session)
+		}
+	}
+	return sessions
 }
 
 func (s *Store) SetFavorite(id string, enabled bool) Preferences {
@@ -136,6 +237,12 @@ func (s *Store) ensurePreferences() {
 	}
 }
 
+func (s *Store) ensureSessions() {
+	if s.sessions == nil {
+		s.sessions = map[string]WatchSession{}
+	}
+}
+
 func (s *Store) preferencesSnapshotLocked() Preferences {
 	preferences := s.preferences
 	preferences.Favorites = cloneBoolMap(s.preferences.Favorites)
@@ -160,4 +267,29 @@ func cloneAnyMap(values map[string]any) map[string]any {
 		clone[key] = value
 	}
 	return clone
+}
+
+func prependUnique(values []string, value string, limit int) []string {
+	result := make([]string, 0, len(values)+1)
+	if value != "" {
+		result = append(result, value)
+	}
+	for _, existing := range values {
+		if existing == "" || existing == value {
+			continue
+		}
+		result = append(result, existing)
+		if limit > 0 && len(result) >= limit {
+			return result
+		}
+	}
+	return result
+}
+
+func newSessionID() string {
+	var buf [12]byte
+	if _, err := rand.Read(buf[:]); err != nil {
+		return hex.EncodeToString([]byte(time.Now().Format(time.RFC3339Nano)))
+	}
+	return hex.EncodeToString(buf[:])
 }

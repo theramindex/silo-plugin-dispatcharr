@@ -60,20 +60,30 @@ type AppCapabilities struct {
 }
 
 type AppPayload struct {
-	Status       HealthPayload     `json:"status"`
-	Source       model.Source      `json:"source"`
-	Channels     []model.Channel   `json:"channels"`
-	Categories   []model.Category  `json:"categories"`
-	VOD          ContentPayload    `json:"vod"`
-	Series       ContentPayload    `json:"series"`
-	Preferences  cache.Preferences `json:"preferences"`
-	Capabilities AppCapabilities   `json:"capabilities"`
+	Status       HealthPayload        `json:"status"`
+	Source       model.Source         `json:"source"`
+	Channels     []model.Channel      `json:"channels"`
+	Programs     []model.Program      `json:"programs"`
+	Categories   []model.Category     `json:"categories"`
+	VOD          ContentPayload       `json:"vod"`
+	Series       ContentPayload       `json:"series"`
+	Preferences  cache.Preferences    `json:"preferences"`
+	Sessions     []cache.WatchSession `json:"sessions"`
+	Capabilities AppCapabilities      `json:"capabilities"`
 }
 
 type toggleRequest struct {
 	ID      string `json:"id"`
 	Enabled bool   `json:"enabled"`
 	Hidden  bool   `json:"hidden"`
+}
+
+type watchRequest struct {
+	SessionID string `json:"sessionId"`
+	ItemKind  string `json:"itemKind"`
+	ItemID    string `json:"itemId"`
+	ItemName  string `json:"itemName"`
+	Reason    string `json:"reason"`
 }
 
 func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
@@ -107,6 +117,12 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return s.handleHiddenCategory(request)
 	case "/dispatcharr/api/playback":
 		return s.handlePlaybackSettings(request)
+	case "/dispatcharr/api/watch/start":
+		return s.handleWatchStart(request)
+	case "/dispatcharr/api/watch/heartbeat":
+		return s.handleWatchHeartbeat(request)
+	case "/dispatcharr/api/watch/stop":
+		return s.handleWatchStop(request)
 	case "/dispatcharr/stream":
 		channelID := queryValue(request, "channel_id")
 		if strings.TrimSpace(channelID) == "" {
@@ -139,10 +155,12 @@ func (s *HTTPRoutesServer) buildAppPayload() AppPayload {
 		Status:       BuildHealthPayload(snapshot),
 		Source:       snapshot.Catalog.Source,
 		Channels:     snapshot.Catalog.Channels,
+		Programs:     snapshot.Catalog.Programs,
 		Categories:   liveCategories(snapshot),
 		VOD:          s.vodPayload(),
 		Series:       s.seriesPayload(),
 		Preferences:  preferences,
+		Sessions:     s.store.ActiveSessions(),
 		Capabilities: appCapabilities(preferences),
 	}
 }
@@ -237,6 +255,54 @@ func (s *HTTPRoutesServer) handlePlaybackSettings(request *pluginv1.HandleHTTPRe
 		return textResponse(http.StatusBadRequest, "invalid playback settings payload"), nil
 	}
 	return s.respondJSON(http.StatusOK, s.store.SetPlaybackSettings(settings).Playback)
+}
+
+func (s *HTTPRoutesServer) handleWatchStart(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if request.GetMethod() != http.MethodPost {
+		return textResponse(http.StatusMethodNotAllowed, "method not allowed"), nil
+	}
+	var payload watchRequest
+	if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
+		return textResponse(http.StatusBadRequest, "invalid watch payload"), nil
+	}
+	if strings.TrimSpace(payload.ItemID) == "" {
+		return textResponse(http.StatusBadRequest, "missing itemId"), nil
+	}
+	if strings.TrimSpace(payload.ItemKind) == "" {
+		payload.ItemKind = "channel"
+	}
+	session, preferences := s.store.StartWatch(payload.ItemKind, payload.ItemID, payload.ItemName)
+	return s.respondJSON(http.StatusOK, map[string]any{"session": session, "preferences": preferences})
+}
+
+func (s *HTTPRoutesServer) handleWatchHeartbeat(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if request.GetMethod() != http.MethodPost {
+		return textResponse(http.StatusMethodNotAllowed, "method not allowed"), nil
+	}
+	var payload watchRequest
+	if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
+		return textResponse(http.StatusBadRequest, "invalid watch payload"), nil
+	}
+	session, ok := s.store.HeartbeatWatch(payload.SessionID)
+	if !ok {
+		return textResponse(http.StatusNotFound, "watch session not found"), nil
+	}
+	return s.respondJSON(http.StatusOK, map[string]any{"session": session})
+}
+
+func (s *HTTPRoutesServer) handleWatchStop(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if request.GetMethod() != http.MethodPost {
+		return textResponse(http.StatusMethodNotAllowed, "method not allowed"), nil
+	}
+	var payload watchRequest
+	if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
+		return textResponse(http.StatusBadRequest, "invalid watch payload"), nil
+	}
+	session, ok := s.store.StopWatch(payload.SessionID, payload.Reason)
+	if !ok {
+		return textResponse(http.StatusNotFound, "watch session not found"), nil
+	}
+	return s.respondJSON(http.StatusOK, map[string]any{"session": session})
 }
 
 func (s *HTTPRoutesServer) respondJSON(status int, value any) (*pluginv1.HandleHTTPResponse, error) {
@@ -417,122 +483,142 @@ const playerPageHTML = `<!doctype html>
     <style>
       :root {
         color-scheme: dark;
-        --bg: #0b0d0f;
-        --rail: #141414;
-        --panel: #1b1d1d;
-        --panel-2: #242827;
-        --line: #363a38;
-        --text: #f2f1ec;
-        --muted: #a8aaa5;
-        --soft: #d9d1bf;
-        --accent: #ff3d7f;
-        --accent-2: #2fbf9f;
-        --warn: #f6c95f;
+        --bg: #171717;
+        --rail: #1d1d1f;
+        --rail-2: #222225;
+        --panel: #2b2b2d;
+        --panel-2: #353536;
+        --line: #3e3e40;
+        --text: #f5f3ef;
+        --muted: #a7a5a0;
+        --accent: #ff2f7d;
+        --green: #173f31;
+        --purple: #3b2147;
+        --red: #4a211e;
+        --blue: #1d3347;
+        --warn: #f4c95f;
       }
       * { box-sizing: border-box; }
-      body { margin: 0; min-height: 100vh; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
-      button, input { font: inherit; }
-      main { display: grid; grid-template-columns: minmax(18rem, 22rem) minmax(0, 1fr); min-height: 100vh; }
-      aside { border-right: 1px solid var(--line); background: var(--rail); padding: 1rem; overflow: auto; }
-      section { padding: clamp(1rem, 2vw, 1.6rem); min-width: 0; }
-      h1, h2, h3 { margin: 0; }
-      h1 { font-size: 1.45rem; letter-spacing: 0; }
-      h2 { font-size: 1rem; margin: 1rem 0 0.6rem; color: var(--muted); }
-      .topbar { display: flex; justify-content: space-between; gap: 1rem; align-items: center; margin-bottom: 1rem; }
-      .status { color: var(--muted); font-size: 0.82rem; }
-      .silo-return { display: inline-flex; align-items: center; gap: 0.45rem; margin-bottom: 0.8rem; color: var(--muted); text-decoration: none; font-size: 0.82rem; font-weight: 650; }
-      .silo-return:hover { color: var(--text); }
-      .silo-return span:first-child { display: inline-flex; align-items: center; justify-content: center; width: 1.65rem; height: 1.65rem; border: 1px solid var(--line); border-radius: 999px; background: #0f1010; color: var(--text); }
-      .tabs { display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0 0 1rem; align-items: center; }
-      .tab, .channel, .card, .pill, .control { border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 0.5rem; }
-      .tab { padding: 0.58rem 0.8rem; cursor: pointer; min-height: 2.35rem; }
-      .tab.active { border-color: var(--accent); background: color-mix(in oklab, var(--accent) 18%, var(--panel)); color: var(--text); }
-      .search { width: 100%; margin: 0.8rem 0; padding: 0.75rem 0.8rem; border-radius: 0.5rem; border: 1px solid var(--line); background: #0f1010; color: var(--text); }
-      .filters { display: flex; gap: 0.45rem; margin-bottom: 0.8rem; overflow-x: auto; padding-bottom: 0.25rem; }
-      .pill { padding: 0.45rem 0.7rem; cursor: pointer; font-size: 0.78rem; color: var(--muted); white-space: nowrap; }
-      .pill.active { color: #04120d; background: var(--accent); border-color: var(--accent); }
-      .channel { display: grid; grid-template-columns: 2.7rem minmax(0, 1fr) auto; gap: 0.75rem; width: 100%; text-align: left; align-items: center; margin: 0 0 0.5rem; padding: 0.7rem; cursor: pointer; }
-      .channel:hover, .card:hover { border-color: #61665f; background: var(--panel-2); }
-      .logo { width: 2.35rem; height: 2.35rem; object-fit: contain; border-radius: 0.4rem; background: #0b0d0f; }
-      .channel strong, .card strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      body { margin: 0; min-height: 100vh; overflow: hidden; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      button, input, select { font: inherit; }
+      button { cursor: pointer; }
+      .shell { display: grid; grid-template-columns: 19.5rem minmax(0, 1fr); height: 100vh; }
+      .rail { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--line); background: linear-gradient(135deg, #19191a, #201e20); padding: 1rem; }
+      .brand { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+      .brand h1 { margin: 0; font-size: 1.55rem; font-weight: 900; letter-spacing: 0; }
+      .back { color: var(--muted); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 0.42rem 0.65rem; font-size: 0.8rem; font-weight: 700; }
+      .back:hover { color: var(--text); background: var(--panel); }
+      .source { display: flex; align-items: center; gap: 0.6rem; margin: 0 0 0.7rem; color: var(--text); font-weight: 800; }
+      .source-icon { width: 1.45rem; height: 1.45rem; border-radius: 999px; display: inline-grid; place-items: center; background: var(--accent); }
+      .nav { display: grid; gap: 0.28rem; margin-bottom: 1rem; }
+      .nav button { width: 100%; border: 0; border-radius: 0.65rem; background: transparent; color: var(--muted); display: flex; align-items: center; gap: 0.65rem; padding: 0.7rem 0.72rem; text-align: left; font-weight: 750; }
+      .nav button.active, .nav button:hover { background: #2a292b; color: var(--text); }
+      .nav small { margin-left: auto; color: var(--muted); }
+      .rail-search { border: 1px solid var(--line); border-radius: 999px; background: #242426; color: var(--text); padding: 0.65rem 0.85rem; width: 100%; margin-bottom: 0.85rem; }
+      .channel-list { overflow: auto; min-height: 0; padding-right: 0.2rem; }
+      .channel-row { width: 100%; border: 0; border-radius: 0.75rem; background: transparent; color: var(--text); display: grid; grid-template-columns: 3.1rem minmax(0, 1fr) 1.8rem; align-items: center; gap: 0.65rem; padding: 0.45rem; text-align: left; }
+      .channel-row:hover, .channel-row.active { background: #2a292b; }
+      .logo { width: 3rem; height: 2.05rem; object-fit: contain; border-radius: 0.5rem; background: #121213; }
+      .channel-row strong, .tile strong, .program strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .muted { color: var(--muted); }
-      .star { color: var(--warn); }
-      .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(14rem, 22rem); gap: 1rem; align-items: start; }
-      video { width: 100%; aspect-ratio: 16 / 9; max-height: 64vh; background: #000; border-radius: 0.55rem; border: 1px solid var(--line); }
-      .now-panel { border-left: 3px solid var(--accent); padding: 0.25rem 0 0.25rem 0.85rem; min-width: 0; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); gap: 0.8rem; }
-      .card { padding: 0.7rem; cursor: pointer; min-height: 8rem; text-align: left; }
-      .poster { width: 100%; aspect-ratio: 2 / 3; height: auto; object-fit: cover; border-radius: 0.45rem; background: #0b0d0f; margin-bottom: 0.55rem; }
-      .guide { display: grid; gap: 0.45rem; margin-top: 0.8rem; }
-      .program { border-left: 3px solid var(--accent-2); background: #181b1a; padding: 0.6rem 0.75rem; border-radius: 0.45rem; }
-      .controls { display: grid; gap: 0.75rem; max-width: 44rem; }
-      .control { padding: 0.8rem; }
-      .unsupported { color: var(--warn); }
-      .count { margin-left: auto; color: var(--muted); font-size: 0.82rem; }
+      .star { color: var(--warn); font-size: 1rem; }
+      .main { min-width: 0; overflow: auto; padding: 1rem 1.25rem 2rem; }
+      .topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.85rem; position: sticky; top: 0; z-index: 5; background: linear-gradient(180deg, var(--bg) 70%, rgba(23,23,23,0)); padding-bottom: 0.65rem; }
+      .title { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
+      .title h2 { margin: 0; font-size: 1.35rem; }
+      .status { color: var(--muted); font-size: 0.82rem; white-space: nowrap; }
+      .search { border: 1px solid var(--line); border-radius: 999px; background: #242426; color: var(--text); padding: 0.62rem 0.85rem; min-width: min(24rem, 40vw); }
+      .section-title { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1rem 0 0.55rem; color: var(--muted); font-size: 0.95rem; font-weight: 850; }
+      .row-scroll { display: flex; gap: 0.6rem; overflow-x: auto; padding-bottom: 0.3rem; }
+      .continue-card { flex: 0 0 15.5rem; border: 0; border-radius: 0.7rem; background: transparent; color: var(--text); text-align: left; }
+      .poster-box { height: 8.7rem; border-radius: 0.65rem; background: #b19398; display: grid; place-items: center; overflow: hidden; margin-bottom: 0.45rem; }
+      .poster-box img { width: 100%; height: 100%; object-fit: contain; }
+      .poster-box span { font-size: 2.8rem; font-weight: 950; }
+      .progress { height: 0.22rem; border-radius: 999px; background: rgba(255,255,255,0.14); overflow: hidden; margin: -0.75rem 0.85rem 0.6rem; position: relative; }
+      .progress i { display: block; height: 100%; width: 62%; background: white; border-radius: inherit; }
+      .guide-strip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(13rem, 1fr); gap: 0.35rem; overflow-x: auto; }
+      .program { min-height: 3.05rem; border: 0; border-radius: 0.55rem; color: var(--text); text-align: left; padding: 0.48rem 0.65rem; background: var(--purple); }
+      .program.green { background: var(--green); }
+      .program.red { background: var(--red); }
+      .program.blue { background: var(--blue); }
+      .program.gray { background: var(--panel); }
+      .program time { color: var(--muted); font-size: 0.78rem; display: block; }
+      .category-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.7rem, 1fr)); gap: 0.5rem; }
+      .tile { border: 0; border-radius: 0.65rem; background: var(--panel); color: var(--text); min-height: 3.85rem; text-align: left; padding: 0.75rem 0.85rem; font-weight: 850; }
+      .tile:hover, .tile.active { background: var(--panel-2); }
+      .guide-page { min-width: 54rem; }
+      .guide-tools { display: grid; grid-template-columns: 10rem 1fr minmax(12rem, 22rem); align-items: center; gap: 0.8rem; margin-bottom: 0.7rem; }
+      .select { border: 1px solid var(--line); border-radius: 999px; color: var(--text); background: var(--panel); padding: 0.55rem 0.75rem; }
+      .time-head { display: grid; grid-template-columns: 9rem repeat(5, minmax(9.5rem, 1fr)); gap: 0.25rem; color: var(--muted); font-weight: 850; margin-bottom: 0.35rem; }
+      .epg-row { display: grid; grid-template-columns: 9rem repeat(5, minmax(9.5rem, 1fr)); gap: 0.25rem; margin-bottom: 0.35rem; }
+      .epg-channel { border-radius: 0.55rem; background: #b9969b; color: white; display: grid; grid-template-columns: 3.7rem minmax(0, 1fr); align-items: center; gap: 0.45rem; padding: 0.35rem; min-height: 3.25rem; }
+      .epg-cell { border: 0; border-radius: 0.55rem; text-align: left; color: var(--text); background: var(--panel); padding: 0.5rem 0.65rem; min-width: 0; }
+      .player-view { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 1rem; align-items: start; }
+      video { width: 100%; aspect-ratio: 16 / 9; background: #050505; border: 1px solid var(--line); border-radius: 0.75rem; }
+      .now-card, .settings-card { border: 1px solid var(--line); background: var(--rail-2); border-radius: 0.8rem; padding: 0.85rem; }
+      .settings-list { display: grid; gap: 0.55rem; }
+      .settings-list label { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--panel); border-radius: 0.65rem; padding: 0.7rem; }
       .empty { color: var(--muted); padding: 1rem 0; }
+      .hide { display: none !important; }
       @media (max-width: 900px) {
-        main { grid-template-columns: 1fr; }
-        aside { border-right: 0; border-bottom: 1px solid var(--line); max-height: 44vh; }
-        .hero { grid-template-columns: 1fr; }
+        body { overflow: auto; }
+        .shell { display: block; height: auto; }
+        .rail { min-height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+        .channel-list { max-height: 18rem; }
+        .topbar { position: static; }
+        .search { min-width: 0; width: 100%; }
+        .player-view { grid-template-columns: 1fr; }
       }
     </style>
   </head>
   <body>
-    <main>
-      <aside>
-        <a class="silo-return" href="/" aria-label="Back to Silo">
-          <span aria-hidden="true">←</span>
-          <span>Back to Silo</span>
-        </a>
-        <div class="topbar">
-          <h1>Dispatcharr IPTV</h1>
-          <span id="health" class="status">Loading...</span>
+    <div class="shell">
+      <aside class="rail">
+        <div class="brand">
+          <h1>IPTV</h1>
+          <a class="back" href="/" aria-label="Back to Silo">&lt;- Silo</a>
         </div>
-        <input id="search" class="search" placeholder="Search channels, movies, series">
-        <div id="filters" class="filters"></div>
-        <div id="channels">Loading channels...</div>
+        <div class="source"><span class="source-icon">~</span><span id="source-name">Dispatcharr</span></div>
+        <nav class="nav" aria-label="Dispatcharr views">
+          <button class="active" data-view="home">Home</button>
+          <button data-view="favorites">Favorites <small id="favorite-count">0</small></button>
+          <button data-view="live">Live TV</button>
+          <button data-view="guide">TV Guide</button>
+          <button data-view="settings">Settings</button>
+        </nav>
+        <input id="rail-search" class="rail-search" placeholder="Search channels">
+        <div id="channel-list" class="channel-list">Loading channels...</div>
       </aside>
-      <section>
-        <div class="tabs">
-          <button class="tab active" data-tab="live">Live TV</button>
-          <button class="tab" data-tab="favorites">Favorites</button>
-          <button class="tab" data-tab="guide">Guide</button>
-          <button class="tab" data-tab="vod">Movies</button>
-          <button class="tab" data-tab="series">Series</button>
-          <button class="tab" data-tab="settings">Settings</button>
-          <span id="count" class="count"></span>
+      <main class="main">
+        <div class="topbar">
+          <div class="title"><span class="source-icon">~</span><h2 id="page-title">Home</h2><span id="health" class="status">Loading...</span></div>
+          <input id="global-search" class="search" placeholder="Search by program or channel">
         </div>
-        <div class="hero">
-          <video id="player" controls autoplay playsinline></video>
-          <div class="now-panel">
-            <h2>Now</h2>
-            <h1 id="now">Live TV</h1>
-            <div id="now-meta" class="muted"></div>
-          </div>
-        </div>
-        <div id="content" aria-live="polite"></div>
-      </section>
-    </main>
+        <div id="view"></div>
+      </main>
+    </div>
     <script>
       const path = window.location.pathname;
       const base = path.endsWith("/dispatcharr/player") ? path.slice(0, -"/dispatcharr/player".length) : (path.endsWith("/dispatcharr") ? path.slice(0, -"/dispatcharr".length) : "");
       const prefsKey = "silo.ramindex.dispatcharr.preferences.v1";
-      const state = { app: null, tab: "live", category: "", query: "", hls: null, currentChannel: null };
+      const state = { app: null, view: "home", category: "", query: "", hls: null, currentChannel: null, currentSession: null, heartbeat: null };
 
       function route(url) { return base + url; }
       function byId(id) { return document.getElementById(id); }
-      function lower(value) { return String(value || "").toLowerCase(); }
       function items(value) { return Array.isArray(value) ? value : []; }
-      function favoriteMap() { return (state.app && state.app.preferences && state.app.preferences.favorites) || {}; }
-      function autoFavoriteMap() { return (state.app && state.app.preferences && state.app.preferences.autoFavorites) || {}; }
-      function hiddenMap() { return (state.app && state.app.preferences && state.app.preferences.hiddenCategories) || {}; }
+      function lower(value) { return String(value || "").toLowerCase(); }
+      function escapeHTML(value) {
+        return String(value || "").replace(/[&<>"']/g, function(ch) {
+          return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[ch];
+        });
+      }
       function defaultPrefs() {
         return { favorites: {}, autoFavorites: {}, hiddenCategories: {}, recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "hls" } };
       }
-      function readLocalPrefs() {
-        try { return Object.assign(defaultPrefs(), JSON.parse(localStorage.getItem(prefsKey) || "{}")); }
-        catch (_) { return defaultPrefs(); }
-      }
+      function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
+      function favoriteMap() { return prefs().favorites || {}; }
+      function autoFavoriteMap() { return prefs().autoFavorites || {}; }
+      function hiddenMap() { return prefs().hiddenCategories || {}; }
       function mergePrefs(remote, local) {
         remote = Object.assign(defaultPrefs(), remote || {});
         local = Object.assign(defaultPrefs(), local || {});
@@ -545,133 +631,174 @@ const playerPageHTML = `<!doctype html>
           playback: Object.assign({}, remote.playback, local.playback)
         };
       }
+      function readLocalPrefs() {
+        try { return Object.assign(defaultPrefs(), JSON.parse(localStorage.getItem(prefsKey) || "{}")); }
+        catch (_) { return defaultPrefs(); }
+      }
       function savePrefs() {
         if (!state.app || !state.app.preferences) return;
         localStorage.setItem(prefsKey, JSON.stringify(state.app.preferences));
         postJSON("/dispatcharr/api/preferences", state.app.preferences).catch(function() {});
       }
-      function rememberChannel(channel) {
-        const prefs = state.app.preferences || defaultPrefs();
-        const recent = [channel.id].concat(items(prefs.recentChannels).filter(function(id) { return id !== channel.id; })).slice(0, 16);
-        prefs.recentChannels = recent;
-        const plays = (prefs.continueWatching[channel.id] && prefs.continueWatching[channel.id].plays || 0) + 1;
-        prefs.continueWatching[channel.id] = { kind: "channel", name: channel.name, playedAt: Date.now(), plays: plays };
-        if (plays >= 3 && !prefs.favorites[channel.id]) prefs.autoFavorites[channel.id] = true;
-        state.app.preferences = prefs;
-        savePrefs();
-      }
-
       async function getJSON(url) {
         const response = await fetch(route(url), { credentials: "include" });
         if (!response.ok) throw new Error("request failed");
         return response.json();
       }
-
       async function postJSON(url, body) {
-        const response = await fetch(route(url), {
-          method: "POST",
-          credentials: "include",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(body)
-        });
+        const response = await fetch(route(url), { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
         if (!response.ok) throw new Error("request failed");
         return response.json();
       }
-
-      async function loadApp() {
-        state.app = await getJSON("/dispatcharr/api/app");
-        state.app.preferences = mergePrefs(state.app.preferences, readLocalPrefs());
-        savePrefs();
-        byId("health").textContent = state.app.status.status + " / " + state.app.status.channelCount + " channels";
-        render();
+      function channelByID(id) {
+        return items(state.app.channels).find(function(channel) { return channel.id === id; }) || null;
       }
-
-      function filteredChannels() {
+      function visibleChannels(ignoreQuery) {
         const hidden = hiddenMap();
         return items(state.app.channels).filter(function(channel) {
           if (channel.categoryId && hidden[channel.categoryId]) return false;
-          if (state.tab === "favorites" && !favoriteMap()[channel.id] && !autoFavoriteMap()[channel.id]) return false;
           if (state.category && channel.categoryId !== state.category) return false;
-          if (state.query && lower(channel.name).indexOf(state.query) === -1) return false;
+          if (!ignoreQuery && state.query && lower([channel.name, channel.categoryName, channel.number].join(" ")).indexOf(lower(state.query)) === -1) return false;
+          if (state.view === "favorites" && !favoriteMap()[channel.id] && !autoFavoriteMap()[channel.id]) return false;
           return true;
         });
       }
-
-      function renderFilters() {
-        const root = byId("filters");
-        root.innerHTML = "";
-        const all = document.createElement("button");
-        all.className = "pill" + (state.category === "" ? " active" : "");
-        all.textContent = "All";
-        all.onclick = function() { state.category = ""; render(); };
-        root.appendChild(all);
-        for (const category of items(state.app.categories)) {
-          const btn = document.createElement("button");
-          btn.className = "pill" + (state.category === category.id ? " active" : "");
-          btn.textContent = category.name || category.id;
-          btn.onclick = function() { state.category = category.id; render(); };
-          root.appendChild(btn);
-        }
+      function programsFor(channelID) {
+        const now = Math.floor(Date.now() / 1000);
+        return items(state.app.programs).filter(function(program) {
+          return (!channelID || program.channelId === channelID) && (!program.endUnix || program.endUnix >= now - 3600);
+        }).sort(function(a, b) { return (a.startUnix || 0) - (b.startUnix || 0); });
       }
-
-      function renderChannels() {
-        const root = byId("channels");
+      function timeLabel(unix) {
+        if (!unix) return "";
+        return new Date(unix * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      }
+      function setView(view) {
+        state.view = view;
+        if (view !== "live") state.category = state.category;
+        render();
+      }
+      function setCategory(id) {
+        state.category = id || "";
+        state.view = id ? "live" : "home";
+        render();
+      }
+      async function loadApp() {
+        state.app = await getJSON("/dispatcharr/api/app");
+        state.app.preferences = mergePrefs(state.app.preferences, readLocalPrefs());
+        state.app.programs = items(state.app.programs);
+        savePrefs();
+        byId("source-name").textContent = state.app.source && state.app.source.name ? state.app.source.name : "Dispatcharr";
+        byId("health").textContent = state.app.status.status + " / " + state.app.status.channelCount + " channels";
+        render();
+      }
+      function renderRail() {
+        document.querySelectorAll(".nav button").forEach(function(button) {
+          button.classList.toggle("active", button.dataset.view === state.view);
+        });
+        byId("favorite-count").textContent = Object.keys(favoriteMap()).length + Object.keys(autoFavoriteMap()).length;
+        const root = byId("channel-list");
         root.innerHTML = "";
-        const channels = filteredChannels();
-        byId("count").textContent = channels.length + " channels";
-        if (channels.length === 0) {
+        const channels = visibleChannels(false).slice(0, 140);
+        if (!channels.length) {
           root.innerHTML = "<div class=\"empty\">No channels match.</div>";
           return;
         }
-        for (const channel of channels) {
+        channels.forEach(function(channel) {
           const button = document.createElement("button");
-          button.className = "channel";
-          const img = document.createElement("img");
-          img.className = "logo";
-          img.alt = "";
-          if (channel.logoUrl) img.src = channel.logoUrl;
-          const label = document.createElement("div");
-          label.innerHTML = "<strong>" + escapeHTML(channel.name || "Untitled") + "</strong><br><span class=\"muted\">" + escapeHTML(channel.categoryName || channel.categoryId || "Live") + "</span>";
-          const fav = document.createElement("span");
-          fav.className = favoriteMap()[channel.id] || autoFavoriteMap()[channel.id] ? "star" : "muted";
-          fav.textContent = favoriteMap()[channel.id] ? "★" : (autoFavoriteMap()[channel.id] ? "◆" : "☆");
-          fav.onclick = async function(event) {
-            event.stopPropagation();
-            const next = !favoriteMap()[channel.id];
-            if (next) state.app.preferences.favorites[channel.id] = true;
-            else delete state.app.preferences.favorites[channel.id];
-            delete state.app.preferences.autoFavorites[channel.id];
-            savePrefs();
-            postJSON("/dispatcharr/api/favorites", { id: channel.id, enabled: next }).then(function(prefs) {
-              state.app.preferences = mergePrefs(prefs, readLocalPrefs());
-              renderChannels();
-            }).catch(function() {});
-            renderChannels();
-          };
-          button.onclick = async function() { await playChannel(channel); };
-          button.appendChild(img);
-          button.appendChild(label);
-          button.appendChild(fav);
+          button.className = "channel-row" + (state.currentChannel && state.currentChannel.id === channel.id ? " active" : "");
+          button.innerHTML = logoHTML(channel) + "<span><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><small class=\"muted\">" + escapeHTML(channel.categoryName || channel.categoryId || "Live TV") + "</small></span><span class=\"star\">" + (favoriteMap()[channel.id] ? "*" : (autoFavoriteMap()[channel.id] ? "+" : "")) + "</span>";
+          button.onclick = function() { playChannel(channel); };
           root.appendChild(button);
-        }
+        });
       }
-
-      async function playChannel(channel) {
-        state.currentChannel = channel;
-        rememberChannel(channel);
-        setVideoSource(route("/dispatcharr/stream?channel_id=" + encodeURIComponent(channel.id)));
-        byId("now").textContent = channel.name || "Live TV";
-        byId("now-meta").textContent = [channel.number, channel.categoryName || channel.categoryId].filter(Boolean).join(" / ");
-        const guide = await getJSON("/dispatcharr/api/guide?channel_id=" + encodeURIComponent(channel.id)).catch(function() { return { programs: [] }; });
-        renderGuide(guide.programs || []);
+      function logoHTML(channel) {
+        if (channel.logoUrl) return "<img class=\"logo\" src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">";
+        return "<div class=\"logo\" aria-hidden=\"true\"></div>";
       }
-
+      function render() {
+        if (!state.app) return;
+        renderRail();
+        byId("page-title").textContent = state.view === "home" ? "Home" : state.view === "live" ? (categoryName(state.category) || "Live TV") : state.view === "guide" ? "TV Guide" : state.view === "favorites" ? "Favorites" : "Settings";
+        if (state.view === "guide") renderGuidePage();
+        else if (state.view === "live" || state.view === "favorites") renderLivePage();
+        else if (state.view === "settings") renderSettings();
+        else renderHome();
+      }
+      function renderHome() {
+        const root = byId("view");
+        const recent = items(prefs().recentChannels).map(channelByID).filter(Boolean);
+        root.innerHTML = sectionHeader("Continue watching") + rowCards(recent.length ? recent : visibleChannels(false).slice(0, 6)) + sectionHeader("TV Guide") + "<div id=\"strip\" class=\"guide-strip\"></div>" + sectionHeader("Categories") + categoryGrid();
+        renderProgramStrip();
+      }
+      function sectionHeader(title) {
+        return "<div class=\"section-title\"><span>" + escapeHTML(title) + "</span></div>";
+      }
+      function rowCards(channels) {
+        if (!channels.length) return "<div class=\"empty\">No channels yet.</div>";
+        return "<div class=\"row-scroll\">" + channels.map(function(channel) {
+          return "<button class=\"continue-card\" data-channel=\"" + escapeHTML(channel.id) + "\"><div class=\"poster-box\">" + (channel.logoUrl ? "<img src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">" : "<span>" + escapeHTML((channel.name || "TV").slice(0, 5)) + "</span>") + "</div><div class=\"progress\"><i></i></div><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><div class=\"muted\">" + escapeHTML(channel.categoryName || "Live TV") + "</div></button>";
+        }).join("") + "</div>";
+      }
+      function categoryGrid() {
+        const categories = items(state.app.categories);
+        if (!categories.length) return "<div class=\"empty\">No categories yet.</div>";
+        return "<div class=\"category-grid\">" + categories.map(function(category) {
+          return "<button class=\"tile" + (state.category === category.id ? " active" : "") + "\" data-category=\"" + escapeHTML(category.id) + "\"><strong>" + escapeHTML(category.name || category.id) + "</strong></button>";
+        }).join("") + "</div>";
+      }
+      function renderProgramStrip() {
+        const root = byId("strip");
+        if (!root) return;
+        const programs = programsFor("").slice(0, 18);
+        root.innerHTML = programs.length ? programs.map(function(program, index) {
+          const channel = channelByID(program.channelId) || {};
+          return "<button class=\"program " + colorClass(index) + "\" data-channel=\"" + escapeHTML(program.channelId) + "\"><time>" + escapeHTML(timeLabel(program.startUnix)) + "</time><strong>" + escapeHTML(program.title || "Data not available") + "</strong><span class=\"muted\">" + escapeHTML(channel.name || "") + "</span></button>";
+        }).join("") : "<div class=\"empty\">No guide data available.</div>";
+      }
+      function renderLivePage() {
+        const channels = visibleChannels(false);
+        byId("view").innerHTML = sectionHeader("Categories") + categoryGrid() + sectionHeader(state.view === "favorites" ? "Favorite channels" : "Channels") + rowCards(channels.slice(0, 24)) + playerBlock();
+      }
+      function playerBlock() {
+        return "<div class=\"section-title\"><span>Player</span></div><div class=\"player-view\"><video id=\"player\" controls autoplay playsinline></video><aside class=\"now-card\"><h2 id=\"now-title\">" + escapeHTML(state.currentChannel ? state.currentChannel.name : "Choose a channel") + "</h2><p id=\"now-meta\" class=\"muted\">" + escapeHTML(state.currentChannel ? (state.currentChannel.categoryName || "Live TV") : "Live TV") + "</p><div id=\"now-guide\"></div></aside></div>";
+      }
+      function renderGuidePage() {
+        const categories = items(state.app.categories);
+        byId("view").innerHTML = "<div class=\"guide-page\"><div class=\"guide-tools\"><a class=\"back\" href=\"/\" aria-label=\"Back to Silo\">&lt;- Silo</a><select id=\"category-select\" class=\"select\"><option value=\"\">All categories</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program name\"></div><div class=\"time-head\"><span>Today</span><span>Now</span><span>+30m</span><span>+1h</span><span>+1h30m</span><span>+2h</span></div><div id=\"epg\"></div></div>";
+        byId("category-select").onchange = function(event) { state.category = event.target.value; renderGuidePage(); };
+        byId("guide-search").oninput = function(event) { state.query = event.target.value; renderGuidePage(); };
+        renderEPG();
+      }
+      function renderEPG() {
+        const root = byId("epg");
+        const channels = visibleChannels(true).slice(0, 60);
+        root.innerHTML = channels.map(function(channel, channelIndex) {
+          const programs = programsFor(channel.id).filter(function(program) { return !state.query || lower(program.title).indexOf(lower(state.query)) !== -1; }).slice(0, 5);
+          while (programs.length < 5) programs.push({ title: "Data not available", startUnix: 0 });
+          return "<div class=\"epg-row\"><button class=\"epg-channel\" data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<strong>" + escapeHTML(channel.name || "Untitled") + "</strong></button>" + programs.map(function(program, index) {
+            return "<button class=\"epg-cell program " + colorClass(index + channelIndex) + "\" data-channel=\"" + escapeHTML(channel.id) + "\"><time>" + escapeHTML(timeLabel(program.startUnix)) + "</time><strong>" + escapeHTML(program.title || "Data not available") + "</strong></button>";
+          }).join("") + "</div>";
+        }).join("");
+      }
+      function renderSettings() {
+        byId("view").innerHTML = "<div class=\"settings-card\"><h2>Hidden categories</h2><div id=\"settings-list\" class=\"settings-list\"></div></div>";
+        const root = byId("settings-list");
+        root.innerHTML = items(state.app.categories).map(function(category) {
+          return "<label><span>" + escapeHTML(category.name || category.id) + "</span><input type=\"checkbox\" data-hide=\"" + escapeHTML(category.id) + "\"" + (hiddenMap()[category.id] ? " checked" : "") + "></label>";
+        }).join("");
+      }
+      function categoryName(id) {
+        const category = items(state.app.categories).find(function(item) { return item.id === id; });
+        return category ? category.name : "";
+      }
+      function colorClass(index) {
+        return ["purple", "green", "red", "gray", "blue"][index % 5];
+      }
       function setVideoSource(url) {
         const video = byId("player");
-        if (state.hls) {
-          state.hls.destroy();
-          state.hls = null;
-        }
+        if (!video) return;
+        if (state.hls) { state.hls.destroy(); state.hls = null; }
         if (window.Hls && Hls.isSupported() && url.indexOf(".m3u8") !== -1) {
           state.hls = new Hls();
           state.hls.loadSource(url);
@@ -681,119 +808,57 @@ const playerPageHTML = `<!doctype html>
         }
         video.play().catch(function() {});
       }
-
-      function renderGuide(programs) {
-        const root = byId("content");
-        root.innerHTML = "<h2>Guide</h2>";
-        const list = document.createElement("div");
-        list.className = "guide";
-        for (const program of items(programs).slice(0, 18)) {
-          const start = program.startUnix ? new Date(program.startUnix * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--:--";
-          const row = document.createElement("div");
-          row.className = "program";
-          row.innerHTML = "<strong>" + escapeHTML(start + " " + (program.title || "Untitled")) + "</strong><br><span class=\"muted\">" + escapeHTML(program.summary || "") + "</span>";
-          list.appendChild(row);
-        }
-        if (!list.children.length) list.innerHTML = "<div class=\"empty\">No guide entries.</div>";
-        root.appendChild(list);
-      }
-
-      function renderContentCards(kind) {
-        const payload = state.app[kind] || {};
-        const root = byId("content");
-        root.innerHTML = "<h2>" + (kind === "vod" ? "Movies" : "Series") + "</h2>";
-        if (payload.available === false && payload.reason) {
-          root.innerHTML += "<p class=\"unsupported\">" + escapeHTML(payload.reason) + "</p>";
-        }
-        const grid = document.createElement("div");
-        grid.className = "grid";
-        for (const item of items(payload.items).filter(function(item) { return !state.query || lower(item.name).indexOf(state.query) !== -1; })) {
-          const card = document.createElement("button");
-          card.className = "card";
-          const poster = item.posterUrl ? "<img class=\"poster\" src=\"" + escapeHTML(item.posterUrl) + "\" alt=\"\">" : "";
-          card.innerHTML = poster + "<strong>" + escapeHTML(item.name || "Untitled") + "</strong><br><span class=\"muted\">" + escapeHTML(item.rating || item.releaseDate || "") + "</span>";
-          if (kind === "vod") {
-            card.onclick = function() {
-              setVideoSource(route("/dispatcharr/vod/stream?item_id=" + encodeURIComponent(item.id)));
-              byId("now").textContent = item.name || "Movie";
-            };
-          }
-          grid.appendChild(card);
-        }
-        if (!grid.children.length) grid.innerHTML = "<div class=\"empty\">No " + (kind === "vod" ? "movies" : "series") + " available.</div>";
-        root.appendChild(grid);
-      }
-
-      function renderSettings() {
-        const prefs = state.app.preferences || {};
-        const root = byId("content");
-        root.innerHTML = "<h2>Settings</h2>";
-        const controls = document.createElement("div");
-        controls.className = "controls";
-        controls.innerHTML = "<div class=\"control\"><strong>Stream mode</strong><br><span class=\"muted\">Direct redirect is active. Backend proxy/remux is not available through the current buffered HTTP-route SDK response.</span></div>";
-        for (const category of items(state.app.categories)) {
-          const row = document.createElement("label");
-          row.className = "control";
-          const checked = hiddenMap()[category.id] ? " checked" : "";
-          row.innerHTML = "<input type=\"checkbox\"" + checked + "> Hide " + escapeHTML(category.name || category.id);
-          row.querySelector("input").onchange = async function(event) {
-            if (event.target.checked) state.app.preferences.hiddenCategories[category.id] = true;
-            else delete state.app.preferences.hiddenCategories[category.id];
-            savePrefs();
-            postJSON("/dispatcharr/api/hidden-categories", { id: category.id, hidden: event.target.checked }).then(function(prefs) {
-              state.app.preferences = mergePrefs(prefs, readLocalPrefs());
-            }).catch(function() {});
-            render();
-          };
-          controls.appendChild(row);
-        }
-        if (prefs.playback && prefs.playback.backendProxyRequested) {
-          controls.innerHTML += "<p class=\"unsupported\">Backend proxy was requested, but this SDK build only supports redirect playback.</p>";
-        }
-        root.appendChild(controls);
-      }
-
-      function render() {
-        if (!state.app) return;
-        renderFilters();
-        renderChannels();
-        document.querySelectorAll(".tab").forEach(function(tab) {
-          tab.classList.toggle("active", tab.dataset.tab === state.tab);
-        });
-        if (state.tab === "favorites") {
-          byId("content").innerHTML = "<h2>Favorites</h2>";
-          if (!filteredChannels().length) byId("content").innerHTML += "<div class=\"empty\">No favorites yet.</div>";
-        }
-        if (state.tab === "vod") renderContentCards("vod");
-        else if (state.tab === "series") renderContentCards("series");
-        else if (state.tab === "settings") renderSettings();
-        else if (state.tab === "guide") {
-          if (state.currentChannel) playChannel(state.currentChannel);
-          else renderGuide([]);
-        }
-      }
-
-      function escapeHTML(value) {
-        return String(value || "").replace(/[&<>"']/g, function(ch) {
-          return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[ch];
-        });
-      }
-
-      byId("search").oninput = function(event) {
-        state.query = event.target.value;
+      async function playChannel(channel) {
+        state.currentChannel = channel;
+        if (state.view !== "live" && state.view !== "favorites") state.view = "live";
         render();
-      };
-      document.querySelectorAll(".tab").forEach(function(tab) {
-        tab.onclick = function() {
-          state.tab = tab.dataset.tab;
-          render();
-        };
+        setVideoSource(route("/dispatcharr/stream?channel_id=" + encodeURIComponent(channel.id)));
+        startWatch(channel);
+        const guide = await getJSON("/dispatcharr/api/guide?channel_id=" + encodeURIComponent(channel.id)).catch(function() { return { programs: [] }; });
+        const nowGuide = byId("now-guide");
+        if (nowGuide) nowGuide.innerHTML = items(guide.programs).slice(0, 6).map(function(program) { return "<div class=\"program\"><time>" + escapeHTML(timeLabel(program.startUnix)) + "</time><strong>" + escapeHTML(program.title || "Untitled") + "</strong></div>"; }).join("") || "<div class=\"empty\">No guide entries.</div>";
+      }
+      function startWatch(channel) {
+        if (state.currentSession) postJSON("/dispatcharr/api/watch/stop", { sessionId: state.currentSession.id, reason: "switch_channel" }).catch(function() {});
+        postJSON("/dispatcharr/api/watch/start", { itemKind: "channel", itemId: channel.id, itemName: channel.name }).then(function(payload) {
+          state.currentSession = payload.session;
+          state.app.preferences = mergePrefs(payload.preferences, readLocalPrefs());
+          savePrefs();
+          if (state.heartbeat) clearInterval(state.heartbeat);
+          state.heartbeat = setInterval(function() {
+            if (state.currentSession) postJSON("/dispatcharr/api/watch/heartbeat", { sessionId: state.currentSession.id }).catch(function() {});
+          }, 30000);
+          renderRail();
+        }).catch(function() {});
+      }
+      document.addEventListener("click", function(event) {
+        const channelTarget = event.target.closest("[data-channel]");
+        if (channelTarget) {
+          const channel = channelByID(channelTarget.getAttribute("data-channel"));
+          if (channel) playChannel(channel);
+        }
+        const categoryTarget = event.target.closest("[data-category]");
+        if (categoryTarget) setCategory(categoryTarget.getAttribute("data-category"));
       });
-      loadApp().then(function() {
-        const first = filteredChannels()[0];
-        if (first) playChannel(first);
-      }).catch(function() {
-        byId("channels").textContent = "Unable to load Dispatcharr app data.";
+      document.addEventListener("change", function(event) {
+        const id = event.target.getAttribute("data-hide");
+        if (!id) return;
+        if (event.target.checked) state.app.preferences.hiddenCategories[id] = true;
+        else delete state.app.preferences.hiddenCategories[id];
+        savePrefs();
+        postJSON("/dispatcharr/api/hidden-categories", { id: id, hidden: event.target.checked }).catch(function() {});
+        render();
+      });
+      document.querySelectorAll(".nav button").forEach(function(button) {
+        button.onclick = function() { setView(button.dataset.view); };
+      });
+      byId("rail-search").oninput = function(event) { state.query = event.target.value; render(); };
+      byId("global-search").oninput = function(event) { state.query = event.target.value; render(); };
+      window.addEventListener("beforeunload", function() {
+        if (state.currentSession) navigator.sendBeacon(route("/dispatcharr/api/watch/stop"), JSON.stringify({ sessionId: state.currentSession.id, reason: "page_unload" }));
+      });
+      loadApp().catch(function() {
+        byId("channel-list").textContent = "Unable to load Dispatcharr app data.";
         byId("health").textContent = "error";
       });
     </script>

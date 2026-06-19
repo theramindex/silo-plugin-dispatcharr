@@ -104,6 +104,9 @@ func TestHTTPRoutesServerAppRouteIncludesAppLayerPayload(t *testing.T) {
 			Channels: []model.Channel{
 				{ID: "xtream:1", Name: "News HD", CategoryID: "10", CategoryName: "News"},
 			},
+			Programs: []model.Program{
+				{ID: "program:1", ChannelID: "xtream:1", Title: "Morning News", StartUnix: 100, EndUnix: 200},
+			},
 			Content: model.ContentState{
 				LiveCategories: []model.Category{{ID: "10", Name: "News", Kind: "live"}},
 				VODCategories:  []model.Category{{ID: "movies", Name: "Movies", Kind: "vod"}},
@@ -131,7 +134,7 @@ func TestHTTPRoutesServerAppRouteIncludesAppLayerPayload(t *testing.T) {
 	if !payload.Capabilities.LiveTV || payload.Capabilities.NativeLiveTVExport {
 		t.Fatalf("unexpected capabilities: %+v", payload.Capabilities)
 	}
-	if len(payload.Categories) != 1 || len(payload.Channels) != 1 {
+	if len(payload.Categories) != 1 || len(payload.Channels) != 1 || len(payload.Programs) != 1 {
 		t.Fatalf("unexpected app payload: %+v", payload)
 	}
 }
@@ -184,6 +187,60 @@ func TestHTTPRoutesServerPreferencesRoutePersistsFullPayload(t *testing.T) {
 	}
 	if len(prefs.RecentChannels) != 1 || prefs.RecentChannels[0] != "channel:1" {
 		t.Fatalf("expected recent channel to persist: %+v", prefs)
+	}
+}
+
+func TestHTTPRoutesServerWatchLifecycleUpdatesSessionState(t *testing.T) {
+	t.Parallel()
+
+	server := NewHTTPRoutesServer(cache.NewStore())
+	startResponse, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method: "POST",
+		Path:   "/dispatcharr/api/watch/start",
+		Body:   []byte(`{"itemKind":"channel","itemId":"xtream:1","itemName":"News HD"}`),
+	})
+	if err != nil {
+		t.Fatalf("watch start route: %v", err)
+	}
+	if startResponse.GetStatusCode() != 200 {
+		t.Fatalf("expected 200, got %d", startResponse.GetStatusCode())
+	}
+	var startPayload struct {
+		Session     cache.WatchSession `json:"session"`
+		Preferences cache.Preferences  `json:"preferences"`
+	}
+	if err := json.Unmarshal(startResponse.GetBody(), &startPayload); err != nil {
+		t.Fatalf("unmarshal watch start payload: %v", err)
+	}
+	if startPayload.Session.ID == "" || startPayload.Session.ItemID != "xtream:1" {
+		t.Fatalf("unexpected watch session: %+v", startPayload.Session)
+	}
+	if len(startPayload.Preferences.RecentChannels) != 1 || startPayload.Preferences.RecentChannels[0] != "xtream:1" {
+		t.Fatalf("expected recent channel update: %+v", startPayload.Preferences)
+	}
+
+	heartbeatResponse, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method: "POST",
+		Path:   "/dispatcharr/api/watch/heartbeat",
+		Body:   []byte(`{"sessionId":"` + startPayload.Session.ID + `"}`),
+	})
+	if err != nil {
+		t.Fatalf("watch heartbeat route: %v", err)
+	}
+	if heartbeatResponse.GetStatusCode() != 200 {
+		t.Fatalf("expected 200, got %d", heartbeatResponse.GetStatusCode())
+	}
+
+	stopResponse, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method: "POST",
+		Path:   "/dispatcharr/api/watch/stop",
+		Body:   []byte(`{"sessionId":"` + startPayload.Session.ID + `","reason":"test"}`),
+	})
+	if err != nil {
+		t.Fatalf("watch stop route: %v", err)
+	}
+	if stopResponse.GetStatusCode() != 200 {
+		t.Fatalf("expected 200, got %d", stopResponse.GetStatusCode())
 	}
 }
 
@@ -297,8 +354,8 @@ func TestHTTPRoutesServerPlayerRoute(t *testing.T) {
 	if response.GetStatusCode() != 200 {
 		t.Fatalf("expected 200, got %d", response.GetStatusCode())
 	}
-	if !strings.Contains(string(response.GetBody()), "<video") {
-		t.Fatalf("expected player html body")
+	if !strings.Contains(string(response.GetBody()), "TV Guide") {
+		t.Fatalf("expected app shell html body")
 	}
 	if !strings.Contains(string(response.GetBody()), `href="/" aria-label="Back to Silo"`) {
 		t.Fatalf("expected back to Silo link")
