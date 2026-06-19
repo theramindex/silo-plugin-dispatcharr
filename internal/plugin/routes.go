@@ -1051,7 +1051,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         return state.currentChannel ? route("/dispatcharr/stream?channel_id=" + encodeURIComponent(state.currentChannel.id)) : "";
       }
       function browserStreamURL(channel) {
-        return route("/dispatcharr/stream?channel_id=" + encodeURIComponent(channel.id) + "&output_profile=2&output_format=fmp4");
+        return route("/dispatcharr/stream?channel_id=" + encodeURIComponent(channel.id) + "&output_profile=2");
       }
       function applyAspectMode() {
         const video = byId("player");
@@ -1329,12 +1329,11 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (state.hls) { state.hls.destroy(); state.hls = null; }
         if (state.tsPlayer) { state.tsPlayer.destroy(); state.tsPlayer = null; }
         const isHLS = url.indexOf(".m3u8") !== -1;
-        const isFMP4 = url.indexOf("output_format=fmp4") !== -1 || url.indexOf("output=mp4") !== -1 || url.indexOf("output=fmp4") !== -1;
         if (window.Hls && Hls.isSupported() && isHLS) {
           state.hls = new Hls();
           state.hls.loadSource(url);
           state.hls.attachMedia(video);
-        } else if (window.mpegts && mpegts.isSupported() && !isHLS && !isFMP4) {
+        } else if (window.mpegts && mpegts.isSupported() && !isHLS) {
           state.tsPlayer = mpegts.createPlayer({ type: "mpegts", isLive: true, url: url });
           state.tsPlayer.attachMediaElement(video);
           state.tsPlayer.load();
