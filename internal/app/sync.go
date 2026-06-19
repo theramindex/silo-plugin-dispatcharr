@@ -3,6 +3,9 @@ package app
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
@@ -33,6 +36,7 @@ func (s *Service) SyncNow(ctx context.Context, settings config.Settings, nowUnix
 		if err := s.syncDispatcharr(ctx, settings, nowUnix); err != nil {
 			if settings.SourceMode == config.SourceModeDirectLogin {
 				if fallbackErr := s.syncXtream(ctx, settings.DispatcharrURL, settings.DispatcharrUser, settings.DispatcharrPass, model.SourceModeDirectLogin, nowUnix); fallbackErr == nil {
+					s.StartAsyncEPGRefresh(settings)
 					return nil
 				} else {
 					return fmt.Errorf("dispatcharr REST sync failed (%v); xtream fallback failed: %w", err, fallbackErr)
@@ -235,6 +239,16 @@ func (s *Service) syncXtream(ctx context.Context, baseURL, username, password st
 	state := cache.SnapshotFromCatalog(catalog)
 	state.Health.LastSuccessUnix = nowUnix
 	s.store.Replace(state)
+	if tightDeadline {
+		settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: baseURL, XtreamUsername: username, XtreamPassword: password}
+		if sourceMode == model.SourceModeDirectLogin {
+			settings.SourceMode = config.SourceModeDirectLogin
+			settings.DispatcharrURL = baseURL
+			settings.DispatcharrUser = username
+			settings.DispatcharrPass = password
+		}
+		s.StartAsyncEPGRefresh(settings)
+	}
 	return nil
 }
 
@@ -279,4 +293,95 @@ func loadXtreamAppCatalog(ctx context.Context, client xtreamAppCatalogClient, in
 func hasTightDeadline(ctx context.Context) bool {
 	deadline, ok := ctx.Deadline()
 	return ok && time.Until(deadline) < 45*time.Second
+}
+
+func (s *Service) StartAsyncEPGRefresh(settings config.Settings) {
+	baseURL, username, password := epgConnectionSettings(settings)
+	if baseURL == "" || username == "" || password == "" {
+		return
+	}
+
+	s.epgMu.Lock()
+	if s.epgRunning {
+		s.epgMu.Unlock()
+		return
+	}
+	s.epgRunning = true
+	s.epgMu.Unlock()
+
+	s.store.MarkEPGLoading()
+	go func() {
+		defer func() {
+			s.epgMu.Lock()
+			s.epgRunning = false
+			s.epgMu.Unlock()
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		if err := s.refreshEPG(ctx, baseURL, username, password, time.Now().Unix()); err != nil {
+			s.store.RecordEPGFailure(time.Now().Unix(), err.Error())
+		}
+	}()
+}
+
+func epgConnectionSettings(settings config.Settings) (string, string, string) {
+	if settings.SourceMode == config.SourceModeDirectLogin {
+		return settings.DispatcharrURL, settings.DispatcharrUser, settings.DispatcharrPass
+	}
+	if settings.SourceMode == config.SourceModeXtream {
+		return settings.XtreamBaseURL, settings.XtreamUsername, settings.XtreamPassword
+	}
+	return "", "", ""
+}
+
+func (s *Service) refreshEPG(ctx context.Context, baseURL, username, password string, nowUnix int64) error {
+	endpoint, err := url.Parse(baseURL)
+	if err != nil {
+		return fmt.Errorf("parse epg base url: %w", err)
+	}
+	endpoint.Path = "/xmltv.php"
+	query := endpoint.Query()
+	query.Set("username", username)
+	query.Set("password", password)
+	endpoint.RawQuery = query.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
+	if err != nil {
+		return fmt.Errorf("build epg request: %w", err)
+	}
+	response, err := (&http.Client{Timeout: 2 * time.Minute}).Do(req)
+	if err != nil {
+		return fmt.Errorf("fetch epg xmltv: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return fmt.Errorf("fetch epg xmltv status %d", response.StatusCode)
+	}
+	data, err := io.ReadAll(response.Body)
+	if err != nil {
+		return fmt.Errorf("read epg xmltv: %w", err)
+	}
+	doc, err := xmltv.Parse(data)
+	if err != nil {
+		return fmt.Errorf("parse epg xmltv: %w", err)
+	}
+
+	snapshot := s.store.Current()
+	channelByGuideID := map[string]string{}
+	for _, channel := range snapshot.Catalog.Channels {
+		if channel.GuideID != "" {
+			channelByGuideID[channel.GuideID] = channel.ID
+		}
+	}
+	programs := make([]model.Program, 0, len(doc.Programmes))
+	for _, programme := range doc.Programmes {
+		channelID := channelByGuideID[programme.Channel]
+		if channelID == "" {
+			continue
+		}
+		programs = append(programs, mapping.MapXMLTVProgramme(channelID, programme))
+	}
+	s.store.ReplacePrograms(programs, nowUnix)
+	return nil
 }

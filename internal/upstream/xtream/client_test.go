@@ -45,7 +45,7 @@ func TestClientShortEPGAndPlaybackResolution(t *testing.T) {
 	if resolved == "" {
 		t.Fatal("expected resolved playback url")
 	}
-	if resolved != server.URL+"/live/demo/secret/1001.m3u8" {
+	if resolved != server.URL+"/live/demo/secret/1001.ts" {
 		t.Fatalf("unexpected resolved url %q", resolved)
 	}
 }

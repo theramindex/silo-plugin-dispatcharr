@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
@@ -47,6 +48,8 @@ type Service struct {
 	xtreamFactory      func(baseURL, username, password string) XtreamClient
 	dispatcharrFactory func(settings config.Settings) DispatcharrClient
 	fetchURL           func(ctx context.Context, rawURL string) ([]byte, error)
+	epgMu              sync.Mutex
+	epgRunning         bool
 }
 
 const SourceModeResetWarning = "Changing source mode resets cached channel and guide data before rebuilding Live TV."

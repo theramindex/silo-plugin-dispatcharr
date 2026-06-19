@@ -26,7 +26,7 @@ func defaultPreferences() Preferences {
 		Playback: PlaybackSettings{
 			BackendProxySupported: false,
 			StreamMode:            "redirect",
-			OutputFormat:          "hls",
+			OutputFormat:          "ts",
 		},
 	}
 }

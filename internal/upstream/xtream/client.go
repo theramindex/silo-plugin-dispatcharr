@@ -96,7 +96,7 @@ func (c *Client) ResolveLiveStreamURL(streamID int64) string {
 	if err != nil {
 		return ""
 	}
-	resolved.Path = path.Join(resolved.Path, "live", c.username, c.password, strconv.FormatInt(streamID, 10)+".m3u8")
+	resolved.Path = path.Join(resolved.Path, "live", c.username, c.password, strconv.FormatInt(streamID, 10)+".ts")
 	return resolved.String()
 }
 

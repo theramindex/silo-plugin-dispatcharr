@@ -480,6 +480,7 @@ const playerPageHTML = `<!doctype html>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dispatcharr IPTV</title>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
     <style>
       :root {
         color-scheme: dark;
@@ -601,7 +602,7 @@ const playerPageHTML = `<!doctype html>
       const path = window.location.pathname;
       const base = path.endsWith("/dispatcharr/player") ? path.slice(0, -"/dispatcharr/player".length) : (path.endsWith("/dispatcharr") ? path.slice(0, -"/dispatcharr".length) : "");
       const prefsKey = "silo.ramindex.dispatcharr.preferences.v1";
-      const state = { app: null, view: "home", category: "", query: "", hls: null, currentChannel: null, currentSession: null, heartbeat: null };
+      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null };
 
       function route(url) { return base + url; }
       function byId(id) { return document.getElementById(id); }
@@ -613,7 +614,7 @@ const playerPageHTML = `<!doctype html>
         });
       }
       function defaultPrefs() {
-        return { favorites: {}, autoFavorites: {}, hiddenCategories: {}, recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "hls" } };
+        return { favorites: {}, autoFavorites: {}, hiddenCategories: {}, recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" } };
       }
       function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
       function favoriteMap() { return prefs().favorites || {}; }
@@ -799,10 +800,15 @@ const playerPageHTML = `<!doctype html>
         const video = byId("player");
         if (!video) return;
         if (state.hls) { state.hls.destroy(); state.hls = null; }
+        if (state.tsPlayer) { state.tsPlayer.destroy(); state.tsPlayer = null; }
         if (window.Hls && Hls.isSupported() && url.indexOf(".m3u8") !== -1) {
           state.hls = new Hls();
           state.hls.loadSource(url);
           state.hls.attachMedia(video);
+        } else if (window.mpegts && mpegts.isSupported() && url.indexOf(".ts") !== -1) {
+          state.tsPlayer = mpegts.createPlayer({ type: "mpegts", isLive: true, url: url });
+          state.tsPlayer.attachMediaElement(video);
+          state.tsPlayer.load();
         } else {
           video.src = url;
         }

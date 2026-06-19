@@ -49,6 +49,13 @@ func (s *Store) Replace(snapshot Snapshot) {
 
 	snapshot.Health.LastFailureUnix = 0
 	snapshot.Health.LastError = ""
+	if snapshot.Health.EPGStatus == "" {
+		snapshot.Health.EPGStatus = s.snapshot.Health.EPGStatus
+		snapshot.Health.EPGProgramCount = s.snapshot.Health.EPGProgramCount
+		snapshot.Health.EPGLastSuccessUnix = s.snapshot.Health.EPGLastSuccessUnix
+		snapshot.Health.EPGLastFailureUnix = s.snapshot.Health.EPGLastFailureUnix
+		snapshot.Health.EPGLastError = s.snapshot.Health.EPGLastError
+	}
 	s.snapshot = snapshot
 }
 
@@ -187,7 +194,7 @@ func (s *Store) SetPlaybackSettings(settings PlaybackSettings) Preferences {
 		settings.StreamMode = "redirect"
 	}
 	if settings.OutputFormat == "" {
-		settings.OutputFormat = "hls"
+		settings.OutputFormat = "ts"
 	}
 	s.preferences.Playback = settings
 	return s.preferencesSnapshotLocked()
@@ -213,6 +220,41 @@ func (s *Store) RecordFailure(atUnix int64, message string) {
 	}
 }
 
+func (s *Store) MarkEPGLoading() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.snapshot.Health.EPGStatus = "loading"
+	s.snapshot.Health.EPGLastError = ""
+}
+
+func (s *Store) ReplacePrograms(programs []model.Program, atUnix int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.snapshot.Catalog.Programs = append([]model.Program(nil), programs...)
+	s.snapshot.Catalog.Health.EPGStatus = "ok"
+	s.snapshot.Catalog.Health.EPGProgramCount = len(programs)
+	s.snapshot.Catalog.Health.EPGLastSuccessUnix = atUnix
+	s.snapshot.Health.EPGStatus = "ok"
+	s.snapshot.Health.EPGProgramCount = len(programs)
+	s.snapshot.Health.EPGLastSuccessUnix = atUnix
+	s.snapshot.Health.EPGLastFailureUnix = 0
+	s.snapshot.Health.EPGLastError = ""
+}
+
+func (s *Store) RecordEPGFailure(atUnix int64, message string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.snapshot.Health.EPGStatus = "failed"
+	s.snapshot.Health.EPGLastFailureUnix = atUnix
+	s.snapshot.Health.EPGLastError = message
+	s.snapshot.Catalog.Health.EPGStatus = "failed"
+	s.snapshot.Catalog.Health.EPGLastFailureUnix = atUnix
+	s.snapshot.Catalog.Health.EPGLastError = message
+}
+
 func (s *Store) ensurePreferences() {
 	if s.preferences.Favorites == nil {
 		s.preferences.Favorites = map[string]bool{}
@@ -233,7 +275,7 @@ func (s *Store) ensurePreferences() {
 		s.preferences.Playback.StreamMode = "redirect"
 	}
 	if s.preferences.Playback.OutputFormat == "" {
-		s.preferences.Playback.OutputFormat = "hls"
+		s.preferences.Playback.OutputFormat = "ts"
 	}
 }
 

@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -221,6 +223,46 @@ func TestSyncXtreamSkipsPerChannelEPGWithTightDeadline(t *testing.T) {
 	}
 	if len(snapshot.Catalog.Programs) != 0 {
 		t.Fatalf("expected no eager EPG under tight deadline, got %+v", snapshot.Catalog.Programs)
+	}
+}
+
+func TestRefreshEPGStoresXMLTVPrograms(t *testing.T) {
+	t.Parallel()
+
+	xmltvDoc := `<?xml version="1.0"?><tv><programme start="20260619070000 +0000" stop="20260619080000 +0000" channel="2"><title>Morning News</title><desc>Top headlines.</desc></programme><programme start="20260619080000 +0000" stop="20260619090000 +0000" channel="missing"><title>Ignored</title></programme></tv>`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/xmltv.php" {
+			t.Fatalf("unexpected epg path %q", r.URL.Path)
+		}
+		if r.URL.Query().Get("username") != "demo" || r.URL.Query().Get("password") != "secret" {
+			t.Fatal("missing epg credentials")
+		}
+		w.Header().Set("content-type", "application/xml")
+		_, _ = w.Write([]byte(xmltvDoc))
+	}))
+	defer server.Close()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+		Channels: []model.Channel{{ID: "xtream:1590", Name: "WCBS CBS", GuideID: "2"}},
+		Health:   model.SyncHealth{LastSuccessUnix: 100},
+	}})
+	service := NewService(Dependencies{Store: store})
+
+	if err := service.refreshEPG(context.Background(), server.URL, "demo", "secret", 800); err != nil {
+		t.Fatalf("refresh epg: %v", err)
+	}
+
+	snapshot := store.Current()
+	if len(snapshot.Catalog.Programs) != 1 {
+		t.Fatalf("expected 1 matched program, got %+v", snapshot.Catalog.Programs)
+	}
+	if snapshot.Catalog.Programs[0].ChannelID != "xtream:1590" || snapshot.Catalog.Programs[0].Title != "Morning News" {
+		t.Fatalf("unexpected program mapping: %+v", snapshot.Catalog.Programs[0])
+	}
+	if snapshot.Health.EPGStatus != "ok" || snapshot.Health.EPGProgramCount != 1 || snapshot.Health.EPGLastSuccessUnix != 800 {
+		t.Fatalf("unexpected epg health: %+v", snapshot.Health)
 	}
 }
 

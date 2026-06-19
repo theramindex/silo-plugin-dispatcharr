@@ -3,14 +3,19 @@ package plugin
 import "github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
 
 type HealthPayload struct {
-	Status          string `json:"status"`
-	SourceID        string `json:"sourceId"`
-	SourceName      string `json:"sourceName"`
-	ChannelCount    int    `json:"channelCount"`
-	ProgramCount    int    `json:"programCount"`
-	LastSuccessUnix int64  `json:"lastSuccessUnix"`
-	LastFailureUnix int64  `json:"lastFailureUnix"`
-	LastError       string `json:"lastError,omitempty"`
+	Status             string `json:"status"`
+	SourceID           string `json:"sourceId"`
+	SourceName         string `json:"sourceName"`
+	ChannelCount       int    `json:"channelCount"`
+	ProgramCount       int    `json:"programCount"`
+	LastSuccessUnix    int64  `json:"lastSuccessUnix"`
+	LastFailureUnix    int64  `json:"lastFailureUnix"`
+	LastError          string `json:"lastError,omitempty"`
+	EPGStatus          string `json:"epgStatus,omitempty"`
+	EPGProgramCount    int    `json:"epgProgramCount,omitempty"`
+	EPGLastSuccessUnix int64  `json:"epgLastSuccessUnix,omitempty"`
+	EPGLastFailureUnix int64  `json:"epgLastFailureUnix,omitempty"`
+	EPGLastError       string `json:"epgLastError,omitempty"`
 }
 
 func BuildHealthPayload(snapshot cache.Snapshot) HealthPayload {
@@ -19,13 +24,18 @@ func BuildHealthPayload(snapshot cache.Snapshot) HealthPayload {
 		status = "error"
 	}
 	return HealthPayload{
-		Status:          status,
-		SourceID:        snapshot.Catalog.Source.ID,
-		SourceName:      snapshot.Catalog.Source.Name,
-		ChannelCount:    len(snapshot.Catalog.Channels),
-		ProgramCount:    len(snapshot.Catalog.Programs),
-		LastSuccessUnix: snapshot.Health.LastSuccessUnix,
-		LastFailureUnix: snapshot.Health.LastFailureUnix,
-		LastError:       snapshot.Health.LastError,
+		Status:             status,
+		SourceID:           snapshot.Catalog.Source.ID,
+		SourceName:         snapshot.Catalog.Source.Name,
+		ChannelCount:       len(snapshot.Catalog.Channels),
+		ProgramCount:       len(snapshot.Catalog.Programs),
+		LastSuccessUnix:    snapshot.Health.LastSuccessUnix,
+		LastFailureUnix:    snapshot.Health.LastFailureUnix,
+		LastError:          snapshot.Health.LastError,
+		EPGStatus:          snapshot.Health.EPGStatus,
+		EPGProgramCount:    snapshot.Health.EPGProgramCount,
+		EPGLastSuccessUnix: snapshot.Health.EPGLastSuccessUnix,
+		EPGLastFailureUnix: snapshot.Health.EPGLastFailureUnix,
+		EPGLastError:       snapshot.Health.EPGLastError,
 	}
 }
