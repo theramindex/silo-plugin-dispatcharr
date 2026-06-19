@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/dispatcharr"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
 )
@@ -136,6 +138,53 @@ func TestSyncDispatcharrRESTBuildsCatalog(t *testing.T) {
 	}
 }
 
+func TestSyncDirectLoginFallsBackToXtream(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	service := NewService(Dependencies{
+		Store: store,
+		DispatcharrFactory: func(config.Settings) DispatcharrClient {
+			return &stubDispatcharrClient{channelsErr: errors.New("dispatcharr login status 405")}
+		},
+		XtreamFactory: func(baseURL, username, password string) XtreamClient {
+			if baseURL != "https://dispatcharr.example.com" || username != "demo" || password != "secret" {
+				t.Fatalf("unexpected fallback credentials: %q %q", baseURL, username)
+			}
+			return &stubXtreamClient{
+				streams: []xtream.LiveStream{{Num: 1, Name: "News HD", StreamID: 1001, EPGChannelID: "news.hd"}},
+				epg:     xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "epg-1", Title: "Morning News", StartTimestamp: "1700000000", StopTimestamp: "1700003600"}}},
+			}
+		},
+	})
+
+	err := service.SyncNow(context.Background(), config.Settings{
+		SourceMode:      config.SourceModeDirectLogin,
+		DispatcharrURL:  "https://dispatcharr.example.com",
+		DispatcharrUser: "demo",
+		DispatcharrPass: "secret",
+		ChannelRefreshH: 24,
+		EPGRefreshH:     24,
+	}, 600)
+	if err != nil {
+		t.Fatalf("expected direct login fallback sync success, got %v", err)
+	}
+
+	snapshot := store.Current()
+	if snapshot.Catalog.Source.Mode != model.SourceModeDirectLogin {
+		t.Fatalf("expected direct login source mode, got %q", snapshot.Catalog.Source.Mode)
+	}
+	if len(snapshot.Catalog.Channels) != 1 || len(snapshot.Catalog.Programs) != 1 {
+		t.Fatalf("unexpected fallback snapshot: %+v", snapshot)
+	}
+	if snapshot.Health.LastFailureUnix != 0 || snapshot.Health.LastError != "" {
+		t.Fatalf("expected fallback success to clear transient REST failure, got %+v", snapshot.Health)
+	}
+	if snapshot.Health.LastSuccessUnix != 600 {
+		t.Fatalf("expected fallback success timestamp, got %d", snapshot.Health.LastSuccessUnix)
+	}
+}
+
 func TestSyncM3UXMLTVBuildsFallbackCatalog(t *testing.T) {
 	t.Parallel()
 
@@ -165,6 +214,7 @@ func TestSyncM3UXMLTVBuildsFallbackCatalog(t *testing.T) {
 type stubDispatcharrClient struct {
 	testErr       error
 	channels      []dispatcharr.Channel
+	channelsErr   error
 	groups        []dispatcharr.ChannelGroup
 	programs      []dispatcharr.Program
 	vodCategories []dispatcharr.VODCategory
@@ -174,6 +224,9 @@ type stubDispatcharrClient struct {
 
 func (s *stubDispatcharrClient) TestConnection(context.Context) error { return s.testErr }
 func (s *stubDispatcharrClient) Channels(context.Context) ([]dispatcharr.Channel, error) {
+	if s.channelsErr != nil {
+		return nil, s.channelsErr
+	}
 	return s.channels, nil
 }
 func (s *stubDispatcharrClient) ChannelGroups(context.Context) ([]dispatcharr.ChannelGroup, error) {
