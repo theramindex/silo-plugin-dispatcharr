@@ -83,7 +83,7 @@ go run ./cmd/package-upload \
   -version "${VERSION}" \
   -goos linux \
   -goarch amd64 \
-  -plugin-id silo.dispatcharr
+  -plugin-id silo.ramindex.dispatcharr
 ```
 
 Upload the generated `dist/<binary>.silo-plugin.zip` file in Silo.

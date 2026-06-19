@@ -1,5 +1,5 @@
 {
-  "plugin_id": "silo.dispatcharr",
+  "plugin_id": "silo.ramindex.dispatcharr",
   "version": "0.1.0",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",

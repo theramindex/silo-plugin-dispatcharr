@@ -509,7 +509,7 @@ const playerPageHTML = `<!doctype html>
     <script>
       const path = window.location.pathname;
       const base = path.endsWith("/dispatcharr/player") ? path.slice(0, -"/dispatcharr/player".length) : (path.endsWith("/dispatcharr") ? path.slice(0, -"/dispatcharr".length) : "");
-      const prefsKey = "silo.dispatcharr.preferences.v1";
+      const prefsKey = "silo.ramindex.dispatcharr.preferences.v1";
       const state = { app: null, tab: "live", category: "", query: "", hls: null, currentChannel: null };
 
       function route(url) { return base + url; }
