@@ -37,8 +37,8 @@ Silo exposes a first-class Live TV provider capability.
 - Keeps stale metadata visible when sync fails
 - Exposes a plugin status route at `/dispatcharr/status`
 - Exposes a Silo-hosted IPTV app:
-  - `/dispatcharr` (navigable app)
-  - `/dispatcharr/player` (navigable page)
+  - `/dispatcharr` (navigable user app shown in Silo's Apps sidebar section)
+  - `/dispatcharr/player`
   - `/dispatcharr/api/app`
   - `/dispatcharr/api/channels`
   - `/dispatcharr/api/guide`
@@ -51,6 +51,8 @@ Silo exposes a first-class Live TV provider capability.
   - `/dispatcharr/stream?channel_id=...`
   - `/dispatcharr/vod/stream?item_id=...`
 - Supports a scheduled sync task with key `dispatcharr-sync`
+  - Recommended Silo task trigger: `interval`, `interval_ms: 86400000`
+  - A `startup` trigger is useful after install/restart so channels and EPG populate immediately
 
 ## v1 limitations
 
@@ -61,6 +63,23 @@ Silo exposes a first-class Live TV provider capability.
 - Silo host integration still needs real environment validation
 - Native Jellyfin `/LiveTv/*` export is not available until Silo exposes a Live TV provider SDK/host capability
 - Backend proxy/remux/transcode is not enabled because the current HTTP route SDK response is buffered; playback uses direct redirect URLs
+
+## Silo host notes
+
+Silo shows plugin Apps entries in the normal user sidebar when an HTTP route is declared with:
+
+```json
+{
+  "access": "authenticated",
+  "navigable": true,
+  "navigation_label": "IPTV",
+  "navigation_kind": "user"
+}
+```
+
+This plugin declares `/dispatcharr` that way. Admin-only plugin pages can use `navigation_kind: "admin"` with `access: "admin"`.
+
+Scheduled task cadence is not read from the plugin manifest by current Silo host builds. The plugin exposes the `scheduled_task.v1` capability, but Silo stores the active schedule in its task trigger table. Configure `plugin:<installation_id>:dispatcharr-sync` with a 24-hour interval trigger, and optionally a startup trigger for immediate cache hydration after restarts.
 
 ## Build
 
