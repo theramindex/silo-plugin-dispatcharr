@@ -716,7 +716,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       const path = window.location.pathname;
       const base = path.endsWith("/dispatcharr/player") ? path.slice(0, -"/dispatcharr/player".length) : (path.endsWith("/dispatcharr") ? path.slice(0, -"/dispatcharr".length) : "");
       const prefsKey = "silo.ramindex.dispatcharr.preferences.v1";
-      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null };
+      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null };
 
       function route(url) { return base + url; }
       function byId(id) { return document.getElementById(id); }
@@ -929,7 +929,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         const description = program.description || categoryNameText;
         const start = timeLabel(program.startUnix) || "LIVE";
         const end = timeLabel(program.endUnix) || "Now";
-        byId("view").innerHTML = "<section class=\"playback-shell\"><div class=\"playback-stage\"><video id=\"player\" class=\"playback-video\" autoplay playsinline></video><div class=\"playback-scrim\"></div><div class=\"player-top\"><button class=\"player-icon\" data-player-action=\"back\" aria-label=\"Back to IPTV browse\">&lt;</button><div class=\"player-top-actions\"><div class=\"player-audio\"><button id=\"player-audio-button\" class=\"player-chip\" data-player-action=\"audio-menu\" aria-haspopup=\"true\" aria-expanded=\"false\">Audio v</button><div id=\"player-audio-menu\" class=\"player-menu\" role=\"menu\"></div></div><div class=\"player-volume\"><button id=\"player-volume-button\" class=\"player-icon\" data-player-action=\"volume-menu\" aria-label=\"Volume\" aria-haspopup=\"true\" aria-expanded=\"false\">V</button><div id=\"player-volume-popover\" class=\"volume-popover\"><span>VOL</span><input id=\"player-volume-slider\" type=\"range\" min=\"0\" max=\"100\" step=\"1\" value=\"" + Math.round(state.volume * 100) + "\" aria-label=\"Volume\"><span id=\"player-volume-value\" class=\"volume-value\"></span></div></div><button class=\"player-icon\" data-player-action=\"cast\" aria-label=\"AirPlay or Cast\">TV</button><button id=\"player-guide-button\" class=\"player-icon player-guide-button\" data-player-action=\"guide\" aria-label=\"Guide\" aria-haspopup=\"true\" aria-expanded=\"false\">#</button><div class=\"player-more\"><button id=\"player-more-button\" class=\"player-icon\" data-player-action=\"more\" aria-label=\"More\" aria-haspopup=\"true\" aria-expanded=\"false\">...</button><div id=\"player-more-menu\" class=\"player-more-menu\"></div></div></div></div><div id=\"player-toast\" class=\"player-toast\" role=\"status\"></div><div id=\"player-guide-panel\" class=\"player-guide-panel\"></div><div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel) + "<div class=\"player-kicker\">" + escapeHTML(channelName) + "</div><h2 class=\"player-title\">" + escapeHTML(title) + "</h2><p class=\"player-description\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span class=\"player-tag\">AV</span></div></div><div class=\"player-bottom-actions\">" + playerFavoriteButtonHTML(channel) + "<button class=\"player-icon\" data-player-action=\"pip\" aria-label=\"Picture in Picture\">P</button><button class=\"player-icon\" data-player-action=\"more\" aria-label=\"Details\">D</button><button class=\"player-icon\" data-player-action=\"audio-menu\" aria-label=\"Audio\">A</button></div></div><div class=\"timeline\"><span>" + escapeHTML(start) + "</span><div class=\"timeline-bar\"><div class=\"timeline-fill\"></div><div class=\"timeline-knob\"></div></div><span><span class=\"live-dot\"></span>LIVE&nbsp;&nbsp;" + escapeHTML(end) + "</span></div></div></div></section>";
+        byId("view").innerHTML = "<section class=\"playback-shell\"><div class=\"playback-stage\"><video id=\"player\" class=\"playback-video\" autoplay playsinline></video><div class=\"playback-scrim\"></div><div class=\"player-top\"><button class=\"player-icon\" data-player-action=\"back\" aria-label=\"Back to IPTV browse\">&lt;</button><div class=\"player-top-actions\"><div class=\"player-audio\"><button id=\"player-audio-button\" class=\"player-chip\" data-player-action=\"audio-menu\" aria-haspopup=\"true\" aria-expanded=\"false\">Audio v</button><div id=\"player-audio-menu\" class=\"player-menu\" role=\"menu\"></div></div><div class=\"player-volume\"><button id=\"player-volume-button\" class=\"player-icon\" data-player-action=\"volume-menu\" aria-label=\"Volume\" aria-haspopup=\"true\" aria-expanded=\"false\">V</button><div id=\"player-volume-popover\" class=\"volume-popover\"><span>VOL</span><input id=\"player-volume-slider\" type=\"range\" min=\"0\" max=\"100\" step=\"1\" value=\"" + Math.round(state.volume * 100) + "\" aria-label=\"Volume\"><span id=\"player-volume-value\" class=\"volume-value\"></span></div></div><button class=\"player-icon\" data-player-action=\"cast\" aria-label=\"AirPlay or Cast\">TV</button><button id=\"player-guide-button\" class=\"player-icon player-guide-button\" data-player-action=\"guide\" aria-label=\"Guide\" aria-haspopup=\"true\" aria-expanded=\"false\">#</button><div class=\"player-more\"><button id=\"player-more-button\" class=\"player-icon\" data-player-action=\"more\" aria-label=\"More\" aria-haspopup=\"true\" aria-expanded=\"false\">...</button><div id=\"player-more-menu\" class=\"player-more-menu\"></div></div></div></div><div id=\"player-toast\" class=\"player-toast\" role=\"status\"></div><div id=\"player-guide-panel\" class=\"player-guide-panel\"></div><div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel) + "<div class=\"player-kicker\">" + escapeHTML(channelName) + "</div><h2 class=\"player-title\">" + escapeHTML(title) + "</h2><p class=\"player-description\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span class=\"player-tag\">AV</span></div></div><div class=\"player-bottom-actions\">" + playerFavoriteButtonHTML(channel) + "<button class=\"player-icon\" data-player-action=\"pip\" aria-label=\"Picture in Picture\">P</button><button id=\"player-subtitles-button\" class=\"player-icon\" data-player-action=\"subtitles\" aria-label=\"Subtitles\" aria-pressed=\"false\">CC</button><button class=\"player-icon\" data-player-action=\"audio-menu\" aria-label=\"Audio\">A</button></div></div><div class=\"timeline\"><span>" + escapeHTML(start) + "</span><div class=\"timeline-bar\"><div class=\"timeline-fill\"></div><div class=\"timeline-knob\"></div></div><span><span class=\"live-dot\"></span>LIVE&nbsp;&nbsp;" + escapeHTML(end) + "</span></div></div></div></section>";
         updateAudioMenu();
         updateVolumeMenu();
         renderPlayerGuidePanel();
@@ -1043,6 +1043,47 @@ const playerPageHTMLTemplate = `<!doctype html>
       function audioTrackName(track, index) {
         return track && (track.label || track.language || track.kind || track.id) ? (track.label || track.language || track.kind || track.id) : "Audio " + (index + 1);
       }
+      function textTrackList() {
+        const video = byId("player");
+        if (!video || !video.textTracks || typeof video.textTracks.length !== "number") return [];
+        const tracks = [];
+        for (let index = 0; index < video.textTracks.length; index++) {
+          const track = video.textTracks[index];
+          if (!track || (track.kind && ["subtitles", "captions"].indexOf(track.kind) === -1)) continue;
+          tracks.push(track);
+        }
+        return tracks;
+      }
+      function textTrackName(track, index) {
+        return track && (track.label || track.language || track.kind || track.id) ? (track.label || track.language || track.kind || track.id) : "Subtitles " + (index + 1);
+      }
+      function updateSubtitlesButton() {
+        const button = byId("player-subtitles-button");
+        if (!button) return;
+        const tracks = textTrackList();
+        const activeIndex = tracks.findIndex(function(track) { return track.mode === "showing"; });
+        if (activeIndex >= 0) state.selectedTextTrack = activeIndex;
+        button.classList.toggle("active", activeIndex >= 0);
+        button.setAttribute("aria-pressed", activeIndex >= 0 ? "true" : "false");
+        button.setAttribute("aria-label", activeIndex >= 0 ? "Subtitles: " + textTrackName(tracks[activeIndex], activeIndex) : "Subtitles");
+      }
+      function toggleSubtitles() {
+        const tracks = textTrackList();
+        closePlayerPopovers();
+        if (!tracks.length) {
+          showPlayerToast("No subtitles are available for this stream.");
+          updateSubtitlesButton();
+          return;
+        }
+        const activeIndex = tracks.findIndex(function(track) { return track.mode === "showing"; });
+        const nextIndex = activeIndex >= 0 && activeIndex < tracks.length - 1 ? activeIndex + 1 : (activeIndex >= 0 ? -1 : Math.max(0, state.selectedTextTrack));
+        tracks.forEach(function(track, index) {
+          track.mode = index === nextIndex ? "showing" : "disabled";
+        });
+        state.selectedTextTrack = nextIndex;
+        updateSubtitlesButton();
+        showPlayerToast(nextIndex >= 0 ? "Subtitles: " + textTrackName(tracks[nextIndex], nextIndex) : "Subtitles off.");
+      }
       function updateAudioMenu() {
         const button = byId("player-audio-button");
         const menu = byId("player-audio-menu");
@@ -1153,10 +1194,12 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (!video) return;
         applyVolumeToVideo();
         state.selectedAudioTrack = 0;
+        state.selectedTextTrack = -1;
         state.audioMenuOpen = false;
         state.volumeMenuOpen = false;
         state.moreMenuOpen = false;
         updateAudioMenu();
+        updateSubtitlesButton();
         updateVolumeMenu();
         renderPlayerMoreMenu();
         if (video.audioTracks && video.audioTracks.addEventListener) {
@@ -1165,6 +1208,12 @@ const playerPageHTMLTemplate = `<!doctype html>
           video.audioTracks.addEventListener("change", updateAudioMenu);
         }
         video.addEventListener("loadedmetadata", updateAudioMenu, { once: true });
+        video.addEventListener("loadedmetadata", updateSubtitlesButton, { once: true });
+        if (video.textTracks && video.textTracks.addEventListener) {
+          video.textTracks.addEventListener("addtrack", updateSubtitlesButton);
+          video.textTracks.addEventListener("removetrack", updateSubtitlesButton);
+          video.textTracks.addEventListener("change", updateSubtitlesButton);
+        }
         if (state.hls) { state.hls.destroy(); state.hls = null; }
         if (state.tsPlayer) { state.tsPlayer.destroy(); state.tsPlayer = null; }
         const isHLS = url.indexOf(".m3u8") !== -1;
@@ -1181,6 +1230,8 @@ const playerPageHTMLTemplate = `<!doctype html>
         }
         setTimeout(updateAudioMenu, 500);
         setTimeout(updateAudioMenu, 1800);
+        setTimeout(updateSubtitlesButton, 500);
+        setTimeout(updateSubtitlesButton, 1800);
         applyAspectMode();
         video.play().catch(function() {});
       }
@@ -1232,6 +1283,10 @@ const playerPageHTMLTemplate = `<!doctype html>
         }
         if (action === "pip") {
           togglePictureInPicture();
+          return;
+        }
+        if (action === "subtitles") {
+          toggleSubtitles();
           return;
         }
         if (action === "volume-menu") {
