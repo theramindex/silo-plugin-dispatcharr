@@ -360,4 +360,32 @@ func TestHTTPRoutesServerPlayerRoute(t *testing.T) {
 	if !strings.Contains(string(response.GetBody()), `href="/" aria-label="Back to Silo"`) {
 		t.Fatalf("expected back to Silo link")
 	}
+	body := string(response.GetBody())
+	if strings.Contains(body, "cdn.jsdelivr.net") {
+		t.Fatalf("expected player libraries to be served locally")
+	}
+	if !strings.Contains(body, `src="dispatcharr/assets/hls.min.js"`) || !strings.Contains(body, `src="dispatcharr/assets/mpegts.min.js"`) {
+		t.Fatalf("expected local player asset script tags")
+	}
+}
+
+func TestHTTPRoutesServerPlayerAssetRoutes(t *testing.T) {
+	t.Parallel()
+
+	server := NewHTTPRoutesServer(cache.NewStore())
+	for _, path := range []string{"/dispatcharr/assets/hls.min.js", "/dispatcharr/assets/mpegts.min.js"} {
+		response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: path})
+		if err != nil {
+			t.Fatalf("asset route %s: %v", path, err)
+		}
+		if response.GetStatusCode() != 200 {
+			t.Fatalf("expected 200 for %s, got %d", path, response.GetStatusCode())
+		}
+		if response.GetHeaders()["content-type"] != "application/javascript; charset=utf-8" {
+			t.Fatalf("unexpected content type for %s: %q", path, response.GetHeaders()["content-type"])
+		}
+		if len(response.GetBody()) < 1024 {
+			t.Fatalf("expected embedded player asset body for %s", path)
+		}
+	}
 }

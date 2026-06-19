@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -15,6 +16,9 @@ import (
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
 )
+
+//go:embed assets/hls.min.js assets/mpegts.min.js
+var playerAssets embed.FS
 
 type HTTPRoutesServer struct {
 	pluginv1.UnimplementedHttpRoutesServer
@@ -90,6 +94,10 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 	switch request.GetPath() {
 	case "/dispatcharr", "/dispatcharr/player":
 		return htmlResponse(http.StatusOK, playerPageHTML), nil
+	case "/dispatcharr/assets/hls.min.js":
+		return assetResponse("assets/hls.min.js")
+	case "/dispatcharr/assets/mpegts.min.js":
+		return assetResponse("assets/mpegts.min.js")
 	case "/dispatcharr/status", "/dispatcharr/api/status":
 		return s.respondJSON(http.StatusOK, BuildHealthPayload(s.store.Current()))
 	case "/dispatcharr/api/app":
@@ -319,6 +327,21 @@ func (s *HTTPRoutesServer) respondJSON(status int, value any) (*pluginv1.HandleH
 	}, nil
 }
 
+func assetResponse(path string) (*pluginv1.HandleHTTPResponse, error) {
+	payload, err := playerAssets.ReadFile(path)
+	if err != nil {
+		return textResponse(http.StatusNotFound, "asset not found"), nil
+	}
+	return &pluginv1.HandleHTTPResponse{
+		StatusCode: http.StatusOK,
+		Headers: map[string]string{
+			"cache-control": "public, max-age=31536000, immutable",
+			"content-type":  "application/javascript; charset=utf-8",
+		},
+		Body: payload,
+	}, nil
+}
+
 func (s *HTTPRoutesServer) resolveStreamURL(channelID string) (string, error) {
 	snapshot := s.store.Current()
 	for _, channel := range snapshot.Catalog.Channels {
@@ -479,8 +502,8 @@ const playerPageHTML = `<!doctype html>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dispatcharr IPTV</title>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
+    <script src="dispatcharr/assets/hls.min.js"></script>
+    <script src="dispatcharr/assets/mpegts.min.js"></script>
     <style>
       :root {
         color-scheme: dark;

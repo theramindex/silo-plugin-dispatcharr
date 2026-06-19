@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.dispatcharr",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -54,6 +54,22 @@
       "path": "/dispatcharr/player",
       "access": "authenticated",
       "navigable": false
+    },
+    {
+      "id": "dispatcharr-asset-hls",
+      "method": "GET",
+      "path": "/dispatcharr/assets/hls.min.js",
+      "access": "authenticated",
+      "navigable": false,
+      "static_asset": true
+    },
+    {
+      "id": "dispatcharr-asset-mpegts",
+      "method": "GET",
+      "path": "/dispatcharr/assets/mpegts.min.js",
+      "access": "authenticated",
+      "navigable": false,
+      "static_asset": true
     },
     {
       "id": "dispatcharr-channels",
