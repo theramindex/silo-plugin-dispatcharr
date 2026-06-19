@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
@@ -27,7 +28,7 @@ func NewScheduledTaskServerWithProvider(service *app.Service, provider func() co
 }
 
 func (s *ScheduledTaskServer) Run(ctx context.Context, request *pluginv1.RunScheduledTaskRequest) (*pluginv1.RunScheduledTaskResponse, error) {
-	if request.GetTaskKey() == SyncTaskKey {
+	if isSyncTaskKey(request.GetTaskKey()) {
 		if err := s.service.SyncNow(ctx, s.settingsProvider(), time.Now().Unix()); err != nil {
 			return nil, err
 		}
@@ -38,4 +39,8 @@ func (s *ScheduledTaskServer) Run(ctx context.Context, request *pluginv1.RunSche
 		return nil, err
 	}
 	return &pluginv1.RunScheduledTaskResponse{Output: output}, nil
+}
+
+func isSyncTaskKey(taskKey string) bool {
+	return taskKey == SyncTaskKey || strings.HasSuffix(taskKey, ":"+SyncTaskKey)
 }

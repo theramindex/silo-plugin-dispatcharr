@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.dispatcharr",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -140,6 +140,13 @@
       "navigable": false
     },
     {
+      "id": "dispatcharr-api-preferences-update",
+      "method": "POST",
+      "path": "/dispatcharr/api/preferences",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
       "id": "dispatcharr-api-favorites",
       "method": "POST",
       "path": "/dispatcharr/api/favorites",
@@ -164,6 +171,27 @@
       "id": "dispatcharr-api-playback-update",
       "method": "POST",
       "path": "/dispatcharr/api/playback",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-watch-start",
+      "method": "POST",
+      "path": "/dispatcharr/api/watch/start",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-watch-heartbeat",
+      "method": "POST",
+      "path": "/dispatcharr/api/watch/heartbeat",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-watch-stop",
+      "method": "POST",
+      "path": "/dispatcharr/api/watch/stop",
       "access": "authenticated",
       "navigable": false
     }
