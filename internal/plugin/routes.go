@@ -634,6 +634,19 @@ const playerPageHTMLTemplate = `<!doctype html>
       .live-dot { display: inline-block; width: 0.45rem; height: 0.45rem; border-radius: 999px; background: #ff334d; margin-right: 0.3rem; vertical-align: middle; }
       .player-toast { position: absolute; right: 1.25rem; top: 4.55rem; z-index: 3; opacity: 0; transform: translateY(-0.4rem); pointer-events: none; transition: opacity 160ms ease, transform 160ms ease; max-width: min(24rem, calc(100vw - 2.5rem)); padding: 0.65rem 0.85rem; border: 1px solid rgba(255,255,255,0.14); border-radius: 999px; background: rgba(20,20,21,0.9); color: white; font-size: 0.82rem; font-weight: 800; box-shadow: 0 1rem 2rem rgba(0,0,0,0.36); backdrop-filter: blur(18px); }
       .player-toast.show { opacity: 1; transform: translateY(0); }
+      .player-guide-button.active { background: rgba(255,255,255,0.18); }
+      .player-guide-panel { position: absolute; top: 5rem; right: 1.25rem; bottom: 8.5rem; z-index: 3; display: none; width: min(30rem, calc(100vw - 3rem)); overflow: hidden; border: 1px solid rgba(255,255,255,0.13); border-radius: 1rem; background: rgba(17,17,18,0.88); box-shadow: 0 1.2rem 2.4rem rgba(0,0,0,0.42); backdrop-filter: blur(22px); }
+      .player-guide-panel.open { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+      .player-guide-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.85rem 0.95rem; border-bottom: 1px solid rgba(255,255,255,0.08); color: white; }
+      .player-guide-head strong { display: block; font-size: 0.92rem; }
+      .player-guide-head span { display: block; color: rgba(255,255,255,0.58); font-size: 0.75rem; font-weight: 750; }
+      .player-guide-list { overflow: auto; padding: 0.45rem; }
+      .player-guide-row { width: 100%; border: 0; border-radius: 0.75rem; background: transparent; color: white; display: grid; grid-template-columns: 3.6rem minmax(0, 1fr); gap: 0.7rem; align-items: center; padding: 0.5rem; text-align: left; }
+      .player-guide-row:hover, .player-guide-row.active { background: rgba(255,255,255,0.1); }
+      .player-guide-row .logo { width: 3.2rem; height: 2.15rem; border-radius: 0.42rem; }
+      .player-guide-row strong, .player-guide-row small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .player-guide-row strong { font-size: 0.86rem; }
+      .player-guide-row small { margin-top: 0.12rem; color: rgba(255,255,255,0.62); font-size: 0.72rem; font-weight: 750; }
       .player-bottom-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1.2rem; align-items: end; }
       .player-bottom-actions { align-self: end; padding-bottom: 1.25rem; }
       .now-card, .settings-card { border: 1px solid var(--line); background: var(--rail-2); border-radius: 0.8rem; padding: 0.85rem; }
@@ -687,7 +700,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       const path = window.location.pathname;
       const base = path.endsWith("/dispatcharr/player") ? path.slice(0, -"/dispatcharr/player".length) : (path.endsWith("/dispatcharr") ? path.slice(0, -"/dispatcharr".length) : "");
       const prefsKey = "silo.ramindex.dispatcharr.preferences.v1";
-      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, selectedAudioTrack: 0 };
+      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0 };
 
       function route(url) { return base + url; }
       function byId(id) { return document.getElementById(id); }
@@ -891,9 +904,28 @@ const playerPageHTMLTemplate = `<!doctype html>
         const description = program.description || categoryNameText;
         const start = timeLabel(program.startUnix) || "LIVE";
         const end = timeLabel(program.endUnix) || "Now";
-        byId("view").innerHTML = "<section class=\"playback-shell\"><video id=\"player\" class=\"playback-video\" autoplay playsinline></video><div class=\"playback-scrim\"></div><div class=\"player-top\"><div class=\"player-top-actions\"><div class=\"player-audio\"><button id=\"player-audio-button\" class=\"player-chip\" data-player-action=\"audio-menu\" aria-haspopup=\"true\" aria-expanded=\"false\">Audio v</button><div id=\"player-audio-menu\" class=\"player-menu\" role=\"menu\"></div></div><div class=\"player-volume\"><button id=\"player-volume-button\" class=\"player-icon\" data-player-action=\"volume-menu\" aria-label=\"Volume\" aria-haspopup=\"true\" aria-expanded=\"false\">V</button><div id=\"player-volume-popover\" class=\"volume-popover\"><span>VOL</span><input id=\"player-volume-slider\" type=\"range\" min=\"0\" max=\"100\" step=\"1\" value=\"" + Math.round(state.volume * 100) + "\" aria-label=\"Volume\"><span id=\"player-volume-value\" class=\"volume-value\"></span></div></div><button class=\"player-icon\" data-player-action=\"cast\" aria-label=\"AirPlay or Cast\">TV</button><button class=\"player-icon\" data-player-action=\"guide\" aria-label=\"Guide\">#</button><button class=\"player-icon\" data-player-action=\"more\" aria-label=\"More\">...</button></div></div><div id=\"player-toast\" class=\"player-toast\" role=\"status\"></div><div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel) + "<div class=\"player-kicker\">" + escapeHTML(channelName) + "</div><h2 class=\"player-title\">" + escapeHTML(title) + "</h2><p class=\"player-description\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span class=\"player-tag\">AV</span></div></div><div class=\"player-bottom-actions\"><button class=\"player-icon\" data-player-action=\"favorite\" aria-label=\"Favorite\">" + (channel && favoriteMap()[channel.id] ? "*" : "+") + "</button><button class=\"player-icon\" data-player-action=\"guide\" aria-label=\"Open guide\">G</button><button class=\"player-icon\" data-player-action=\"more\" aria-label=\"Details\">D</button><button class=\"player-icon\" data-player-action=\"audio-menu\" aria-label=\"Audio\">A</button></div></div><div class=\"timeline\"><span>" + escapeHTML(start) + "</span><div class=\"timeline-bar\"><div class=\"timeline-fill\"></div><div class=\"timeline-knob\"></div></div><span><span class=\"live-dot\"></span>LIVE&nbsp;&nbsp;" + escapeHTML(end) + "</span></div></div></section>";
+        byId("view").innerHTML = "<section class=\"playback-shell\"><video id=\"player\" class=\"playback-video\" autoplay playsinline></video><div class=\"playback-scrim\"></div><div class=\"player-top\"><div class=\"player-top-actions\"><div class=\"player-audio\"><button id=\"player-audio-button\" class=\"player-chip\" data-player-action=\"audio-menu\" aria-haspopup=\"true\" aria-expanded=\"false\">Audio v</button><div id=\"player-audio-menu\" class=\"player-menu\" role=\"menu\"></div></div><div class=\"player-volume\"><button id=\"player-volume-button\" class=\"player-icon\" data-player-action=\"volume-menu\" aria-label=\"Volume\" aria-haspopup=\"true\" aria-expanded=\"false\">V</button><div id=\"player-volume-popover\" class=\"volume-popover\"><span>VOL</span><input id=\"player-volume-slider\" type=\"range\" min=\"0\" max=\"100\" step=\"1\" value=\"" + Math.round(state.volume * 100) + "\" aria-label=\"Volume\"><span id=\"player-volume-value\" class=\"volume-value\"></span></div></div><button class=\"player-icon\" data-player-action=\"cast\" aria-label=\"AirPlay or Cast\">TV</button><button id=\"player-guide-button\" class=\"player-icon player-guide-button\" data-player-action=\"guide\" aria-label=\"Guide\" aria-haspopup=\"true\" aria-expanded=\"false\">#</button><button class=\"player-icon\" data-player-action=\"more\" aria-label=\"More\">...</button></div></div><div id=\"player-toast\" class=\"player-toast\" role=\"status\"></div><div id=\"player-guide-panel\" class=\"player-guide-panel\"></div><div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel) + "<div class=\"player-kicker\">" + escapeHTML(channelName) + "</div><h2 class=\"player-title\">" + escapeHTML(title) + "</h2><p class=\"player-description\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span class=\"player-tag\">AV</span></div></div><div class=\"player-bottom-actions\"><button class=\"player-icon\" data-player-action=\"favorite\" aria-label=\"Favorite\">" + (channel && favoriteMap()[channel.id] ? "*" : "+") + "</button><button class=\"player-icon\" data-player-action=\"guide\" aria-label=\"Open guide\">G</button><button class=\"player-icon\" data-player-action=\"more\" aria-label=\"Details\">D</button><button class=\"player-icon\" data-player-action=\"audio-menu\" aria-label=\"Audio\">A</button></div></div><div class=\"timeline\"><span>" + escapeHTML(start) + "</span><div class=\"timeline-bar\"><div class=\"timeline-fill\"></div><div class=\"timeline-knob\"></div></div><span><span class=\"live-dot\"></span>LIVE&nbsp;&nbsp;" + escapeHTML(end) + "</span></div></div></section>";
         updateAudioMenu();
         updateVolumeMenu();
+        renderPlayerGuidePanel();
+      }
+      function renderPlayerGuidePanel() {
+        const panel = byId("player-guide-panel");
+        const button = byId("player-guide-button");
+        if (!panel) return;
+        const channels = visibleChannels(true).slice(0, 42);
+        panel.classList.toggle("open", state.playerGuideOpen);
+        if (button) {
+          button.classList.toggle("active", state.playerGuideOpen);
+          button.setAttribute("aria-expanded", state.playerGuideOpen ? "true" : "false");
+        }
+        if (!state.playerGuideOpen) return;
+        panel.innerHTML = "<div class=\"player-guide-head\"><div><strong>Channel Guide</strong><span>" + escapeHTML(categoryName(state.category) || "Live TV") + "</span></div><button class=\"player-icon\" data-player-action=\"guide-close\" aria-label=\"Close guide\">x</button></div><div class=\"player-guide-list\">" + channels.map(function(channel) {
+          const program = currentProgram(channel) || {};
+          const title = program.title || "Data not available";
+          const time = timeLabel(program.startUnix) || "Live";
+          return "<button class=\"player-guide-row" + (state.currentChannel && state.currentChannel.id === channel.id ? " active" : "") + "\" data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<span><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><small>" + escapeHTML(time + " - " + title) + "</small></span></button>";
+        }).join("") + "</div>";
       }
       function renderGuidePage() {
         const categories = items(state.app.categories);
@@ -1083,7 +1115,17 @@ const playerPageHTMLTemplate = `<!doctype html>
           return;
         }
         if (action === "guide") {
-          setView("guide");
+          state.playerGuideOpen = !state.playerGuideOpen;
+          state.audioMenuOpen = false;
+          state.volumeMenuOpen = false;
+          updateAudioMenu();
+          updateVolumeMenu();
+          renderPlayerGuidePanel();
+          return;
+        }
+        if (action === "guide-close") {
+          state.playerGuideOpen = false;
+          renderPlayerGuidePanel();
           return;
         }
         if (action === "cast") {
