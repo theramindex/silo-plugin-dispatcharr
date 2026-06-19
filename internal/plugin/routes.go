@@ -591,13 +591,17 @@ const playerPageHTMLTemplate = `<!doctype html>
       .category-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.7rem, 1fr)); gap: 0.5rem; }
       .tile { border: 0; border-radius: 0.65rem; background: var(--panel); color: var(--text); min-height: 3.85rem; text-align: left; padding: 0.75rem 0.85rem; font-weight: 850; }
       .tile:hover, .tile.active { background: var(--panel-2); }
-      .guide-page { min-width: 54rem; }
+      .guide-page { min-width: 82rem; }
       .guide-tools { display: grid; grid-template-columns: 10rem 1fr minmax(12rem, 22rem); align-items: center; gap: 0.8rem; margin-bottom: 0.7rem; }
       .select { border: 1px solid var(--line); border-radius: 999px; color: var(--text); background: var(--panel); padding: 0.55rem 0.75rem; }
-      .time-head { display: grid; grid-template-columns: 9rem repeat(5, minmax(9.5rem, 1fr)); gap: 0.25rem; color: var(--muted); font-weight: 850; margin-bottom: 0.35rem; }
-      .epg-row { display: grid; grid-template-columns: 9rem repeat(5, minmax(9.5rem, 1fr)); gap: 0.25rem; margin-bottom: 0.35rem; }
-      .epg-channel { border-radius: 0.55rem; background: #b9969b; color: white; display: grid; grid-template-columns: 3.7rem minmax(0, 1fr); align-items: center; gap: 0.45rem; padding: 0.35rem; min-height: 3.25rem; }
-      .epg-cell { border: 0; border-radius: 0.55rem; text-align: left; color: var(--text); background: var(--panel); padding: 0.5rem 0.65rem; min-width: 0; }
+      .time-head { display: grid; grid-template-columns: 6.8rem repeat(7, minmax(12rem, 1fr)); gap: 0.25rem; color: var(--muted); font-weight: 850; margin-bottom: 0.35rem; }
+      .time-head span { min-width: 0; padding: 0 0.25rem; }
+      .time-head span:first-child { color: var(--text); font-size: 1.15rem; }
+      .epg-row { display: grid; grid-template-columns: 6.8rem minmax(0, 1fr); gap: 0.25rem; margin-bottom: 0.35rem; }
+      .epg-channel { border: 0; border-radius: 0.55rem; background: transparent; color: white; display: grid; place-items: center; padding: 0; min-height: 3.7rem; overflow: hidden; }
+      .epg-channel .logo { width: 5.7rem; height: 3.25rem; border-radius: 0; background: transparent; }
+      .epg-programs { display: grid; grid-template-columns: repeat(7, minmax(12rem, 1fr)); gap: 0.25rem; min-width: 0; }
+      .epg-cell { border: 0; border-radius: 0.55rem; text-align: left; color: var(--text); background: var(--panel); padding: 0.48rem 0.7rem; min-width: 0; min-height: 3.7rem; }
       .player-view { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 1rem; align-items: start; }
       video { width: 100%; aspect-ratio: 16 / 9; background: #050505; border: 1px solid var(--line); border-radius: 0.75rem; }
       .playback-shell { position: relative; min-height: 100vh; overflow: hidden; background: #050505; display: grid; place-items: center; }
@@ -787,6 +791,19 @@ const playerPageHTMLTemplate = `<!doctype html>
       function timeLabel(unix) {
         if (!unix) return "";
         return new Date(unix * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      }
+      function guideSlotStart() {
+        const now = Math.floor(Date.now() / 1000);
+        return Math.floor(now / 1800) * 1800;
+      }
+      function guideSlots() {
+        const start = guideSlotStart();
+        const slots = [];
+        for (let index = 0; index < 7; index++) slots.push(start + index * 1800);
+        return slots;
+      }
+      function guideSlotColumn(unix, windowStart) {
+        return Math.max(1, Math.min(8, Math.floor((unix - windowStart) / 1800) + 1));
       }
       function stopPlayback() {
         const video = byId("player");
@@ -1003,20 +1020,38 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function renderGuidePage() {
         const categories = items(state.app.categories);
-        byId("view").innerHTML = "<div class=\"guide-page\"><div class=\"guide-tools\"><a class=\"back\" href=\"/\" aria-label=\"Back to Silo\">&lt;- Silo</a><select id=\"category-select\" class=\"select\"><option value=\"\">All categories</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program name\"></div><div class=\"time-head\"><span>Today</span><span>Now</span><span>+30m</span><span>+1h</span><span>+1h30m</span><span>+2h</span></div><div id=\"epg\"></div></div>";
+        const slots = guideSlots();
+        byId("view").innerHTML = "<div class=\"guide-page\"><div class=\"guide-tools\"><a class=\"back\" href=\"/\" aria-label=\"Back to Silo\">&lt;- Silo</a><select id=\"category-select\" class=\"select\"><option value=\"\">All categories</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program name\"></div><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div>";
         byId("category-select").onchange = function(event) { state.category = event.target.value; renderGuidePage(); };
         byId("guide-search").oninput = function(event) { state.query = event.target.value; renderGuidePage(); };
         renderEPG();
+      }
+      function renderEPGCells(channel, channelIndex) {
+        const slots = guideSlots();
+        const windowStart = slots[0];
+        const windowEnd = slots[slots.length - 1] + 1800;
+        const programs = programsFor(channel.id).filter(function(program) {
+          const start = program.startUnix || windowStart;
+          const end = program.endUnix || start + 1800;
+          const matchesQuery = !state.query || lower(program.title).indexOf(lower(state.query)) !== -1;
+          return matchesQuery && end > windowStart && start < windowEnd;
+        });
+        if (!programs.length) {
+          return "<button class=\"epg-cell program gray\" data-channel=\"" + escapeHTML(channel.id) + "\" style=\"grid-column: 1 / -1\"><time>" + escapeHTML(timeLabel(windowStart)) + "</time><strong>Data not available</strong></button>";
+        }
+        return programs.map(function(program, index) {
+          const start = Math.max(program.startUnix || windowStart, windowStart);
+          const end = Math.min(program.endUnix || start + 1800, windowEnd);
+          const columnStart = guideSlotColumn(start, windowStart);
+          const columnEnd = Math.max(columnStart + 1, guideSlotColumn(end + 1799, windowStart));
+          return "<button class=\"epg-cell program " + colorClass(index + channelIndex) + "\" data-channel=\"" + escapeHTML(channel.id) + "\" style=\"grid-column: " + columnStart + " / " + Math.min(8, columnEnd) + "\"><time>" + escapeHTML(timeLabel(program.startUnix)) + "</time><strong>" + escapeHTML(program.title || "Data not available") + "</strong></button>";
+        }).join("");
       }
       function renderEPG() {
         const root = byId("epg");
         const channels = visibleChannels(true).slice(0, 60);
         root.innerHTML = channels.map(function(channel, channelIndex) {
-          const programs = programsFor(channel.id).filter(function(program) { return !state.query || lower(program.title).indexOf(lower(state.query)) !== -1; }).slice(0, 5);
-          while (programs.length < 5) programs.push({ title: "Data not available", startUnix: 0 });
-          return "<div class=\"epg-row\"><button class=\"epg-channel\" data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<strong>" + escapeHTML(channel.name || "Untitled") + "</strong></button>" + programs.map(function(program, index) {
-            return "<button class=\"epg-cell program " + colorClass(index + channelIndex) + "\" data-channel=\"" + escapeHTML(channel.id) + "\"><time>" + escapeHTML(timeLabel(program.startUnix)) + "</time><strong>" + escapeHTML(program.title || "Data not available") + "</strong></button>";
-          }).join("") + "</div>";
+          return "<div class=\"epg-row\"><button class=\"epg-channel\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(channel.name || "Untitled") + "\">" + logoHTML(channel) + "</button><div class=\"epg-programs\">" + renderEPGCells(channel, channelIndex) + "</div></div>";
         }).join("");
       }
       function renderSettings() {
