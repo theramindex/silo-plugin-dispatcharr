@@ -13,12 +13,11 @@ import (
 func TestRuntimeConfigureReadsObjectShapedConfigEntries(t *testing.T) {
 	t.Parallel()
 
-	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeXtream, LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
+	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeDirectLogin, LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
 	server := &runtimeServer{settings: state}
 
 	req := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{
-		{Key: "general", Value: mustStruct(t, map[string]any{"source_mode": "m3u_xmltv", "live_tv_enabled": true})},
-		{Key: "m3u_xmltv", Value: mustStruct(t, map[string]any{"m3u_url": "https://dispatcharr.example.com/playlist.m3u", "epg_xml_url": "https://dispatcharr.example.com/guide.xml"})},
+		{Key: "connection", Value: mustStruct(t, map[string]any{"base_url": "https://dispatcharr.example.com", "api_key": "secret", "live_tv_enabled": true})},
 	}}
 
 	if _, err := server.Configure(context.Background(), req); err != nil {
@@ -26,11 +25,11 @@ func TestRuntimeConfigureReadsObjectShapedConfigEntries(t *testing.T) {
 	}
 
 	settings := state.Get()
-	if settings.SourceMode != config.SourceModeM3UXMLTV {
+	if settings.SourceMode != config.SourceModeAPIKey {
 		t.Fatalf("expected source mode to update, got %q", settings.SourceMode)
 	}
-	if settings.M3UURL == "" || settings.EPGXMLURL == "" {
-		t.Fatalf("expected m3u/xmltv urls to be loaded, got %+v", settings)
+	if settings.DispatcharrURL == "" || settings.DispatcharrAPIKey == "" {
+		t.Fatalf("expected dispatcharr connection to be loaded, got %+v", settings)
 	}
 }
 
@@ -42,14 +41,8 @@ func TestManifestGlobalConfigSchemasValidateExpectedObjects(t *testing.T) {
 		t.Fatalf("load manifest: %v", err)
 	}
 
-	if err := configsdk.ValidateManifestGlobalValue(manifest, "general", map[string]any{"source_mode": "xtream", "live_tv_enabled": true}); err != nil {
-		t.Fatalf("validate general schema: %v", err)
-	}
-	if err := configsdk.ValidateManifestGlobalValue(manifest, "xtream", map[string]any{"base_url": "https://dispatcharr.example.com", "username": "demo", "password": "secret"}); err != nil {
-		t.Fatalf("validate xtream schema: %v", err)
-	}
-	if err := configsdk.ValidateManifestGlobalValue(manifest, "m3u_xmltv", map[string]any{"m3u_url": "https://dispatcharr.example.com/playlist.m3u", "epg_xml_url": "https://dispatcharr.example.com/guide.xml"}); err != nil {
-		t.Fatalf("validate m3u/xmltv schema: %v", err)
+	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"base_url": "https://dispatcharr.example.com", "api_key": "secret", "live_tv_enabled": true}); err != nil {
+		t.Fatalf("validate connection schema: %v", err)
 	}
 }
 

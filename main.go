@@ -51,6 +51,28 @@ func (s *runtimeServer) Configure(_ context.Context, request *pluginv1.Configure
 	for _, entry := range request.GetConfig() {
 		values := entry.GetValue().AsMap()
 		switch entry.GetKey() {
+		case "connection":
+			current.DispatcharrURL = asString(values["base_url"])
+			current.DispatcharrUser = asString(values["username"])
+			current.DispatcharrPass = asString(values["password"])
+			current.DispatcharrAPIKey = asString(values["api_key"])
+			if stringValue, ok := values["source_mode"].(string); ok {
+				current.SourceMode = config.SourceMode(stringValue)
+			}
+			if current.DispatcharrAPIKey != "" {
+				current.SourceMode = config.SourceModeAPIKey
+			} else if current.SourceMode == "" {
+				current.SourceMode = config.SourceModeDirectLogin
+			}
+			if boolValue, ok := values["live_tv_enabled"].(bool); ok {
+				current.LiveTVEnabled = boolValue
+			}
+			if numberValue, ok := values["channel_refresh_hours"].(float64); ok {
+				current.ChannelRefreshH = int(numberValue)
+			}
+			if numberValue, ok := values["epg_refresh_hours"].(float64); ok {
+				current.EPGRefreshH = int(numberValue)
+			}
 		case "general":
 			if stringValue, ok := values["source_mode"].(string); ok {
 				current.SourceMode = config.SourceMode(stringValue)

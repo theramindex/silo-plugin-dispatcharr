@@ -37,6 +37,13 @@ type Settings struct {
 }
 
 func (s Settings) Validate() error {
+	if s.SourceMode == "" && strings.TrimSpace(s.DispatcharrURL) != "" {
+		s.SourceMode = SourceModeDirectLogin
+	}
+	if strings.TrimSpace(s.DispatcharrAPIKey) != "" {
+		s.SourceMode = SourceModeAPIKey
+	}
+
 	switch s.SourceMode {
 	case SourceModeDirectLogin:
 		if strings.TrimSpace(s.DispatcharrURL) == "" {
