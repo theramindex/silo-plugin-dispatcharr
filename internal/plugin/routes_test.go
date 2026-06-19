@@ -139,6 +139,50 @@ func TestHTTPRoutesServerAppRouteIncludesAppLayerPayload(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerAppRouteHydratesColdCatalog(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	syncer := &stubCatalogSyncer{store: store}
+	server := NewHTTPRoutesServerWithSyncer(store, func() config.Settings {
+		return config.Settings{
+			SourceMode:      config.SourceModeDirectLogin,
+			DispatcharrURL:  "https://dispatcharr.example.com",
+			DispatcharrUser: "demo",
+			DispatcharrPass: "secret",
+			ChannelRefreshH: 24,
+			EPGRefreshH:     24,
+		}
+	}, syncer)
+
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/api/app"})
+	if err != nil {
+		t.Fatalf("app route: %v", err)
+	}
+	if response.GetStatusCode() != 200 {
+		t.Fatalf("expected 200, got %d", response.GetStatusCode())
+	}
+	if syncer.calls != 1 {
+		t.Fatalf("expected cold catalog sync once, got %d", syncer.calls)
+	}
+
+	var payload AppPayload
+	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+		t.Fatalf("unmarshal app payload: %v", err)
+	}
+	if len(payload.Channels) != 1 || payload.Channels[0].ID != "dispatcharr:news" {
+		t.Fatalf("expected hydrated channel payload, got %+v", payload.Channels)
+	}
+
+	_, err = server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/api/app"})
+	if err != nil {
+		t.Fatalf("second app route: %v", err)
+	}
+	if syncer.calls != 1 {
+		t.Fatalf("expected warm catalog to skip sync, got %d calls", syncer.calls)
+	}
+}
+
 func TestHTTPRoutesServerFavoriteRouteUpdatesPreferences(t *testing.T) {
 	t.Parallel()
 
@@ -161,6 +205,24 @@ func TestHTTPRoutesServerFavoriteRouteUpdatesPreferences(t *testing.T) {
 	if !prefs.Favorites["xtream:1"] {
 		t.Fatalf("expected favorite to be enabled: %+v", prefs)
 	}
+}
+
+type stubCatalogSyncer struct {
+	store *cache.Store
+	calls int
+}
+
+func (s *stubCatalogSyncer) SyncNow(_ context.Context, _ config.Settings, nowUnix int64) error {
+	s.calls++
+	s.store.Replace(cache.Snapshot{
+		Catalog: model.CatalogState{
+			Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+			Channels: []model.Channel{{ID: "dispatcharr:news", Name: "News HD"}},
+			Programs: []model.Program{{ID: "program:1", ChannelID: "dispatcharr:news", Title: "Morning News", StartUnix: 100, EndUnix: 200}},
+		},
+		Health: model.SyncHealth{LastSuccessUnix: nowUnix},
+	})
+	return nil
 }
 
 func TestHTTPRoutesServerPreferencesRoutePersistsFullPayload(t *testing.T) {

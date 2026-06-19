@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
@@ -24,6 +26,12 @@ type HTTPRoutesServer struct {
 	pluginv1.UnimplementedHttpRoutesServer
 	store            *cache.Store
 	settingsProvider func() config.Settings
+	syncer           catalogSyncer
+	hydrateMu        sync.Mutex
+}
+
+type catalogSyncer interface {
+	SyncNow(ctx context.Context, settings config.Settings, nowUnix int64) error
 }
 
 func NewHTTPRoutesServer(store *cache.Store) *HTTPRoutesServer {
@@ -32,6 +40,10 @@ func NewHTTPRoutesServer(store *cache.Store) *HTTPRoutesServer {
 
 func NewHTTPRoutesServerWithSettings(store *cache.Store, settingsProvider func() config.Settings) *HTTPRoutesServer {
 	return &HTTPRoutesServer{store: store, settingsProvider: settingsProvider}
+}
+
+func NewHTTPRoutesServerWithSyncer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
+	return &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, syncer: syncer}
 }
 
 type ChannelsPayload struct {
@@ -101,10 +113,13 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 	case "/dispatcharr/status", "/dispatcharr/api/status":
 		return s.respondJSON(http.StatusOK, BuildHealthPayload(s.store.Current()))
 	case "/dispatcharr/api/app":
+		s.ensureCatalogHydrated(ctx)
 		return s.respondJSON(http.StatusOK, s.buildAppPayload())
 	case "/dispatcharr/channels", "/dispatcharr/api/channels":
+		s.ensureCatalogHydrated(ctx)
 		return s.respondJSON(http.StatusOK, s.channelsPayload())
 	case "/dispatcharr/guide", "/dispatcharr/api/guide":
+		s.ensureCatalogHydrated(ctx)
 		channelID := queryValue(request, "channel_id")
 		programs := programsForChannel(s.store.Current().Catalog.Programs, channelID)
 		sort.Slice(programs, func(i, j int) bool {
@@ -112,6 +127,7 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		})
 		return s.respondJSON(http.StatusOK, GuidePayload{Programs: programs})
 	case "/dispatcharr/api/categories":
+		s.ensureCatalogHydrated(ctx)
 		return s.respondJSON(http.StatusOK, s.categoriesPayload())
 	case "/dispatcharr/api/vod":
 		return s.respondJSON(http.StatusOK, s.vodPayload())
@@ -132,6 +148,7 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 	case "/dispatcharr/api/watch/stop":
 		return s.handleWatchStop(request)
 	case "/dispatcharr/stream":
+		s.ensureCatalogHydrated(ctx)
 		channelID := queryValue(request, "channel_id")
 		if strings.TrimSpace(channelID) == "" {
 			return textResponse(http.StatusBadRequest, "missing channel_id query parameter"), nil
@@ -153,6 +170,28 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return redirectResponse(streamURL), nil
 	default:
 		return textResponse(http.StatusNotFound, "route not found"), nil
+	}
+}
+
+func (s *HTTPRoutesServer) ensureCatalogHydrated(ctx context.Context) {
+	if len(s.store.Current().Catalog.Channels) > 0 || s.syncer == nil || s.settingsProvider == nil {
+		return
+	}
+
+	s.hydrateMu.Lock()
+	defer s.hydrateMu.Unlock()
+
+	if len(s.store.Current().Catalog.Channels) > 0 {
+		return
+	}
+
+	settings := s.settingsProvider()
+	if err := settings.Validate(); err != nil {
+		s.store.RecordFailure(time.Now().Unix(), err.Error())
+		return
+	}
+	if err := s.syncer.SyncNow(ctx, settings, time.Now().Unix()); err != nil {
+		s.store.RecordFailure(time.Now().Unix(), err.Error())
 	}
 }
 
