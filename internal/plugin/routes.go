@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -157,6 +158,7 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		if err != nil {
 			return textResponse(http.StatusNotFound, err.Error()), nil
 		}
+		streamURL = appendPlaybackQuery(streamURL, request)
 		return redirectResponse(streamURL), nil
 	case "/dispatcharr/vod/stream":
 		itemID := queryValue(request, "item_id")
@@ -522,6 +524,22 @@ func queryValue(request *pluginv1.HandleHTTPRequest, key string) string {
 		return text
 	}
 	return ""
+}
+
+func appendPlaybackQuery(streamURL string, request *pluginv1.HandleHTTPRequest) string {
+	parsed, err := url.Parse(streamURL)
+	if err != nil {
+		return streamURL
+	}
+	values := parsed.Query()
+	for _, key := range []string{"output_profile", "output_format", "output"} {
+		value := strings.TrimSpace(queryValue(request, key))
+		if value != "" {
+			values.Set(key, value)
+		}
+	}
+	parsed.RawQuery = values.Encode()
+	return parsed.String()
 }
 
 func redirectResponse(location string) *pluginv1.HandleHTTPResponse {
@@ -1032,6 +1050,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       function currentStreamURL() {
         return state.currentChannel ? route("/dispatcharr/stream?channel_id=" + encodeURIComponent(state.currentChannel.id)) : "";
       }
+      function browserStreamURL(channel) {
+        return route("/dispatcharr/stream?channel_id=" + encodeURIComponent(channel.id) + "&output_profile=2&output_format=fmp4");
+      }
       function applyAspectMode() {
         const video = byId("player");
         if (video) video.style.objectFit = state.aspectMode === "fit" ? "contain" : "cover";
@@ -1308,11 +1329,12 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (state.hls) { state.hls.destroy(); state.hls = null; }
         if (state.tsPlayer) { state.tsPlayer.destroy(); state.tsPlayer = null; }
         const isHLS = url.indexOf(".m3u8") !== -1;
+        const isFMP4 = url.indexOf("output_format=fmp4") !== -1 || url.indexOf("output=mp4") !== -1 || url.indexOf("output=fmp4") !== -1;
         if (window.Hls && Hls.isSupported() && isHLS) {
           state.hls = new Hls();
           state.hls.loadSource(url);
           state.hls.attachMedia(video);
-        } else if (window.mpegts && mpegts.isSupported() && !isHLS) {
+        } else if (window.mpegts && mpegts.isSupported() && !isHLS && !isFMP4) {
           state.tsPlayer = mpegts.createPlayer({ type: "mpegts", isLive: true, url: url });
           state.tsPlayer.attachMediaElement(video);
           state.tsPlayer.load();
@@ -1330,7 +1352,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         state.currentChannel = channel;
         state.view = "player";
         render();
-        setVideoSource(route("/dispatcharr/stream?channel_id=" + encodeURIComponent(channel.id)));
+        setVideoSource(browserStreamURL(channel));
         startWatch(channel);
         const guide = await getJSON("/dispatcharr/api/guide?channel_id=" + encodeURIComponent(channel.id)).catch(function() { return { programs: [] }; });
         const nowGuide = byId("now-guide");

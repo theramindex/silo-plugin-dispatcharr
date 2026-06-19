@@ -369,6 +369,44 @@ func TestHTTPRoutesServerStreamXtreamRoute(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerStreamPreservesBrowserPlaybackQuery(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{
+		Catalog: model.CatalogState{
+			Source: model.LiveTVSource(model.SourceModeXtream),
+			Channels: []model.Channel{
+				{ID: "xtream:1001", Name: "News HD"},
+			},
+		},
+	})
+	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings {
+		return config.Settings{
+			SourceMode:      config.SourceModeXtream,
+			XtreamBaseURL:   "https://dispatcharr.example.com",
+			XtreamUsername:  "demo",
+			XtreamPassword:  "secret",
+			ChannelRefreshH: config.DefaultChannelRefreshHours,
+			EPGRefreshH:     config.DefaultEPGRefreshHours,
+		}
+	})
+	query, _ := structpb.NewStruct(map[string]any{
+		"channel_id":     "xtream:1001",
+		"output_profile": "2",
+		"output_format":  "fmp4",
+	})
+
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/stream", Query: query})
+	if err != nil {
+		t.Fatalf("stream route: %v", err)
+	}
+	location := response.GetHeaders()["location"]
+	if !strings.Contains(location, "output_profile=2") || !strings.Contains(location, "output_format=fmp4") {
+		t.Fatalf("expected browser playback query in location header: %q", location)
+	}
+}
+
 func TestHTTPRoutesServerVODStreamXtreamRoute(t *testing.T) {
 	t.Parallel()
 
@@ -431,6 +469,9 @@ func TestHTTPRoutesServerPlayerRoute(t *testing.T) {
 	}
 	if !strings.Contains(body, "mpegts.js") || !strings.Contains(body, "Hls") {
 		t.Fatalf("expected inline player library content")
+	}
+	if !strings.Contains(body, "output_profile=2&output_format=fmp4") {
+		t.Fatalf("expected browser playback to request AAC fMP4 profile")
 	}
 }
 
