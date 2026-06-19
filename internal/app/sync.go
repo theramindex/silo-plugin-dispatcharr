@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
@@ -196,8 +197,9 @@ func (s *Service) syncXtream(ctx context.Context, baseURL, username, password st
 
 	content := model.ContentState{}
 	categoryNames := map[string]string{}
+	tightDeadline := hasTightDeadline(ctx)
 	if catalogClient, ok := client.(xtreamAppCatalogClient); ok {
-		content = loadXtreamAppCatalog(ctx, catalogClient)
+		content = loadXtreamAppCatalog(ctx, catalogClient, !tightDeadline)
 		for _, category := range content.LiveCategories {
 			categoryNames[category.ID] = category.Name
 		}
@@ -210,6 +212,9 @@ func (s *Service) syncXtream(ctx context.Context, baseURL, username, password st
 		channel.CategoryName = categoryNames[channel.CategoryID]
 		channels = append(channels, channel)
 
+		if tightDeadline {
+			continue
+		}
 		epg, err := client.ShortEPG(ctx, stream.StreamID)
 		if err != nil {
 			s.store.RecordFailure(nowUnix, err.Error())
@@ -233,13 +238,16 @@ func (s *Service) syncXtream(ctx context.Context, baseURL, username, password st
 	return nil
 }
 
-func loadXtreamAppCatalog(ctx context.Context, client xtreamAppCatalogClient) model.ContentState {
+func loadXtreamAppCatalog(ctx context.Context, client xtreamAppCatalogClient, includeExtended bool) model.ContentState {
 	content := model.ContentState{}
 	if categories, err := client.LiveCategories(ctx); err == nil {
 		content.LiveCategories = make([]model.Category, 0, len(categories))
 		for _, category := range categories {
 			content.LiveCategories = append(content.LiveCategories, mapping.MapLiveCategory(category))
 		}
+	}
+	if !includeExtended {
+		return content
 	}
 	if categories, err := client.VODCategories(ctx); err == nil {
 		content.VODCategories = make([]model.Category, 0, len(categories))
@@ -266,4 +274,9 @@ func loadXtreamAppCatalog(ctx context.Context, client xtreamAppCatalogClient) mo
 		}
 	}
 	return content
+}
+
+func hasTightDeadline(ctx context.Context) bool {
+	deadline, ok := ctx.Deadline()
+	return ok && time.Until(deadline) < 45*time.Second
 }

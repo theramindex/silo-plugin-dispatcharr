@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
@@ -182,6 +183,44 @@ func TestSyncDirectLoginFallsBackToXtream(t *testing.T) {
 	}
 	if snapshot.Health.LastSuccessUnix != 600 {
 		t.Fatalf("expected fallback success timestamp, got %d", snapshot.Health.LastSuccessUnix)
+	}
+}
+
+func TestSyncXtreamSkipsPerChannelEPGWithTightDeadline(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	service := NewService(Dependencies{
+		Store: store,
+		XtreamFactory: func(string, string, string) XtreamClient {
+			return &stubXtreamClient{
+				streams: []xtream.LiveStream{{Num: 1, Name: "News HD", StreamID: 1001, EPGChannelID: "news.hd"}},
+				epgErr:  errors.New("short epg should not be called"),
+			}
+		},
+	})
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(10*time.Second))
+	defer cancel()
+
+	err := service.SyncNow(ctx, config.Settings{
+		SourceMode:      config.SourceModeXtream,
+		XtreamBaseURL:   "https://dispatcharr.example.com",
+		XtreamUsername:  "demo",
+		XtreamPassword:  "secret",
+		ChannelRefreshH: 24,
+		EPGRefreshH:     24,
+	}, 700)
+	if err != nil {
+		t.Fatalf("expected tight-deadline sync success, got %v", err)
+	}
+
+	snapshot := store.Current()
+	if len(snapshot.Catalog.Channels) != 1 {
+		t.Fatalf("expected channels under tight deadline, got %+v", snapshot.Catalog.Channels)
+	}
+	if len(snapshot.Catalog.Programs) != 0 {
+		t.Fatalf("expected no eager EPG under tight deadline, got %+v", snapshot.Catalog.Programs)
 	}
 }
 
