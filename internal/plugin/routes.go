@@ -504,7 +504,9 @@ const playerPageHTML = `<!doctype html>
       button, input, select { font: inherit; }
       button { cursor: pointer; }
       .shell { display: grid; grid-template-columns: 19.5rem minmax(0, 1fr); height: 100vh; }
+      .shell.is-player { grid-template-columns: 17rem minmax(0, 1fr); background: #050505; }
       .rail { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--line); background: linear-gradient(135deg, #19191a, #201e20); padding: 1rem; }
+      .shell.is-player .rail { background: rgba(19,19,20,0.96); border-right-color: rgba(255,255,255,0.08); }
       .brand { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
       .brand h1 { margin: 0; font-size: 1.55rem; font-weight: 900; letter-spacing: 0; }
       .back { color: var(--muted); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 0.42rem 0.65rem; font-size: 0.8rem; font-weight: 700; }
@@ -524,7 +526,9 @@ const playerPageHTML = `<!doctype html>
       .muted { color: var(--muted); }
       .star { color: var(--warn); font-size: 1rem; }
       .main { min-width: 0; overflow: auto; padding: 1rem 1.25rem 2rem; }
+      .shell.is-player .main { padding: 0; overflow: hidden; background: #050505; }
       .topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.85rem; position: sticky; top: 0; z-index: 5; background: linear-gradient(180deg, var(--bg) 70%, rgba(23,23,23,0)); padding-bottom: 0.65rem; }
+      .shell.is-player .topbar { display: none; }
       .title { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
       .title h2 { margin: 0; font-size: 1.35rem; }
       .status { color: var(--muted); font-size: 0.82rem; white-space: nowrap; }
@@ -556,6 +560,35 @@ const playerPageHTML = `<!doctype html>
       .epg-cell { border: 0; border-radius: 0.55rem; text-align: left; color: var(--text); background: var(--panel); padding: 0.5rem 0.65rem; min-width: 0; }
       .player-view { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 1rem; align-items: start; }
       video { width: 100%; aspect-ratio: 16 / 9; background: #050505; border: 1px solid var(--line); border-radius: 0.75rem; }
+      .playback-shell { position: relative; min-height: 100vh; overflow: hidden; background: #050505; }
+      .playback-video { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto; object-fit: cover; border: 0; border-radius: 0; }
+      .playback-scrim { pointer-events: none; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.18) 28%, rgba(0,0,0,0.12) 56%, rgba(0,0,0,0.92) 100%); }
+      .player-top { position: absolute; inset: 1.1rem 1.1rem auto; display: flex; align-items: center; justify-content: space-between; gap: 1rem; z-index: 2; }
+      .player-top-actions, .player-bottom-actions { display: flex; align-items: center; gap: 0.55rem; }
+      .player-icon, .player-chip { border: 1px solid rgba(255,255,255,0.12); background: rgba(30,30,31,0.72); color: white; box-shadow: 0 0.35rem 1.4rem rgba(0,0,0,0.2); backdrop-filter: blur(18px); }
+      .player-icon { width: 2.65rem; height: 2.65rem; border-radius: 999px; display: inline-grid; place-items: center; font-size: 1.15rem; }
+      .player-chip { min-height: 2.4rem; border-radius: 999px; padding: 0 0.82rem; font-weight: 850; }
+      .player-icon:hover, .player-chip:hover { background: rgba(52,52,54,0.86); }
+      .volume-pop { position: absolute; top: 3rem; right: 10rem; width: 2.9rem; height: 8rem; border-radius: 1.35rem; background: rgba(34,30,28,0.78); border: 1px solid rgba(255,255,255,0.12); display: grid; place-items: center; backdrop-filter: blur(16px); }
+      .volume-track { width: 0.52rem; height: 5.7rem; border-radius: 999px; background: rgba(255,255,255,0.16); display: flex; align-items: end; overflow: hidden; }
+      .volume-fill { width: 100%; height: 36%; background: white; border-radius: inherit; }
+      .player-bottom { position: absolute; inset: auto 0 0; z-index: 2; padding: 0 1.1rem 1rem; }
+      .player-meta { max-width: min(36rem, 55vw); margin-bottom: 1rem; text-shadow: 0 0.15rem 1rem rgba(0,0,0,0.65); }
+      .player-logo { width: 3.6rem; height: 2.45rem; object-fit: contain; border-radius: 0.55rem; background: rgba(255,255,255,0.82); margin-bottom: 0.45rem; padding: 0.18rem; }
+      .player-logo-fallback { display: inline-grid; place-items: center; color: white; background: #b19398; font-weight: 950; }
+      .player-kicker { font-size: 0.82rem; font-weight: 900; color: rgba(255,255,255,0.82); }
+      .player-title { margin: 0.18rem 0 0.18rem; font-size: clamp(1.35rem, 2.4vw, 2.45rem); line-height: 1.02; letter-spacing: 0; }
+      .player-description { margin: 0; color: rgba(255,255,255,0.78); font-size: 0.92rem; max-width: 42rem; }
+      .player-tags { display: flex; gap: 0.35rem; margin-top: 0.55rem; flex-wrap: wrap; }
+      .player-tag { border-radius: 0.25rem; background: rgba(255,255,255,0.12); color: white; font-size: 0.67rem; padding: 0.18rem 0.33rem; font-weight: 850; }
+      .timeline { display: grid; grid-template-columns: 4.2rem minmax(0,1fr) 11rem; gap: 0.65rem; align-items: center; color: white; font-size: 0.76rem; font-weight: 850; }
+      .timeline-bar { position: relative; height: 0.48rem; border-radius: 999px; background: rgba(255,255,255,0.16); overflow: visible; }
+      .timeline-fill { position: absolute; inset: 0 auto 0 0; width: 41%; border-radius: inherit; background: rgba(255,255,255,0.92); }
+      .timeline-knob { position: absolute; left: 41%; top: 50%; width: 0.85rem; height: 0.85rem; margin-left: -0.42rem; margin-top: -0.42rem; border-radius: 999px; background: white; }
+      .live-dot { display: inline-block; width: 0.45rem; height: 0.45rem; border-radius: 999px; background: #ff334d; margin-right: 0.3rem; vertical-align: middle; }
+      .player-bottom-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1rem; align-items: end; }
+      .player-side-rail { position: absolute; left: 0; top: 8rem; bottom: 9rem; width: 9.5rem; overflow: hidden; mask-image: linear-gradient(180deg, transparent, black 12%, black 88%, transparent); color: rgba(255,255,255,0.6); padding-left: 0.65rem; pointer-events: none; }
+      .player-side-rail div { margin-bottom: 0.55rem; font-size: 0.86rem; font-weight: 850; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
       .now-card, .settings-card { border: 1px solid var(--line); background: var(--rail-2); border-radius: 0.8rem; padding: 0.85rem; }
       .settings-list { display: grid; gap: 0.55rem; }
       .settings-list label { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--panel); border-radius: 0.65rem; padding: 0.7rem; }
@@ -569,6 +602,11 @@ const playerPageHTML = `<!doctype html>
         .topbar { position: static; }
         .search { min-width: 0; width: 100%; }
         .player-view { grid-template-columns: 1fr; }
+        .shell.is-player { display: block; }
+        .shell.is-player .rail { display: none; }
+        .player-meta { max-width: calc(100vw - 2rem); }
+        .timeline { grid-template-columns: 3.4rem minmax(0,1fr); }
+        .timeline span:last-child { display: none; }
       }
     </style>
   </head>
@@ -602,7 +640,7 @@ const playerPageHTML = `<!doctype html>
       const path = window.location.pathname;
       const base = path.endsWith("/dispatcharr/player") ? path.slice(0, -"/dispatcharr/player".length) : (path.endsWith("/dispatcharr") ? path.slice(0, -"/dispatcharr".length) : "");
       const prefsKey = "silo.ramindex.dispatcharr.preferences.v1";
-      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null };
+      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false };
 
       function route(url) { return base + url; }
       function byId(id) { return document.getElementById(id); }
@@ -674,7 +712,30 @@ const playerPageHTML = `<!doctype html>
         if (!unix) return "";
         return new Date(unix * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       }
+      function stopPlayback() {
+        const video = byId("player");
+        if (state.hls) { state.hls.destroy(); state.hls = null; }
+        if (state.tsPlayer) { state.tsPlayer.destroy(); state.tsPlayer = null; }
+        if (video) {
+          video.pause();
+          video.removeAttribute("src");
+          video.load();
+        }
+      }
+      function stopCurrentWatch(reason) {
+        if (!state.currentSession) return;
+        postJSON("/dispatcharr/api/watch/stop", { sessionId: state.currentSession.id, reason: reason || "stop" }).catch(function() {});
+        state.currentSession = null;
+        if (state.heartbeat) {
+          clearInterval(state.heartbeat);
+          state.heartbeat = null;
+        }
+      }
       function setView(view) {
+        if (view !== "player") {
+          stopPlayback();
+          if (state.view === "player") stopCurrentWatch("leave_player");
+        }
         state.view = view;
         if (view !== "live") state.category = state.category;
         render();
@@ -719,9 +780,11 @@ const playerPageHTML = `<!doctype html>
       }
       function render() {
         if (!state.app) return;
+        document.querySelector(".shell").classList.toggle("is-player", state.view === "player");
         renderRail();
-        byId("page-title").textContent = state.view === "home" ? "Home" : state.view === "live" ? (categoryName(state.category) || "Live TV") : state.view === "guide" ? "TV Guide" : state.view === "favorites" ? "Favorites" : "Settings";
+        byId("page-title").textContent = state.view === "home" ? "Home" : state.view === "live" ? (categoryName(state.category) || "Live TV") : state.view === "guide" ? "TV Guide" : state.view === "favorites" ? "Favorites" : state.view === "player" ? "Now Playing" : "Settings";
         if (state.view === "guide") renderGuidePage();
+        else if (state.view === "player") renderPlayerPage();
         else if (state.view === "live" || state.view === "favorites") renderLivePage();
         else if (state.view === "settings") renderSettings();
         else renderHome();
@@ -759,10 +822,32 @@ const playerPageHTML = `<!doctype html>
       }
       function renderLivePage() {
         const channels = visibleChannels(false);
-        byId("view").innerHTML = sectionHeader("Categories") + categoryGrid() + sectionHeader(state.view === "favorites" ? "Favorite channels" : "Channels") + rowCards(channels.slice(0, 24)) + playerBlock();
+        byId("view").innerHTML = sectionHeader("Categories") + categoryGrid() + sectionHeader(state.view === "favorites" ? "Favorite channels" : "Channels") + rowCards(channels.slice(0, 24));
       }
-      function playerBlock() {
-        return "<div class=\"section-title\"><span>Player</span></div><div class=\"player-view\"><video id=\"player\" controls autoplay playsinline></video><aside class=\"now-card\"><h2 id=\"now-title\">" + escapeHTML(state.currentChannel ? state.currentChannel.name : "Choose a channel") + "</h2><p id=\"now-meta\" class=\"muted\">" + escapeHTML(state.currentChannel ? (state.currentChannel.categoryName || "Live TV") : "Live TV") + "</p><div id=\"now-guide\"></div></aside></div>";
+      function currentProgram(channel) {
+        if (!channel) return null;
+        const now = Math.floor(Date.now() / 1000);
+        return programsFor(channel.id).find(function(program) {
+          return (!program.startUnix || program.startUnix <= now + 600) && (!program.endUnix || program.endUnix >= now);
+        }) || programsFor(channel.id)[0] || null;
+      }
+      function playerLogoHTML(channel) {
+        if (channel && channel.logoUrl) return "<img class=\"player-logo\" src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">";
+        return "<div class=\"player-logo player-logo-fallback\">" + escapeHTML(((channel && channel.name) || "TV").slice(0, 5)) + "</div>";
+      }
+      function renderPlayerPage() {
+        const channel = state.currentChannel || visibleChannels(false)[0] || null;
+        const program = currentProgram(channel) || {};
+        const channelName = channel ? channel.name || "Untitled channel" : "Choose a channel";
+        const categoryNameText = channel ? channel.categoryName || "Live TV" : "Live TV";
+        const title = program.title || channelName;
+        const description = program.description || categoryNameText;
+        const start = timeLabel(program.startUnix) || "LIVE";
+        const end = timeLabel(program.endUnix) || "Now";
+        const sideChannels = visibleChannels(true).slice(0, 30).map(function(item) {
+          return "<div>" + escapeHTML(item.name || "Untitled") + "<br><span class=\"muted\">" + escapeHTML(item.categoryName || "Live TV") + "</span></div>";
+        }).join("");
+        byId("view").innerHTML = "<section class=\"playback-shell\"><video id=\"player\" class=\"playback-video\" autoplay playsinline></video><div class=\"playback-scrim\"></div><div class=\"player-side-rail\">" + sideChannels + "</div><div class=\"player-top\"><button class=\"player-icon\" data-player-action=\"back\" aria-label=\"Back\">&lt;</button><div class=\"player-top-actions\"><button class=\"player-chip\" data-player-action=\"quality\">UNK v</button><button class=\"player-icon\" data-player-action=\"mute\" aria-label=\"Mute\">" + (state.muted ? "M" : "A") + "</button><button class=\"player-icon\" data-player-action=\"fullscreen\" aria-label=\"Fullscreen\">[]</button><button class=\"player-icon\" data-player-action=\"guide\" aria-label=\"Guide\">#</button><button class=\"player-icon\" data-player-action=\"more\" aria-label=\"More\">...</button></div><div class=\"volume-pop\" aria-hidden=\"true\"><div class=\"volume-track\"><div class=\"volume-fill\"></div></div></div></div><div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel) + "<div class=\"player-kicker\">" + escapeHTML(channelName) + "</div><h2 class=\"player-title\">" + escapeHTML(title) + "</h2><p class=\"player-description\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span class=\"player-tag\">AV</span></div></div><div class=\"player-bottom-actions\"><button class=\"player-icon\" data-player-action=\"favorite\" aria-label=\"Favorite\">" + (channel && favoriteMap()[channel.id] ? "*" : "+") + "</button><button class=\"player-icon\" data-player-action=\"guide\" aria-label=\"Open guide\">G</button><button class=\"player-icon\" data-player-action=\"more\" aria-label=\"Details\">D</button><button class=\"player-icon\" data-player-action=\"mute\" aria-label=\"Audio\">A</button></div></div><div class=\"timeline\"><span>" + escapeHTML(start) + "</span><div class=\"timeline-bar\"><div class=\"timeline-fill\"></div><div class=\"timeline-knob\"></div></div><span><span class=\"live-dot\"></span>LIVE&nbsp;&nbsp;" + escapeHTML(end) + "</span></div></div></section>";
       }
       function renderGuidePage() {
         const categories = items(state.app.categories);
@@ -799,6 +884,7 @@ const playerPageHTML = `<!doctype html>
       function setVideoSource(url) {
         const video = byId("player");
         if (!video) return;
+        video.muted = state.muted;
         if (state.hls) { state.hls.destroy(); state.hls = null; }
         if (state.tsPlayer) { state.tsPlayer.destroy(); state.tsPlayer = null; }
         if (window.Hls && Hls.isSupported() && url.indexOf(".m3u8") !== -1) {
@@ -816,7 +902,7 @@ const playerPageHTML = `<!doctype html>
       }
       async function playChannel(channel) {
         state.currentChannel = channel;
-        if (state.view !== "live" && state.view !== "favorites") state.view = "live";
+        state.view = "player";
         render();
         setVideoSource(route("/dispatcharr/stream?channel_id=" + encodeURIComponent(channel.id)));
         startWatch(channel);
@@ -837,7 +923,44 @@ const playerPageHTML = `<!doctype html>
           renderRail();
         }).catch(function() {});
       }
+      function handlePlayerAction(action, button) {
+        const video = byId("player");
+        if (action === "back") {
+          setView("live");
+          return;
+        }
+        if (action === "guide") {
+          setView("guide");
+          return;
+        }
+        if (action === "fullscreen") {
+          const shell = document.querySelector(".playback-shell");
+          if (shell && shell.requestFullscreen) shell.requestFullscreen().catch(function() {});
+          return;
+        }
+        if (action === "mute") {
+          state.muted = !state.muted;
+          if (video) video.muted = state.muted;
+          document.querySelectorAll("[data-player-action='mute']").forEach(function(item) { item.textContent = state.muted ? "M" : "A"; });
+          return;
+        }
+        if (action === "favorite" && state.currentChannel) {
+          const id = state.currentChannel.id;
+          if (favoriteMap()[id]) delete state.app.preferences.favorites[id];
+          else state.app.preferences.favorites[id] = true;
+          if (button) button.textContent = favoriteMap()[id] ? "*" : "+";
+          savePrefs();
+          postJSON("/dispatcharr/api/favorites", { id: id, favorite: !!favoriteMap()[id] }).catch(function() {});
+          renderRail();
+        }
+      }
       document.addEventListener("click", function(event) {
+        const playerTarget = event.target.closest("[data-player-action]");
+        if (playerTarget) {
+          event.preventDefault();
+          handlePlayerAction(playerTarget.getAttribute("data-player-action"), playerTarget);
+          return;
+        }
         const channelTarget = event.target.closest("[data-channel]");
         if (channelTarget) {
           const channel = channelByID(channelTarget.getAttribute("data-channel"));
