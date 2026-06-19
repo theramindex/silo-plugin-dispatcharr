@@ -502,8 +502,8 @@ const playerPageHTML = `<!doctype html>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dispatcharr IPTV</title>
-    <script src="dispatcharr/assets/hls.min.js"></script>
-    <script src="dispatcharr/assets/mpegts.min.js"></script>
+    <script src="dispatcharr/assets/hls.min.js?v=0.2.11"></script>
+    <script src="dispatcharr/assets/mpegts.min.js?v=0.2.11"></script>
     <style>
       :root {
         color-scheme: dark;

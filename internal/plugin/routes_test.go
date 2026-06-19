@@ -364,7 +364,7 @@ func TestHTTPRoutesServerPlayerRoute(t *testing.T) {
 	if strings.Contains(body, "cdn.jsdelivr.net") {
 		t.Fatalf("expected player libraries to be served locally")
 	}
-	if !strings.Contains(body, `src="dispatcharr/assets/hls.min.js"`) || !strings.Contains(body, `src="dispatcharr/assets/mpegts.min.js"`) {
+	if !strings.Contains(body, `src="dispatcharr/assets/hls.min.js?v=0.2.11"`) || !strings.Contains(body, `src="dispatcharr/assets/mpegts.min.js?v=0.2.11"`) {
 		t.Fatalf("expected local player asset script tags")
 	}
 }
