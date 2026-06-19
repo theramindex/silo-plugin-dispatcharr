@@ -300,4 +300,7 @@ func TestHTTPRoutesServerPlayerRoute(t *testing.T) {
 	if !strings.Contains(string(response.GetBody()), "<video") {
 		t.Fatalf("expected player html body")
 	}
+	if !strings.Contains(string(response.GetBody()), `href="/" aria-label="Back to Silo"`) {
+		t.Fatalf("expected back to Silo link")
+	}
 }

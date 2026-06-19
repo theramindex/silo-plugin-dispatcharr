@@ -440,6 +440,9 @@ const playerPageHTML = `<!doctype html>
       h2 { font-size: 1rem; margin: 1rem 0 0.6rem; color: var(--muted); }
       .topbar { display: flex; justify-content: space-between; gap: 1rem; align-items: center; margin-bottom: 1rem; }
       .status { color: var(--muted); font-size: 0.82rem; }
+      .silo-return { display: inline-flex; align-items: center; gap: 0.45rem; margin-bottom: 0.8rem; color: var(--muted); text-decoration: none; font-size: 0.82rem; font-weight: 650; }
+      .silo-return:hover { color: var(--text); }
+      .silo-return span:first-child { display: inline-flex; align-items: center; justify-content: center; width: 1.65rem; height: 1.65rem; border: 1px solid var(--line); border-radius: 999px; background: #0f1010; color: var(--text); }
       .tabs { display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0 0 1rem; align-items: center; }
       .tab, .channel, .card, .pill, .control { border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 0.5rem; }
       .tab { padding: 0.58rem 0.8rem; cursor: pointer; min-height: 2.35rem; }
@@ -477,6 +480,10 @@ const playerPageHTML = `<!doctype html>
   <body>
     <main>
       <aside>
+        <a class="silo-return" href="/" aria-label="Back to Silo">
+          <span aria-hidden="true">←</span>
+          <span>Back to Silo</span>
+        </a>
         <div class="topbar">
           <h1>Dispatcharr IPTV</h1>
           <span id="health" class="status">Loading...</span>
