@@ -14,6 +14,15 @@ func TestValidate_XtreamRequiresCredentials(t *testing.T) {
 	}
 }
 
+func TestValidate_DirectLoginRequiresDispatcharrCredentials(t *testing.T) {
+	t.Parallel()
+
+	cfg := Settings{SourceMode: SourceModeDirectLogin}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error for missing Dispatcharr credentials")
+	}
+}
+
 func TestValidate_M3UXMLTVRequiresURLs(t *testing.T) {
 	t.Parallel()
 
@@ -52,6 +61,23 @@ func TestValidate_XtreamConfigPasses(t *testing.T) {
 	}
 }
 
+func TestValidate_DirectLoginConfigPasses(t *testing.T) {
+	t.Parallel()
+
+	cfg := Settings{
+		SourceMode:      SourceModeDirectLogin,
+		DispatcharrURL:  "https://dispatcharr.example.com",
+		DispatcharrUser: "demo",
+		DispatcharrPass: "secret",
+		LiveTVEnabled:   true,
+		ChannelRefreshH: DefaultChannelRefreshHours,
+		EPGRefreshH:     DefaultEPGRefreshHours,
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("expected valid settings, got %v", err)
+	}
+}
+
 func TestGlobalConfigSchema_ContainsExpectedFields(t *testing.T) {
 	t.Parallel()
 
@@ -65,7 +91,7 @@ func TestGlobalConfigSchema_ContainsExpectedFields(t *testing.T) {
 		byKey[item.GetKey()] = true
 	}
 
-	for _, key := range []string{"general", "xtream", "m3u_xmltv", "vod"} {
+	for _, key := range []string{"general", "dispatcharr", "xtream", "m3u_xmltv"} {
 		if !byKey[key] {
 			t.Fatalf("expected schema key %q", key)
 		}
@@ -76,22 +102,19 @@ func TestGlobalConfigSchema_SecretsAndStatusFields(t *testing.T) {
 	t.Parallel()
 
 	schema := GlobalConfigSchema()
+	dispatcharr := mustFindSchema(t, schema, "dispatcharr")
 	xtream := mustFindSchema(t, schema, "xtream")
-	vodStatus := mustFindSchema(t, schema, "vod")
+
+	if !strings.Contains(dispatcharr.GetJsonSchema(), "writeOnly") {
+		t.Fatalf("expected dispatcharr schema to declare writeOnly secret fields, got %q", dispatcharr.GetJsonSchema())
+	}
 
 	if !strings.Contains(xtream.GetJsonSchema(), "writeOnly") {
 		t.Fatalf("expected xtream schema to declare writeOnly password field, got %q", xtream.GetJsonSchema())
 	}
 
-	if !xtream.GetRequired() {
-		t.Fatal("expected xtream schema to be required")
-	}
-
-	if !strings.Contains(vodStatus.GetDescription(), "Coming soon") {
-		t.Fatalf("expected vod status description to mention coming soon, got %q", vodStatus.GetDescription())
-	}
-	if vodStatus.GetRequired() {
-		t.Fatal("expected vod status to be informational only")
+	if !dispatcharr.GetRequired() {
+		t.Fatal("expected dispatcharr schema to be required")
 	}
 }
 
@@ -104,15 +127,19 @@ func TestGlobalConfigSchema_UsesObjectSchemasForConfigurePayloads(t *testing.T) 
 	}
 }
 
-func TestGlobalConfigSchema_ProvidesAdminFormsForContinuumUI(t *testing.T) {
+func TestGlobalConfigSchema_ProvidesAdminFormsForSiloUI(t *testing.T) {
 	t.Parallel()
 
 	general := mustFindSchema(t, GlobalConfigSchema(), "general")
+	dispatcharr := mustFindSchema(t, GlobalConfigSchema(), "dispatcharr")
 	xtream := mustFindSchema(t, GlobalConfigSchema(), "xtream")
 	m3u := mustFindSchema(t, GlobalConfigSchema(), "m3u_xmltv")
 
 	if general.GetAdminForm() == nil || len(general.GetAdminForm().GetFields()) == 0 {
 		t.Fatal("expected general schema to include admin form fields")
+	}
+	if dispatcharr.GetAdminForm() == nil || len(dispatcharr.GetAdminForm().GetFields()) != 5 {
+		t.Fatalf("expected dispatcharr admin form fields, got %+v", dispatcharr.GetAdminForm())
 	}
 	if xtream.GetAdminForm() == nil || len(xtream.GetAdminForm().GetFields()) != 3 {
 		t.Fatalf("expected xtream admin form fields, got %+v", xtream.GetAdminForm())
@@ -121,8 +148,8 @@ func TestGlobalConfigSchema_ProvidesAdminFormsForContinuumUI(t *testing.T) {
 		t.Fatalf("expected m3u/xmltv admin form fields, got %+v", m3u.GetAdminForm())
 	}
 
-	if xtream.GetAdminForm().GetFields()[2].GetControl().String() != "ADMIN_FORM_CONTROL_PASSWORD" {
-		t.Fatalf("expected xtream password field control, got %s", xtream.GetAdminForm().GetFields()[2].GetControl().String())
+	if dispatcharr.GetAdminForm().GetFields()[2].GetControl().String() != "ADMIN_FORM_CONTROL_PASSWORD" {
+		t.Fatalf("expected dispatcharr password field control, got %s", dispatcharr.GetAdminForm().GetFields()[2].GetControl().String())
 	}
 }
 

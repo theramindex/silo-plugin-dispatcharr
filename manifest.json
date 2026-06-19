@@ -1,8 +1,22 @@
 {
-  "plugin_id": "org.ramindex.dispatcharr",
+  "plugin_id": "silo.dispatcharr",
   "version": "0.1.0",
   "checksum": "__CHECKSUM__",
-  "continuum_api_version": "v1",
+  "silo_api_version": "v1",
+  "supported_platforms": [
+    {
+      "os": "darwin",
+      "arch": "arm64"
+    },
+    {
+      "os": "linux",
+      "arch": "amd64"
+    },
+    {
+      "os": "linux",
+      "arch": "arm64"
+    }
+  ],
   "capabilities": [
     {
       "type": "scheduled_task.v1",
@@ -14,10 +28,19 @@
       "type": "http_routes.v1",
       "id": "dispatcharr-routes",
       "display_name": "Dispatcharr Routes",
-      "description": "Serves plugin status and playback-related HTTP endpoints."
+      "description": "Serves the Dispatcharr IPTV app, API, and playback routes."
     }
   ],
   "http_routes": [
+    {
+      "id": "dispatcharr-app",
+      "method": "GET",
+      "path": "/dispatcharr",
+      "access": "authenticated",
+      "navigable": true,
+      "navigation_label": "IPTV",
+      "navigation_kind": "user"
+    },
     {
       "id": "dispatcharr-status",
       "method": "GET",
@@ -30,9 +53,7 @@
       "method": "GET",
       "path": "/dispatcharr/player",
       "access": "authenticated",
-      "navigable": true,
-      "navigation_label": "Live TV",
-      "navigation_kind": "user"
+      "navigable": false
     },
     {
       "id": "dispatcharr-channels",
@@ -54,11 +75,103 @@
       "path": "/dispatcharr/stream",
       "access": "authenticated",
       "navigable": false
+    },
+    {
+      "id": "dispatcharr-vod-stream",
+      "method": "GET",
+      "path": "/dispatcharr/vod/stream",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-app",
+      "method": "GET",
+      "path": "/dispatcharr/api/app",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-status",
+      "method": "GET",
+      "path": "/dispatcharr/api/status",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-channels",
+      "method": "GET",
+      "path": "/dispatcharr/api/channels",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-guide",
+      "method": "GET",
+      "path": "/dispatcharr/api/guide",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-categories",
+      "method": "GET",
+      "path": "/dispatcharr/api/categories",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-vod",
+      "method": "GET",
+      "path": "/dispatcharr/api/vod",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-series",
+      "method": "GET",
+      "path": "/dispatcharr/api/series",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-preferences",
+      "method": "GET",
+      "path": "/dispatcharr/api/preferences",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-favorites",
+      "method": "POST",
+      "path": "/dispatcharr/api/favorites",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-hidden-categories",
+      "method": "POST",
+      "path": "/dispatcharr/api/hidden-categories",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-playback",
+      "method": "GET",
+      "path": "/dispatcharr/api/playback",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-playback-update",
+      "method": "POST",
+      "path": "/dispatcharr/api/playback",
+      "access": "authenticated",
+      "navigable": false
     }
   ],
   "metadata": {
     "display_name": "Dispatcharr",
-    "summary": "Dispatcharr-backed Live TV source for Continuum.",
-    "jellyfin_api_integration": true
-  }
+    "summary": "Silo-hosted Dispatcharr IPTV app with Live TV, guide, VOD, and series routes.",
+    "jellyfin_api_integration": false
+  },
+  "category": "Video/Live TV"
 }

@@ -6,11 +6,12 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/cache"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/config"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/model"
-	sharedhttp "github.com/relictiohosting/continuum-plugins/dispatcharr/internal/upstream/httpclient"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/upstream/xtream"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/dispatcharr"
+	sharedhttp "github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/httpclient"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
 )
 
 type XtreamClient interface {
@@ -20,16 +21,32 @@ type XtreamClient interface {
 	ResolveLiveStreamURL(streamID int64) string
 }
 
+type DispatcharrClient interface {
+	TestConnection(ctx context.Context) error
+	Channels(ctx context.Context) ([]dispatcharr.Channel, error)
+	ChannelGroups(ctx context.Context) ([]dispatcharr.ChannelGroup, error)
+	Programs(ctx context.Context) ([]dispatcharr.Program, error)
+	VODCategories(ctx context.Context) ([]dispatcharr.VODCategory, error)
+	Movies(ctx context.Context) ([]dispatcharr.Movie, error)
+	Series(ctx context.Context) ([]dispatcharr.Series, error)
+	LiveStreamURL(channelUUID string) string
+	MovieStreamURL(movieUUID string) string
+	SeriesStreamURL(seriesUUID string) string
+	AbsoluteURL(raw string) string
+}
+
 type Dependencies struct {
-	Store         *cache.Store
-	XtreamFactory func(baseURL, username, password string) XtreamClient
-	FetchURL      func(ctx context.Context, rawURL string) ([]byte, error)
+	Store              *cache.Store
+	XtreamFactory      func(baseURL, username, password string) XtreamClient
+	DispatcharrFactory func(settings config.Settings) DispatcharrClient
+	FetchURL           func(ctx context.Context, rawURL string) ([]byte, error)
 }
 
 type Service struct {
-	store         *cache.Store
-	xtreamFactory func(baseURL, username, password string) XtreamClient
-	fetchURL      func(ctx context.Context, rawURL string) ([]byte, error)
+	store              *cache.Store
+	xtreamFactory      func(baseURL, username, password string) XtreamClient
+	dispatcharrFactory func(settings config.Settings) DispatcharrClient
+	fetchURL           func(ctx context.Context, rawURL string) ([]byte, error)
 }
 
 const SourceModeResetWarning = "Changing source mode resets cached channel and guide data before rebuilding Live TV."
@@ -44,6 +61,15 @@ func NewService(deps Dependencies) *Service {
 	if factory == nil {
 		factory = func(baseURL, username, password string) XtreamClient {
 			return xtream.NewClient(baseURL, username, password)
+		}
+	}
+	dispatcharrFactory := deps.DispatcharrFactory
+	if dispatcharrFactory == nil {
+		dispatcharrFactory = func(settings config.Settings) DispatcharrClient {
+			if settings.SourceMode == config.SourceModeAPIKey {
+				return dispatcharr.NewAPIKeyClient(settings.DispatcharrURL, settings.DispatcharrAPIKey)
+			}
+			return dispatcharr.NewLoginClient(settings.DispatcharrURL, settings.DispatcharrUser, settings.DispatcharrPass)
 		}
 	}
 
@@ -67,7 +93,7 @@ func NewService(deps Dependencies) *Service {
 		}
 	}
 
-	return &Service{store: store, xtreamFactory: factory, fetchURL: fetcher}
+	return &Service{store: store, xtreamFactory: factory, dispatcharrFactory: dispatcharrFactory, fetchURL: fetcher}
 }
 
 func (s *Service) SwitchSourceMode(ctx context.Context, previous, next config.Settings, nowUnix int64) (string, error) {

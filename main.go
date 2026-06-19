@@ -10,13 +10,13 @@ import (
 	goruntime "runtime"
 	"sync"
 
-	pluginv1 "github.com/ContinuumApp/continuum-plugin-sdk/pkg/pluginproto/continuum/plugin/v1"
-	publicmanifest "github.com/ContinuumApp/continuum-plugin-sdk/pkg/pluginsdk/manifest"
-	sdkruntime "github.com/ContinuumApp/continuum-plugin-sdk/pkg/pluginsdk/runtime"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/app"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/cache"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/config"
-	pluginimpl "github.com/relictiohosting/continuum-plugins/dispatcharr/internal/plugin"
+	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
+	publicmanifest "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/manifest"
+	sdkruntime "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/runtime"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/app"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
+	pluginimpl "github.com/theramindex/silo-plugin-dispatcharr/internal/plugin"
 )
 
 //go:embed manifest.json
@@ -58,6 +58,17 @@ func (s *runtimeServer) Configure(_ context.Context, request *pluginv1.Configure
 			if boolValue, ok := values["live_tv_enabled"].(bool); ok {
 				current.LiveTVEnabled = boolValue
 			}
+			if numberValue, ok := values["channel_refresh_hours"].(float64); ok {
+				current.ChannelRefreshH = int(numberValue)
+			}
+			if numberValue, ok := values["epg_refresh_hours"].(float64); ok {
+				current.EPGRefreshH = int(numberValue)
+			}
+		case "dispatcharr":
+			current.DispatcharrURL = asString(values["base_url"])
+			current.DispatcharrUser = asString(values["username"])
+			current.DispatcharrPass = asString(values["password"])
+			current.DispatcharrAPIKey = asString(values["api_key"])
 		case "xtream":
 			current.XtreamBaseURL = asString(values["base_url"])
 			current.XtreamUsername = asString(values["username"])
@@ -95,7 +106,7 @@ func main() {
 		panic(err)
 	}
 	store := cache.NewStore()
-	settings := &settingsState{settings: config.Settings{SourceMode: config.SourceModeXtream, LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
+	settings := &settingsState{settings: config.Settings{SourceMode: config.SourceModeDirectLogin, LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
 	service := app.NewService(app.Dependencies{Store: store})
 
 	sdkruntime.Serve(sdkruntime.ServeConfig{
@@ -135,6 +146,7 @@ func loadManifest() (*pluginv1.PluginManifest, error) {
 		}}
 	}
 	manifest.GlobalConfigSchema = config.GlobalConfigSchema()
+	manifest.UserConfigSchema = config.UserConfigSchema()
 
 	return manifest, nil
 }

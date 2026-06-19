@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/model"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
 )
 
 func TestProviderDescriptorUsesLiveTVIdentity(t *testing.T) {

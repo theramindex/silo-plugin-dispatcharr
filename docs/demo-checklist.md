@@ -2,7 +2,7 @@
 
 - [ ] Configure Xtream mode with base URL, username, and password
 - [ ] Confirm connection test succeeds in Xtream mode
-- [ ] Confirm `Live TV` appears in Continuum
+- [ ] Confirm `Live TV` appears in Silo
 - [ ] Confirm channel search works
 - [ ] Confirm live playback works
 - [ ] Confirm guide data renders

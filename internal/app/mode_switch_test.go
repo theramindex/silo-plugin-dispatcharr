@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/cache"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/config"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/model"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/upstream/xtream"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
 )
 
 func TestSwitchSourceModeWarnsAndRebuildsCatalog(t *testing.T) {

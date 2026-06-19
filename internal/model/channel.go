@@ -15,13 +15,15 @@ type ChannelIdentity struct {
 }
 
 type Channel struct {
-	ID        string
-	SourceID  string
-	Name      string
-	Number    string
-	GuideID   string
-	LogoURL   string
-	StreamURL string
+	ID           string `json:"id"`
+	SourceID     string `json:"sourceId"`
+	Name         string `json:"name"`
+	Number       string `json:"number,omitempty"`
+	GuideID      string `json:"guideId,omitempty"`
+	LogoURL      string `json:"logoUrl,omitempty"`
+	StreamURL    string `json:"streamUrl,omitempty"`
+	CategoryID   string `json:"categoryId,omitempty"`
+	CategoryName string `json:"categoryName,omitempty"`
 }
 
 func StableChannelID(mode SourceMode, identity ChannelIdentity) string {

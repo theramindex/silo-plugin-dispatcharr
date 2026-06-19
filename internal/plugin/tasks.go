@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	pluginv1 "github.com/ContinuumApp/continuum-plugin-sdk/pkg/pluginproto/continuum/plugin/v1"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/app"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/config"
+	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/app"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 

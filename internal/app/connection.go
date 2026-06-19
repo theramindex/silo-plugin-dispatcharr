@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/config"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/matching"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/upstream/m3u"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/upstream/xmltv"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/matching"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/m3u"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xmltv"
 )
 
 func (s *Service) TestConnection(ctx context.Context, settings config.Settings) error {
@@ -16,26 +16,11 @@ func (s *Service) TestConnection(ctx context.Context, settings config.Settings) 
 	}
 
 	switch settings.SourceMode {
+	case config.SourceModeDirectLogin, config.SourceModeAPIKey:
+		return s.dispatcharrFactory(settings).TestConnection(ctx)
 	case config.SourceModeXtream:
 		client := s.xtreamFactory(settings.XtreamBaseURL, settings.XtreamUsername, settings.XtreamPassword)
-		if err := client.TestConnection(ctx); err != nil {
-			return err
-		}
-		streams, err := client.LiveStreams(ctx)
-		if err != nil {
-			return err
-		}
-		if len(streams) == 0 {
-			return fmt.Errorf("no live streams available")
-		}
-		epg, err := client.ShortEPG(ctx, streams[0].StreamID)
-		if err != nil {
-			return err
-		}
-		if len(epg.EPGListings) == 0 {
-			return fmt.Errorf("epg is required for v1 setup")
-		}
-		return nil
+		return testXtreamConnection(ctx, client)
 	case config.SourceModeM3UXMLTV:
 		playlistData, err := s.fetchURL(ctx, settings.M3UURL)
 		if err != nil {
@@ -66,4 +51,25 @@ func (s *Service) TestConnection(ctx context.Context, settings config.Settings) 
 	default:
 		return fmt.Errorf("source mode %q not implemented", settings.SourceMode)
 	}
+}
+
+func testXtreamConnection(ctx context.Context, client XtreamClient) error {
+	if err := client.TestConnection(ctx); err != nil {
+		return err
+	}
+	streams, err := client.LiveStreams(ctx)
+	if err != nil {
+		return err
+	}
+	if len(streams) == 0 {
+		return fmt.Errorf("no live streams available")
+	}
+	epg, err := client.ShortEPG(ctx, streams[0].StreamID)
+	if err != nil {
+		return err
+	}
+	if len(epg.EPGListings) == 0 {
+		return fmt.Errorf("epg is required for v1 setup")
+	}
+	return nil
 }

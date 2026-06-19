@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/config"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/upstream/xtream"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
 )
 
 func TestServiceTestConnectionXtreamSuccess(t *testing.T) {

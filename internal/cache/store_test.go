@@ -3,7 +3,7 @@ package cache
 import (
 	"testing"
 
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/model"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
 )
 
 func TestStorePreservesLastSuccessfulSnapshotOnFailure(t *testing.T) {

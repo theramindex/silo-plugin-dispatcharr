@@ -10,12 +10,12 @@ type ProgramIdentity struct {
 }
 
 type Program struct {
-	ID        string
-	ChannelID string
-	Title     string
-	Summary   string
-	StartUnix int64
-	EndUnix   int64
+	ID        string `json:"id"`
+	ChannelID string `json:"channelId"`
+	Title     string `json:"title"`
+	Summary   string `json:"summary,omitempty"`
+	StartUnix int64  `json:"startUnix"`
+	EndUnix   int64  `json:"endUnix"`
 }
 
 func StableProgramID(identity ProgramIdentity) string {

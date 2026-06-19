@@ -43,6 +43,8 @@ jobs:
             goarch: amd64
           - goos: linux
             goarch: arm64
+          - goos: darwin
+            goarch: arm64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,7 +55,7 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Build versioned binary and manifest
+      - name: Build versioned binary and package upload artifact
         shell: bash
         run: |
           set -euo pipefail
@@ -70,40 +72,17 @@ jobs:
           CGO_ENABLED=0 GOOS="${{ matrix.goos }}" GOARCH="${{ matrix.goarch }}" \
             go build -trimpath -ldflags "-s -w -X main.buildVersion=${VERSION}" -o "dist/${BIN}" .
 
-          chmod +x "dist/${BIN}"
-          CHECKSUM="$(sha256sum "dist/${BIN}" | awk '{print $1}')"
-          printf '%s  %s\n' "${CHECKSUM}" "${BIN}" > "dist/${BIN}.sha256"
-          export VERSION CHECKSUM
-          export GOOS_MATRIX="${{ matrix.goos }}"
-          export GOARCH_MATRIX="${{ matrix.goarch }}"
-          export BIN_NAME="${BIN}"
-
-          python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          version = os.environ["VERSION"]
-          checksum = os.environ["CHECKSUM"]
-          goos = os.environ["GOOS_MATRIX"]
-          goarch = os.environ["GOARCH_MATRIX"]
-          bin_name = os.environ["BIN_NAME"]
-
-          manifest_path = Path("manifest.json")
-          out_path = Path("dist") / f"{bin_name}.manifest.json"
-
-          data = json.loads(manifest_path.read_text(encoding="utf-8"))
-          data["version"] = version
-          data["checksum"] = checksum
-          data["supported_platforms"] = [{"os": goos, "arch": goarch}]
-
-          out_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-          PY
+          go run ./cmd/package-upload \
+            -binary "dist/${BIN}" \
+            -version "${VERSION}" \
+            -goos "${{ matrix.goos }}" \
+            -goarch "${{ matrix.goarch }}" \
+            -plugin-id "silo.dispatcharr"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dispatcharr-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: plugin-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/*
           if-no-files-found: error
 
@@ -120,6 +99,13 @@ jobs:
         with:
           path: release-dist
           merge-multiple: true
+
+      - name: Generate combined checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-dist
+          sha256sum * | sort -k2 > checksums.txt
 
       - name: Compute release metadata
         id: meta

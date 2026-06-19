@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	pluginv1 "github.com/ContinuumApp/continuum-plugin-sdk/pkg/pluginproto/continuum/plugin/v1"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/app"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/cache"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/config"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/upstream/xtream"
+	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/app"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
 )
 
 func TestScheduledTaskServerRunsSyncTask(t *testing.T) {

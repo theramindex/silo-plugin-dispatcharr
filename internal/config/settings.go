@@ -7,18 +7,24 @@ import (
 
 const (
 	DefaultChannelRefreshHours = 24
-	DefaultEPGRefreshHours     = 6
+	DefaultEPGRefreshHours     = 24
 )
 
 type SourceMode string
 
 const (
-	SourceModeXtream   SourceMode = "xtream"
-	SourceModeM3UXMLTV SourceMode = "m3u_xmltv"
+	SourceModeDirectLogin SourceMode = "direct_login"
+	SourceModeAPIKey      SourceMode = "api_key"
+	SourceModeXtream      SourceMode = "xtream"
+	SourceModeM3UXMLTV    SourceMode = "m3u_xmltv"
 )
 
 type Settings struct {
 	SourceMode        SourceMode
+	DispatcharrURL    string
+	DispatcharrUser   string
+	DispatcharrPass   string
+	DispatcharrAPIKey string
 	XtreamBaseURL     string
 	XtreamUsername    string
 	XtreamPassword    string
@@ -32,6 +38,23 @@ type Settings struct {
 
 func (s Settings) Validate() error {
 	switch s.SourceMode {
+	case SourceModeDirectLogin:
+		if strings.TrimSpace(s.DispatcharrURL) == "" {
+			return fmt.Errorf("dispatcharr url is required")
+		}
+		if strings.TrimSpace(s.DispatcharrUser) == "" {
+			return fmt.Errorf("dispatcharr username is required")
+		}
+		if strings.TrimSpace(s.DispatcharrPass) == "" {
+			return fmt.Errorf("dispatcharr password is required")
+		}
+	case SourceModeAPIKey:
+		if strings.TrimSpace(s.DispatcharrURL) == "" {
+			return fmt.Errorf("dispatcharr url is required")
+		}
+		if strings.TrimSpace(s.DispatcharrAPIKey) == "" {
+			return fmt.Errorf("dispatcharr api key is required")
+		}
 	case SourceModeXtream:
 		if strings.TrimSpace(s.XtreamBaseURL) == "" {
 			return fmt.Errorf("xtream base url is required")

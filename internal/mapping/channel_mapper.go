@@ -3,9 +3,9 @@ package mapping
 import (
 	"strconv"
 
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/model"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/upstream/m3u"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/upstream/xtream"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/m3u"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
 )
 
 func MapXtreamChannel(stream xtream.LiveStream) model.Channel {
@@ -17,11 +17,12 @@ func MapXtreamChannel(stream xtream.LiveStream) model.Channel {
 			LogoURL:    stream.StreamIcon,
 			StreamURL:  strconv.FormatInt(stream.StreamID, 10),
 		}),
-		SourceID: model.LiveTVSourceID,
-		Name:     stream.Name,
-		Number:   strconv.Itoa(stream.Num),
-		GuideID:  stream.EPGChannelID,
-		LogoURL:  stream.StreamIcon,
+		SourceID:   model.LiveTVSourceID,
+		Name:       stream.Name,
+		Number:     strconv.Itoa(stream.Num),
+		GuideID:    stream.EPGChannelID,
+		LogoURL:    stream.StreamIcon,
+		CategoryID: stream.CategoryID,
 	}
 }
 

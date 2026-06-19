@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/config"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
 )
 
 func TestResolvePlaybackUsesFreshXtreamResolution(t *testing.T) {

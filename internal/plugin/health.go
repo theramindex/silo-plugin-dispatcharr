@@ -1,6 +1,6 @@
 package plugin
 
-import "github.com/relictiohosting/continuum-plugins/dispatcharr/internal/cache"
+import "github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
 
 type HealthPayload struct {
 	Status          string `json:"status"`

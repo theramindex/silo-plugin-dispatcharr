@@ -1,1 +1,5 @@
-dispatcharr
+/dispatcharr
+dist/
+.gocache/
+.DS_Store
+.tmp-*

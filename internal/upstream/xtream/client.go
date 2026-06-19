@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	sharedhttp "github.com/relictiohosting/continuum-plugins/dispatcharr/internal/upstream/httpclient"
+	sharedhttp "github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/httpclient"
 )
 
 type Client struct {
@@ -50,6 +50,38 @@ func (c *Client) LiveStreams(ctx context.Context) ([]LiveStream, error) {
 	return streams, nil
 }
 
+func (c *Client) VODCategories(ctx context.Context) ([]VODCategory, error) {
+	var categories []VODCategory
+	if err := c.getJSON(ctx, "get_vod_categories", nil, &categories); err != nil {
+		return nil, err
+	}
+	return categories, nil
+}
+
+func (c *Client) VODStreams(ctx context.Context) ([]VODStream, error) {
+	var streams []VODStream
+	if err := c.getJSON(ctx, "get_vod_streams", nil, &streams); err != nil {
+		return nil, err
+	}
+	return streams, nil
+}
+
+func (c *Client) SeriesCategories(ctx context.Context) ([]SeriesCategory, error) {
+	var categories []SeriesCategory
+	if err := c.getJSON(ctx, "get_series_categories", nil, &categories); err != nil {
+		return nil, err
+	}
+	return categories, nil
+}
+
+func (c *Client) Series(ctx context.Context) ([]Series, error) {
+	var series []Series
+	if err := c.getJSON(ctx, "get_series", nil, &series); err != nil {
+		return nil, err
+	}
+	return series, nil
+}
+
 func (c *Client) ShortEPG(ctx context.Context, streamID int64) (ShortEPGResponse, error) {
 	var response ShortEPGResponse
 	params := map[string]string{"stream_id": strconv.FormatInt(streamID, 10)}
@@ -65,6 +97,19 @@ func (c *Client) ResolveLiveStreamURL(streamID int64) string {
 		return ""
 	}
 	resolved.Path = path.Join(resolved.Path, "live", c.username, c.password, strconv.FormatInt(streamID, 10)+".m3u8")
+	return resolved.String()
+}
+
+func (c *Client) ResolveVODStreamURL(streamID int64, extension string) string {
+	resolved, err := url.Parse(c.baseURL)
+	if err != nil {
+		return ""
+	}
+	extension = strings.TrimPrefix(strings.TrimSpace(extension), ".")
+	if extension == "" {
+		extension = "mp4"
+	}
+	resolved.Path = path.Join(resolved.Path, "movie", c.username, c.password, strconv.FormatInt(streamID, 10)+"."+extension)
 	return resolved.String()
 }
 

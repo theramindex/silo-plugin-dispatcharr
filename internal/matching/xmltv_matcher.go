@@ -3,8 +3,8 @@ package matching
 import (
 	"strings"
 
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/upstream/m3u"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/upstream/xmltv"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/m3u"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xmltv"
 )
 
 func Match(entry m3u.Entry, doc xmltv.Document) (xmltv.Channel, bool) {

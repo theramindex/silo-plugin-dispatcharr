@@ -1,52 +1,92 @@
-# Dispatcharr Continuum Plugin
+# Dispatcharr Silo Plugin
 
-Dispatcharr-specific Continuum plugin for exposing a shared **Live TV** source that Continuum can surface through its Jellyfin-compatible API layer.
+Dispatcharr-specific Silo plugin that runs as a Silo-hosted IPTV app.
+
+The plugin owns the IPTV experience directly instead of trying to create fake
+Silo media items. Native Jellyfin `/LiveTv/*` export can be added later if
+Silo exposes a first-class Live TV provider capability.
 
 ## Supported source modes
 
-- **Xtream** (default/recommended)
+- **Dispatcharr login** (default/recommended)
+  - Dispatcharr URL
+  - Username
+  - Password
+  - Uses Dispatcharr REST APIs for catalog data and Dispatcharr proxy/output routes for playback
+- **Dispatcharr API key**
+  - Dispatcharr URL
+  - API key
+  - Uses the same Dispatcharr REST catalog client without storing a password
+- **Xtream**
   - Base URL
   - Username
   - Password
+  - Live TV, EPG, VOD, and series metadata when the provider exposes those APIs
 - **M3U/XMLTV** fallback
   - M3U URL
   - EPG XML URL
+  - Live TV and guide data only
 
 ## Current behavior
 
-- Validates admin configuration for Xtream and M3U/XMLTV modes
-- Syncs channel and guide data into one stable `Live TV` source
+- Validates admin configuration for Dispatcharr, Xtream, and M3U/XMLTV modes
+- Syncs Live TV channels, groups, guide data, VOD, and series through Dispatcharr REST
+- Keeps Xtream VOD and series support available in Xtream fallback mode
 - Resolves playback targets fresh at play time
+- Tracks favorites, auto-favorites, hidden categories, recent channels, continue watching, and playback preferences in the plugin preference model
 - Keeps stale metadata visible when sync fails
 - Exposes a plugin status route at `/dispatcharr/status`
-- Exposes plugin bridge routes:
+- Exposes a Silo-hosted IPTV app:
+  - `/dispatcharr` (navigable app)
   - `/dispatcharr/player` (navigable page)
-  - `/dispatcharr/channels`
-  - `/dispatcharr/guide`
+  - `/dispatcharr/api/app`
+  - `/dispatcharr/api/channels`
+  - `/dispatcharr/api/guide`
+  - `/dispatcharr/api/categories`
+  - `/dispatcharr/api/vod`
+  - `/dispatcharr/api/series`
+  - `/dispatcharr/api/favorites`
+  - `/dispatcharr/api/hidden-categories`
+  - `/dispatcharr/api/playback`
   - `/dispatcharr/stream?channel_id=...`
+  - `/dispatcharr/vod/stream?item_id=...`
 - Supports a scheduled sync task with key `dispatcharr-sync`
 
 ## v1 limitations
 
 - Exactly one Dispatcharr-backed source
-- No VOD playback
-- No category/channel filtering controls
-- EPG is required for setup in both source modes
+- EPG is required for setup in Xtream and M3U/XMLTV-compatible modes
+- Per-user preference persistence depends on Silo exposing plugin-side user config writes; until then this repo keeps an in-memory preference store behind the route handlers
 - Source-mode changes reset cached channel/guide state before rebuilding
-- Continuum host integration still needs real environment validation
-- Current Continuum plugin host wiring appears to support plugin-driven **metadata enrichment**, not creation of a brand-new Jellyfin-visible **Live TV** catalog/source. A true Dispatcharr Live TV integration likely requires host-side capability work in Continuum first.
-
-See also:
-- `docs/continuum-host-gap.md`
-- `docs/continuum-host-change-proposal.md`
-- `docs/sdk-fit-notes.md`
-- `docs/demo-checklist.md`
+- Silo host integration still needs real environment validation
+- Native Jellyfin `/LiveTv/*` export is not available until Silo exposes a Live TV provider SDK/host capability
+- Backend proxy/remux/transcode is not enabled because the current HTTP route SDK response is buffered; playback uses direct redirect URLs
 
 ## Build
 
 ```bash
 go build ./...
 ```
+
+## Build Upload ZIP (Silo Admin Upload)
+
+Build a Linux binary and package a Silo-compatible upload ZIP containing
+`plugin` + `manifest.json`:
+
+```bash
+VERSION="0.0.0-local-$(git rev-parse --short HEAD)"
+BIN="dispatcharr-${VERSION}-linux-amd64"
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+  go build -trimpath -ldflags "-s -w -X main.buildVersion=${VERSION}" -o "dist/${BIN}" .
+go run ./cmd/package-upload \
+  -binary "dist/${BIN}" \
+  -version "${VERSION}" \
+  -goos linux \
+  -goarch amd64 \
+  -plugin-id silo.dispatcharr
+```
+
+Upload the generated `dist/<binary>.silo-plugin.zip` file in Silo.
 
 ## GitLab CI builds
 
@@ -83,4 +123,4 @@ go run . manifest
 
 ## License
 
-`continuum-plugin-dispatcharr` is licensed under `AGPL-3.0-or-later`. See `LICENSE`.
+`silo-plugin-dispatcharr` is licensed under `AGPL-3.0-or-later`. See `LICENSE`.

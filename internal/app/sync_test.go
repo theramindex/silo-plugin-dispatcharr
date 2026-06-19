@@ -4,9 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/cache"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/config"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/upstream/xtream"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/dispatcharr"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
 )
 
 func TestSyncStoresChannelsAndPrograms(t *testing.T) {
@@ -78,6 +79,63 @@ func TestSyncKeepsStaleSnapshotOnFailure(t *testing.T) {
 	}
 }
 
+func TestSyncDispatcharrRESTBuildsCatalog(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	service := NewService(Dependencies{
+		Store: store,
+		DispatcharrFactory: func(config.Settings) DispatcharrClient {
+			return &stubDispatcharrClient{
+				channels: []dispatcharr.Channel{{
+					ID:                     "1",
+					UUID:                   "11111111-1111-1111-1111-111111111111",
+					Name:                   "Provider Name",
+					EffectiveName:          "News HD",
+					EffectiveChannelNumber: "5.1",
+					EffectiveTVGID:         "news.hd",
+					EffectiveGroupID:       "10",
+				}},
+				groups: []dispatcharr.ChannelGroup{{ID: "10", Name: "Local"}},
+				programs: []dispatcharr.Program{{
+					ID:          "epg-1",
+					TVGID:       "news.hd",
+					Title:       "Morning News",
+					Description: "Top headlines.",
+					StartTime:   "2026-06-18T12:00:00Z",
+					EndTime:     "2026-06-18T13:00:00Z",
+				}},
+				vodCategories: []dispatcharr.VODCategory{{ID: "movies", Name: "Movies", CategoryType: "movie"}, {ID: "shows", Name: "Shows", CategoryType: "series"}},
+				movies:        []dispatcharr.Movie{{UUID: "22222222-2222-2222-2222-222222222222", Name: "Movie One", CategoryID: "movies"}},
+				series:        []dispatcharr.Series{{UUID: "33333333-3333-3333-3333-333333333333", Name: "Series One", CategoryID: "shows"}},
+			}
+		},
+	})
+
+	err := service.SyncNow(context.Background(), config.Settings{
+		SourceMode:      config.SourceModeDirectLogin,
+		DispatcharrURL:  "https://dispatcharr.example.com",
+		DispatcharrUser: "demo",
+		DispatcharrPass: "secret",
+		ChannelRefreshH: 24,
+		EPGRefreshH:     24,
+	}, 500)
+	if err != nil {
+		t.Fatalf("expected dispatcharr sync success, got %v", err)
+	}
+
+	snapshot := store.Current()
+	if len(snapshot.Catalog.Channels) != 1 || snapshot.Catalog.Channels[0].Name != "News HD" {
+		t.Fatalf("unexpected dispatcharr channels: %+v", snapshot.Catalog.Channels)
+	}
+	if len(snapshot.Catalog.Programs) != 1 || snapshot.Catalog.Programs[0].ChannelID != snapshot.Catalog.Channels[0].ID {
+		t.Fatalf("unexpected dispatcharr programs: %+v", snapshot.Catalog.Programs)
+	}
+	if len(snapshot.Catalog.Content.VODItems) != 1 || len(snapshot.Catalog.Content.SeriesItems) != 1 {
+		t.Fatalf("unexpected dispatcharr content: %+v", snapshot.Catalog.Content)
+	}
+}
+
 func TestSyncM3UXMLTVBuildsFallbackCatalog(t *testing.T) {
 	t.Parallel()
 
@@ -103,3 +161,43 @@ func TestSyncM3UXMLTVBuildsFallbackCatalog(t *testing.T) {
 		t.Fatalf("unexpected fallback snapshot: %+v", snapshot)
 	}
 }
+
+type stubDispatcharrClient struct {
+	testErr       error
+	channels      []dispatcharr.Channel
+	groups        []dispatcharr.ChannelGroup
+	programs      []dispatcharr.Program
+	vodCategories []dispatcharr.VODCategory
+	movies        []dispatcharr.Movie
+	series        []dispatcharr.Series
+}
+
+func (s *stubDispatcharrClient) TestConnection(context.Context) error { return s.testErr }
+func (s *stubDispatcharrClient) Channels(context.Context) ([]dispatcharr.Channel, error) {
+	return s.channels, nil
+}
+func (s *stubDispatcharrClient) ChannelGroups(context.Context) ([]dispatcharr.ChannelGroup, error) {
+	return s.groups, nil
+}
+func (s *stubDispatcharrClient) Programs(context.Context) ([]dispatcharr.Program, error) {
+	return s.programs, nil
+}
+func (s *stubDispatcharrClient) VODCategories(context.Context) ([]dispatcharr.VODCategory, error) {
+	return s.vodCategories, nil
+}
+func (s *stubDispatcharrClient) Movies(context.Context) ([]dispatcharr.Movie, error) {
+	return s.movies, nil
+}
+func (s *stubDispatcharrClient) Series(context.Context) ([]dispatcharr.Series, error) {
+	return s.series, nil
+}
+func (s *stubDispatcharrClient) LiveStreamURL(channelUUID string) string {
+	return "https://dispatcharr.example.com/proxy/ts/stream/" + channelUUID
+}
+func (s *stubDispatcharrClient) MovieStreamURL(movieUUID string) string {
+	return "https://dispatcharr.example.com/proxy/vod/movie/" + movieUUID
+}
+func (s *stubDispatcharrClient) SeriesStreamURL(seriesUUID string) string {
+	return "https://dispatcharr.example.com/proxy/vod/series/" + seriesUUID
+}
+func (s *stubDispatcharrClient) AbsoluteURL(raw string) string { return raw }

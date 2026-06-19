@@ -3,8 +3,8 @@ package mapping
 import (
 	"testing"
 
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/model"
-	"github.com/relictiohosting/continuum-plugins/dispatcharr/internal/upstream/xtream"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
 )
 
 func TestMapXtreamChannelPreservesSourceOfTruthFields(t *testing.T) {

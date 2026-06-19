@@ -1,6 +1,6 @@
 package plugin
 
-import "github.com/relictiohosting/continuum-plugins/dispatcharr/internal/model"
+import "github.com/theramindex/silo-plugin-dispatcharr/internal/model"
 
 type Descriptor struct {
 	SourceID string

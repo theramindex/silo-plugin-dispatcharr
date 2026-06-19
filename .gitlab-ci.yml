@@ -42,9 +42,12 @@ build:linux:
       BIN="dispatcharr-${VERSION}-${GOOS}-${GOARCH}"
       CGO_ENABLED=0 GOOS="${GOOS}" GOARCH="${GOARCH}" \
         go build -trimpath -ldflags "-s -w -X main.buildVersion=${VERSION}" -o "dist/${BIN}" .
-      chmod +x "dist/${BIN}"
-      "./dist/${BIN}" manifest > "dist/${BIN}.manifest.json"
-      sha256sum "dist/${BIN}" > "dist/${BIN}.sha256"
+      go run ./cmd/package-upload \
+        -binary "dist/${BIN}" \
+        -version "${VERSION}" \
+        -goos "${GOOS}" \
+        -goarch "${GOARCH}" \
+        -plugin-id "silo.dispatcharr"
       echo "${VERSION}" > dist/VERSION
   artifacts:
     name: "dispatcharr-${CI_COMMIT_REF_SLUG}-${GOOS}-${GOARCH}"
