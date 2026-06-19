@@ -93,7 +93,7 @@ type watchRequest struct {
 func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
 	switch request.GetPath() {
 	case "/dispatcharr", "/dispatcharr/player":
-		return htmlResponse(http.StatusOK, playerPageHTML), nil
+		return htmlResponse(http.StatusOK, playerPageHTML()), nil
 	case "/dispatcharr/assets/hls.min.js", "/assets/hls.min.js":
 		return assetResponse("assets/hls.min.js")
 	case "/dispatcharr/assets/mpegts.min.js", "/assets/mpegts.min.js":
@@ -342,6 +342,24 @@ func assetResponse(path string) (*pluginv1.HandleHTTPResponse, error) {
 	}, nil
 }
 
+func playerPageHTML() string {
+	return strings.Replace(playerPageHTMLTemplate, "__PLAYER_LIBRARIES__", playerLibrariesHTML(), 1)
+}
+
+func playerLibrariesHTML() string {
+	var builder strings.Builder
+	for _, path := range []string{"assets/hls.min.js", "assets/mpegts.min.js"} {
+		payload, err := playerAssets.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		builder.WriteString("<script>")
+		builder.WriteString(strings.ReplaceAll(string(payload), "</script", "<\\/script"))
+		builder.WriteString("</script>\n")
+	}
+	return builder.String()
+}
+
 func (s *HTTPRoutesServer) resolveStreamURL(channelID string) (string, error) {
 	snapshot := s.store.Current()
 	for _, channel := range snapshot.Catalog.Channels {
@@ -496,14 +514,13 @@ func textResponse(status int, message string) *pluginv1.HandleHTTPResponse {
 	}
 }
 
-const playerPageHTML = `<!doctype html>
+const playerPageHTMLTemplate = `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dispatcharr IPTV</title>
-    <script src="dispatcharr/assets/hls.min.js?v=0.2.11"></script>
-    <script src="dispatcharr/assets/mpegts.min.js?v=0.2.11"></script>
+    __PLAYER_LIBRARIES__
     <style>
       :root {
         color-scheme: dark;
