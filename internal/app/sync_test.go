@@ -97,8 +97,16 @@ func TestSyncDispatcharrRESTBuildsCatalog(t *testing.T) {
 					UUID:                   "11111111-1111-1111-1111-111111111111",
 					Name:                   "Provider Name",
 					EffectiveName:          "News HD",
-					EffectiveChannelNumber: "5.1",
+					EffectiveChannelNumber: "12",
 					EffectiveTVGID:         "news.hd",
+					EffectiveGroupID:       "10",
+				}, {
+					ID:                     "2",
+					UUID:                   "44444444-4444-4444-4444-444444444444",
+					Name:                   "Provider Two",
+					EffectiveName:          "Local Five",
+					EffectiveChannelNumber: "5.1",
+					EffectiveTVGID:         "local.five",
 					EffectiveGroupID:       "10",
 				}},
 				groups: []dispatcharr.ChannelGroup{{ID: "10", Name: "Local"}},
@@ -130,10 +138,10 @@ func TestSyncDispatcharrRESTBuildsCatalog(t *testing.T) {
 	}
 
 	snapshot := store.Current()
-	if len(snapshot.Catalog.Channels) != 1 || snapshot.Catalog.Channels[0].Name != "News HD" {
+	if len(snapshot.Catalog.Channels) != 2 || snapshot.Catalog.Channels[0].Name != "Local Five" || snapshot.Catalog.Channels[1].Name != "News HD" {
 		t.Fatalf("unexpected dispatcharr channels: %+v", snapshot.Catalog.Channels)
 	}
-	if len(snapshot.Catalog.Programs) != 1 || snapshot.Catalog.Programs[0].ChannelID != snapshot.Catalog.Channels[0].ID {
+	if len(snapshot.Catalog.Programs) != 1 || snapshot.Catalog.Programs[0].ChannelID != snapshot.Catalog.Channels[1].ID {
 		t.Fatalf("unexpected dispatcharr programs: %+v", snapshot.Catalog.Programs)
 	}
 	if len(snapshot.Catalog.Content.VODItems) != 1 || len(snapshot.Catalog.Content.SeriesItems) != 1 {

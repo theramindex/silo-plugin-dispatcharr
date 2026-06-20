@@ -6,6 +6,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
@@ -129,6 +132,7 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 			channelByGuideID[upstream.UUID.String()] = channel.ID
 		}
 	}
+	sortChannelsByLineupNumber(channels)
 
 	programs := make([]model.Program, 0)
 	if upstreamPrograms, err := client.Programs(ctx); err == nil {
@@ -220,6 +224,7 @@ func (s *Service) syncXtream(ctx context.Context, baseURL, username, password st
 			programs = append(programs, mapping.MapXtreamProgram(channel.ID, listing))
 		}
 	}
+	sortChannelsByLineupNumber(channels)
 
 	catalog := model.CatalogState{
 		Source:   model.LiveTVSource(sourceMode),
@@ -242,6 +247,52 @@ func (s *Service) syncXtream(ctx context.Context, baseURL, username, password st
 		s.StartAsyncEPGRefresh(settings)
 	}
 	return nil
+}
+
+func sortChannelsByLineupNumber(channels []model.Channel) {
+	sort.SliceStable(channels, func(i, j int) bool {
+		leftNumber, leftOK := leadingChannelNumber(channels[i].Number)
+		rightNumber, rightOK := leadingChannelNumber(channels[j].Number)
+		if leftOK && rightOK && leftNumber != rightNumber {
+			return leftNumber < rightNumber
+		}
+		if leftOK != rightOK {
+			return leftOK
+		}
+		left := strings.TrimSpace(strings.ToLower(channels[i].Number))
+		right := strings.TrimSpace(strings.ToLower(channels[j].Number))
+		if left != "" && right != "" && left != right {
+			return left < right
+		}
+		return false
+	})
+}
+
+func leadingChannelNumber(value string) (float64, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, false
+	}
+	end := 0
+	dotSeen := false
+	for end < len(value) {
+		ch := value[end]
+		if ch >= '0' && ch <= '9' {
+			end++
+			continue
+		}
+		if ch == '.' && !dotSeen {
+			dotSeen = true
+			end++
+			continue
+		}
+		break
+	}
+	if end == 0 || value[:end] == "." {
+		return 0, false
+	}
+	number, err := strconv.ParseFloat(value[:end], 64)
+	return number, err == nil
 }
 
 func loadXtreamAppCatalog(ctx context.Context, client xtreamAppCatalogClient, includeExtended bool) model.ContentState {
