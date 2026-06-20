@@ -127,12 +127,18 @@ func TestGlobalConfigSchema_ProvidesAdminFormsForSiloUI(t *testing.T) {
 
 	connection := mustFindSchema(t, GlobalConfigSchema(), "connection")
 
-	if connection.GetAdminForm() == nil || len(connection.GetAdminForm().GetFields()) != 7 {
+	if connection.GetAdminForm() == nil || len(connection.GetAdminForm().GetFields()) != 11 {
 		t.Fatalf("expected connection admin form fields, got %+v", connection.GetAdminForm())
 	}
 
-	if connection.GetAdminForm().GetFields()[1].GetControl().String() != "ADMIN_FORM_CONTROL_PASSWORD" {
-		t.Fatalf("expected api key field control, got %s", connection.GetAdminForm().GetFields()[1].GetControl().String())
+	if connection.GetAdminForm().GetFields()[0].GetControl().String() != "ADMIN_FORM_CONTROL_SELECT" {
+		t.Fatalf("expected source mode field control, got %s", connection.GetAdminForm().GetFields()[0].GetControl().String())
+	}
+	if len(connection.GetAdminForm().GetFields()[0].GetOptions()) != 3 {
+		t.Fatalf("expected direct/api-key/xtream options, got %+v", connection.GetAdminForm().GetFields()[0].GetOptions())
+	}
+	if connection.GetAdminForm().GetFields()[2].GetControl().String() != "ADMIN_FORM_CONTROL_PASSWORD" {
+		t.Fatalf("expected api key field control, got %s", connection.GetAdminForm().GetFields()[2].GetControl().String())
 	}
 }
 

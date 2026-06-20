@@ -8,7 +8,7 @@ Silo exposes a first-class Live TV provider capability.
 
 ## Supported source modes
 
-- **Dispatcharr login** (default/recommended)
+- **Dispatcharr Direct** (default/recommended)
   - Dispatcharr URL
   - Username
   - Password
@@ -17,7 +17,7 @@ Silo exposes a first-class Live TV provider capability.
   - Dispatcharr URL
   - API key
   - Uses the same Dispatcharr REST catalog client without storing a password
-- **Xtream**
+- **Xtream Codes**
   - Base URL
   - Username
   - Password
@@ -31,7 +31,7 @@ Silo exposes a first-class Live TV provider capability.
 
 - Validates admin configuration for Dispatcharr, Xtream, and M3U/XMLTV modes
 - Syncs Live TV channels, groups, guide data, VOD, and series through Dispatcharr REST
-- Keeps Xtream VOD and series support available in Xtream fallback mode
+- Keeps Xtream VOD and series support available when Xtream Codes mode is selected
 - Resolves playback targets fresh at play time
 - Tracks favorites, auto-favorites, hidden categories, recent channels, continue watching, and playback preferences in the plugin preference model
 - Keeps stale metadata visible when sync fails
@@ -60,6 +60,7 @@ Silo exposes a first-class Live TV provider capability.
 - EPG is required for setup in Xtream and M3U/XMLTV-compatible modes
 - Per-user preference persistence depends on Silo exposing plugin-side user config writes; until then this repo keeps an in-memory preference store behind the route handlers
 - Source-mode changes reset cached channel/guide state before rebuilding
+- Dispatcharr Direct does not silently fall back to Xtream Codes; Direct failures are surfaced in plugin health/status
 - Silo host integration still needs real environment validation
 - Native Jellyfin `/LiveTv/*` export is not available until Silo exposes a Live TV provider SDK/host capability
 - Backend proxy/remux/transcode is not enabled because the current HTTP route SDK response is buffered; playback uses direct redirect URLs

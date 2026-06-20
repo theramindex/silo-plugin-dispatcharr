@@ -52,14 +52,17 @@ func (s *runtimeServer) Configure(_ context.Context, request *pluginv1.Configure
 		values := entry.GetValue().AsMap()
 		switch entry.GetKey() {
 		case "connection":
+			if stringValue, ok := values["source_mode"].(string); ok {
+				current.SourceMode = config.SourceMode(stringValue)
+			}
 			current.DispatcharrURL = asString(values["base_url"])
 			current.DispatcharrUser = asString(values["username"])
 			current.DispatcharrPass = asString(values["password"])
 			current.DispatcharrAPIKey = asString(values["api_key"])
-			if stringValue, ok := values["source_mode"].(string); ok {
-				current.SourceMode = config.SourceMode(stringValue)
-			}
-			if current.DispatcharrAPIKey != "" {
+			current.XtreamBaseURL = firstString(values["xtream_base_url"], values["base_url"])
+			current.XtreamUsername = firstString(values["xtream_username"], values["username"])
+			current.XtreamPassword = firstString(values["xtream_password"], values["password"])
+			if current.SourceMode == "" && current.DispatcharrAPIKey != "" {
 				current.SourceMode = config.SourceModeAPIKey
 			} else if current.SourceMode == "" {
 				current.SourceMode = config.SourceModeDirectLogin
@@ -176,6 +179,15 @@ func loadManifest() (*pluginv1.PluginManifest, error) {
 func asString(value any) string {
 	if stringValue, ok := value.(string); ok {
 		return stringValue
+	}
+	return ""
+}
+
+func firstString(values ...any) string {
+	for _, value := range values {
+		if stringValue := asString(value); stringValue != "" {
+			return stringValue
+		}
 	}
 	return ""
 }

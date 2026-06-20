@@ -17,7 +17,7 @@ func TestRuntimeConfigureReadsObjectShapedConfigEntries(t *testing.T) {
 	server := &runtimeServer{settings: state}
 
 	req := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{
-		{Key: "connection", Value: mustStruct(t, map[string]any{"base_url": "https://dispatcharr.example.com", "api_key": "secret", "live_tv_enabled": true})},
+		{Key: "connection", Value: mustStruct(t, map[string]any{"source_mode": "api_key", "base_url": "https://dispatcharr.example.com", "api_key": "secret", "live_tv_enabled": true})},
 	}}
 
 	if _, err := server.Configure(context.Background(), req); err != nil {
@@ -41,8 +41,11 @@ func TestManifestGlobalConfigSchemasValidateExpectedObjects(t *testing.T) {
 		t.Fatalf("load manifest: %v", err)
 	}
 
-	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"base_url": "https://dispatcharr.example.com", "api_key": "secret", "live_tv_enabled": true}); err != nil {
+	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "api_key", "base_url": "https://dispatcharr.example.com", "api_key": "secret", "live_tv_enabled": true}); err != nil {
 		t.Fatalf("validate connection schema: %v", err)
+	}
+	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "xtream", "xtream_base_url": "https://provider.example.com", "xtream_username": "demo", "xtream_password": "secret", "live_tv_enabled": true}); err != nil {
+		t.Fatalf("validate xtream connection schema: %v", err)
 	}
 }
 

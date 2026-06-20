@@ -33,18 +33,7 @@ func (s *Service) SyncNow(ctx context.Context, settings config.Settings, nowUnix
 
 	switch settings.SourceMode {
 	case config.SourceModeDirectLogin, config.SourceModeAPIKey:
-		if err := s.syncDispatcharr(ctx, settings, nowUnix); err != nil {
-			if settings.SourceMode == config.SourceModeDirectLogin {
-				if fallbackErr := s.syncXtream(ctx, settings.DispatcharrURL, settings.DispatcharrUser, settings.DispatcharrPass, model.SourceModeDirectLogin, nowUnix); fallbackErr == nil {
-					s.StartAsyncEPGRefresh(settings)
-					return nil
-				} else {
-					return fmt.Errorf("dispatcharr REST sync failed (%v); xtream fallback failed: %w", err, fallbackErr)
-				}
-			}
-			return err
-		}
-		return nil
+		return s.syncDispatcharr(ctx, settings, nowUnix)
 	case config.SourceModeXtream:
 		return s.syncXtream(ctx, settings.XtreamBaseURL, settings.XtreamUsername, settings.XtreamPassword, model.SourceModeXtream, nowUnix)
 	case config.SourceModeM3UXMLTV:

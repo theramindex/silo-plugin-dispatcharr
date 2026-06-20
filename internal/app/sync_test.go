@@ -141,23 +141,19 @@ func TestSyncDispatcharrRESTBuildsCatalog(t *testing.T) {
 	}
 }
 
-func TestSyncDirectLoginFallsBackToXtream(t *testing.T) {
+func TestSyncDirectLoginDoesNotFallbackToXtream(t *testing.T) {
 	t.Parallel()
 
 	store := cache.NewStore()
+	xtreamCalls := 0
 	service := NewService(Dependencies{
 		Store: store,
 		DispatcharrFactory: func(config.Settings) DispatcharrClient {
 			return &stubDispatcharrClient{channelsErr: errors.New("dispatcharr login status 405")}
 		},
 		XtreamFactory: func(baseURL, username, password string) XtreamClient {
-			if baseURL != "https://dispatcharr.example.com" || username != "demo" || password != "secret" {
-				t.Fatalf("unexpected fallback credentials: %q %q", baseURL, username)
-			}
-			return &stubXtreamClient{
-				streams: []xtream.LiveStream{{Num: 1, Name: "News HD", StreamID: 1001, EPGChannelID: "news.hd"}},
-				epg:     xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "epg-1", Title: "Morning News", StartTimestamp: "1700000000", StopTimestamp: "1700003600"}}},
-			}
+			xtreamCalls++
+			return &stubXtreamClient{}
 		},
 	})
 
@@ -169,22 +165,18 @@ func TestSyncDirectLoginFallsBackToXtream(t *testing.T) {
 		ChannelRefreshH: 24,
 		EPGRefreshH:     24,
 	}, 600)
-	if err != nil {
-		t.Fatalf("expected direct login fallback sync success, got %v", err)
+	if err == nil {
+		t.Fatal("expected direct login REST sync failure")
 	}
-
+	if xtreamCalls != 0 {
+		t.Fatalf("expected no xtream fallback calls, got %d", xtreamCalls)
+	}
 	snapshot := store.Current()
-	if snapshot.Catalog.Source.Mode != model.SourceModeDirectLogin {
-		t.Fatalf("expected direct login source mode, got %q", snapshot.Catalog.Source.Mode)
+	if snapshot.Health.LastFailureUnix != 600 || snapshot.Health.LastError == "" {
+		t.Fatalf("expected direct failure to be recorded, got %+v", snapshot.Health)
 	}
-	if len(snapshot.Catalog.Channels) != 1 || len(snapshot.Catalog.Programs) != 1 {
-		t.Fatalf("unexpected fallback snapshot: %+v", snapshot)
-	}
-	if snapshot.Health.LastFailureUnix != 0 || snapshot.Health.LastError != "" {
-		t.Fatalf("expected fallback success to clear transient REST failure, got %+v", snapshot.Health)
-	}
-	if snapshot.Health.LastSuccessUnix != 600 {
-		t.Fatalf("expected fallback success timestamp, got %d", snapshot.Health.LastSuccessUnix)
+	if snapshot.Health.LastSuccessUnix != 0 {
+		t.Fatalf("expected no direct success timestamp, got %d", snapshot.Health.LastSuccessUnix)
 	}
 }
 
