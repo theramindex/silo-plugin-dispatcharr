@@ -679,6 +679,14 @@ const playerPageHTMLTemplate = `<!doctype html>
       .player-chip svg:last-child { width: 0.95rem; height: 0.95rem; opacity: 0.72; }
       .player-icon:hover, .player-chip:hover { background: rgba(52,52,54,0.86); }
       .player-icon.active, .player-icon.favorite.active { color: white; background: rgba(255,47,116,0.9); border-color: rgba(255,255,255,0.28); }
+      .player-exit { border: 0; background: transparent; color: white; display: inline-flex; align-items: center; gap: 0.55rem; padding: 0; font-weight: 850; text-shadow: 0 0.15rem 0.85rem rgba(0,0,0,0.72); }
+      .player-exit .player-icon { box-shadow: none; }
+      .player-exit span { font-size: 0.92rem; }
+      .player-center-button { position: absolute; left: 50%; top: 50%; z-index: 2; transform: translate(-50%, -50%) scale(1); width: 4.8rem; height: 4.8rem; border-radius: 999px; border: 1px solid rgba(255,255,255,0.2); background: rgba(245,245,245,0.94); color: #050505; display: inline-grid; place-items: center; box-shadow: 0 1rem 2.5rem rgba(0,0,0,0.34); transition: opacity 180ms ease, transform 180ms ease; }
+      .player-center-button svg { width: 2rem; height: 2rem; display: block; }
+      .player-center-button.hidden { opacity: 0; pointer-events: none; transform: translate(-50%, -50%) scale(0.94); }
+      .player-center-button.loading svg { animation: spin 880ms linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
       .player-menu { position: absolute; top: calc(100% + 0.45rem); right: 0; display: none; min-width: 13rem; max-width: min(18rem, 70vw); padding: 0.35rem; border: 1px solid rgba(255,255,255,0.14); border-radius: 0.8rem; background: rgba(20,20,21,0.94); box-shadow: 0 1rem 2rem rgba(0,0,0,0.36); backdrop-filter: blur(18px); }
       .player-menu.open { display: grid; gap: 0.2rem; }
       .player-menu button { border: 0; border-radius: 0.55rem; background: transparent; color: rgba(255,255,255,0.82); padding: 0.55rem 0.65rem; text-align: left; font-weight: 750; }
@@ -776,7 +784,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       const path = window.location.pathname;
       const base = path.endsWith("/dispatcharr/player") ? path.slice(0, -"/dispatcharr/player".length) : (path.endsWith("/dispatcharr") ? path.slice(0, -"/dispatcharr".length) : "");
       const prefsKey = "silo.ramindex.dispatcharr.preferences.v1";
-      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null };
+      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false };
 
       function route(url) { return base + url; }
       function byId(id) { return document.getElementById(id); }
@@ -792,6 +800,9 @@ const playerPageHTMLTemplate = `<!doctype html>
           "arrow-left": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M15.75 19.5 8.25 12l7.5-7.5'/></svg>",
           "chevron-down": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m6 9 6 6 6-6'/></svg>",
           "ellipsis": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z'/></svg>",
+          "play": "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><path d='M8 5.6v12.8c0 .55.6.9 1.08.62l10.1-6.4a.73.73 0 0 0 0-1.24L9.08 4.98A.72.72 0 0 0 8 5.6Z'/></svg>",
+          "pause": "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><path d='M7.25 5.25h3.25v13.5H7.25zM13.5 5.25h3.25v13.5H13.5z'/></svg>",
+          "loader": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' d='M12 3a9 9 0 1 1-8.3 5.5'/></svg>",
           "speaker": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M19.1 8.9a7 7 0 0 1 0 6.2M16.2 10.9a3 3 0 0 1 0 2.2M4.5 14.25h3l4.25 3.25V6.5L7.5 9.75h-3v4.5Z'/></svg>",
           "speaker-off": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m4.5 4.5 15 15M5 14.25h2.5l4.25 3.25v-5.75M11.75 8.7V6.5L8.8 8.75M16 10.8a3 3 0 0 1 .2 2.2'/></svg>",
           "airplay": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 17.25h-1.5A2.25 2.25 0 0 1 3 15V6.75A2.25 2.25 0 0 1 5.25 4.5h13.5A2.25 2.25 0 0 1 21 6.75V15a2.25 2.25 0 0 1-2.25 2.25h-1.5M8.25 21h7.5L12 16.5 8.25 21Z'/></svg>",
@@ -1032,7 +1043,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         const description = program.description || categoryNameText;
         const start = timeLabel(program.startUnix) || "LIVE";
         const end = timeLabel(program.endUnix) || "Now";
-        byId("view").innerHTML = "<section class=\"playback-shell\"><div class=\"playback-stage\"><video id=\"player\" class=\"playback-video\" autoplay playsinline></video><div class=\"playback-scrim\"></div><div class=\"player-top\"><button class=\"player-icon\" data-player-action=\"back\" aria-label=\"Back to Live TV browse\">" + icon("arrow-left") + "</button><div class=\"player-top-actions\"><div class=\"player-audio\"><button id=\"player-audio-button\" class=\"player-chip\" data-player-action=\"audio-menu\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "<span>Audio</span>" + icon("chevron-down") + "</button><div id=\"player-audio-menu\" class=\"player-menu\" role=\"menu\"></div></div><div class=\"player-volume\"><button id=\"player-volume-button\" class=\"player-icon\" data-player-action=\"volume-menu\" aria-label=\"Volume\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("speaker") + "</button><div id=\"player-volume-popover\" class=\"volume-popover\"><span>VOL</span><input id=\"player-volume-slider\" type=\"range\" min=\"0\" max=\"100\" step=\"1\" value=\"" + Math.round(state.volume * 100) + "\" aria-label=\"Volume\"><span id=\"player-volume-value\" class=\"volume-value\"></span></div></div><button class=\"player-icon\" data-player-action=\"cast\" aria-label=\"AirPlay or Cast\">" + icon("airplay") + "</button><button id=\"player-guide-button\" class=\"player-icon player-guide-button\" data-player-action=\"guide\" aria-label=\"Guide\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("guide") + "</button><button id=\"player-fullscreen-button\" class=\"player-icon\" data-player-action=\"fullscreen\" aria-label=\"Fullscreen\" aria-pressed=\"false\">" + icon("fullscreen") + "</button><div class=\"player-more\"><button id=\"player-more-button\" class=\"player-icon\" data-player-action=\"more\" aria-label=\"More\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("ellipsis") + "</button><div id=\"player-more-menu\" class=\"player-more-menu\"></div></div></div></div><div id=\"player-toast\" class=\"player-toast\" role=\"status\"></div><div id=\"player-guide-panel\" class=\"player-guide-panel\"></div><div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel) + "<div class=\"player-kicker\">" + escapeHTML(channelName) + "</div><h2 class=\"player-title\">" + escapeHTML(title) + "</h2><p class=\"player-description\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span class=\"player-tag\">AV</span></div></div><div class=\"player-bottom-actions\">" + playerFavoriteButtonHTML(channel) + "<button class=\"player-icon\" data-player-action=\"pip\" aria-label=\"Picture in Picture\">" + icon("pip") + "</button><button id=\"player-subtitles-button\" class=\"player-icon\" data-player-action=\"subtitles\" aria-label=\"Subtitles\" aria-pressed=\"false\">" + icon("captions") + "</button><button id=\"player-language-button\" class=\"player-icon\" data-player-action=\"language-menu\" aria-label=\"Audio language\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "</button></div></div><div class=\"timeline\"><span>" + escapeHTML(start) + "</span><div class=\"timeline-bar\"><div class=\"timeline-fill\"></div><div class=\"timeline-knob\"></div></div><span><span class=\"live-dot\"></span>LIVE&nbsp;&nbsp;" + escapeHTML(end) + "</span></div></div></div></section>";
+        byId("view").innerHTML = "<section class=\"playback-shell\"><div class=\"playback-stage\"><video id=\"player\" class=\"playback-video\" autoplay playsinline></video><div class=\"playback-scrim\"></div><button id=\"player-center-button\" class=\"player-center-button hidden\" data-player-action=\"play-toggle\" aria-label=\"Play\">" + icon("play") + "</button><div class=\"player-top\"><button class=\"player-exit\" data-player-action=\"back\" aria-label=\"Back to Live TV browse\"><span class=\"player-icon\">" + icon("x") + "</span><span>Exit</span></button><div class=\"player-top-actions\"><div class=\"player-audio\"><button id=\"player-audio-button\" class=\"player-chip\" data-player-action=\"audio-menu\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "<span>Audio</span>" + icon("chevron-down") + "</button><div id=\"player-audio-menu\" class=\"player-menu\" role=\"menu\"></div></div><div class=\"player-volume\"><button id=\"player-volume-button\" class=\"player-icon\" data-player-action=\"volume-menu\" aria-label=\"Volume\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("speaker") + "</button><div id=\"player-volume-popover\" class=\"volume-popover\"><span>VOL</span><input id=\"player-volume-slider\" type=\"range\" min=\"0\" max=\"100\" step=\"1\" value=\"" + Math.round(state.volume * 100) + "\" aria-label=\"Volume\"><span id=\"player-volume-value\" class=\"volume-value\"></span></div></div><button class=\"player-icon\" data-player-action=\"cast\" aria-label=\"AirPlay or Cast\">" + icon("airplay") + "</button><button id=\"player-guide-button\" class=\"player-icon player-guide-button\" data-player-action=\"guide\" aria-label=\"Guide\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("guide") + "</button><button id=\"player-fullscreen-button\" class=\"player-icon\" data-player-action=\"fullscreen\" aria-label=\"Fullscreen\" aria-pressed=\"false\">" + icon("fullscreen") + "</button><div class=\"player-more\"><button id=\"player-more-button\" class=\"player-icon\" data-player-action=\"more\" aria-label=\"More\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("ellipsis") + "</button><div id=\"player-more-menu\" class=\"player-more-menu\"></div></div></div></div><div id=\"player-toast\" class=\"player-toast\" role=\"status\"></div><div id=\"player-guide-panel\" class=\"player-guide-panel\"></div><div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel) + "<div class=\"player-kicker\">" + escapeHTML(channelName) + "</div><h2 class=\"player-title\">" + escapeHTML(title) + "</h2><p class=\"player-description\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span class=\"player-tag\">AV</span></div></div><div class=\"player-bottom-actions\">" + playerFavoriteButtonHTML(channel) + "<button class=\"player-icon\" data-player-action=\"pip\" aria-label=\"Picture in Picture\">" + icon("pip") + "</button><button id=\"player-subtitles-button\" class=\"player-icon\" data-player-action=\"subtitles\" aria-label=\"Subtitles\" aria-pressed=\"false\">" + icon("captions") + "</button><button id=\"player-language-button\" class=\"player-icon\" data-player-action=\"language-menu\" aria-label=\"Audio language\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "</button></div></div><div class=\"timeline\"><span>" + escapeHTML(start) + "</span><div class=\"timeline-bar\"><div class=\"timeline-fill\"></div><div class=\"timeline-knob\"></div></div><span><span class=\"live-dot\"></span>LIVE&nbsp;&nbsp;" + escapeHTML(end) + "</span></div></div></div></section>";
         updateAudioMenu();
         updateVolumeMenu();
         renderPlayerGuidePanel();
@@ -1332,6 +1343,26 @@ const playerPageHTMLTemplate = `<!doctype html>
           showPlayerToast("Picture in Picture could not be opened.");
         }
       }
+      function updateCenterPlayButton() {
+        const video = byId("player");
+        const button = byId("player-center-button");
+        if (!video || !button) return;
+        const loading = !!state.playerWaiting && !video.paused;
+        const show = loading || video.paused;
+        button.classList.toggle("hidden", !show);
+        button.classList.toggle("loading", loading);
+        button.innerHTML = loading ? icon("loader") : icon(video.paused ? "play" : "pause");
+        button.setAttribute("aria-label", loading ? "Loading stream" : (video.paused ? "Play" : "Pause"));
+        button.disabled = loading;
+      }
+      function togglePlayPause() {
+        const video = byId("player");
+        if (!video) return;
+        closePlayerPopovers();
+        if (video.paused) video.play().catch(function() { showPlayerToast("Playback could not be started."); });
+        else video.pause();
+        updateCenterPlayButton();
+      }
       function fullscreenElement() {
         return document.fullscreenElement || document.webkitFullscreenElement || null;
       }
@@ -1382,6 +1413,13 @@ const playerPageHTMLTemplate = `<!doctype html>
         }
         video.addEventListener("loadedmetadata", updateAudioMenu, { once: true });
         video.addEventListener("loadedmetadata", updateSubtitlesButton, { once: true });
+        video.addEventListener("waiting", function() { state.playerWaiting = true; updateCenterPlayButton(); });
+        video.addEventListener("stalled", function() { state.playerWaiting = true; updateCenterPlayButton(); });
+        video.addEventListener("canplay", function() { state.playerWaiting = false; updateCenterPlayButton(); });
+        video.addEventListener("playing", function() { state.playerWaiting = false; updateCenterPlayButton(); });
+        video.addEventListener("pause", updateCenterPlayButton);
+        video.addEventListener("play", updateCenterPlayButton);
+        video.addEventListener("error", function() { state.playerWaiting = false; updateCenterPlayButton(); });
         if (video.textTracks && video.textTracks.addEventListener) {
           video.textTracks.addEventListener("addtrack", updateSubtitlesButton);
           video.textTracks.addEventListener("removetrack", updateSubtitlesButton);
@@ -1405,8 +1443,9 @@ const playerPageHTMLTemplate = `<!doctype html>
         setTimeout(updateAudioMenu, 1800);
         setTimeout(updateSubtitlesButton, 500);
         setTimeout(updateSubtitlesButton, 1800);
+        updateCenterPlayButton();
         applyAspectMode();
-        video.play().catch(function() {});
+        video.play().then(updateCenterPlayButton).catch(function() { updateCenterPlayButton(); });
       }
       async function playChannel(channel) {
         state.currentChannel = channel;
@@ -1456,6 +1495,10 @@ const playerPageHTMLTemplate = `<!doctype html>
         }
         if (action === "pip") {
           togglePictureInPicture();
+          return;
+        }
+        if (action === "play-toggle") {
+          togglePlayPause();
           return;
         }
         if (action === "fullscreen") {
@@ -1553,6 +1596,19 @@ const playerPageHTMLTemplate = `<!doctype html>
       });
       document.addEventListener("fullscreenchange", updateFullscreenButton);
       document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
+      document.addEventListener("keydown", function(event) {
+        if (state.view !== "player") return;
+        const tag = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : "";
+        if (tag === "input" || tag === "textarea" || tag === "select") return;
+        if (event.key === " " || event.key === "k" || event.key === "K") {
+          event.preventDefault();
+          togglePlayPause();
+        }
+        if (event.key === "f" || event.key === "F") {
+          event.preventDefault();
+          toggleFullscreen();
+        }
+      });
       ["mousemove", "mousedown", "touchstart", "keydown"].forEach(function(eventName) {
         document.addEventListener(eventName, function(event) {
           if (state.view !== "player") return;
