@@ -84,6 +84,7 @@ func (s *Service) SyncNow(ctx context.Context, settings config.Settings, nowUnix
 
 func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings, nowUnix int64) error {
 	client := s.dispatcharrFactory(settings)
+	tightDeadline := hasTightDeadline(ctx)
 
 	upstreamChannels, err := client.Channels(ctx)
 	if err != nil {
@@ -140,30 +141,32 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 		}
 	}
 
-	if categories, err := client.VODCategories(ctx); err == nil {
-		for _, upstream := range categories {
-			category := mapping.MapDispatcharrVODCategory(upstream)
-			if category.Kind == "series" {
-				content.SeriesCategories = append(content.SeriesCategories, category)
-			} else {
-				content.VODCategories = append(content.VODCategories, category)
+	if !tightDeadline {
+		if categories, err := client.VODCategories(ctx); err == nil {
+			for _, upstream := range categories {
+				category := mapping.MapDispatcharrVODCategory(upstream)
+				if category.Kind == "series" {
+					content.SeriesCategories = append(content.SeriesCategories, category)
+				} else {
+					content.VODCategories = append(content.VODCategories, category)
+				}
 			}
 		}
-	}
-	if movies, err := client.Movies(ctx); err == nil {
-		content.VODItems = make([]model.VODItem, 0, len(movies))
-		for _, movie := range movies {
-			item := mapping.MapDispatcharrMovie(movie, client.MovieStreamURL(movie.UUID.String()))
-			item.PosterURL = client.AbsoluteURL(item.PosterURL)
-			content.VODItems = append(content.VODItems, item)
+		if movies, err := client.Movies(ctx); err == nil {
+			content.VODItems = make([]model.VODItem, 0, len(movies))
+			for _, movie := range movies {
+				item := mapping.MapDispatcharrMovie(movie, client.MovieStreamURL(movie.UUID.String()))
+				item.PosterURL = client.AbsoluteURL(item.PosterURL)
+				content.VODItems = append(content.VODItems, item)
+			}
 		}
-	}
-	if series, err := client.Series(ctx); err == nil {
-		content.SeriesItems = make([]model.SeriesItem, 0, len(series))
-		for _, item := range series {
-			seriesItem := mapping.MapDispatcharrSeries(item, client.SeriesStreamURL(item.UUID.String()))
-			seriesItem.PosterURL = client.AbsoluteURL(seriesItem.PosterURL)
-			content.SeriesItems = append(content.SeriesItems, seriesItem)
+		if series, err := client.Series(ctx); err == nil {
+			content.SeriesItems = make([]model.SeriesItem, 0, len(series))
+			for _, item := range series {
+				seriesItem := mapping.MapDispatcharrSeries(item, client.SeriesStreamURL(item.UUID.String()))
+				seriesItem.PosterURL = client.AbsoluteURL(seriesItem.PosterURL)
+				content.SeriesItems = append(content.SeriesItems, seriesItem)
+			}
 		}
 	}
 

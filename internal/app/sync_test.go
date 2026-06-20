@@ -180,6 +180,60 @@ func TestSyncDirectLoginDoesNotFallbackToXtream(t *testing.T) {
 	}
 }
 
+func TestSyncDispatcharrSkipsVODWithTightDeadline(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	client := &stubDispatcharrClient{
+		channels: []dispatcharr.Channel{{
+			ID:                     "1",
+			UUID:                   "11111111-1111-1111-1111-111111111111",
+			Name:                   "Provider Name",
+			EffectiveName:          "News HD",
+			EffectiveChannelNumber: "5.1",
+			EffectiveTVGID:         "news.hd",
+			EffectiveGroupID:       "10",
+		}},
+		groups: []dispatcharr.ChannelGroup{{ID: "10", Name: "Local"}},
+		programs: []dispatcharr.Program{{
+			ID:        "epg-1",
+			TVGID:     "news.hd",
+			Title:     "Morning News",
+			StartTime: "2026-06-18T12:00:00Z",
+			EndTime:   "2026-06-18T13:00:00Z",
+		}},
+	}
+	service := NewService(Dependencies{
+		Store: store,
+		DispatcharrFactory: func(config.Settings) DispatcharrClient {
+			return client
+		},
+	})
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(10*time.Second))
+	defer cancel()
+
+	err := service.SyncNow(ctx, config.Settings{
+		SourceMode:      config.SourceModeDirectLogin,
+		DispatcharrURL:  "https://dispatcharr.example.com",
+		DispatcharrUser: "demo",
+		DispatcharrPass: "secret",
+		ChannelRefreshH: 24,
+		EPGRefreshH:     24,
+	}, 650)
+	if err != nil {
+		t.Fatalf("expected tight-deadline dispatcharr sync success, got %v", err)
+	}
+
+	snapshot := store.Current()
+	if len(snapshot.Catalog.Channels) != 1 || len(snapshot.Catalog.Programs) != 1 {
+		t.Fatalf("expected live catalog under tight deadline, got %+v", snapshot.Catalog)
+	}
+	if client.vodCalls != 0 {
+		t.Fatalf("expected no VOD calls under tight deadline, got %d", client.vodCalls)
+	}
+}
+
 func TestSyncXtreamSkipsPerChannelEPGWithTightDeadline(t *testing.T) {
 	t.Parallel()
 
@@ -293,6 +347,7 @@ type stubDispatcharrClient struct {
 	vodCategories []dispatcharr.VODCategory
 	movies        []dispatcharr.Movie
 	series        []dispatcharr.Series
+	vodCalls      int
 }
 
 func (s *stubDispatcharrClient) TestConnection(context.Context) error { return s.testErr }
@@ -309,12 +364,15 @@ func (s *stubDispatcharrClient) Programs(context.Context) ([]dispatcharr.Program
 	return s.programs, nil
 }
 func (s *stubDispatcharrClient) VODCategories(context.Context) ([]dispatcharr.VODCategory, error) {
+	s.vodCalls++
 	return s.vodCategories, nil
 }
 func (s *stubDispatcharrClient) Movies(context.Context) ([]dispatcharr.Movie, error) {
+	s.vodCalls++
 	return s.movies, nil
 }
 func (s *stubDispatcharrClient) Series(context.Context) ([]dispatcharr.Series, error) {
+	s.vodCalls++
 	return s.series, nil
 }
 func (s *stubDispatcharrClient) LiveStreamURL(channelUUID string) string {
