@@ -636,7 +636,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       .poster-box span { font-size: 2.8rem; font-weight: 950; }
       .progress { height: 0.22rem; border-radius: 999px; background: rgba(255,255,255,0.14); overflow: hidden; margin: -0.75rem 0.85rem 0.6rem; position: relative; }
       .progress i { display: block; height: 100%; width: 62%; background: white; border-radius: inherit; }
-      .guide-strip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(13rem, 1fr); gap: 0.35rem; overflow-x: auto; }
+      .home-guide { overflow-x: auto; padding-bottom: 0.15rem; }
+      .home-guide .guide-page { min-width: 58rem; }
       .program { min-height: 3.05rem; border: 0; border-radius: 0.55rem; color: var(--text); text-align: left; padding: 0.48rem 0.65rem; background: var(--purple); }
       .program.green { background: var(--green); }
       .program.red { background: var(--red); }
@@ -927,9 +928,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function renderHome() {
         const root = byId("view");
-        const recent = items(prefs().recentChannels).map(channelByID).filter(Boolean);
-        root.innerHTML = sectionHeader("Continue watching") + rowCards(recent.length ? recent : visibleChannels(false).slice(0, 6)) + sectionHeader("TV Guide") + "<div id=\"strip\" class=\"guide-strip\"></div>" + sectionHeader("Categories") + categoryGrid();
-        renderProgramStrip();
+        const recent = recentChannels(6);
+        root.innerHTML = sectionHeader("Continue watching") + rowCards(recent.length ? recent : visibleChannels(false).slice(0, 6)) + sectionHeader("TV Guide") + renderHomeGuide(recent.slice(0, 5)) + sectionHeader("Categories") + categoryGrid();
       }
       function sectionHeader(title) {
         return "<div class=\"section-title\"><span>" + escapeHTML(title) + "</span></div>";
@@ -955,14 +955,24 @@ const playerPageHTMLTemplate = `<!doctype html>
           return "<button class=\"tile" + (state.category === category.id ? " active" : "") + "\" data-category=\"" + escapeHTML(category.id) + "\"><strong>" + escapeHTML(category.name || category.id) + "</strong></button>";
         }).join("") + "</div>";
       }
-      function renderProgramStrip() {
-        const root = byId("strip");
-        if (!root) return;
-        const programs = programsFor("").slice(0, 18);
-        root.innerHTML = programs.length ? programs.map(function(program, index) {
-          const channel = channelByID(program.channelId) || {};
-          return "<button class=\"program " + colorClass(index) + "\" data-channel=\"" + escapeHTML(program.channelId) + "\"><time>" + escapeHTML(timeLabel(program.startUnix)) + "</time><strong>" + escapeHTML(program.title || "Data not available") + "</strong><span class=\"muted\">" + escapeHTML(channel.name || "") + "</span></button>";
-        }).join("") : "<div class=\"empty\">No guide data available.</div>";
+      function recentChannels(limit) {
+        const seen = {};
+        const channels = [];
+        items(prefs().recentChannels).forEach(function(id) {
+          if (seen[id]) return;
+          const channel = channelByID(id);
+          if (!channel) return;
+          seen[id] = true;
+          channels.push(channel);
+        });
+        return channels.slice(0, limit || channels.length);
+      }
+      function renderHomeGuide(channels) {
+        if (!channels.length) return "<div class=\"empty\">No recently watched channels yet.</div>";
+        const slots = guideSlots();
+        return "<div class=\"home-guide\"><div class=\"guide-page\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div>" + channels.map(function(channel, channelIndex) {
+          return "<div class=\"epg-row\"><button class=\"epg-channel\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(channel.name || "Untitled") + "\">" + logoHTML(channel) + "</button><div class=\"epg-programs\">" + renderEPGCells(channel, channelIndex) + "</div></div>";
+        }).join("") + "</div></div>";
       }
       function renderLivePage() {
         const channels = visibleChannels(false);
