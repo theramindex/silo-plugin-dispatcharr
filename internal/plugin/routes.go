@@ -833,7 +833,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         const hidden = hiddenMap();
         return items(state.app.channels).filter(function(channel) {
           if (channel.categoryId && hidden[channel.categoryId]) return false;
-          if (state.category && channel.categoryId !== state.category) return false;
+          if (state.view !== "favorites" && state.category && channel.categoryId !== state.category) return false;
           if (!ignoreQuery && state.query && lower([channel.name, channel.categoryName, channel.number].join(" ")).indexOf(lower(state.query)) === -1) return false;
           if (state.view === "favorites" && !favoriteMap()[channel.id] && !autoFavoriteMap()[channel.id]) return false;
           return true;
@@ -892,7 +892,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           if (state.view === "player") stopCurrentWatch("leave_player");
         }
         state.view = view;
-        if (view !== "live") state.category = state.category;
+        if (view === "favorites") state.category = "";
         render();
       }
       function setCategory(id) {
@@ -960,7 +960,15 @@ const playerPageHTMLTemplate = `<!doctype html>
         }).join("") + "</div>";
       }
       function categoryGrid() {
-        const categories = items(state.app.categories);
+        const categoryCounts = {};
+        const hidden = hiddenMap();
+        items(state.app.channels).forEach(function(channel) {
+          if (channel.categoryId && hidden[channel.categoryId]) return;
+          if (channel.categoryId) categoryCounts[channel.categoryId] = (categoryCounts[channel.categoryId] || 0) + 1;
+        });
+        const categories = items(state.app.categories).filter(function(category) {
+          return !!categoryCounts[category.id];
+        });
         if (!categories.length) return "<div class=\"empty\">No categories yet.</div>";
         return "<div class=\"category-grid\">" + categories.map(function(category) {
           return "<button class=\"tile" + (state.category === category.id ? " active" : "") + "\" data-category=\"" + escapeHTML(category.id) + "\"><strong>" + escapeHTML(category.name || category.id) + "</strong></button>";
@@ -977,7 +985,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function renderLivePage() {
         const channels = visibleChannels(false);
-        byId("view").innerHTML = sectionHeader("Categories") + categoryGrid() + sectionHeader(state.view === "favorites" ? "Favorite channels" : "Channels") + rowCards(channels.slice(0, 24));
+        byId("view").innerHTML = state.view === "favorites"
+          ? sectionHeader("Favorite channels") + rowCards(channels.slice(0, 60))
+          : sectionHeader("Categories") + categoryGrid() + sectionHeader("Channels") + rowCards(channels.slice(0, 24));
       }
       function currentProgram(channel) {
         if (!channel) return null;
