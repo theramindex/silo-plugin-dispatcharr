@@ -36,6 +36,8 @@ type Channel struct {
 	EffectiveTVGID         String `json:"effective_tvg_id"`
 	EffectiveGroupID       String `json:"effective_channel_group_id"`
 	EffectiveEPGDataID     String `json:"effective_epg_data_id"`
+	LogoID                 String `json:"logo_id"`
+	EffectiveLogoID        String `json:"effective_logo_id"`
 	LogoURL                String `json:"logo_url"`
 	HiddenFromOutput       bool   `json:"hidden_from_output"`
 }

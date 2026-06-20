@@ -120,6 +120,9 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 		}
 		channel := mapping.MapDispatcharrChannel(upstream, client.LiveStreamURL(upstream.UUID.String()))
 		channel.LogoURL = client.AbsoluteURL(channel.LogoURL)
+		if channel.LogoURL == "" {
+			channel.LogoURL = client.LogoCacheURL(firstPresent(upstream.EffectiveLogoID.String(), upstream.LogoID.String()))
+		}
 		channel.CategoryName = categoryNames[channel.CategoryID]
 		channels = append(channels, channel)
 		if channel.GuideID != "" {
@@ -293,6 +296,15 @@ func leadingChannelNumber(value string) (float64, bool) {
 	}
 	number, err := strconv.ParseFloat(value[:end], 64)
 	return number, err == nil
+}
+
+func firstPresent(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func loadXtreamAppCatalog(ctx context.Context, client xtreamAppCatalogClient, includeExtended bool) model.ContentState {

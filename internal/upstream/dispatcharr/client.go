@@ -79,6 +79,14 @@ func (c *Client) LiveStreamURL(channelUUID string) string {
 	return c.absolutePath(path.Join("/proxy/ts/stream", strings.TrimSpace(channelUUID)))
 }
 
+func (c *Client) LogoCacheURL(logoID string) string {
+	logoID = strings.TrimSpace(logoID)
+	if logoID == "" {
+		return ""
+	}
+	return c.absolutePath("/api/channels/logos/" + logoID + "/cache/")
+}
+
 func (c *Client) MovieStreamURL(movieUUID string) string {
 	return c.absolutePath(path.Join("/proxy/vod/movie", strings.TrimSpace(movieUUID)))
 }

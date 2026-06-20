@@ -100,6 +100,7 @@ func TestSyncDispatcharrRESTBuildsCatalog(t *testing.T) {
 					EffectiveChannelNumber: "12",
 					EffectiveTVGID:         "news.hd",
 					EffectiveGroupID:       "10",
+					EffectiveLogoID:        "99",
 				}, {
 					ID:                     "2",
 					UUID:                   "44444444-4444-4444-4444-444444444444",
@@ -140,6 +141,9 @@ func TestSyncDispatcharrRESTBuildsCatalog(t *testing.T) {
 	snapshot := store.Current()
 	if len(snapshot.Catalog.Channels) != 2 || snapshot.Catalog.Channels[0].Name != "Local Five" || snapshot.Catalog.Channels[1].Name != "News HD" {
 		t.Fatalf("unexpected dispatcharr channels: %+v", snapshot.Catalog.Channels)
+	}
+	if snapshot.Catalog.Channels[1].LogoURL != "https://dispatcharr.example.com/api/channels/logos/99/cache/" {
+		t.Fatalf("expected logo cache url from effective logo id, got %q", snapshot.Catalog.Channels[1].LogoURL)
 	}
 	if len(snapshot.Catalog.Programs) != 1 || snapshot.Catalog.Programs[0].ChannelID != snapshot.Catalog.Channels[1].ID {
 		t.Fatalf("unexpected dispatcharr programs: %+v", snapshot.Catalog.Programs)
@@ -385,6 +389,9 @@ func (s *stubDispatcharrClient) Series(context.Context) ([]dispatcharr.Series, e
 }
 func (s *stubDispatcharrClient) LiveStreamURL(channelUUID string) string {
 	return "https://dispatcharr.example.com/proxy/ts/stream/" + channelUUID
+}
+func (s *stubDispatcharrClient) LogoCacheURL(logoID string) string {
+	return "https://dispatcharr.example.com/api/channels/logos/" + logoID + "/cache/"
 }
 func (s *stubDispatcharrClient) MovieStreamURL(movieUUID string) string {
 	return "https://dispatcharr.example.com/proxy/vod/movie/" + movieUUID

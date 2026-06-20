@@ -31,6 +31,7 @@ type DispatcharrClient interface {
 	Movies(ctx context.Context) ([]dispatcharr.Movie, error)
 	Series(ctx context.Context) ([]dispatcharr.Series, error)
 	LiveStreamURL(channelUUID string) string
+	LogoCacheURL(logoID string) string
 	MovieStreamURL(movieUUID string) string
 	SeriesStreamURL(seriesUUID string) string
 	AbsoluteURL(raw string) string
