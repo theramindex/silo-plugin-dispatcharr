@@ -61,6 +61,23 @@ func TestValidate_XtreamConfigPasses(t *testing.T) {
 	}
 }
 
+func TestValidate_ExplicitSourceModeWinsOverLegacyAPIKey(t *testing.T) {
+	t.Parallel()
+
+	cfg := Settings{
+		SourceMode:        SourceModeXtream,
+		DispatcharrAPIKey: "legacy-key",
+		XtreamBaseURL:     "https://provider.example.com",
+		XtreamUsername:    "demo",
+		XtreamPassword:    "secret",
+		ChannelRefreshH:   DefaultChannelRefreshHours,
+		EPGRefreshH:       DefaultEPGRefreshHours,
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("expected valid settings, got %v", err)
+	}
+}
+
 func TestValidate_DirectLoginConfigPasses(t *testing.T) {
 	t.Parallel()
 

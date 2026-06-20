@@ -231,14 +231,16 @@ func (c *Client) login(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("content-type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "Silo Dispatcharr Plugin")
 	response, err := c.http.Do(req)
 	if err != nil {
 		return err
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("dispatcharr login status %d", response.StatusCode)
+		return fmt.Errorf("dispatcharr login status %d: %s", response.StatusCode, responseSnippet(response.Body))
 	}
 	var token struct {
 		Access  string `json:"access"`
@@ -269,14 +271,16 @@ func (c *Client) refreshToken(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("content-type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "Silo Dispatcharr Plugin")
 	response, err := c.http.Do(req)
 	if err != nil {
 		return err
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("dispatcharr refresh status %d", response.StatusCode)
+		return fmt.Errorf("dispatcharr refresh status %d: %s", response.StatusCode, responseSnippet(response.Body))
 	}
 	var token struct {
 		Access string `json:"access"`
@@ -288,6 +292,14 @@ func (c *Client) refreshToken(ctx context.Context) error {
 	c.access = token.Access
 	c.mu.Unlock()
 	return nil
+}
+
+func responseSnippet(reader io.Reader) string {
+	body, err := io.ReadAll(io.LimitReader(reader, 240))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(body))
 }
 
 func (c *Client) authorize(req *http.Request) {
@@ -322,5 +334,8 @@ func (c *Client) absolutePath(rawPath string) string {
 		return rawPath
 	}
 	base.Path = path.Join(base.Path, rawPath)
+	if strings.HasSuffix(rawPath, "/") && !strings.HasSuffix(base.Path, "/") {
+		base.Path += "/"
+	}
 	return base.String()
 }

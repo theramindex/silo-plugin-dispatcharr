@@ -40,7 +40,7 @@ func (s Settings) Validate() error {
 	if s.SourceMode == "" && strings.TrimSpace(s.DispatcharrURL) != "" {
 		s.SourceMode = SourceModeDirectLogin
 	}
-	if strings.TrimSpace(s.DispatcharrAPIKey) != "" {
+	if s.SourceMode == "" && strings.TrimSpace(s.DispatcharrAPIKey) != "" {
 		s.SourceMode = SourceModeAPIKey
 	}
 
