@@ -614,8 +614,6 @@ const playerPageHTMLTemplate = `<!doctype html>
       .nav button { width: 100%; border: 0; border-radius: 0.65rem; background: transparent; color: var(--muted); display: flex; align-items: center; gap: 0.65rem; padding: 0.7rem 0.72rem; text-align: left; font-weight: 750; }
       .nav button.active, .nav button:hover { background: #2a292b; color: var(--text); }
       .nav small { margin-left: auto; color: var(--muted); }
-      .rail-search { border: 1px solid var(--line); border-radius: 999px; background: #242426; color: var(--text); padding: 0.65rem 0.85rem; width: 100%; margin-bottom: 0.85rem; }
-      .channel-list { overflow: auto; min-height: 0; padding-right: 0.2rem; }
       .channel-row { width: 100%; border: 0; border-radius: 0.75rem; background: transparent; color: var(--text); display: grid; grid-template-columns: 3.1rem minmax(0, 1fr) 1.8rem; align-items: center; gap: 0.65rem; padding: 0.45rem; text-align: left; }
       .channel-row:hover, .channel-row.active { background: #2a292b; }
       .logo { width: 3rem; height: 2.05rem; object-fit: contain; border-radius: 0.5rem; background: #121213; }
@@ -733,7 +731,6 @@ const playerPageHTMLTemplate = `<!doctype html>
         body { overflow: auto; }
         .shell { display: block; height: auto; }
         .rail { min-height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
-        .channel-list { max-height: 18rem; }
         .topbar { position: static; }
         .search { min-width: 0; width: 100%; }
         .player-view { grid-template-columns: 1fr; }
@@ -762,8 +759,6 @@ const playerPageHTMLTemplate = `<!doctype html>
           <button data-view="guide">TV Guide</button>
           <button data-view="settings">Settings</button>
         </nav>
-        <input id="rail-search" class="rail-search" placeholder="Search channels">
-        <div id="channel-list" class="channel-list">Loading channels...</div>
       </aside>
       <main class="main">
         <div class="topbar">
@@ -914,20 +909,6 @@ const playerPageHTMLTemplate = `<!doctype html>
           button.classList.toggle("active", button.dataset.view === state.view);
         });
         byId("favorite-count").textContent = Object.keys(favoriteMap()).length + Object.keys(autoFavoriteMap()).length;
-        const root = byId("channel-list");
-        root.innerHTML = "";
-        const channels = visibleChannels(false).slice(0, 140);
-        if (!channels.length) {
-          root.innerHTML = "<div class=\"empty\">No channels match.</div>";
-          return;
-        }
-        channels.forEach(function(channel) {
-          const button = document.createElement("button");
-          button.className = "channel-row" + (state.currentChannel && state.currentChannel.id === channel.id ? " active" : "");
-          button.innerHTML = logoHTML(channel) + "<span><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><small class=\"muted\">" + escapeHTML(channel.categoryName || channel.categoryId || "Live TV") + "</small></span><span class=\"star\">" + (favoriteMap()[channel.id] ? "*" : (autoFavoriteMap()[channel.id] ? "+" : "")) + "</span>";
-          button.onclick = function() { playChannel(channel); };
-          root.appendChild(button);
-        });
       }
       function logoHTML(channel) {
         if (channel.logoUrl) return "<img class=\"logo\" src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">";
@@ -1446,7 +1427,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (action === "search-channel") {
           state.moreMenuOpen = false;
           renderPlayerMoreMenu();
-          const search = byId("rail-search");
+          const search = byId("global-search");
           if (search) search.focus();
           return;
         }
@@ -1521,14 +1502,13 @@ const playerPageHTMLTemplate = `<!doctype html>
       document.querySelectorAll(".nav button").forEach(function(button) {
         button.onclick = function() { setView(button.dataset.view); };
       });
-      byId("rail-search").oninput = function(event) { state.query = event.target.value; render(); };
       byId("global-search").oninput = function(event) { state.query = event.target.value; render(); };
       window.addEventListener("beforeunload", function() {
         if (state.currentSession) navigator.sendBeacon(route("/dispatcharr/api/watch/stop"), JSON.stringify({ sessionId: state.currentSession.id, reason: "page_unload" }));
       });
       loadApp().catch(function() {
-        byId("channel-list").textContent = "Unable to load Dispatcharr app data.";
         byId("health").textContent = "error";
+        byId("view").innerHTML = "<div class=\"empty\">Unable to load Live TV app data.</div>";
       });
     </script>
   </body>
