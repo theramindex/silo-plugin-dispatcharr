@@ -621,12 +621,13 @@ const playerPageHTMLTemplate = `<!doctype html>
       .star { color: var(--warn); font-size: 1rem; }
       .main { min-width: 0; overflow: auto; padding: 1rem 1.25rem 2rem; }
       .shell.is-player .main { padding: 0; overflow: hidden; background: #050505; }
-      .topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.85rem; position: sticky; top: 0; z-index: 5; background: linear-gradient(180deg, var(--bg) 70%, rgba(23,23,23,0)); padding-bottom: 0.65rem; }
+      .topbar { display: flex; align-items: center; justify-content: flex-end; gap: 1rem; margin-bottom: 0.85rem; position: sticky; top: 0; z-index: 5; background: linear-gradient(180deg, var(--bg) 70%, rgba(23,23,23,0)); padding-bottom: 0.65rem; }
       .shell.is-player .topbar { display: none; }
       .title { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
       .title h2 { margin: 0; font-size: 1.35rem; }
       .status { color: var(--muted); font-size: 0.82rem; white-space: nowrap; }
       .search { border: 1px solid var(--line); border-radius: 999px; background: #242426; color: var(--text); padding: 0.62rem 0.85rem; min-width: min(24rem, 40vw); }
+      .topbar .search { width: min(32rem, 100%); }
       .section-title { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1rem 0 0.55rem; color: var(--muted); font-size: 0.95rem; font-weight: 850; }
       .row-scroll { display: flex; gap: 0.6rem; overflow-x: auto; padding-bottom: 0.3rem; }
       .continue-card { flex: 0 0 15.5rem; border: 0; border-radius: 0.7rem; background: transparent; color: var(--text); text-align: left; }
@@ -775,7 +776,6 @@ const playerPageHTMLTemplate = `<!doctype html>
       </aside>
       <main class="main">
         <div class="topbar">
-          <div class="title"><span class="source-icon">~</span><h2 id="page-title">Home</h2><span id="health" class="status">Loading...</span></div>
           <input id="global-search" class="search" placeholder="Search by program or channel">
         </div>
         <div id="view"></div>
@@ -977,7 +977,6 @@ const playerPageHTMLTemplate = `<!doctype html>
         state.app.programs = items(state.app.programs);
         normalizePreferences();
         savePrefs();
-        byId("health").textContent = state.app.status.status + " / " + state.app.status.channelCount + " channels";
         render();
       }
       function renderRail() {
@@ -994,7 +993,6 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (!state.app) return;
         document.querySelector(".shell").classList.toggle("is-player", state.view === "player");
         renderRail();
-        byId("page-title").textContent = state.view === "home" ? "Home" : state.view === "live" ? (categoryName(state.category) || "Live TV") : state.view === "guide" ? "TV Guide" : state.view === "favorites" ? "Favorites" : state.view === "player" ? "Now Playing" : "Settings";
         if (state.view === "guide") renderGuidePage();
         else if (state.view === "player") renderPlayerPage();
         else if (state.view === "live" || state.view === "favorites") renderLivePage();
@@ -1672,7 +1670,6 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (state.currentSession) navigator.sendBeacon(route("/dispatcharr/api/watch/stop"), JSON.stringify({ sessionId: state.currentSession.id, reason: "page_unload" }));
       });
       loadApp().catch(function() {
-        byId("health").textContent = "error";
         byId("view").innerHTML = "<div class=\"empty\">Unable to load Live TV app data.</div>";
       });
     </script>
