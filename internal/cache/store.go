@@ -47,6 +47,14 @@ func (s *Store) Replace(snapshot Snapshot) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if shouldPreserveGuide(s.snapshot, snapshot) {
+		snapshot.Catalog.Programs = append([]model.Program(nil), s.snapshot.Catalog.Programs...)
+		snapshot.Catalog.Health.EPGStatus = s.snapshot.Health.EPGStatus
+		snapshot.Catalog.Health.EPGProgramCount = s.snapshot.Health.EPGProgramCount
+		snapshot.Catalog.Health.EPGLastSuccessUnix = s.snapshot.Health.EPGLastSuccessUnix
+		snapshot.Catalog.Health.EPGLastFailureUnix = s.snapshot.Health.EPGLastFailureUnix
+		snapshot.Catalog.Health.EPGLastError = s.snapshot.Health.EPGLastError
+	}
 	snapshot.Health.LastFailureUnix = 0
 	snapshot.Health.LastError = ""
 	if snapshot.Health.EPGStatus == "" {
@@ -57,6 +65,32 @@ func (s *Store) Replace(snapshot Snapshot) {
 		snapshot.Health.EPGLastError = s.snapshot.Health.EPGLastError
 	}
 	s.snapshot = snapshot
+}
+
+func shouldPreserveGuide(current, next Snapshot) bool {
+	if current.Catalog.Source != next.Catalog.Source {
+		return false
+	}
+	if current.Health.EPGStatus != "ok" || len(current.Catalog.Programs) == 0 {
+		return false
+	}
+	if len(next.Catalog.Programs) >= len(current.Catalog.Programs) {
+		return false
+	}
+	return haveProgramChannels(next.Catalog.Channels, current.Catalog.Programs)
+}
+
+func haveProgramChannels(channels []model.Channel, programs []model.Program) bool {
+	channelIDs := make(map[string]bool, len(channels))
+	for _, channel := range channels {
+		channelIDs[channel.ID] = true
+	}
+	for _, program := range programs {
+		if program.ChannelID != "" && !channelIDs[program.ChannelID] {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Store) Preferences() Preferences {

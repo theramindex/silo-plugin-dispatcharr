@@ -6,12 +6,12 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/dispatcharr"
-	sharedhttp "github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/httpclient"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
 )
 
@@ -79,7 +79,7 @@ func NewService(deps Dependencies) *Service {
 
 	fetcher := deps.FetchURL
 	if fetcher == nil {
-		client := sharedhttp.New()
+		client := &http.Client{Timeout: 5 * time.Minute}
 		fetcher = func(ctx context.Context, rawURL string) ([]byte, error) {
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 			if err != nil {

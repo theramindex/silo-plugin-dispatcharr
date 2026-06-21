@@ -42,6 +42,63 @@ func TestStoreReplaceClearsPreviousFailureOnSuccess(t *testing.T) {
 	}
 }
 
+func TestStorePreservesFullGuideWhenRefreshReturnsPartialPrograms(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	store.Replace(Snapshot{Catalog: model.CatalogState{
+		Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+		Channels: []model.Channel{{ID: "channel:1", Name: "News"}, {ID: "channel:2", Name: "Sports"}},
+		Health:   model.SyncHealth{LastSuccessUnix: 100},
+	}})
+	store.ReplacePrograms([]model.Program{
+		{ID: "program:1", ChannelID: "channel:1", Title: "Morning News"},
+		{ID: "program:2", ChannelID: "channel:2", Title: "Highlights"},
+	}, 200)
+
+	store.Replace(Snapshot{Catalog: model.CatalogState{
+		Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+		Channels: []model.Channel{{ID: "channel:1", Name: "News"}, {ID: "channel:2", Name: "Sports"}},
+		Programs: []model.Program{{ID: "program:partial", ChannelID: "channel:1", Title: "Grid Preview"}},
+		Health:   model.SyncHealth{LastSuccessUnix: 300},
+	}})
+
+	current := store.Current()
+	if len(current.Catalog.Programs) != 2 {
+		t.Fatalf("expected full guide to be preserved, got %+v", current.Catalog.Programs)
+	}
+	if current.Health.EPGProgramCount != 2 || current.Health.EPGLastSuccessUnix != 200 {
+		t.Fatalf("expected preserved epg health, got %+v", current.Health)
+	}
+}
+
+func TestStoreReplaceAllowsLargerGuideToReplacePreservedGuide(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	store.Replace(Snapshot{Catalog: model.CatalogState{
+		Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+		Channels: []model.Channel{{ID: "channel:1", Name: "News"}},
+		Health:   model.SyncHealth{LastSuccessUnix: 100},
+	}})
+	store.ReplacePrograms([]model.Program{{ID: "program:1", ChannelID: "channel:1", Title: "Morning News"}}, 200)
+
+	store.Replace(Snapshot{Catalog: model.CatalogState{
+		Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+		Channels: []model.Channel{{ID: "channel:1", Name: "News"}},
+		Programs: []model.Program{
+			{ID: "program:2", ChannelID: "channel:1", Title: "Noon News"},
+			{ID: "program:3", ChannelID: "channel:1", Title: "Evening News"},
+		},
+		Health: model.SyncHealth{LastSuccessUnix: 300},
+	}})
+
+	current := store.Current()
+	if len(current.Catalog.Programs) != 2 || current.Catalog.Programs[0].ID != "program:2" {
+		t.Fatalf("expected larger guide to replace preserved guide, got %+v", current.Catalog.Programs)
+	}
+}
+
 func TestStoreDoesNotPersistPlaybackURLStateSeparately(t *testing.T) {
 	t.Parallel()
 

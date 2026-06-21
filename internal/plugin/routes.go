@@ -1607,7 +1607,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function renderEPG() {
         const root = byId("epg");
-        const channels = visibleChannels(true).filter(guideChannelMatchesQuery).slice(0, 60);
+        const channels = visibleChannels(true).filter(guideChannelMatchesQuery);
         root.innerHTML = channels.map(function(channel, channelIndex) {
           return "<div class=\"epg-row\"><button class=\"epg-channel\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(channel.name || "Untitled") + "\">" + logoHTML(channel) + "</button><div class=\"epg-programs\">" + renderEPGCells(channel, channelIndex) + "</div></div>";
         }).join("") || "<div class=\"empty\">No guide matches.</div>";

@@ -415,7 +415,7 @@ func (s *Service) StartAsyncEPGRefresh(settings config.Settings) {
 			s.epgMu.Unlock()
 		}()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
 		if err := s.refreshEPG(ctx, settings, time.Now().Unix()); err != nil {
 			s.store.RecordEPGFailure(time.Now().Unix(), err.Error())
