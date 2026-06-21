@@ -80,6 +80,10 @@ func (c *Client) Recordings(ctx context.Context) ([]json.RawMessage, error) {
 	return recordings, c.getList(ctx, "/api/channels/recordings/", &recordings)
 }
 
+func (c *Client) CreateRecording(ctx context.Context, payload any) (json.RawMessage, error) {
+	return c.postJSON(ctx, "/api/channels/recordings/", payload)
+}
+
 func (c *Client) LiveStreamURL(channelUUID string) string {
 	return c.absolutePath(path.Join("/proxy/ts/stream", strings.TrimSpace(channelUUID)))
 }
@@ -197,6 +201,42 @@ func (c *Client) getJSON(ctx context.Context, endpoint string, target any) error
 
 func (c *Client) getRaw(ctx context.Context, endpoint string) ([]byte, error) {
 	return c.getRawWithRetry(ctx, endpoint, true)
+}
+
+func (c *Client) postJSON(ctx context.Context, endpoint string, payload any) ([]byte, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	return c.postRawWithRetry(ctx, endpoint, body, true)
+}
+
+func (c *Client) postRawWithRetry(ctx context.Context, endpoint string, body []byte, allowRefresh bool) ([]byte, error) {
+	if err := c.ensureAuth(ctx); err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint(endpoint), bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "Silo Dispatcharr Plugin")
+	c.authorize(req)
+	response, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("execute request: %w", err)
+	}
+	defer response.Body.Close()
+	if allowRefresh && response.StatusCode == http.StatusUnauthorized && c.refresh != "" {
+		if err := c.refreshToken(ctx); err == nil {
+			return c.postRawWithRetry(ctx, endpoint, body, false)
+		}
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, fmt.Errorf("unexpected status %d: %s", response.StatusCode, responseSnippet(response.Body))
+	}
+	return io.ReadAll(response.Body)
 }
 
 func (c *Client) getRawWithRetry(ctx context.Context, endpoint string, allowRefresh bool) ([]byte, error) {

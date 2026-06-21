@@ -71,6 +71,15 @@ type RecordingsPayload struct {
 	Items     []json.RawMessage `json:"items"`
 }
 
+type scheduleRecordingRequest struct {
+	ChannelID   string `json:"channelId"`
+	ProgramID   string `json:"programId"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	StartUnix   int64  `json:"startUnix"`
+	EndUnix     int64  `json:"endUnix"`
+}
+
 type AppCapabilities struct {
 	LiveTV                bool   `json:"liveTv"`
 	Guide                 bool   `json:"guide"`
@@ -143,6 +152,9 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 	case "/dispatcharr/api/series":
 		return s.respondJSON(http.StatusOK, s.seriesPayload())
 	case "/dispatcharr/api/recordings":
+		if request.GetMethod() == http.MethodPost {
+			return s.handleScheduleRecording(ctx, request)
+		}
 		return s.handleRecordings(ctx)
 	case "/dispatcharr/api/preferences":
 		return s.handlePreferences(request)
@@ -275,7 +287,62 @@ func (s *HTTPRoutesServer) handleRecordings(ctx context.Context) (*pluginv1.Hand
 	if err != nil {
 		return s.respondJSON(http.StatusBadGateway, RecordingsPayload{Available: false, Reason: err.Error(), Items: []json.RawMessage{}})
 	}
-	return s.respondJSON(http.StatusOK, RecordingsPayload{Available: true, Items: recordings})
+	return s.respondJSON(http.StatusOK, RecordingsPayload{Available: true, Items: enrichRecordings(client, recordings)})
+}
+
+func (s *HTTPRoutesServer) handleScheduleRecording(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	var payload scheduleRecordingRequest
+	if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
+		return textResponse(http.StatusBadRequest, "invalid recording payload"), nil
+	}
+	if strings.TrimSpace(payload.ChannelID) == "" {
+		return textResponse(http.StatusBadRequest, "missing channel id"), nil
+	}
+	if payload.EndUnix <= payload.StartUnix || payload.EndUnix <= 0 {
+		return textResponse(http.StatusBadRequest, "invalid recording window"), nil
+	}
+	if payload.StartUnix <= 0 {
+		return textResponse(http.StatusBadRequest, "missing recording start"), nil
+	}
+	channel, ok := s.channelByID(payload.ChannelID)
+	if !ok {
+		return textResponse(http.StatusNotFound, "channel not found"), nil
+	}
+	client, err := s.dispatcharrClient()
+	if err != nil {
+		return s.respondJSON(http.StatusOK, RecordingsPayload{Available: false, Reason: err.Error(), Items: []json.RawMessage{}})
+	}
+	dispatcharrChannelID, err := s.dispatcharrChannelID(ctx, client, channel)
+	if err != nil {
+		return textResponse(http.StatusBadGateway, err.Error()), nil
+	}
+	title := strings.TrimSpace(payload.Title)
+	if title == "" {
+		title = channel.Name
+	}
+	start := time.Unix(payload.StartUnix, 0).UTC()
+	end := time.Unix(payload.EndUnix, 0).UTC()
+	recording, err := client.CreateRecording(ctx, map[string]any{
+		"channel":    dispatcharrChannelID,
+		"start_time": start.Format(time.RFC3339),
+		"end_time":   end.Format(time.RFC3339),
+		"custom_properties": map[string]any{
+			"program": map[string]any{
+				"id":          strings.TrimSpace(payload.ProgramID),
+				"title":       title,
+				"description": strings.TrimSpace(payload.Description),
+				"start_time":  start.Format(time.RFC3339),
+				"end_time":    end.Format(time.RFC3339),
+				"tvg_id":      strings.TrimSpace(channel.GuideID),
+			},
+			"channel_name": channel.Name,
+			"source":       "silo.ramindex.dispatcharr",
+		},
+	})
+	if err != nil {
+		return textResponse(http.StatusBadGateway, err.Error()), nil
+	}
+	return s.respondJSON(http.StatusOK, map[string]any{"ok": true, "recording": enrichRecording(client, recording)})
 }
 
 func (s *HTTPRoutesServer) handlePreferences(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
@@ -500,6 +567,104 @@ func (s *HTTPRoutesServer) dispatcharrClient() (*dispatcharr.Client, error) {
 	}
 }
 
+func (s *HTTPRoutesServer) channelByID(channelID string) (model.Channel, bool) {
+	snapshot := s.store.Current()
+	for _, channel := range snapshot.Catalog.Channels {
+		if channel.ID == channelID {
+			return channel, true
+		}
+	}
+	return model.Channel{}, false
+}
+
+func (s *HTTPRoutesServer) dispatcharrChannelID(ctx context.Context, client *dispatcharr.Client, channel model.Channel) (int, error) {
+	upstreamChannels, err := client.Channels(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("load Dispatcharr channels: %w", err)
+	}
+	streamUUID := dispatcharrStreamUUID(channel.StreamURL)
+	for _, upstream := range upstreamChannels {
+		if streamUUID != "" && strings.EqualFold(upstream.UUID.String(), streamUUID) {
+			return strconv.Atoi(upstream.ID.String())
+		}
+	}
+	for _, upstream := range upstreamChannels {
+		if channel.GuideID != "" && strings.EqualFold(upstream.EffectiveTVGID.String(), channel.GuideID) {
+			return strconv.Atoi(upstream.ID.String())
+		}
+		if channel.GuideID != "" && strings.EqualFold(upstream.TVGID.String(), channel.GuideID) {
+			return strconv.Atoi(upstream.ID.String())
+		}
+	}
+	for _, upstream := range upstreamChannels {
+		name := strings.TrimSpace(channel.Name)
+		if name != "" && strings.EqualFold(upstream.EffectiveName.String(), name) {
+			return strconv.Atoi(upstream.ID.String())
+		}
+		if name != "" && strings.EqualFold(upstream.Name.String(), name) {
+			return strconv.Atoi(upstream.ID.String())
+		}
+	}
+	return 0, fmt.Errorf("unable to match %q to a Dispatcharr channel", channel.Name)
+}
+
+func dispatcharrStreamUUID(streamURL string) string {
+	parsed, err := url.Parse(strings.TrimSpace(streamURL))
+	if err != nil {
+		return ""
+	}
+	parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+	if len(parts) < 1 {
+		return ""
+	}
+	for index := 0; index < len(parts)-1; index++ {
+		if parts[index] == "stream" {
+			return parts[index+1]
+		}
+	}
+	return ""
+}
+
+func enrichRecordings(client *dispatcharr.Client, recordings []json.RawMessage) []json.RawMessage {
+	enriched := make([]json.RawMessage, 0, len(recordings))
+	for _, recording := range recordings {
+		enriched = append(enriched, enrichRecording(client, recording))
+	}
+	return enriched
+}
+
+func enrichRecording(client *dispatcharr.Client, recording json.RawMessage) json.RawMessage {
+	var object map[string]any
+	if err := json.Unmarshal(recording, &object); err != nil {
+		return recording
+	}
+	id := fmt.Sprint(object["id"])
+	playbackURL := recordingPlaybackURL(client, id, object)
+	object["_silo"] = map[string]any{
+		"playback_url":   playbackURL,
+		"playback_owner": "dispatcharr",
+	}
+	out, err := json.Marshal(object)
+	if err != nil {
+		return recording
+	}
+	return out
+}
+
+func recordingPlaybackURL(client *dispatcharr.Client, id string, object map[string]any) string {
+	custom, _ := object["custom_properties"].(map[string]any)
+	if raw, ok := custom["output_file_url"].(string); ok && strings.TrimSpace(raw) != "" {
+		return client.AbsoluteURL(raw)
+	}
+	if raw, ok := custom["file_url"].(string); ok && strings.TrimSpace(raw) != "" {
+		return client.AbsoluteURL(raw)
+	}
+	if strings.TrimSpace(id) == "" || strings.TrimSpace(id) == "<nil>" {
+		return ""
+	}
+	return client.AbsoluteURL("/api/channels/recordings/" + strings.TrimSpace(id) + "/file/")
+}
+
 func xtreamConnectionSettings(settings config.Settings) (string, string, string) {
 	if settings.SourceMode == config.SourceModeDirectLogin {
 		return settings.DispatcharrURL, settings.DispatcharrUser, settings.DispatcharrPass
@@ -706,6 +871,11 @@ const playerPageHTMLTemplate = `<!doctype html>
       .epg-programs { position: relative; height: var(--epg-row-h); min-width: 0; overflow: hidden; }
       .epg-cell { position: absolute; top: 0; height: var(--epg-row-h); min-height: 0; border: 0; border-radius: 0.55rem; text-align: left; color: var(--text); background: var(--panel); padding: 0.48rem 0.7rem; min-width: 0; overflow: hidden; white-space: nowrap; }
       .epg-cell time, .epg-cell strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .epg-cell .epg-play { position: absolute; inset: 0; z-index: 1; border: 0; border-radius: inherit; background: transparent; color: inherit; text-align: left; padding: 0.48rem 0.7rem; display: grid; align-content: center; min-width: 0; }
+      .epg-cell .epg-schedule { position: absolute; right: 0.4rem; top: 50%; z-index: 2; transform: translateY(-50%); width: 1.8rem; height: 1.8rem; border: 1px solid rgba(255,255,255,0.22); border-radius: 999px; color: white; background: rgba(0,0,0,0.34); display: inline-grid; place-items: center; opacity: 0; transition: opacity 140ms ease, background 140ms ease; }
+      .epg-cell .epg-schedule svg { width: 1rem; height: 1rem; }
+      .epg-cell:hover .epg-schedule, .epg-cell .epg-schedule:focus-visible { opacity: 1; }
+      .epg-cell .epg-schedule:hover { background: rgba(255,47,125,0.86); }
       .player-view { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 1rem; align-items: start; }
       video { width: 100%; aspect-ratio: 16 / 9; background: #050505; border: 1px solid var(--line); border-radius: 0.75rem; }
       .playback-shell { position: relative; min-height: 100vh; overflow: hidden; background: #050505; display: grid; place-items: center; }
@@ -759,6 +929,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       .live-dot { display: inline-block; width: 0.45rem; height: 0.45rem; border-radius: 999px; background: #ff334d; margin-right: 0.3rem; vertical-align: middle; }
       .player-toast { position: absolute; right: 1.25rem; top: 4.55rem; z-index: 3; opacity: 0; transform: translateY(-0.4rem); pointer-events: none; transition: opacity 160ms ease, transform 160ms ease; max-width: min(24rem, calc(100vw - 2.5rem)); padding: 0.65rem 0.85rem; border: 1px solid rgba(255,255,255,0.14); border-radius: 999px; background: rgba(20,20,21,0.9); color: white; font-size: 0.82rem; font-weight: 800; box-shadow: 0 1rem 2rem rgba(0,0,0,0.36); backdrop-filter: blur(18px); }
       .player-toast.show { opacity: 1; transform: translateY(0); }
+      .app-toast { position: fixed; left: 50%; bottom: 1.5rem; z-index: 80; transform: translateX(-50%) translateY(0.6rem); opacity: 0; pointer-events: none; border: 1px solid rgba(255,255,255,0.14); border-radius: 999px; background: rgba(20,20,21,0.92); color: white; padding: 0.7rem 1rem; font-weight: 850; box-shadow: 0 0.75rem 2rem rgba(0,0,0,0.35); transition: opacity 160ms ease, transform 160ms ease; }
+      .app-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
       .player-guide-button.active { background: rgba(255,255,255,0.18); }
       .player-guide-panel { position: absolute; top: 5rem; right: 1.25rem; bottom: 8.5rem; z-index: 3; display: none; width: min(30rem, calc(100vw - 3rem)); overflow: hidden; border: 1px solid rgba(255,255,255,0.13); border-radius: 1rem; background: rgba(17,17,18,0.88); box-shadow: 0 1.2rem 2.4rem rgba(0,0,0,0.42); backdrop-filter: blur(22px); }
       .player-guide-panel.open { display: grid; grid-template-rows: auto minmax(0, 1fr); }
@@ -790,6 +962,10 @@ const playerPageHTMLTemplate = `<!doctype html>
       .recording-card { border: 1px solid var(--line); border-radius: 0.75rem; background: var(--panel); color: var(--text); padding: 0.75rem 0.85rem; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 1rem; }
       .recording-card strong, .recording-card span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .recording-meta { margin-top: 0.22rem; color: var(--muted); font-size: 0.82rem; }
+      .recording-actions { display: flex; align-items: center; gap: 0.5rem; }
+      .recording-action { border: 1px solid var(--line); border-radius: 999px; color: var(--text); background: var(--rail-2); padding: 0.42rem 0.62rem; font-weight: 850; display: inline-flex; align-items: center; gap: 0.38rem; white-space: nowrap; }
+      .recording-action svg { width: 0.95rem; height: 0.95rem; }
+      .recording-action:hover { background: rgba(255,47,125,0.18); }
       .recording-badge { border-radius: 999px; background: rgba(255,255,255,0.1); color: var(--text); padding: 0.28rem 0.52rem; font-size: 0.73rem; font-weight: 850; text-transform: capitalize; white-space: nowrap; }
       .recording-badge.recording { background: rgba(255,47,125,0.22); color: #ffd7e5; }
       .recording-badge.completed { background: rgba(35,101,74,0.42); color: #d4ffe9; }
@@ -871,6 +1047,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           "chevron-down": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m6 9 6 6 6-6'/></svg>",
           "ellipsis": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z'/></svg>",
           "play": "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><path d='M8 5.6v12.8c0 .55.6.9 1.08.62l10.1-6.4a.73.73 0 0 0 0-1.24L9.08 4.98A.72.72 0 0 0 8 5.6Z'/></svg>",
+          "record": "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><path d='M12 20.25a8.25 8.25 0 1 0 0-16.5 8.25 8.25 0 0 0 0 16.5Zm0-4a4.25 4.25 0 1 1 0-8.5 4.25 4.25 0 0 1 0 8.5Z'/></svg>",
           "pause": "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><path d='M7.25 5.25h3.25v13.5H7.25zM13.5 5.25h3.25v13.5H13.5z'/></svg>",
           "loader": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' d='M12 3a9 9 0 1 1-8.3 5.5'/></svg>",
           "speaker": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M19.1 8.9a7 7 0 0 1 0 6.2M16.2 10.9a3 3 0 0 1 0 2.2M4.5 14.25h3l4.25 3.25V6.5L7.5 9.75h-3v4.5Z'/></svg>",
@@ -1158,6 +1335,10 @@ const playerPageHTMLTemplate = `<!doctype html>
           return (Number.isNaN(bTime) ? 0 : bTime) - (Number.isNaN(aTime) ? 0 : aTime);
         });
       }
+      function recordingPlaybackURL(recording) {
+        const silo = recording && recording._silo ? recording._silo : {};
+        return silo.playback_url || "";
+      }
       function recordingMatchesQuery(recording) {
         if (!state.query) return true;
         const haystack = [recordingTitle(recording), recordingChannelName(recording), recordingStatus(recording)].join(" ").toLowerCase();
@@ -1165,7 +1346,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function renderRecordingCard(recording) {
         const status = recordingStatus(recording).toLowerCase();
-        return "<div class=\"recording-card\"><span><strong>" + escapeHTML(recordingTitle(recording)) + "</strong><span class=\"recording-meta\">" + escapeHTML(recordingChannelName(recording) + " - " + recordingWindow(recording)) + "</span></span><span class=\"recording-badge " + escapeHTML(status) + "\">" + escapeHTML(status.split("_").join(" ")) + "</span></div>";
+        const playbackURL = recordingPlaybackURL(recording);
+        const action = playbackURL ? "<button class=\"recording-action\" data-recording-playback=\"" + escapeHTML(playbackURL) + "\">" + icon("play") + "<span>Playback</span></button>" : "";
+        return "<div class=\"recording-card\"><span><strong>" + escapeHTML(recordingTitle(recording)) + "</strong><span class=\"recording-meta\">" + escapeHTML(recordingChannelName(recording) + " - " + recordingWindow(recording)) + "</span></span><div class=\"recording-actions\">" + action + "<span class=\"recording-badge " + escapeHTML(status) + "\">" + escapeHTML(status.split("_").join(" ")) + "</span></div></div>";
       }
       function renderRecordingSection(title, recordings) {
         if (!recordings.length) return "";
@@ -1181,6 +1364,34 @@ const playerPageHTMLTemplate = `<!doctype html>
         }).finally(function() {
           state.recordingsLoading = false;
           if (state.view === "recordings") render();
+        });
+      }
+      function programByID(channelID, programID) {
+        return programsFor(channelID).find(function(program) { return String(program.id || "") === String(programID || ""); }) || null;
+      }
+      function scheduleProgram(channelID, programID, button) {
+        const channel = channelByID(channelID);
+        const program = programByID(channelID, programID);
+        if (!channel || !program) {
+          showAppToast("Could not find that guide entry.");
+          return;
+        }
+        if (button) button.disabled = true;
+        postJSON("/dispatcharr/api/recordings", {
+          channelId: channel.id,
+          programId: program.id || "",
+          title: program.title || channel.name || "Recording",
+          description: program.description || "",
+          startUnix: program.startUnix || 0,
+          endUnix: program.endUnix || 0
+        }).then(function() {
+          state.recordings = null;
+          loadRecordings(true);
+          showAppToast("Recording scheduled in Dispatcharr.");
+        }).catch(function() {
+          showAppToast("Dispatcharr could not schedule that recording.");
+        }).finally(function() {
+          if (button) button.disabled = false;
         });
       }
       function renderRecordingsPage() {
@@ -1321,6 +1532,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         const windowInfo = guideWindow();
         const windowStart = windowInfo.start;
         const windowEnd = windowInfo.end;
+        const now = Math.floor(Date.now() / 1000);
         const programs = programsFor(channel.id).filter(function(program) {
           const start = program.startUnix || windowStart;
           const end = program.endUnix || start + 1800;
@@ -1331,7 +1543,8 @@ const playerPageHTMLTemplate = `<!doctype html>
           return "<button class=\"epg-cell program gray\" data-channel=\"" + escapeHTML(channel.id) + "\" style=\"left: 0; width: calc(100% - 0.25rem);\"><time>" + escapeHTML(timeLabel(windowStart)) + "</time><strong>Data not available</strong></button>";
         }
         return programs.map(function(program, index) {
-          return "<button class=\"epg-cell program " + colorClass(index + channelIndex) + "\" data-channel=\"" + escapeHTML(channel.id) + "\" style=\"" + epgCellStyle(program.startUnix, program.endUnix, windowInfo) + "\"><time>" + escapeHTML(timeLabel(program.startUnix)) + "</time><strong>" + escapeHTML(program.title || "Data not available") + "</strong></button>";
+          const canSchedule = (program.endUnix || 0) > now;
+          return "<div class=\"epg-cell program " + colorClass(index + channelIndex) + "\" style=\"" + epgCellStyle(program.startUnix, program.endUnix, windowInfo) + "\"><button class=\"epg-play\" data-channel=\"" + escapeHTML(channel.id) + "\"><time>" + escapeHTML(timeLabel(program.startUnix)) + "</time><strong>" + escapeHTML(program.title || "Data not available") + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>";
         }).join("");
       }
       function renderEPG() {
@@ -1494,6 +1707,20 @@ const playerPageHTMLTemplate = `<!doctype html>
         toast.classList.add("show");
         clearTimeout(state.toastTimer);
         state.toastTimer = setTimeout(function() { toast.classList.remove("show"); }, 2400);
+      }
+      function showAppToast(message) {
+        let toast = byId("app-toast");
+        if (!toast) {
+          toast = document.createElement("div");
+          toast.id = "app-toast";
+          toast.className = "app-toast";
+          toast.setAttribute("role", "status");
+          document.body.appendChild(toast);
+        }
+        toast.textContent = message;
+        toast.classList.add("show");
+        clearTimeout(state.appToastTimer);
+        state.appToastTimer = setTimeout(function() { toast.classList.remove("show"); }, 2600);
       }
       async function openCastPicker() {
         const video = byId("player");
@@ -1778,6 +2005,20 @@ const playerPageHTMLTemplate = `<!doctype html>
           state.recordings = null;
           loadRecordings(true);
           renderRecordingsPage();
+          return;
+        }
+        const recordingPlayback = event.target.closest("[data-recording-playback]");
+        if (recordingPlayback) {
+          event.preventDefault();
+          const url = recordingPlayback.getAttribute("data-recording-playback");
+          if (url) window.open(url, "_blank", "noopener");
+          return;
+        }
+        const scheduleTarget = event.target.closest("[data-schedule-channel]");
+        if (scheduleTarget) {
+          event.preventDefault();
+          event.stopPropagation();
+          scheduleProgram(scheduleTarget.getAttribute("data-schedule-channel"), scheduleTarget.getAttribute("data-schedule-program"), scheduleTarget);
           return;
         }
         const channelTarget = event.target.closest("[data-channel]");

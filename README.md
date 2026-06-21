@@ -45,14 +45,14 @@ Silo exposes a first-class Live TV provider capability.
   - `/dispatcharr/api/categories`
   - `/dispatcharr/api/vod`
   - `/dispatcharr/api/series`
-  - `/dispatcharr/api/recordings`
+  - `/dispatcharr/api/recordings` (`GET` lists Dispatcharr DVR rows, `POST` schedules an EPG program on Dispatcharr)
   - `/dispatcharr/api/favorites`
   - `/dispatcharr/api/hidden-categories`
   - `/dispatcharr/api/playback`
   - `/dispatcharr/stream?channel_id=...`
   - `/dispatcharr/vod/stream?item_id=...`
 - Supports a scheduled sync task with key `dispatcharr-sync`
-- Shows Dispatcharr-managed DVR recordings in the plugin app when using Dispatcharr Direct Login or API Key mode. Recording playback remains Dispatcharr-owned until the plugin has a true streaming proxy/token handoff.
+- Shows Dispatcharr-managed DVR recordings in the plugin app when using Dispatcharr Direct Login or API Key mode. Like AerioTV's Dispatcharr server-side DVR flow, the plugin schedules recordings through Dispatcharr and opens Dispatcharr-owned playback URLs for completed or in-progress server recordings. It does not expose cancel/delete/stop controls.
   - Recommended Silo task trigger: `interval`, `interval_ms: 86400000`
   - A `startup` trigger is useful after install/restart so channels and EPG populate immediately
 
