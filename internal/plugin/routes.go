@@ -822,6 +822,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       .nav { display: grid; gap: 0.28rem; margin-bottom: 1rem; }
       .nav button { width: 100%; border: 0; border-radius: 0.65rem; background: transparent; color: var(--muted); display: flex; align-items: center; gap: 0.65rem; padding: 0.7rem 0.72rem; text-align: left; font-weight: 750; }
       .nav button.active, .nav button:hover { background: #2a292b; color: var(--text); }
+      .nav svg { width: 1.15rem; height: 1.15rem; flex: 0 0 auto; stroke-width: 1.9; }
       .nav small { margin-left: auto; color: var(--muted); }
       .channel-row { width: 100%; border: 0; border-radius: 0.75rem; background: transparent; color: var(--text); display: grid; grid-template-columns: 3.1rem minmax(0, 1fr) 1.8rem; align-items: center; gap: 0.65rem; padding: 0.45rem; text-align: left; }
       .channel-row:hover, .channel-row.active { background: #2a292b; }
@@ -1000,11 +1001,11 @@ const playerPageHTMLTemplate = `<!doctype html>
           <h1>Live TV</h1>
         </div>
         <nav class="nav" aria-label="Dispatcharr views">
-          <button class="active" data-view="home">Home</button>
-          <button data-view="favorites">Favorites <small id="favorite-count">0</small></button>
-          <button data-view="guide">TV Guide</button>
-          <button data-view="recordings">Recordings</button>
-          <button data-view="settings">Settings</button>
+          <button class="active" data-view="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 10.75 12 4l8.25 6.75M6.25 9.25v9.5h11.5v-9.5M9.75 18.75v-5h4.5v5"/></svg><span>Home</span></button>
+          <button data-view="favorites"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0 6.25-9 11.25-9 11.25s-9-5-9-11.25A4.75 4.75 0 0 1 11.25 5 4.75 4.75 0 0 1 21 8.25Z"/></svg><span>Favorites</span> <small id="favorite-count">0</small></button>
+          <button data-view="guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75h15M4.5 12h15M4.5 17.25h15M8.25 4.5v15M15.75 4.5v15"/></svg><span>TV Guide</span></button>
+          <button data-view="recordings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20.25a8.25 8.25 0 1 0 0-16.5 8.25 8.25 0 0 0 0 16.5Zm0-4a4.25 4.25 0 1 1 0-8.5 4.25 4.25 0 0 1 0 8.5Z"/></svg><span>Recordings</span></button>
+          <button data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8.25a3.75 3.75 0 1 1 0 7.5 3.75 3.75 0 0 1 0-7.5Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.23.64.84 1 1.51 1H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z"/></svg><span>Settings</span></button>
         </nav>
       </aside>
       <main class="main">
@@ -1308,19 +1309,24 @@ const playerPageHTMLTemplate = `<!doctype html>
         }).join("") + "</div>";
       }
       function categoryGrid() {
-        const categoryCounts = {};
         const hidden = hiddenMap();
-        items(state.app.channels).forEach(function(channel) {
-          if (channel.categoryId && hidden[channel.categoryId]) return;
-          if (channel.categoryId) categoryCounts[channel.categoryId] = (categoryCounts[channel.categoryId] || 0) + 1;
-        });
-        const categories = items(state.app.categories).filter(function(category) {
-          return !!categoryCounts[category.id];
+        const categories = categoriesWithChannels(function(channel) {
+          return !(channel.categoryId && hidden[channel.categoryId]);
         });
         if (!categories.length) return "<div class=\"empty\">No categories yet.</div>";
         return "<div class=\"category-grid\">" + categories.map(function(category) {
           return "<button class=\"tile" + (state.category === category.id ? " active" : "") + "\" data-category=\"" + escapeHTML(category.id) + "\"><strong>" + escapeHTML(category.name || category.id) + "</strong></button>";
         }).join("") + "</div>";
+      }
+      function categoriesWithChannels(includeChannel) {
+        const categoryCounts = {};
+        items(state.app.channels).forEach(function(channel) {
+          if (includeChannel && !includeChannel(channel)) return;
+          if (channel.categoryId) categoryCounts[channel.categoryId] = (categoryCounts[channel.categoryId] || 0) + 1;
+        });
+        return items(state.app.categories).filter(function(category) {
+          return !!categoryCounts[category.id];
+        });
       }
       function recentChannels(limit) {
         const seen = {};
@@ -1646,9 +1652,10 @@ const playerPageHTMLTemplate = `<!doctype html>
       function renderSettings() {
         byId("view").innerHTML = "<div class=\"settings-card\"><h2>Hidden categories</h2><div id=\"settings-list\" class=\"settings-list\"></div></div>";
         const root = byId("settings-list");
-        root.innerHTML = items(state.app.categories).map(function(category) {
+        const categories = categoriesWithChannels();
+        root.innerHTML = categories.map(function(category) {
           return "<label><span>" + escapeHTML(category.name || category.id) + "</span><input type=\"checkbox\" data-hide=\"" + escapeHTML(category.id) + "\"" + (hiddenMap()[category.id] ? " checked" : "") + "></label>";
-        }).join("");
+        }).join("") || "<div class=\"empty\">No categories available for this connection.</div>";
       }
       function categoryName(id) {
         const category = items(state.app.categories).find(function(item) { return item.id === id; });
