@@ -75,6 +75,11 @@ func (c *Client) Series(ctx context.Context) ([]Series, error) {
 	return series, c.getList(ctx, "/api/vod/series/", &series)
 }
 
+func (c *Client) Recordings(ctx context.Context) ([]json.RawMessage, error) {
+	var recordings []json.RawMessage
+	return recordings, c.getList(ctx, "/api/channels/recordings/", &recordings)
+}
+
 func (c *Client) LiveStreamURL(channelUUID string) string {
 	return c.absolutePath(path.Join("/proxy/ts/stream", strings.TrimSpace(channelUUID)))
 }
@@ -171,6 +176,8 @@ func appendJSONList(raw []byte, target any) error {
 			return err
 		}
 		*values = append(*values, next...)
+	case *[]json.RawMessage:
+		*values = append(*values, current...)
 	default:
 		return fmt.Errorf("unsupported list target %T", target)
 	}

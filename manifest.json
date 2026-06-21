@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.dispatcharr",
-  "version": "0.2.53",
+  "version": "0.2.54",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -143,6 +143,13 @@
       "id": "dispatcharr-api-series",
       "method": "GET",
       "path": "/dispatcharr/api/series",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-recordings",
+      "method": "GET",
+      "path": "/dispatcharr/api/recordings",
       "access": "authenticated",
       "navigable": false
     },

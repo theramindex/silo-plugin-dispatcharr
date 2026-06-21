@@ -17,6 +17,7 @@ import (
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/dispatcharr"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
 )
 
@@ -64,11 +65,18 @@ type ContentPayload struct {
 	Items      any              `json:"items"`
 }
 
+type RecordingsPayload struct {
+	Available bool              `json:"available"`
+	Reason    string            `json:"reason,omitempty"`
+	Items     []json.RawMessage `json:"items"`
+}
+
 type AppCapabilities struct {
 	LiveTV                bool   `json:"liveTv"`
 	Guide                 bool   `json:"guide"`
 	VOD                   bool   `json:"vod"`
 	Series                bool   `json:"series"`
+	Recordings            bool   `json:"recordings"`
 	Favorites             bool   `json:"favorites"`
 	HiddenCategories      bool   `json:"hiddenCategories"`
 	BackendProxySupported bool   `json:"backendProxySupported"`
@@ -134,6 +142,8 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return s.respondJSON(http.StatusOK, s.vodPayload())
 	case "/dispatcharr/api/series":
 		return s.respondJSON(http.StatusOK, s.seriesPayload())
+	case "/dispatcharr/api/recordings":
+		return s.handleRecordings(ctx)
 	case "/dispatcharr/api/preferences":
 		return s.handlePreferences(request)
 	case "/dispatcharr/api/favorites":
@@ -254,6 +264,18 @@ func (s *HTTPRoutesServer) seriesPayload() ContentPayload {
 		Categories: snapshot.Catalog.Content.SeriesCategories,
 		Items:      snapshot.Catalog.Content.SeriesItems,
 	}
+}
+
+func (s *HTTPRoutesServer) handleRecordings(ctx context.Context) (*pluginv1.HandleHTTPResponse, error) {
+	client, err := s.dispatcharrClient()
+	if err != nil {
+		return s.respondJSON(http.StatusOK, RecordingsPayload{Available: false, Reason: err.Error(), Items: []json.RawMessage{}})
+	}
+	recordings, err := client.Recordings(ctx)
+	if err != nil {
+		return s.respondJSON(http.StatusBadGateway, RecordingsPayload{Available: false, Reason: err.Error(), Items: []json.RawMessage{}})
+	}
+	return s.respondJSON(http.StatusOK, RecordingsPayload{Available: true, Items: recordings})
 }
 
 func (s *HTTPRoutesServer) handlePreferences(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
@@ -457,6 +479,27 @@ func (s *HTTPRoutesServer) resolveVODStreamURL(_ context.Context, itemID string)
 	return "", fmt.Errorf("vod item not found")
 }
 
+func (s *HTTPRoutesServer) dispatcharrClient() (*dispatcharr.Client, error) {
+	if s.settingsProvider == nil {
+		return nil, fmt.Errorf("dispatcharr settings are unavailable")
+	}
+	settings := s.settingsProvider()
+	switch settings.SourceMode {
+	case config.SourceModeDirectLogin:
+		if strings.TrimSpace(settings.DispatcharrURL) == "" || strings.TrimSpace(settings.DispatcharrUser) == "" || strings.TrimSpace(settings.DispatcharrPass) == "" {
+			return nil, fmt.Errorf("dispatcharr direct login settings are incomplete")
+		}
+		return dispatcharr.NewLoginClient(settings.DispatcharrURL, settings.DispatcharrUser, settings.DispatcharrPass), nil
+	case config.SourceModeAPIKey:
+		if strings.TrimSpace(settings.DispatcharrURL) == "" || strings.TrimSpace(settings.DispatcharrAPIKey) == "" {
+			return nil, fmt.Errorf("dispatcharr api key settings are incomplete")
+		}
+		return dispatcharr.NewAPIKeyClient(settings.DispatcharrURL, settings.DispatcharrAPIKey), nil
+	default:
+		return nil, fmt.Errorf("recordings require Dispatcharr direct or API key mode")
+	}
+}
+
 func xtreamConnectionSettings(settings config.Settings) (string, string, string) {
 	if settings.SourceMode == config.SourceModeDirectLogin {
 		return settings.DispatcharrURL, settings.DispatcharrUser, settings.DispatcharrPass
@@ -506,6 +549,7 @@ func appCapabilities(preferences cache.Preferences) AppCapabilities {
 		Guide:                 true,
 		VOD:                   true,
 		Series:                true,
+		Recordings:            true,
 		Favorites:             true,
 		HiddenCategories:      true,
 		BackendProxySupported: preferences.Playback.BackendProxySupported,
@@ -739,6 +783,18 @@ const playerPageHTMLTemplate = `<!doctype html>
       .player-bottom-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1.2rem; align-items: end; }
       .player-bottom-actions { align-self: end; padding-bottom: 1.25rem; }
       .now-card, .settings-card { border: 1px solid var(--line); background: var(--rail-2); border-radius: 0.8rem; padding: 0.85rem; }
+      .recording-toolbar { display: flex; justify-content: flex-end; margin-bottom: 0.75rem; }
+      .recording-refresh { border: 1px solid var(--line); border-radius: 999px; color: var(--text); background: var(--panel); padding: 0.55rem 0.8rem; font-weight: 820; }
+      .recording-refresh:hover { background: var(--panel-2); }
+      .recording-list { display: grid; gap: 0.55rem; }
+      .recording-card { border: 1px solid var(--line); border-radius: 0.75rem; background: var(--panel); color: var(--text); padding: 0.75rem 0.85rem; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 1rem; }
+      .recording-card strong, .recording-card span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .recording-meta { margin-top: 0.22rem; color: var(--muted); font-size: 0.82rem; }
+      .recording-badge { border-radius: 999px; background: rgba(255,255,255,0.1); color: var(--text); padding: 0.28rem 0.52rem; font-size: 0.73rem; font-weight: 850; text-transform: capitalize; white-space: nowrap; }
+      .recording-badge.recording { background: rgba(255,47,125,0.22); color: #ffd7e5; }
+      .recording-badge.completed { background: rgba(35,101,74,0.42); color: #d4ffe9; }
+      .recording-badge.upcoming { background: rgba(74,54,110,0.5); color: #eee4ff; }
+      .recording-badge.interrupted, .recording-badge.failed { background: rgba(99,40,35,0.5); color: #ffe0dc; }
       .settings-list { display: grid; gap: 0.55rem; }
       .settings-list label { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--panel); border-radius: 0.65rem; padding: 0.7rem; }
       .empty { color: var(--muted); padding: 1rem 0; }
@@ -772,6 +828,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           <button data-view="favorites">Favorites <small id="favorite-count">0</small></button>
           <button data-view="live">Live TV</button>
           <button data-view="guide">TV Guide</button>
+          <button data-view="recordings">Recordings</button>
           <button data-view="settings">Settings</button>
         </nav>
       </aside>
@@ -786,7 +843,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       const path = window.location.pathname;
       const base = path.endsWith("/dispatcharr/player") ? path.slice(0, -"/dispatcharr/player".length) : (path.endsWith("/dispatcharr") ? path.slice(0, -"/dispatcharr".length) : "");
       const prefsKey = "silo.ramindex.dispatcharr.preferences.v1";
-      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false };
+      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false };
 
       function route(url) { return base + url; }
       function byId(id) { return document.getElementById(id); }
@@ -997,6 +1054,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (state.view === "guide") renderGuidePage();
         else if (state.view === "player") renderPlayerPage();
         else if (state.view === "live" || state.view === "favorites") renderLivePage();
+        else if (state.view === "recordings") renderRecordingsPage();
         else if (state.view === "settings") renderSettings();
         else renderHome();
       }
@@ -1053,6 +1111,102 @@ const playerPageHTMLTemplate = `<!doctype html>
         byId("view").innerHTML = state.view === "favorites"
           ? sectionHeader("Favorite channels") + rowCards(channels.slice(0, 60))
           : sectionHeader("Categories") + categoryGrid() + sectionHeader("Channels") + rowCards(channels.slice(0, 24));
+      }
+      function recordingCustom(recording) {
+        return recording && recording.custom_properties && typeof recording.custom_properties === "object" ? recording.custom_properties : {};
+      }
+      function recordingProgram(recording) {
+        const custom = recordingCustom(recording);
+        return custom.program && typeof custom.program === "object" ? custom.program : {};
+      }
+      function recordingStatus(recording) {
+        const custom = recordingCustom(recording);
+        const now = Date.now();
+        const start = Date.parse(recording.start_time || custom.start_time || "");
+        const end = Date.parse(recording.end_time || custom.end_time || "");
+        if (custom.status) return String(custom.status);
+        if (!Number.isNaN(start) && start > now) return "upcoming";
+        if (!Number.isNaN(start) && !Number.isNaN(end) && start <= now && end >= now) return "recording";
+        return "completed";
+      }
+      function recordingTitle(recording) {
+        const custom = recordingCustom(recording);
+        const program = recordingProgram(recording);
+        return custom.title || program.title || custom.file_name || "Untitled recording";
+      }
+      function recordingChannelName(recording) {
+        const custom = recordingCustom(recording);
+        const program = recordingProgram(recording);
+        return custom.channel_name || program.channel || program.channel_name || "Dispatcharr";
+      }
+      function recordingTimeLabel(value) {
+        const date = new Date(value || "");
+        if (Number.isNaN(date.getTime())) return "";
+        return date.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      }
+      function recordingWindow(recording) {
+        const start = recordingTimeLabel(recording.start_time);
+        const end = recordingTimeLabel(recording.end_time);
+        if (start && end) return start + " - " + end;
+        return start || end || "Time unavailable";
+      }
+      function normalizeRecordings(payload) {
+        if (!payload || !payload.available) return [];
+        return items(payload.items).slice().sort(function(a, b) {
+          const aTime = Date.parse(a.start_time || "");
+          const bTime = Date.parse(b.start_time || "");
+          return (Number.isNaN(bTime) ? 0 : bTime) - (Number.isNaN(aTime) ? 0 : aTime);
+        });
+      }
+      function recordingMatchesQuery(recording) {
+        if (!state.query) return true;
+        const haystack = [recordingTitle(recording), recordingChannelName(recording), recordingStatus(recording)].join(" ").toLowerCase();
+        return haystack.indexOf(lower(state.query)) !== -1;
+      }
+      function renderRecordingCard(recording) {
+        const status = recordingStatus(recording).toLowerCase();
+        return "<div class=\"recording-card\"><span><strong>" + escapeHTML(recordingTitle(recording)) + "</strong><span class=\"recording-meta\">" + escapeHTML(recordingChannelName(recording) + " - " + recordingWindow(recording)) + "</span></span><span class=\"recording-badge " + escapeHTML(status) + "\">" + escapeHTML(status.split("_").join(" ")) + "</span></div>";
+      }
+      function renderRecordingSection(title, recordings) {
+        if (!recordings.length) return "";
+        return sectionHeader(title) + "<div class=\"recording-list\">" + recordings.map(renderRecordingCard).join("") + "</div>";
+      }
+      function loadRecordings(force) {
+        if (state.recordingsLoading || (state.recordings && !force)) return;
+        state.recordingsLoading = true;
+        getJSON("/dispatcharr/api/recordings").then(function(payload) {
+          state.recordings = payload;
+        }).catch(function(error) {
+          state.recordings = { available: false, reason: "Unable to load Dispatcharr recordings.", items: [] };
+        }).finally(function() {
+          state.recordingsLoading = false;
+          if (state.view === "recordings") render();
+        });
+      }
+      function renderRecordingsPage() {
+        const root = byId("view");
+        if (!state.recordings) {
+          root.innerHTML = sectionHeader("Recordings") + "<div class=\"empty\">Loading Dispatcharr recordings...</div>";
+          loadRecordings(false);
+          return;
+        }
+        const toolbar = "<div class=\"recording-toolbar\"><button class=\"recording-refresh\" data-recordings-refresh=\"true\">Refresh recordings</button></div>";
+        if (!state.recordings.available) {
+          root.innerHTML = toolbar + sectionHeader("Recordings") + "<div class=\"empty\">" + escapeHTML(state.recordings.reason || "Recordings are not available for this connection mode.") + "</div>";
+          return;
+        }
+        const recordings = normalizeRecordings(state.recordings).filter(recordingMatchesQuery);
+        const active = recordings.filter(function(recording) { return recordingStatus(recording).toLowerCase() === "recording"; });
+        const upcoming = recordings.filter(function(recording) { return recordingStatus(recording).toLowerCase() === "upcoming"; });
+        const completed = recordings.filter(function(recording) {
+          const status = recordingStatus(recording).toLowerCase();
+          return status !== "recording" && status !== "upcoming";
+        });
+        root.innerHTML = toolbar
+          + renderRecordingSection("Recording now", active)
+          + renderRecordingSection("Upcoming", upcoming)
+          + renderRecordingSection("Completed", completed.slice(0, 80))
+          + (!recordings.length ? "<div class=\"empty\">No Dispatcharr recordings found.</div>" : "");
       }
       function currentProgram(channel) {
         if (!channel) return null;
@@ -1616,6 +1770,14 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (playerTarget) {
           event.preventDefault();
           handlePlayerAction(playerTarget.getAttribute("data-player-action"), playerTarget);
+          return;
+        }
+        const recordingsRefresh = event.target.closest("[data-recordings-refresh]");
+        if (recordingsRefresh) {
+          event.preventDefault();
+          state.recordings = null;
+          loadRecordings(true);
+          renderRecordingsPage();
           return;
         }
         const channelTarget = event.target.closest("[data-channel]");
