@@ -1172,10 +1172,22 @@ const playerPageHTMLTemplate = `<!doctype html>
         return items(state.app.channels).filter(function(channel) {
           if (channel.categoryId && hidden[channel.categoryId]) return false;
           if (state.view !== "favorites" && state.category && channel.categoryId !== state.category) return false;
-          if (!ignoreQuery && state.query && lower([channel.name, channel.categoryName, channel.number].join(" ")).indexOf(lower(state.query)) === -1) return false;
+          if (!ignoreQuery && state.query && !channelMatchesQuery(channel)) return false;
           if (state.view === "favorites" && !favoriteMap()[channel.id] && !autoFavoriteMap()[channel.id]) return false;
           return true;
         });
+      }
+      function channelMatchesQuery(channel) {
+        if (!state.query) return true;
+        return lower([channel.name, channel.categoryName, channel.number].join(" ")).indexOf(lower(state.query)) !== -1;
+      }
+      function programMatchesQuery(program) {
+        if (!state.query) return true;
+        return lower([program.title, program.description].join(" ")).indexOf(lower(state.query)) !== -1;
+      }
+      function guideChannelMatchesQuery(channel) {
+        if (!state.query || channelMatchesQuery(channel)) return true;
+        return programsFor(channel.id).some(programMatchesQuery);
       }
       function programsFor(channelID) {
         const now = Math.floor(Date.now() / 1000);
@@ -1569,9 +1581,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       function renderGuidePage() {
         const categories = items(state.app.categories);
         const slots = guideSlots();
-        byId("view").innerHTML = "<div class=\"guide-page\"><div class=\"guide-tools\"><select id=\"category-select\" class=\"select\"><option value=\"\">All categories</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program name\"></div><div class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div></div></div>";
+        byId("view").innerHTML = "<div class=\"guide-page\"><div class=\"guide-tools single\"><select id=\"category-select\" class=\"select\"><option value=\"\">All categories</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select></div><div class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div></div></div>";
         byId("category-select").onchange = function(event) { state.category = event.target.value; renderGuidePage(); };
-        byId("guide-search").oninput = function(event) { state.query = event.target.value; renderGuidePage(); };
         renderEPG();
       }
       function renderEPGCells(channel, channelIndex) {
@@ -1579,10 +1590,11 @@ const playerPageHTMLTemplate = `<!doctype html>
         const windowStart = windowInfo.start;
         const windowEnd = windowInfo.end;
         const now = Math.floor(Date.now() / 1000);
+        const channelMatched = channelMatchesQuery(channel);
         const programs = programsFor(channel.id).filter(function(program) {
           const start = program.startUnix || windowStart;
           const end = program.endUnix || start + 1800;
-          const matchesQuery = !state.query || lower(program.title).indexOf(lower(state.query)) !== -1;
+          const matchesQuery = channelMatched || programMatchesQuery(program);
           return matchesQuery && end > windowStart && start < windowEnd;
         });
         if (!programs.length) {
@@ -1595,10 +1607,10 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function renderEPG() {
         const root = byId("epg");
-        const channels = visibleChannels(true).slice(0, 60);
+        const channels = visibleChannels(true).filter(guideChannelMatchesQuery).slice(0, 60);
         root.innerHTML = channels.map(function(channel, channelIndex) {
           return "<div class=\"epg-row\"><button class=\"epg-channel\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(channel.name || "Untitled") + "\">" + logoHTML(channel) + "</button><div class=\"epg-programs\">" + renderEPGCells(channel, channelIndex) + "</div></div>";
-        }).join("");
+        }).join("") || "<div class=\"empty\">No guide matches.</div>";
       }
       function renderSettings() {
         byId("view").innerHTML = "<div class=\"settings-card\"><h2>Hidden categories</h2><div id=\"settings-list\" class=\"settings-list\"></div></div>";
