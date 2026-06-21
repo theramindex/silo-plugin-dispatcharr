@@ -1018,6 +1018,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       const path = window.location.pathname;
       const base = path.endsWith("/dispatcharr/player") ? path.slice(0, -"/dispatcharr/player".length) : (path.endsWith("/dispatcharr") ? path.slice(0, -"/dispatcharr".length) : "");
       const prefsKey = "silo.ramindex.dispatcharr.preferences.v1";
+      const pluginInstallationID = (base.match(/\/api\/v1\/plugins\/(\d+)/) || [])[1] || "";
       const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false };
 
       function route(url) { return base + url; }
@@ -1100,13 +1101,48 @@ const playerPageHTMLTemplate = `<!doctype html>
         }).filter(function(id) { return !!valid[id]; });
         state.app.preferences.recentChannels = uniqueIDs(recent.concat(watched)).slice(0, 24);
       }
+      function recordWatchPreference(channel) {
+        if (!state.app || !state.app.preferences || !channel) return;
+        const id = String(channel.id || "");
+        if (!id) return;
+        const now = Math.floor(Date.now() / 1000);
+        const existing = state.app.preferences.continueWatching[id] || {};
+        const plays = Number(existing.plays || 0) + 1;
+        state.app.preferences.recentChannels = uniqueIDs([id].concat(items(state.app.preferences.recentChannels))).slice(0, 24);
+        state.app.preferences.continueWatching[id] = {
+          itemKind: "channel",
+          itemId: id,
+          itemName: channel.name || id,
+          playedAt: now,
+          plays: plays
+        };
+        if (plays >= 3 && !favoriteMap()[id]) state.app.preferences.autoFavorites[id] = true;
+        normalizePreferences();
+        savePrefs();
+      }
       function readLocalPrefs() {
         try { return Object.assign(defaultPrefs(), JSON.parse(localStorage.getItem(prefsKey) || "{}")); }
         catch (_) { return defaultPrefs(); }
       }
+      function readSiloPrefsValue(value) {
+        if (!value) return null;
+        try { return Object.assign(defaultPrefs(), JSON.parse(value)); }
+        catch (_) { return null; }
+      }
+      async function loadUserPrefs() {
+        if (!pluginInstallationID) return null;
+        const payload = await coreGetJSON("/api/v1/settings/plugins/" + encodeURIComponent(pluginInstallationID));
+        return readSiloPrefsValue(payload && payload.values ? payload.values.preferences : "");
+      }
+      function writeLocalPrefs() {
+        try { localStorage.setItem(prefsKey, JSON.stringify(state.app.preferences)); } catch (_) {}
+      }
       function savePrefs() {
         if (!state.app || !state.app.preferences) return;
-        localStorage.setItem(prefsKey, JSON.stringify(state.app.preferences));
+        writeLocalPrefs();
+        if (pluginInstallationID) {
+          corePutNoContent("/api/v1/settings/plugins/" + encodeURIComponent(pluginInstallationID), { values: { preferences: JSON.stringify(state.app.preferences) } }).catch(function() {});
+        }
         postJSON("/dispatcharr/api/preferences", state.app.preferences).catch(function() {});
       }
       async function getJSON(url) {
@@ -1118,6 +1154,15 @@ const playerPageHTMLTemplate = `<!doctype html>
         const response = await fetch(route(url), { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
         if (!response.ok) throw new Error("request failed");
         return response.json();
+      }
+      async function coreGetJSON(url) {
+        const response = await fetch(url, { credentials: "include" });
+        if (!response.ok) throw new Error("request failed");
+        return response.json();
+      }
+      async function corePutNoContent(url, body) {
+        const response = await fetch(url, { method: "PUT", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+        if (!response.ok) throw new Error("request failed");
       }
       function channelByID(id) {
         return items(state.app.channels).find(function(channel) { return channel.id === id; }) || null;
@@ -1207,7 +1252,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       async function loadApp() {
         state.app = await getJSON("/dispatcharr/api/app");
-        state.app.preferences = mergePrefs(state.app.preferences, readLocalPrefs());
+        const siloPrefs = await loadUserPrefs().catch(function() { return null; });
+        const localPrefs = readLocalPrefs();
+        state.app.preferences = siloPrefs ? mergePrefs(siloPrefs, {}) : mergePrefs(state.app.preferences, localPrefs);
         state.app.programs = items(state.app.programs);
         normalizePreferences();
         savePrefs();
@@ -1870,11 +1917,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function startWatch(channel) {
         if (state.currentSession) postJSON("/dispatcharr/api/watch/stop", { sessionId: state.currentSession.id, reason: "switch_channel" }).catch(function() {});
+        recordWatchPreference(channel);
         postJSON("/dispatcharr/api/watch/start", { itemKind: "channel", itemId: channel.id, itemName: channel.name }).then(function(payload) {
           state.currentSession = payload.session;
-          state.app.preferences = mergePrefs(payload.preferences, readLocalPrefs());
-          normalizePreferences();
-          savePrefs();
           if (state.heartbeat) clearInterval(state.heartbeat);
           state.heartbeat = setInterval(function() {
             if (state.currentSession) postJSON("/dispatcharr/api/watch/heartbeat", { sessionId: state.currentSession.id }).catch(function() {});
