@@ -1019,7 +1019,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       const base = path.endsWith("/dispatcharr/player") ? path.slice(0, -"/dispatcharr/player".length) : (path.endsWith("/dispatcharr") ? path.slice(0, -"/dispatcharr".length) : "");
       const prefsKey = "silo.ramindex.dispatcharr.preferences.v1";
       const pluginInstallationID = (base.match(/\/api\/v1\/plugins\/(\d+)/) || [])[1] || "";
-      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false };
+      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, guideChannels: [], guideRendered: 0, guideLoading: false };
 
       function route(url) { return base + url; }
       function byId(id) { return document.getElementById(id); }
@@ -1583,7 +1583,14 @@ const playerPageHTMLTemplate = `<!doctype html>
         const slots = guideSlots();
         byId("view").innerHTML = "<div class=\"guide-page\"><div class=\"guide-tools single\"><select id=\"category-select\" class=\"select\"><option value=\"\">All categories</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select></div><div class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div></div></div>";
         byId("category-select").onchange = function(event) { state.category = event.target.value; renderGuidePage(); };
+        resetGuideRows();
         renderEPG();
+      }
+      function guideBatchSize() { return 40; }
+      function resetGuideRows() {
+        state.guideChannels = visibleChannels(true).filter(guideChannelMatchesQuery);
+        state.guideRendered = 0;
+        state.guideLoading = false;
       }
       function renderEPGCells(channel, channelIndex) {
         const windowInfo = guideWindow();
@@ -1605,12 +1612,36 @@ const playerPageHTMLTemplate = `<!doctype html>
           return "<div class=\"epg-cell program " + colorClass(index + channelIndex) + "\" style=\"" + epgCellStyle(program.startUnix, program.endUnix, windowInfo) + "\"><button class=\"epg-play\" data-channel=\"" + escapeHTML(channel.id) + "\"><time>" + escapeHTML(timeLabel(program.startUnix)) + "</time><strong>" + escapeHTML(program.title || "Data not available") + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>";
         }).join("");
       }
+      function renderEPGRow(channel, channelIndex) {
+        return "<div class=\"epg-row\"><button class=\"epg-channel\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(channel.name || "Untitled") + "\">" + logoHTML(channel) + "</button><div class=\"epg-programs\">" + renderEPGCells(channel, channelIndex) + "</div></div>";
+      }
       function renderEPG() {
         const root = byId("epg");
-        const channels = visibleChannels(true).filter(guideChannelMatchesQuery);
-        root.innerHTML = channels.map(function(channel, channelIndex) {
-          return "<div class=\"epg-row\"><button class=\"epg-channel\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(channel.name || "Untitled") + "\">" + logoHTML(channel) + "</button><div class=\"epg-programs\">" + renderEPGCells(channel, channelIndex) + "</div></div>";
-        }).join("") || "<div class=\"empty\">No guide matches.</div>";
+        root.innerHTML = "";
+        appendGuideRows();
+      }
+      function appendGuideRows() {
+        if (state.view !== "guide" || state.guideLoading) return;
+        const root = byId("epg");
+        if (!root) return;
+        if (!state.guideChannels.length) {
+          root.innerHTML = "<div class=\"empty\">No guide matches.</div>";
+          return;
+        }
+        if (state.guideRendered >= state.guideChannels.length) return;
+        state.guideLoading = true;
+        const start = state.guideRendered;
+        const end = Math.min(start + guideBatchSize(), state.guideChannels.length);
+        const rows = state.guideChannels.slice(start, end).map(function(channel, offset) {
+          return renderEPGRow(channel, start + offset);
+        }).join("");
+        root.insertAdjacentHTML("beforeend", rows);
+        state.guideRendered = end;
+        state.guideLoading = false;
+        if (isNearGuideEnd()) appendGuideRows();
+      }
+      function isNearGuideEnd() {
+        return window.innerHeight + window.scrollY > document.documentElement.scrollHeight - 900;
       }
       function renderSettings() {
         byId("view").innerHTML = "<div class=\"settings-card\"><h2>Hidden categories</h2><div id=\"settings-list\" class=\"settings-list\"></div></div>";
@@ -2126,6 +2157,9 @@ const playerPageHTMLTemplate = `<!doctype html>
         button.onclick = function() { setView(button.dataset.view); };
       });
       byId("global-search").oninput = function(event) { state.query = event.target.value; render(); };
+      window.addEventListener("scroll", function() {
+        if (state.view === "guide" && isNearGuideEnd()) appendGuideRows();
+      }, { passive: true });
       window.addEventListener("beforeunload", function() {
         if (state.currentSession) navigator.sendBeacon(route("/dispatcharr/api/watch/stop"), JSON.stringify({ sessionId: state.currentSession.id, reason: "page_unload" }));
       });
