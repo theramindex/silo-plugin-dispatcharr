@@ -106,7 +106,7 @@ const connectionJSONSchema = `{
 
 func GlobalConfigSchema() []*ConfigSchema {
 	return []*ConfigSchema{
-		objectSchema("connection", "Live TV Connection", "Pick one source type. Silo shows every field in this form, so fill only the fields named by the selected source type.", connectionJSONSchema, true, []*pluginv1.AdminFormField{
+		objectSchema("connection", "IPTV Dispatcharr", "Pick one source type. Silo shows every field in this form, so fill only the fields named by the selected source type.", connectionJSONSchema, true, []*pluginv1.AdminFormField{
 			{Key: "source_mode", Label: "Source Type", Description: "This controls which fields are required. Direct and Xtream both use Server URL, Username, and Password.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_SELECT, DefaultValue: structpb.NewStringValue(string(SourceModeDirectLogin)), Options: []*pluginv1.AdminFormOption{
 				{Value: string(SourceModeDirectLogin), Label: "Dispatcharr Direct Connect", Description: "Use Dispatcharr REST. Fill Server URL, Username, and Password with your Dispatcharr dashboard login."},
 				{Value: string(SourceModeAPIKey), Label: "Dispatcharr Direct: API Key", Description: "Use Dispatcharr REST without saving a password. Fill Server URL and Admin API Key."},
@@ -122,7 +122,7 @@ func GlobalConfigSchema() []*ConfigSchema {
 			{Key: "live_tv_enabled", Label: "Enable Live TV", Description: "Expose the Live TV app route to Silo users.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_SWITCH, DefaultValue: structpb.NewBoolValue(true)},
 			{Key: "channel_refresh_hours", Label: "Channel Refresh Hours", Description: "Refresh cadence for channels and categories.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_NUMBER, DefaultValue: structpb.NewNumberValue(DefaultChannelRefreshHours)},
 			{Key: "epg_refresh_hours", Label: "EPG Refresh Hours", Description: "Refresh cadence for guide data.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_NUMBER, DefaultValue: structpb.NewNumberValue(DefaultEPGRefreshHours)},
-		}, "Save Live TV connection"),
+		}, "Save IPTV Dispatcharr settings"),
 	}
 }
 

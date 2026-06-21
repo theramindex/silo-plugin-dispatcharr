@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.dispatcharr",
-  "version": "0.2.61",
+  "version": "0.2.62",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -21,7 +21,7 @@
     {
       "type": "scheduled_task.v1",
       "id": "dispatcharr-sync",
-      "display_name": "Dispatcharr Sync",
+      "display_name": "IPTV Dispatcharr",
       "description": "Refreshes Live TV channel and guide data from Dispatcharr."
     },
     {
@@ -225,7 +225,7 @@
     }
   ],
   "metadata": {
-    "display_name": "Live TV",
+    "display_name": "IPTV Dispatcharr",
     "summary": "Silo-hosted Dispatcharr IPTV app with Live TV, guide, VOD, and series routes.",
     "jellyfin_api_integration": false
   },
