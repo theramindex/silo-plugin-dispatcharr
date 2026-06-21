@@ -649,7 +649,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       .tile { border: 0; border-radius: 0.65rem; background: var(--panel); color: var(--text); min-height: 3.85rem; text-align: left; padding: 0.75rem 0.85rem; font-weight: 850; }
       .tile:hover, .tile.active { background: var(--panel-2); }
       .guide-page { min-width: 0; }
-      .guide-tools { display: grid; grid-template-columns: 10rem 1fr minmax(12rem, 22rem); align-items: center; gap: 0.8rem; margin-bottom: 0.7rem; }
+      .guide-tools { display: grid; grid-template-columns: minmax(12rem, 24rem) minmax(12rem, 28rem); align-items: center; gap: 0.8rem; margin-bottom: 0.7rem; }
       .select { border: 1px solid var(--line); border-radius: 999px; color: var(--text); background: var(--panel); padding: 0.55rem 0.75rem; }
       .guide-scroll { --epg-logo-col: 6.8rem; --epg-slot: 12rem; --epg-row-h: 3.7rem; overflow-x: auto; overflow-y: visible; padding-bottom: 0.45rem; }
       .guide-timeline { width: calc(var(--epg-logo-col) + var(--epg-width)); min-width: calc(var(--epg-logo-col) + var(--epg-width)); }
@@ -1158,7 +1158,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       function renderGuidePage() {
         const categories = items(state.app.categories);
         const slots = guideSlots();
-        byId("view").innerHTML = "<div class=\"guide-page\"><div class=\"guide-tools\"><a class=\"back\" href=\"/\" aria-label=\"Back to Silo\">&lt;- Silo</a><select id=\"category-select\" class=\"select\"><option value=\"\">All categories</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program name\"></div><div class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div></div></div>";
+        byId("view").innerHTML = "<div class=\"guide-page\"><div class=\"guide-tools\"><select id=\"category-select\" class=\"select\"><option value=\"\">All categories</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program name\"></div><div class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div></div></div>";
         byId("category-select").onchange = function(event) { state.category = event.target.value; renderGuidePage(); };
         byId("guide-search").oninput = function(event) { state.query = event.target.value; renderGuidePage(); };
         renderEPG();
