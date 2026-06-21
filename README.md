@@ -8,14 +8,14 @@ Silo exposes a first-class Live TV provider capability.
 
 ## Supported source modes
 
-- **Dispatcharr Direct** (default/recommended)
+- **Dispatcharr Direct Connect** (default/recommended)
   - Dispatcharr URL
   - Username
   - Password
   - Uses Dispatcharr REST APIs for catalog data and Dispatcharr proxy/output routes for playback
-- **Dispatcharr API key**
+- **Dispatcharr Direct: API Key**
   - Dispatcharr URL
-  - API key
+  - Admin API key from `System > Users > Edit User > API & XC`
   - Uses the same Dispatcharr REST catalog client without storing a password
 - **Xtream Codes**
   - Base URL

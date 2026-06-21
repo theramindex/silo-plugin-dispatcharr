@@ -47,6 +47,12 @@ func TestManifestGlobalConfigSchemasValidateExpectedObjects(t *testing.T) {
 	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "xtream", "xtream_base_url": "https://provider.example.com", "xtream_username": "demo", "xtream_password": "secret", "live_tv_enabled": true}); err != nil {
 		t.Fatalf("validate xtream connection schema: %v", err)
 	}
+	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "m3u_xmltv", "m3u_url": "https://provider.example.com/playlist.m3u", "epg_xml_url": "https://provider.example.com/guide.xml", "live_tv_enabled": true}); err != nil {
+		t.Fatalf("validate m3u/xmltv connection schema: %v", err)
+	}
+	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "m3u_xmltv", "m3u_url": "https://provider.example.com/playlist.m3u"}); err == nil {
+		t.Fatalf("expected incomplete m3u/xmltv connection to fail validation")
+	}
 }
 
 func mustStruct(t *testing.T, value map[string]any) *structpb.Struct {

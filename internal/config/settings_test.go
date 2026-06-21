@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -134,8 +135,21 @@ func TestGlobalConfigSchema_UsesObjectSchemasForConfigurePayloads(t *testing.T) 
 	t.Parallel()
 
 	connection := mustFindSchema(t, GlobalConfigSchema(), "connection")
-	if !strings.Contains(connection.GetJsonSchema(), `"type":"object"`) {
+	var schema map[string]any
+	if err := json.Unmarshal([]byte(connection.GetJsonSchema()), &schema); err != nil {
+		t.Fatalf("decode connection schema: %v", err)
+	}
+	if schema["type"] != "object" {
 		t.Fatalf("expected connection schema to be object-shaped, got %q", connection.GetJsonSchema())
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected connection schema properties, got %q", connection.GetJsonSchema())
+	}
+	for _, key := range []string{"source_mode", "base_url", "api_key", "username", "password", "xtream_base_url", "xtream_username", "xtream_password", "m3u_url", "epg_xml_url"} {
+		if _, ok := properties[key]; !ok {
+			t.Fatalf("expected connection schema property %q", key)
+		}
 	}
 }
 
@@ -144,18 +158,27 @@ func TestGlobalConfigSchema_ProvidesAdminFormsForSiloUI(t *testing.T) {
 
 	connection := mustFindSchema(t, GlobalConfigSchema(), "connection")
 
-	if connection.GetAdminForm() == nil || len(connection.GetAdminForm().GetFields()) != 11 {
+	if connection.GetAdminForm() == nil || len(connection.GetAdminForm().GetFields()) != 13 {
 		t.Fatalf("expected connection admin form fields, got %+v", connection.GetAdminForm())
 	}
 
 	if connection.GetAdminForm().GetFields()[0].GetControl().String() != "ADMIN_FORM_CONTROL_SELECT" {
 		t.Fatalf("expected source mode field control, got %s", connection.GetAdminForm().GetFields()[0].GetControl().String())
 	}
-	if len(connection.GetAdminForm().GetFields()[0].GetOptions()) != 3 {
-		t.Fatalf("expected direct/api-key/xtream options, got %+v", connection.GetAdminForm().GetFields()[0].GetOptions())
+	if len(connection.GetAdminForm().GetFields()[0].GetOptions()) != 4 {
+		t.Fatalf("expected direct/api-key/xtream/m3u options, got %+v", connection.GetAdminForm().GetFields()[0].GetOptions())
 	}
 	if connection.GetAdminForm().GetFields()[2].GetControl().String() != "ADMIN_FORM_CONTROL_PASSWORD" {
 		t.Fatalf("expected api key field control, got %s", connection.GetAdminForm().GetFields()[2].GetControl().String())
+	}
+	fieldKeys := map[string]bool{}
+	for _, field := range connection.GetAdminForm().GetFields() {
+		fieldKeys[field.GetKey()] = true
+	}
+	for _, key := range []string{"m3u_url", "epg_xml_url"} {
+		if !fieldKeys[key] {
+			t.Fatalf("expected admin form field %q", key)
+		}
 	}
 }
 
