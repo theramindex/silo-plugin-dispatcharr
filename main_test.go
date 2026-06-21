@@ -33,6 +33,63 @@ func TestRuntimeConfigureReadsObjectShapedConfigEntries(t *testing.T) {
 	}
 }
 
+func TestRuntimeConfigureMapsXtreamSharedConnectionFields(t *testing.T) {
+	t.Parallel()
+
+	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeDirectLogin, LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
+	server := &runtimeServer{settings: state}
+
+	req := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{
+		{Key: "connection", Value: mustStruct(t, map[string]any{
+			"source_mode":     "xtream",
+			"base_url":        "https://dispatcharr.example.com",
+			"username":        "xc-user",
+			"password":        "xc-pass",
+			"epg_xml_url":     "https://dispatcharr.example.com/xmltv.php?username=xc-user&password=xc-pass",
+			"live_tv_enabled": true,
+		})},
+	}}
+
+	if _, err := server.Configure(context.Background(), req); err != nil {
+		t.Fatalf("configure: %v", err)
+	}
+
+	settings := state.Get()
+	if settings.SourceMode != config.SourceModeXtream {
+		t.Fatalf("expected xtream source mode, got %q", settings.SourceMode)
+	}
+	if settings.XtreamBaseURL != "https://dispatcharr.example.com" || settings.XtreamUsername != "xc-user" || settings.XtreamPassword != "xc-pass" {
+		t.Fatalf("expected xtream connection to be loaded, got %+v", settings)
+	}
+	if settings.EPGXMLURL == "" {
+		t.Fatalf("expected custom xmltv url to be saved, got %+v", settings)
+	}
+}
+
+func TestRuntimeConfigureMapsM3UXMLTVFromConnectionEntry(t *testing.T) {
+	t.Parallel()
+
+	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeDirectLogin, LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
+	server := &runtimeServer{settings: state}
+
+	req := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{
+		{Key: "connection", Value: mustStruct(t, map[string]any{
+			"source_mode": "m3u_xmltv",
+			"m3u_url":     "https://provider.example.com/playlist.m3u",
+			"epg_xml_url": "https://provider.example.com/guide.xml",
+		})},
+	}}
+
+	if _, err := server.Configure(context.Background(), req); err != nil {
+		t.Fatalf("configure: %v", err)
+	}
+
+	settings := state.Get()
+	if settings.SourceMode != config.SourceModeM3UXMLTV || settings.M3UURL == "" || settings.EPGXMLURL == "" {
+		t.Fatalf("expected m3u/xmltv connection to be loaded, got %+v", settings)
+	}
+}
+
 func TestManifestGlobalConfigSchemasValidateExpectedObjects(t *testing.T) {
 	t.Parallel()
 
@@ -44,7 +101,7 @@ func TestManifestGlobalConfigSchemasValidateExpectedObjects(t *testing.T) {
 	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "api_key", "base_url": "https://dispatcharr.example.com", "api_key": "secret", "live_tv_enabled": true}); err != nil {
 		t.Fatalf("validate connection schema: %v", err)
 	}
-	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "xtream", "xtream_base_url": "https://provider.example.com", "xtream_username": "demo", "xtream_password": "secret", "live_tv_enabled": true}); err != nil {
+	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "xtream", "base_url": "https://provider.example.com", "username": "demo", "password": "secret", "epg_xml_url": "https://provider.example.com/guide.xml", "live_tv_enabled": true}); err != nil {
 		t.Fatalf("validate xtream connection schema: %v", err)
 	}
 	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "m3u_xmltv", "m3u_url": "https://provider.example.com/playlist.m3u", "epg_xml_url": "https://provider.example.com/guide.xml", "live_tv_enabled": true}); err != nil {

@@ -62,6 +62,8 @@ func (s *runtimeServer) Configure(_ context.Context, request *pluginv1.Configure
 			current.XtreamBaseURL = firstString(values["xtream_base_url"], values["base_url"])
 			current.XtreamUsername = firstString(values["xtream_username"], values["username"])
 			current.XtreamPassword = firstString(values["xtream_password"], values["password"])
+			current.M3UURL = asString(values["m3u_url"])
+			current.EPGXMLURL = asString(values["epg_xml_url"])
 			if current.SourceMode == "" && current.DispatcharrAPIKey != "" {
 				current.SourceMode = config.SourceModeAPIKey
 			} else if current.SourceMode == "" {

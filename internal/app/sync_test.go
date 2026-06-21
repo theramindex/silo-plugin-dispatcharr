@@ -53,6 +53,45 @@ func TestSyncStoresChannelsAndPrograms(t *testing.T) {
 	}
 }
 
+func TestSyncXtreamUsesCustomXMLTVGuide(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	service := NewService(Dependencies{
+		Store: store,
+		XtreamFactory: func(string, string, string) XtreamClient {
+			return &stubXtreamClient{
+				streams: []xtream.LiveStream{{Num: 1, Name: "News HD", StreamID: 1001, EPGChannelID: "news.hd"}},
+				epgErr:  errors.New("short epg should not be called when custom xmltv has programs"),
+			}
+		},
+		FetchURL: func(_ context.Context, rawURL string) ([]byte, error) {
+			if rawURL != "https://dispatcharr.example.com/xmltv.xml" {
+				return nil, errors.New("unexpected xmltv url")
+			}
+			return []byte(`<?xml version="1.0"?><tv><programme start="20260619070000 +0000" stop="20260619080000 +0000" channel="news.hd"><title>Morning News</title><desc>Top headlines.</desc></programme></tv>`), nil
+		},
+	})
+
+	err := service.SyncNow(context.Background(), config.Settings{
+		SourceMode:      config.SourceModeXtream,
+		XtreamBaseURL:   "https://dispatcharr.example.com",
+		XtreamUsername:  "demo",
+		XtreamPassword:  "secret",
+		EPGXMLURL:       "https://dispatcharr.example.com/xmltv.xml",
+		ChannelRefreshH: 24,
+		EPGRefreshH:     6,
+	}, 250)
+	if err != nil {
+		t.Fatalf("expected sync success, got %v", err)
+	}
+
+	snapshot := store.Current()
+	if len(snapshot.Catalog.Programs) != 1 || snapshot.Catalog.Programs[0].Title != "Morning News" {
+		t.Fatalf("expected custom xmltv program, got %+v", snapshot.Catalog.Programs)
+	}
+}
+
 func TestSyncKeepsStaleSnapshotOnFailure(t *testing.T) {
 	t.Parallel()
 
@@ -308,7 +347,7 @@ func TestRefreshEPGStoresXMLTVPrograms(t *testing.T) {
 	}})
 	service := NewService(Dependencies{Store: store})
 
-	if err := service.refreshEPG(context.Background(), server.URL, "demo", "secret", 800); err != nil {
+	if err := service.refreshEPG(context.Background(), config.Settings{SourceMode: config.SourceModeDirectLogin, DispatcharrURL: server.URL, DispatcharrUser: "demo", DispatcharrPass: "secret"}, 800); err != nil {
 		t.Fatalf("refresh epg: %v", err)
 	}
 

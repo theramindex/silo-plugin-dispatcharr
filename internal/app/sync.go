@@ -3,8 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
@@ -38,7 +36,7 @@ func (s *Service) SyncNow(ctx context.Context, settings config.Settings, nowUnix
 	case config.SourceModeDirectLogin, config.SourceModeAPIKey:
 		return s.syncDispatcharr(ctx, settings, nowUnix)
 	case config.SourceModeXtream:
-		return s.syncXtream(ctx, settings.XtreamBaseURL, settings.XtreamUsername, settings.XtreamPassword, model.SourceModeXtream, nowUnix)
+		return s.syncXtream(ctx, settings, model.SourceModeXtream, nowUnix)
 	case config.SourceModeM3UXMLTV:
 		playlistData, err := s.fetchURL(ctx, settings.M3UURL)
 		if err != nil {
@@ -190,7 +188,8 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 	return nil
 }
 
-func (s *Service) syncXtream(ctx context.Context, baseURL, username, password string, sourceMode model.SourceMode, nowUnix int64) error {
+func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sourceMode model.SourceMode, nowUnix int64) error {
+	baseURL, username, password := xtreamConnectionSettings(settings)
 	client := s.xtreamFactory(baseURL, username, password)
 	streams, err := client.LiveStreams(ctx)
 	if err != nil {
@@ -214,19 +213,34 @@ func (s *Service) syncXtream(ctx context.Context, baseURL, username, password st
 		channel := mapping.MapXtreamChannel(stream)
 		channel.CategoryName = categoryNames[channel.CategoryID]
 		channels = append(channels, channel)
+	}
 
-		if tightDeadline {
-			continue
-		}
-		epg, err := client.ShortEPG(ctx, stream.StreamID)
+	if !tightDeadline && strings.TrimSpace(settings.EPGXMLURL) != "" {
+		xmltvPrograms, err := s.xmltvProgramsForChannels(ctx, settings.EPGXMLURL, channels)
 		if err != nil {
 			s.store.RecordFailure(nowUnix, err.Error())
 			return err
 		}
-		for _, listing := range epg.EPGListings {
-			programs = append(programs, mapping.MapXtreamProgram(channel.ID, listing))
+		programs = append(programs, xmltvPrograms...)
+	}
+
+	if len(programs) == 0 {
+		for _, stream := range streams {
+			if tightDeadline {
+				continue
+			}
+			channel := mapping.MapXtreamChannel(stream)
+			epg, err := client.ShortEPG(ctx, stream.StreamID)
+			if err != nil {
+				s.store.RecordFailure(nowUnix, err.Error())
+				return err
+			}
+			for _, listing := range epg.EPGListings {
+				programs = append(programs, mapping.MapXtreamProgram(channel.ID, listing))
+			}
 		}
 	}
+
 	sortChannelsByLineupNumber(channels)
 
 	catalog := model.CatalogState{
@@ -240,16 +254,46 @@ func (s *Service) syncXtream(ctx context.Context, baseURL, username, password st
 	state.Health.LastSuccessUnix = nowUnix
 	s.store.Replace(state)
 	if tightDeadline {
-		settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: baseURL, XtreamUsername: username, XtreamPassword: password}
-		if sourceMode == model.SourceModeDirectLogin {
-			settings.SourceMode = config.SourceModeDirectLogin
-			settings.DispatcharrURL = baseURL
-			settings.DispatcharrUser = username
-			settings.DispatcharrPass = password
-		}
 		s.StartAsyncEPGRefresh(settings)
 	}
 	return nil
+}
+
+func xtreamConnectionSettings(settings config.Settings) (string, string, string) {
+	if settings.SourceMode == config.SourceModeDirectLogin {
+		return settings.DispatcharrURL, settings.DispatcharrUser, settings.DispatcharrPass
+	}
+	return settings.XtreamBaseURL, settings.XtreamUsername, settings.XtreamPassword
+}
+
+func (s *Service) xmltvProgramsForChannels(ctx context.Context, rawURL string, channels []model.Channel) ([]model.Program, error) {
+	data, err := s.fetchURL(ctx, rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("fetch custom xmltv: %w", err)
+	}
+	doc, err := xmltv.Parse(data)
+	if err != nil {
+		return nil, fmt.Errorf("parse custom xmltv: %w", err)
+	}
+	return programsFromXMLTVDocument(channels, doc), nil
+}
+
+func programsFromXMLTVDocument(channels []model.Channel, doc xmltv.Document) []model.Program {
+	channelByGuideID := map[string]string{}
+	for _, channel := range channels {
+		if channel.GuideID != "" {
+			channelByGuideID[channel.GuideID] = channel.ID
+		}
+	}
+	programs := make([]model.Program, 0, len(doc.Programmes))
+	for _, programme := range doc.Programmes {
+		channelID := channelByGuideID[programme.Channel]
+		if channelID == "" {
+			continue
+		}
+		programs = append(programs, mapping.MapXMLTVProgramme(channelID, programme))
+	}
+	return programs
 }
 
 func sortChannelsByLineupNumber(channels []model.Channel) {
@@ -351,8 +395,7 @@ func hasTightDeadline(ctx context.Context) bool {
 }
 
 func (s *Service) StartAsyncEPGRefresh(settings config.Settings) {
-	baseURL, username, password := epgConnectionSettings(settings)
-	if baseURL == "" || username == "" || password == "" {
+	if _, err := epgURL(settings); err != nil {
 		return
 	}
 
@@ -374,10 +417,30 @@ func (s *Service) StartAsyncEPGRefresh(settings config.Settings) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		if err := s.refreshEPG(ctx, baseURL, username, password, time.Now().Unix()); err != nil {
+		if err := s.refreshEPG(ctx, settings, time.Now().Unix()); err != nil {
 			s.store.RecordEPGFailure(time.Now().Unix(), err.Error())
 		}
 	}()
+}
+
+func epgURL(settings config.Settings) (string, error) {
+	if settings.SourceMode == config.SourceModeXtream && strings.TrimSpace(settings.EPGXMLURL) != "" {
+		return strings.TrimSpace(settings.EPGXMLURL), nil
+	}
+	baseURL, username, password := epgConnectionSettings(settings)
+	if baseURL == "" || username == "" || password == "" {
+		return "", fmt.Errorf("epg connection settings are required")
+	}
+	endpoint, err := url.Parse(baseURL)
+	if err != nil {
+		return "", fmt.Errorf("parse epg base url: %w", err)
+	}
+	endpoint.Path = "/xmltv.php"
+	query := endpoint.Query()
+	query.Set("username", username)
+	query.Set("password", password)
+	endpoint.RawQuery = query.Encode()
+	return endpoint.String(), nil
 }
 
 func epgConnectionSettings(settings config.Settings) (string, string, string) {
@@ -390,32 +453,14 @@ func epgConnectionSettings(settings config.Settings) (string, string, string) {
 	return "", "", ""
 }
 
-func (s *Service) refreshEPG(ctx context.Context, baseURL, username, password string, nowUnix int64) error {
-	endpoint, err := url.Parse(baseURL)
+func (s *Service) refreshEPG(ctx context.Context, settings config.Settings, nowUnix int64) error {
+	rawURL, err := epgURL(settings)
 	if err != nil {
-		return fmt.Errorf("parse epg base url: %w", err)
+		return err
 	}
-	endpoint.Path = "/xmltv.php"
-	query := endpoint.Query()
-	query.Set("username", username)
-	query.Set("password", password)
-	endpoint.RawQuery = query.Encode()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
-	if err != nil {
-		return fmt.Errorf("build epg request: %w", err)
-	}
-	response, err := (&http.Client{Timeout: 2 * time.Minute}).Do(req)
+	data, err := s.fetchURL(ctx, rawURL)
 	if err != nil {
 		return fmt.Errorf("fetch epg xmltv: %w", err)
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("fetch epg xmltv status %d", response.StatusCode)
-	}
-	data, err := io.ReadAll(response.Body)
-	if err != nil {
-		return fmt.Errorf("read epg xmltv: %w", err)
 	}
 	doc, err := xmltv.Parse(data)
 	if err != nil {
@@ -423,20 +468,7 @@ func (s *Service) refreshEPG(ctx context.Context, baseURL, username, password st
 	}
 
 	snapshot := s.store.Current()
-	channelByGuideID := map[string]string{}
-	for _, channel := range snapshot.Catalog.Channels {
-		if channel.GuideID != "" {
-			channelByGuideID[channel.GuideID] = channel.ID
-		}
-	}
-	programs := make([]model.Program, 0, len(doc.Programmes))
-	for _, programme := range doc.Programmes {
-		channelID := channelByGuideID[programme.Channel]
-		if channelID == "" {
-			continue
-		}
-		programs = append(programs, mapping.MapXMLTVProgramme(channelID, programme))
-	}
+	programs := programsFromXMLTVDocument(snapshot.Catalog.Channels, doc)
 	s.store.ReplacePrograms(programs, nowUnix)
 	return nil
 }
