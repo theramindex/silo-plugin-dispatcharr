@@ -637,7 +637,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       .progress { height: 0.22rem; border-radius: 999px; background: rgba(255,255,255,0.14); overflow: hidden; margin: -0.75rem 0.85rem 0.6rem; position: relative; }
       .progress i { display: block; height: 100%; width: 62%; background: white; border-radius: inherit; }
       .home-guide { overflow-x: auto; padding-bottom: 0.15rem; }
-      .home-guide .guide-page { min-width: 58rem; }
+      .home-guide .guide-page { min-width: 0; }
       .program { min-height: 3.05rem; border: 0; border-radius: 0.55rem; color: var(--text); text-align: left; padding: 0.48rem 0.65rem; background: var(--purple); }
       .program.green { background: var(--green); }
       .program.red { background: var(--red); }
@@ -647,17 +647,20 @@ const playerPageHTMLTemplate = `<!doctype html>
       .category-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.7rem, 1fr)); gap: 0.5rem; }
       .tile { border: 0; border-radius: 0.65rem; background: var(--panel); color: var(--text); min-height: 3.85rem; text-align: left; padding: 0.75rem 0.85rem; font-weight: 850; }
       .tile:hover, .tile.active { background: var(--panel-2); }
-      .guide-page { min-width: 82rem; }
+      .guide-page { min-width: 0; }
       .guide-tools { display: grid; grid-template-columns: 10rem 1fr minmax(12rem, 22rem); align-items: center; gap: 0.8rem; margin-bottom: 0.7rem; }
       .select { border: 1px solid var(--line); border-radius: 999px; color: var(--text); background: var(--panel); padding: 0.55rem 0.75rem; }
-      .time-head { display: grid; grid-template-columns: 6.8rem repeat(7, minmax(12rem, 1fr)); gap: 0.25rem; color: var(--muted); font-weight: 850; margin-bottom: 0.35rem; }
-      .time-head span { min-width: 0; padding: 0 0.25rem; }
-      .time-head span:first-child { color: var(--text); font-size: 1.15rem; }
-      .epg-row { display: grid; grid-template-columns: 6.8rem minmax(0, 1fr); gap: 0.25rem; margin-bottom: 0.35rem; }
-      .epg-channel { border: 0; border-radius: 0.55rem; background: transparent; color: white; display: grid; place-items: center; padding: 0; min-height: 3.7rem; overflow: hidden; }
+      .guide-scroll { --epg-logo-col: 6.8rem; --epg-slot: 12rem; --epg-row-h: 3.7rem; overflow-x: auto; overflow-y: visible; padding-bottom: 0.45rem; }
+      .guide-timeline { width: calc(var(--epg-logo-col) + var(--epg-width)); min-width: calc(var(--epg-logo-col) + var(--epg-width)); }
+      .time-head { display: grid; grid-template-columns: var(--epg-logo-col) repeat(var(--epg-slots), var(--epg-slot)); gap: 0.25rem; color: var(--muted); font-weight: 850; margin-bottom: 0.35rem; }
+      .time-head span { min-width: 0; padding: 0 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .time-head span:first-child { position: sticky; left: 0; z-index: 3; color: var(--text); font-size: 1.15rem; background: var(--bg); }
+      .epg-row { display: grid; grid-template-columns: var(--epg-logo-col) var(--epg-width); gap: 0.25rem; height: var(--epg-row-h); margin-bottom: 0.35rem; overflow: visible; }
+      .epg-channel { position: sticky; left: 0; z-index: 2; border: 0; border-radius: 0.55rem; background: var(--bg); color: white; display: grid; place-items: center; padding: 0; height: var(--epg-row-h); min-height: var(--epg-row-h); overflow: hidden; }
       .epg-channel .logo { width: 5.7rem; height: 3.25rem; border-radius: 0; background: transparent; }
-      .epg-programs { display: grid; grid-template-columns: repeat(7, minmax(12rem, 1fr)); gap: 0.25rem; min-width: 0; }
-      .epg-cell { border: 0; border-radius: 0.55rem; text-align: left; color: var(--text); background: var(--panel); padding: 0.48rem 0.7rem; min-width: 0; min-height: 3.7rem; }
+      .epg-programs { position: relative; height: var(--epg-row-h); min-width: 0; overflow: hidden; }
+      .epg-cell { position: absolute; top: 0; height: var(--epg-row-h); min-height: 0; border: 0; border-radius: 0.55rem; text-align: left; color: var(--text); background: var(--panel); padding: 0.48rem 0.7rem; min-width: 0; overflow: hidden; white-space: nowrap; }
+      .epg-cell time, .epg-cell strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .player-view { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 1rem; align-items: start; }
       video { width: 100%; aspect-ratio: 16 / 9; background: #050505; border: 1px solid var(--line); border-radius: 0.75rem; }
       .playback-shell { position: relative; min-height: 100vh; overflow: hidden; background: #050505; display: grid; place-items: center; }
@@ -909,16 +912,28 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function guideSlotStart() {
         const now = Math.floor(Date.now() / 1000);
-        return Math.floor(now / 1800) * 1800;
+        return Math.floor((now - 3600) / 1800) * 1800;
       }
       function guideSlots() {
         const start = guideSlotStart();
         const slots = [];
-        for (let index = 0; index < 7; index++) slots.push(start + index * 1800);
+        for (let index = 0; index < 50; index++) slots.push(start + index * 1800);
         return slots;
       }
-      function guideSlotColumn(unix, windowStart) {
-        return Math.max(1, Math.min(8, Math.floor((unix - windowStart) / 1800) + 1));
+      function guideTimelineStyle(slots) {
+        return "--epg-slots: " + slots.length + "; --epg-width: " + (slots.length * 12) + "rem;";
+      }
+      function guideWindow() {
+        const start = guideSlotStart();
+        return { start: start, end: start + (25 * 3600), slotCount: 50 };
+      }
+      function epgCellStyle(startUnix, endUnix, windowInfo) {
+        const duration = windowInfo.end - windowInfo.start;
+        const start = Math.max(startUnix || windowInfo.start, windowInfo.start);
+        const end = Math.min(endUnix || start + 1800, windowInfo.end);
+        const left = ((start - windowInfo.start) / duration) * 100;
+        const width = Math.max(((end - start) / duration) * 100, 100 / windowInfo.slotCount * 0.66);
+        return "left: " + left.toFixed(4) + "%; width: calc(" + width.toFixed(4) + "% - 0.25rem);";
       }
       function stopPlayback() {
         const video = byId("player");
@@ -1033,7 +1048,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       function renderHomeGuide(channels) {
         if (!channels.length) return "<div class=\"empty\">No recently watched channels yet.</div>";
         const slots = guideSlots();
-        return "<div class=\"home-guide\"><div class=\"guide-page\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div>" + channels.map(function(channel, channelIndex) {
+        return "<div class=\"home-guide guide-scroll\"><div class=\"guide-page guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div>" + channels.map(function(channel, channelIndex) {
           return "<div class=\"epg-row\"><button class=\"epg-channel\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(channel.name || "Untitled") + "\">" + logoHTML(channel) + "</button><div class=\"epg-programs\">" + renderEPGCells(channel, channelIndex) + "</div></div>";
         }).join("") + "</div></div>";
       }
@@ -1147,15 +1162,15 @@ const playerPageHTMLTemplate = `<!doctype html>
       function renderGuidePage() {
         const categories = items(state.app.categories);
         const slots = guideSlots();
-        byId("view").innerHTML = "<div class=\"guide-page\"><div class=\"guide-tools\"><a class=\"back\" href=\"/\" aria-label=\"Back to Silo\">&lt;- Silo</a><select id=\"category-select\" class=\"select\"><option value=\"\">All categories</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program name\"></div><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div>";
+        byId("view").innerHTML = "<div class=\"guide-page\"><div class=\"guide-tools\"><a class=\"back\" href=\"/\" aria-label=\"Back to Silo\">&lt;- Silo</a><select id=\"category-select\" class=\"select\"><option value=\"\">All categories</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program name\"></div><div class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div></div></div>";
         byId("category-select").onchange = function(event) { state.category = event.target.value; renderGuidePage(); };
         byId("guide-search").oninput = function(event) { state.query = event.target.value; renderGuidePage(); };
         renderEPG();
       }
       function renderEPGCells(channel, channelIndex) {
-        const slots = guideSlots();
-        const windowStart = slots[0];
-        const windowEnd = slots[slots.length - 1] + 1800;
+        const windowInfo = guideWindow();
+        const windowStart = windowInfo.start;
+        const windowEnd = windowInfo.end;
         const programs = programsFor(channel.id).filter(function(program) {
           const start = program.startUnix || windowStart;
           const end = program.endUnix || start + 1800;
@@ -1163,14 +1178,10 @@ const playerPageHTMLTemplate = `<!doctype html>
           return matchesQuery && end > windowStart && start < windowEnd;
         });
         if (!programs.length) {
-          return "<button class=\"epg-cell program gray\" data-channel=\"" + escapeHTML(channel.id) + "\" style=\"grid-column: 1 / -1\"><time>" + escapeHTML(timeLabel(windowStart)) + "</time><strong>Data not available</strong></button>";
+          return "<button class=\"epg-cell program gray\" data-channel=\"" + escapeHTML(channel.id) + "\" style=\"left: 0; width: calc(100% - 0.25rem);\"><time>" + escapeHTML(timeLabel(windowStart)) + "</time><strong>Data not available</strong></button>";
         }
         return programs.map(function(program, index) {
-          const start = Math.max(program.startUnix || windowStart, windowStart);
-          const end = Math.min(program.endUnix || start + 1800, windowEnd);
-          const columnStart = guideSlotColumn(start, windowStart);
-          const columnEnd = Math.max(columnStart + 1, guideSlotColumn(end + 1799, windowStart));
-          return "<button class=\"epg-cell program " + colorClass(index + channelIndex) + "\" data-channel=\"" + escapeHTML(channel.id) + "\" style=\"grid-column: " + columnStart + " / " + Math.min(8, columnEnd) + "\"><time>" + escapeHTML(timeLabel(program.startUnix)) + "</time><strong>" + escapeHTML(program.title || "Data not available") + "</strong></button>";
+          return "<button class=\"epg-cell program " + colorClass(index + channelIndex) + "\" data-channel=\"" + escapeHTML(channel.id) + "\" style=\"" + epgCellStyle(program.startUnix, program.endUnix, windowInfo) + "\"><time>" + escapeHTML(timeLabel(program.startUnix)) + "</time><strong>" + escapeHTML(program.title || "Data not available") + "</strong></button>";
         }).join("");
       }
       function renderEPG() {
