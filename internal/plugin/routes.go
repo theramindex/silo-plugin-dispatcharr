@@ -1002,7 +1002,6 @@ const playerPageHTMLTemplate = `<!doctype html>
         <nav class="nav" aria-label="Dispatcharr views">
           <button class="active" data-view="home">Home</button>
           <button data-view="favorites">Favorites <small id="favorite-count">0</small></button>
-          <button data-view="live">Live TV</button>
           <button data-view="guide">TV Guide</button>
           <button data-view="recordings">Recordings</button>
           <button data-view="settings">Settings</button>
