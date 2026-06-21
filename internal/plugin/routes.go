@@ -608,7 +608,6 @@ const playerPageHTMLTemplate = `<!doctype html>
       .brand h1 { margin: 0; font-size: 1.55rem; font-weight: 900; letter-spacing: 0; }
       .back { color: var(--muted); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 0.42rem 0.65rem; font-size: 0.8rem; font-weight: 700; }
       .back:hover { color: var(--text); background: var(--panel); }
-      .source { display: flex; align-items: center; gap: 0.6rem; margin: 0 0 0.7rem; color: var(--text); font-weight: 800; }
       .source-icon { width: 1.45rem; height: 1.45rem; border-radius: 999px; display: inline-grid; place-items: center; background: var(--accent); }
       .nav { display: grid; gap: 0.28rem; margin-bottom: 1rem; }
       .nav button { width: 100%; border: 0; border-radius: 0.65rem; background: transparent; color: var(--muted); display: flex; align-items: center; gap: 0.65rem; padding: 0.7rem 0.72rem; text-align: left; font-weight: 750; }
@@ -766,7 +765,6 @@ const playerPageHTMLTemplate = `<!doctype html>
           <h1>Live TV</h1>
           <a class="back" href="/" aria-label="Back to Silo">&lt;- Silo</a>
         </div>
-        <div class="source"><span class="source-icon">~</span><span id="source-name">Dispatcharr</span></div>
         <nav class="nav" aria-label="Dispatcharr views">
           <button class="active" data-view="home">Home</button>
           <button data-view="favorites">Favorites <small id="favorite-count">0</small></button>
@@ -979,7 +977,6 @@ const playerPageHTMLTemplate = `<!doctype html>
         state.app.programs = items(state.app.programs);
         normalizePreferences();
         savePrefs();
-        byId("source-name").textContent = state.app.source && state.app.source.name ? state.app.source.name : "Dispatcharr";
         byId("health").textContent = state.app.status.status + " / " + state.app.status.channelCount + " channels";
         render();
       }
