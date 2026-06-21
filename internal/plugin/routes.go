@@ -600,7 +600,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       body { margin: 0; min-height: 100vh; overflow: hidden; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
       button, input, select { font: inherit; }
       button { cursor: pointer; }
-      .shell { display: grid; grid-template-columns: 19.5rem minmax(0, 1fr); height: 100vh; }
+      .shell { display: grid; grid-template-columns: 17rem minmax(0, 1fr); height: 100vh; }
       .shell.is-player { grid-template-columns: minmax(0, 1fr); background: #050505; }
       .rail { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--line); background: linear-gradient(135deg, #19191a, #201e20); padding: 1rem; }
       .shell.is-player .rail { display: none; }
