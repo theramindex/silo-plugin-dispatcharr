@@ -604,10 +604,11 @@ const playerPageHTMLTemplate = `<!doctype html>
       .shell.is-player { grid-template-columns: minmax(0, 1fr); background: #050505; }
       .rail { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--line); background: linear-gradient(135deg, #19191a, #201e20); padding: 1rem; }
       .shell.is-player .rail { display: none; }
-      .brand { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+      .brand { display: flex; align-items: center; gap: 0.65rem; margin-bottom: 1.25rem; }
       .brand h1 { margin: 0; font-size: 1.55rem; font-weight: 900; letter-spacing: 0; }
-      .back { color: var(--muted); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 0.42rem 0.65rem; font-size: 0.8rem; font-weight: 700; }
+      .back { width: 2.25rem; height: 2.25rem; color: var(--muted); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; display: inline-grid; place-items: center; flex: 0 0 auto; }
       .back:hover { color: var(--text); background: var(--panel); }
+      .back svg { width: 1.05rem; height: 1.05rem; display: block; }
       .source-icon { width: 1.45rem; height: 1.45rem; border-radius: 999px; display: inline-grid; place-items: center; background: var(--accent); }
       .nav { display: grid; gap: 0.28rem; margin-bottom: 1rem; }
       .nav button { width: 100%; border: 0; border-radius: 0.65rem; background: transparent; color: var(--muted); display: flex; align-items: center; gap: 0.65rem; padding: 0.7rem 0.72rem; text-align: left; font-weight: 750; }
@@ -763,8 +764,8 @@ const playerPageHTMLTemplate = `<!doctype html>
     <div class="shell">
       <aside class="rail">
         <div class="brand">
+          <a class="back" href="/" aria-label="Back to Silo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg></a>
           <h1>Live TV</h1>
-          <a class="back" href="/" aria-label="Back to Silo">&lt;- Silo</a>
         </div>
         <nav class="nav" aria-label="Dispatcharr views">
           <button class="active" data-view="home">Home</button>
