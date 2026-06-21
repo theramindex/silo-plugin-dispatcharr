@@ -790,6 +790,17 @@ const playerPageHTMLTemplate = `<!doctype html>
       function byId(id) { return document.getElementById(id); }
       function items(value) { return Array.isArray(value) ? value : []; }
       function lower(value) { return String(value || "").toLowerCase(); }
+      function uniqueIDs(values) {
+        const seen = {};
+        const result = [];
+        items(values).forEach(function(value) {
+          value = String(value || "");
+          if (!value || seen[value]) return;
+          seen[value] = true;
+          result.push(value);
+        });
+        return result;
+      }
       function escapeHTML(value) {
         return String(value || "").replace(/[&<>"']/g, function(ch) {
           return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[ch];
@@ -837,10 +848,22 @@ const playerPageHTMLTemplate = `<!doctype html>
           favorites: Object.assign({}, remote.favorites, local.favorites),
           autoFavorites: Object.assign({}, remote.autoFavorites, local.autoFavorites),
           hiddenCategories: Object.assign({}, remote.hiddenCategories, local.hiddenCategories),
-          recentChannels: items(local.recentChannels).length ? local.recentChannels : items(remote.recentChannels),
+          recentChannels: uniqueIDs(items(remote.recentChannels).concat(items(local.recentChannels))).slice(0, 24),
           continueWatching: Object.assign({}, remote.continueWatching, local.continueWatching),
           playback: Object.assign({}, remote.playback, local.playback)
         };
+      }
+      function normalizePreferences() {
+        if (!state.app || !state.app.preferences) return;
+        const valid = {};
+        items(state.app.channels).forEach(function(channel) { valid[channel.id] = true; });
+        const recent = uniqueIDs(items(state.app.preferences.recentChannels).filter(function(id) { return !!valid[id]; }));
+        const watched = Object.keys(state.app.preferences.continueWatching || {}).sort(function(left, right) {
+          const leftPlayed = Number((state.app.preferences.continueWatching[left] || {}).playedAt || 0);
+          const rightPlayed = Number((state.app.preferences.continueWatching[right] || {}).playedAt || 0);
+          return rightPlayed - leftPlayed;
+        }).filter(function(id) { return !!valid[id]; });
+        state.app.preferences.recentChannels = uniqueIDs(recent.concat(watched)).slice(0, 24);
       }
       function readLocalPrefs() {
         try { return Object.assign(defaultPrefs(), JSON.parse(localStorage.getItem(prefsKey) || "{}")); }
@@ -939,6 +962,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         state.app = await getJSON("/dispatcharr/api/app");
         state.app.preferences = mergePrefs(state.app.preferences, readLocalPrefs());
         state.app.programs = items(state.app.programs);
+        normalizePreferences();
         savePrefs();
         byId("source-name").textContent = state.app.source && state.app.source.name ? state.app.source.name : "Dispatcharr";
         byId("health").textContent = state.app.status.status + " / " + state.app.status.channelCount + " channels";
@@ -1462,6 +1486,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         postJSON("/dispatcharr/api/watch/start", { itemKind: "channel", itemId: channel.id, itemName: channel.name }).then(function(payload) {
           state.currentSession = payload.session;
           state.app.preferences = mergePrefs(payload.preferences, readLocalPrefs());
+          normalizePreferences();
           savePrefs();
           if (state.heartbeat) clearInterval(state.heartbeat);
           state.heartbeat = setInterval(function() {
