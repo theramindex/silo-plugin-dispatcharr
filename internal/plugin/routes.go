@@ -1136,7 +1136,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function menuIcon(name) { return "<span class=\"menu-icon\">" + icon(name) + "</span>"; }
       function defaultPrefs() {
-        return { favorites: {}, autoFavorites: {}, hiddenCategories: {}, recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "dash", regex: "", output: "" }, customGroups: [], customGroupMemberships: {} };
+        return { favorites: {}, autoFavorites: {}, hiddenCategories: {}, recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, customGroups: [], customGroupMemberships: {} };
       }
       function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
       function sourceMode() { return state.app && state.app.source ? String(state.app.source.mode || "") : ""; }
@@ -2000,7 +2000,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           if (field === "mode" && settings.mode === "off") settings.enabled = false;
           if (field === "mode" && settings.mode !== "off") settings.enabled = true;
         }
-        if (!settings.delimiter) settings.delimiter = "dash";
+        if (!settings.delimiter) settings.delimiter = "pipe";
         state.app.preferences.categoryParsing = settings;
         if (state.category.indexOf("virtual:") === 0 && !categoryName(state.category)) state.category = "";
         savePrefs();

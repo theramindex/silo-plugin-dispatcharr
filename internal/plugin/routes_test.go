@@ -157,6 +157,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`virtualFolderBreadcrumbs(path)`,
 		`Virtual Categories</button>`,
 		`const showSourceCategorySettings = !virtualCategoriesActive()`,
+		`delimiter: "pipe"`,
+		`if (!settings.delimiter) settings.delimiter = "pipe"`,
 		`const recent = recentChannelsForCategory(categoryID, 5)`,
 		`renderVirtualCategoryGuide(state.category)`,
 		`!children.length ? sectionHeader(categoryName(state.category) || "Channels")`,
