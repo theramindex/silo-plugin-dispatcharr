@@ -158,6 +158,16 @@ func TestSyncDispatcharrRESTBuildsCatalog(t *testing.T) {
 					StartTime:   "2026-06-18T12:00:00Z",
 					EndTime:     "2026-06-18T13:00:00Z",
 				}},
+				searchPrograms: []dispatcharr.ProgramSearchResult{{
+					Program: dispatcharr.Program{
+						ID:          "epg-2",
+						Title:       "International Desk",
+						Description: "Global headlines.",
+						StartTime:   "2026-06-18T13:00:00Z",
+						EndTime:     "2026-06-18T14:00:00Z",
+					},
+					Channels: []dispatcharr.ProgramChannel{{ID: "2"}},
+				}},
 				vodCategories: []dispatcharr.VODCategory{{ID: "movies", Name: "Movies", CategoryType: "movie"}, {ID: "shows", Name: "Shows", CategoryType: "series"}},
 				movies:        []dispatcharr.Movie{{UUID: "22222222-2222-2222-2222-222222222222", Name: "Movie One", CategoryID: "movies"}},
 				series:        []dispatcharr.Series{{UUID: "33333333-3333-3333-3333-333333333333", Name: "Series One", CategoryID: "shows"}},
@@ -184,7 +194,7 @@ func TestSyncDispatcharrRESTBuildsCatalog(t *testing.T) {
 	if snapshot.Catalog.Channels[1].LogoURL != "https://dispatcharr.example.com/api/channels/logos/99/cache/" {
 		t.Fatalf("expected logo cache url from effective logo id, got %q", snapshot.Catalog.Channels[1].LogoURL)
 	}
-	if len(snapshot.Catalog.Programs) != 1 || snapshot.Catalog.Programs[0].ChannelID != snapshot.Catalog.Channels[1].ID {
+	if len(snapshot.Catalog.Programs) != 2 || snapshot.Catalog.Programs[0].ChannelID != snapshot.Catalog.Channels[1].ID || snapshot.Catalog.Programs[1].ChannelID != snapshot.Catalog.Channels[0].ID {
 		t.Fatalf("unexpected dispatcharr programs: %+v", snapshot.Catalog.Programs)
 	}
 	if len(snapshot.Catalog.Content.VODItems) != 1 || len(snapshot.Catalog.Content.SeriesItems) != 1 {
@@ -390,15 +400,16 @@ func TestSyncM3UXMLTVBuildsFallbackCatalog(t *testing.T) {
 }
 
 type stubDispatcharrClient struct {
-	testErr       error
-	channels      []dispatcharr.Channel
-	channelsErr   error
-	groups        []dispatcharr.ChannelGroup
-	programs      []dispatcharr.Program
-	vodCategories []dispatcharr.VODCategory
-	movies        []dispatcharr.Movie
-	series        []dispatcharr.Series
-	vodCalls      int
+	testErr        error
+	channels       []dispatcharr.Channel
+	channelsErr    error
+	groups         []dispatcharr.ChannelGroup
+	programs       []dispatcharr.Program
+	searchPrograms []dispatcharr.ProgramSearchResult
+	vodCategories  []dispatcharr.VODCategory
+	movies         []dispatcharr.Movie
+	series         []dispatcharr.Series
+	vodCalls       int
 }
 
 func (s *stubDispatcharrClient) TestConnection(context.Context) error { return s.testErr }
@@ -413,6 +424,9 @@ func (s *stubDispatcharrClient) ChannelGroups(context.Context) ([]dispatcharr.Ch
 }
 func (s *stubDispatcharrClient) Programs(context.Context) ([]dispatcharr.Program, error) {
 	return s.programs, nil
+}
+func (s *stubDispatcharrClient) SearchPrograms(context.Context, time.Time, time.Time) ([]dispatcharr.ProgramSearchResult, error) {
+	return s.searchPrograms, nil
 }
 func (s *stubDispatcharrClient) VODCategories(context.Context) ([]dispatcharr.VODCategory, error) {
 	s.vodCalls++

@@ -112,6 +112,7 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 
 	channels := make([]model.Channel, 0, len(upstreamChannels))
 	channelByGuideID := map[string]string{}
+	channelByUpstreamID := map[string]string{}
 	for _, upstream := range upstreamChannels {
 		if upstream.HiddenFromOutput {
 			continue
@@ -132,17 +133,47 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 		if upstream.UUID.String() != "" {
 			channelByGuideID[upstream.UUID.String()] = channel.ID
 		}
+		if upstream.ID.String() != "" {
+			channelByUpstreamID[upstream.ID.String()] = channel.ID
+		}
 	}
 	sortChannelsByLineupNumber(channels)
 
 	programs := make([]model.Program, 0)
+	programIDs := map[string]struct{}{}
 	if upstreamPrograms, err := client.Programs(ctx); err == nil {
 		for _, upstream := range upstreamPrograms {
 			channelID := channelByGuideID[upstream.TVGID.String()]
 			if channelID == "" {
 				continue
 			}
-			programs = append(programs, mapping.MapDispatcharrProgram(channelID, upstream))
+			program := mapping.MapDispatcharrProgram(channelID, upstream)
+			programs = append(programs, program)
+			programIDs[program.ID] = struct{}{}
+		}
+	}
+	if !tightDeadline {
+		start := time.Unix(nowUnix, 0).Add(-1 * time.Hour)
+		end := time.Unix(nowUnix, 0).Add(24 * time.Hour)
+		if upstreamPrograms, err := client.SearchPrograms(ctx, start, end); err == nil {
+			for _, upstream := range upstreamPrograms {
+				channelID := ""
+				for _, channel := range upstream.Channels {
+					if mapped := channelByUpstreamID[channel.ID.String()]; mapped != "" {
+						channelID = mapped
+						break
+					}
+				}
+				if channelID == "" {
+					continue
+				}
+				program := mapping.MapDispatcharrProgram(channelID, upstream.Program)
+				if _, ok := programIDs[program.ID]; ok {
+					continue
+				}
+				programs = append(programs, program)
+				programIDs[program.ID] = struct{}{}
+			}
 		}
 	}
 

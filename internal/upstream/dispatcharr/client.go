@@ -11,6 +11,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"time"
 
 	sharedhttp "github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/httpclient"
 )
@@ -58,6 +59,32 @@ func (c *Client) Programs(ctx context.Context) ([]Program, error) {
 		return nil, err
 	}
 	return response.Data, nil
+}
+
+func (c *Client) SearchPrograms(ctx context.Context, start, end time.Time) ([]ProgramSearchResult, error) {
+	var programs []ProgramSearchResult
+	next := c.searchProgramsEndpoint(start, end, 1)
+	for strings.TrimSpace(next) != "" {
+		var page struct {
+			Next    string                `json:"next"`
+			Results []ProgramSearchResult `json:"results"`
+		}
+		if err := c.getJSON(ctx, next, &page); err != nil {
+			return nil, err
+		}
+		programs = append(programs, page.Results...)
+		next = page.Next
+	}
+	return programs, nil
+}
+
+func (c *Client) searchProgramsEndpoint(start, end time.Time, page int) string {
+	values := url.Values{}
+	values.Set("start_after", start.UTC().Format(time.RFC3339))
+	values.Set("start_before", end.UTC().Format(time.RFC3339))
+	values.Set("page_size", "500")
+	values.Set("page", fmt.Sprintf("%d", page))
+	return "/api/epg/programs/search/?" + values.Encode()
 }
 
 func (c *Client) VODCategories(ctx context.Context) ([]VODCategory, error) {

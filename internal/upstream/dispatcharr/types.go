@@ -57,6 +57,15 @@ type Program struct {
 	EndTime     String `json:"end_time"`
 }
 
+type ProgramSearchResult struct {
+	Program
+	Channels []ProgramChannel `json:"channels"`
+}
+
+type ProgramChannel struct {
+	ID String `json:"id"`
+}
+
 type VODCategory struct {
 	ID           String `json:"id"`
 	Name         String `json:"name"`

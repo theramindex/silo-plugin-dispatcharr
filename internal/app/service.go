@@ -27,6 +27,7 @@ type DispatcharrClient interface {
 	Channels(ctx context.Context) ([]dispatcharr.Channel, error)
 	ChannelGroups(ctx context.Context) ([]dispatcharr.ChannelGroup, error)
 	Programs(ctx context.Context) ([]dispatcharr.Program, error)
+	SearchPrograms(ctx context.Context, start, end time.Time) ([]dispatcharr.ProgramSearchResult, error)
 	VODCategories(ctx context.Context) ([]dispatcharr.VODCategory, error)
 	Movies(ctx context.Context) ([]dispatcharr.Movie, error)
 	Series(ctx context.Context) ([]dispatcharr.Series, error)
