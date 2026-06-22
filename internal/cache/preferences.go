@@ -7,22 +7,42 @@ type PlaybackSettings struct {
 	OutputFormat          string `json:"outputFormat"`
 }
 
+type CategoryParsingSettings struct {
+	Enabled   bool   `json:"enabled"`
+	Mode      string `json:"mode"`
+	Delimiter string `json:"delimiter"`
+	Regex     string `json:"regex"`
+	Output    string `json:"output"`
+}
+
+type CustomGroup struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Order int    `json:"order"`
+}
+
 type Preferences struct {
-	Favorites        map[string]bool  `json:"favorites"`
-	AutoFavorites    map[string]bool  `json:"autoFavorites"`
-	HiddenCategories map[string]bool  `json:"hiddenCategories"`
-	RecentChannels   []string         `json:"recentChannels"`
-	ContinueWatching map[string]any   `json:"continueWatching"`
-	Playback         PlaybackSettings `json:"playback"`
+	Favorites              map[string]bool         `json:"favorites"`
+	AutoFavorites          map[string]bool         `json:"autoFavorites"`
+	HiddenCategories       map[string]bool         `json:"hiddenCategories"`
+	RecentChannels         []string                `json:"recentChannels"`
+	ContinueWatching       map[string]any          `json:"continueWatching"`
+	Playback               PlaybackSettings        `json:"playback"`
+	CategoryParsing        CategoryParsingSettings `json:"categoryParsing"`
+	CustomGroups           []CustomGroup           `json:"customGroups"`
+	CustomGroupMemberships map[string][]string     `json:"customGroupMemberships"`
 }
 
 func defaultPreferences() Preferences {
 	return Preferences{
-		Favorites:        map[string]bool{},
-		AutoFavorites:    map[string]bool{},
-		HiddenCategories: map[string]bool{},
-		RecentChannels:   []string{},
-		ContinueWatching: map[string]any{},
+		Favorites:              map[string]bool{},
+		AutoFavorites:          map[string]bool{},
+		HiddenCategories:       map[string]bool{},
+		RecentChannels:         []string{},
+		ContinueWatching:       map[string]any{},
+		CategoryParsing:        CategoryParsingSettings{Mode: "off", Delimiter: "dash"},
+		CustomGroups:           []CustomGroup{},
+		CustomGroupMemberships: map[string][]string{},
 		Playback: PlaybackSettings{
 			BackendProxySupported: false,
 			StreamMode:            "redirect",

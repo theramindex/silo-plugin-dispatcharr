@@ -898,6 +898,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       .category-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.7rem, 1fr)); gap: 0.5rem; }
       .tile { border: 0; border-radius: 0.65rem; background: var(--panel); color: var(--text); min-height: 3.85rem; text-align: left; padding: 0.75rem 0.85rem; font-weight: 850; }
       .tile:hover, .tile.active { background: var(--panel-2); }
+      .tile span { display: block; margin-top: 0.25rem; color: var(--muted); font-size: 0.76rem; font-weight: 760; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .guide-page { min-width: 0; }
       .guide-tools { display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.7rem; }
       .guide-tools .select { flex: 0 1 26rem; min-width: min(24rem, 45vw); }
@@ -1014,8 +1015,15 @@ const playerPageHTMLTemplate = `<!doctype html>
       .recording-badge.completed { background: rgba(35,101,74,0.42); color: #d4ffe9; }
       .recording-badge.upcoming { background: rgba(74,54,110,0.5); color: #eee4ff; }
       .recording-badge.interrupted, .recording-badge.failed { background: rgba(99,40,35,0.5); color: #ffe0dc; }
+      .settings-stack { display: grid; gap: 0.85rem; }
+      .settings-card h2 { margin: 0 0 0.7rem; font-size: 1.05rem; }
       .settings-list { display: grid; gap: 0.55rem; }
-      .settings-list label { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--panel); border-radius: 0.65rem; padding: 0.7rem; }
+      .settings-list label, .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--panel); border-radius: 0.65rem; padding: 0.7rem; }
+      .settings-row input, .settings-row select { min-width: 12rem; border: 1px solid var(--line); border-radius: 0.55rem; background: var(--rail-2); color: var(--text); padding: 0.45rem 0.55rem; }
+      .settings-row button, .settings-actions button { border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); padding: 0.45rem 0.7rem; font-weight: 820; }
+      .settings-row button:hover, .settings-actions button:hover { background: var(--panel-2); }
+      .settings-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.65rem; }
+      .settings-preview { margin-top: 0.65rem; display: grid; gap: 0.35rem; color: var(--muted); font-size: 0.82rem; }
       .empty { color: var(--muted); padding: 1rem 0; }
       .hide { display: none !important; }
       @media (max-width: 900px) {
@@ -1068,7 +1076,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       const base = path.endsWith("/dispatcharr/player") ? path.slice(0, -"/dispatcharr/player".length) : (path.endsWith("/dispatcharr") ? path.slice(0, -"/dispatcharr".length) : "");
       const prefsKey = "silo.ramindex.dispatcharr.preferences.v1";
       const pluginInstallationID = (base.match(/\/api\/v1\/plugins\/(\d+)/) || [])[1] || "";
-      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false };
+      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, selectedCustomGroup: "" };
 
       function route(url) { return base + url; }
       function byId(id) { return document.getElementById(id); }
@@ -1120,7 +1128,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function menuIcon(name) { return "<span class=\"menu-icon\">" + icon(name) + "</span>"; }
       function defaultPrefs() {
-        return { favorites: {}, autoFavorites: {}, hiddenCategories: {}, recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" } };
+        return { favorites: {}, autoFavorites: {}, hiddenCategories: {}, recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "dash", regex: "", output: "" }, customGroups: [], customGroupMemberships: {} };
       }
       function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
       function sourceMode() { return state.app && state.app.source ? String(state.app.source.mode || "") : ""; }
@@ -1139,11 +1147,18 @@ const playerPageHTMLTemplate = `<!doctype html>
           hiddenCategories: Object.assign({}, remote.hiddenCategories, local.hiddenCategories),
           recentChannels: uniqueIDs(items(remote.recentChannels).concat(items(local.recentChannels))).slice(0, 24),
           continueWatching: Object.assign({}, remote.continueWatching, local.continueWatching),
-          playback: Object.assign({}, remote.playback, local.playback)
+          playback: Object.assign({}, remote.playback, local.playback),
+          categoryParsing: Object.assign({}, remote.categoryParsing, local.categoryParsing),
+          customGroups: items(local.customGroups).length ? items(local.customGroups) : items(remote.customGroups),
+          customGroupMemberships: Object.assign({}, remote.customGroupMemberships, local.customGroupMemberships)
         };
       }
       function normalizePreferences() {
         if (!state.app || !state.app.preferences) return;
+        state.app.preferences = Object.assign(defaultPrefs(), state.app.preferences || {});
+        state.app.preferences.categoryParsing = Object.assign(defaultPrefs().categoryParsing, state.app.preferences.categoryParsing || {});
+        state.app.preferences.customGroups = items(state.app.preferences.customGroups);
+        state.app.preferences.customGroupMemberships = state.app.preferences.customGroupMemberships || {};
         const valid = {};
         items(state.app.channels).forEach(function(channel) { valid[channel.id] = true; });
         const recent = uniqueIDs(items(state.app.preferences.recentChannels).filter(function(id) { return !!valid[id]; }));
@@ -1153,6 +1168,9 @@ const playerPageHTMLTemplate = `<!doctype html>
           return rightPlayed - leftPlayed;
         }).filter(function(id) { return !!valid[id]; });
         state.app.preferences.recentChannels = uniqueIDs(recent.concat(watched)).slice(0, 24);
+        Object.keys(state.app.preferences.customGroupMemberships).forEach(function(groupID) {
+          state.app.preferences.customGroupMemberships[groupID] = uniqueIDs(items(state.app.preferences.customGroupMemberships[groupID]).filter(function(id) { return !!valid[id]; }));
+        });
       }
       function recordWatchPreference(channel) {
         if (!state.app || !state.app.preferences || !channel) return;
@@ -1220,11 +1238,68 @@ const playerPageHTMLTemplate = `<!doctype html>
       function channelByID(id) {
         return items(state.app.channels).find(function(channel) { return channel.id === id; }) || null;
       }
+      function sourceCategoryID(id) { return "source:" + String(id || ""); }
+      function customCategoryID(id) { return "custom:" + String(id || ""); }
+      function virtualCategoryID(path) { return "virtual:" + String(path || ""); }
+      function categoryParsing() { return Object.assign(defaultPrefs().categoryParsing, prefs().categoryParsing || {}); }
+      function customGroups() {
+        return items(prefs().customGroups).slice().filter(function(group) {
+          return group && group.id && group.name;
+        }).sort(function(left, right) {
+          return (Number(left.order || 0) - Number(right.order || 0)) || String(left.name || "").localeCompare(String(right.name || ""));
+        });
+      }
+      function customMemberships(groupID) {
+        return uniqueIDs(items((prefs().customGroupMemberships || {})[groupID]));
+      }
+      function sourceCategoryName(id) {
+        const category = items(state.app.categories).find(function(item) { return item.id === id; });
+        return category ? category.name : "";
+      }
+      function sourceCategoryLabel(channel) {
+        return channel.categoryName || sourceCategoryName(channel.categoryId) || "";
+      }
+      function parsedCategoryPath(name) {
+        const settings = categoryParsing();
+        name = String(name || "").trim();
+        if (!settings.enabled || !name) return [];
+        let parts = [];
+        if (settings.mode === "delimiter") {
+          const delimiter = settings.delimiter === "pipe" ? /\s*\|\s*/ : /\s+-\s*/;
+          parts = name.split(delimiter);
+        } else if (settings.mode === "regex" && settings.regex) {
+          try {
+            const pattern = new RegExp(settings.regex);
+            const match = name.match(pattern);
+            if (!match) return [];
+            if (settings.output) parts = name.replace(pattern, settings.output).split("/");
+            else parts = match.slice(1);
+          } catch (_) {
+            return [];
+          }
+        }
+        parts = parts.map(function(part) { return String(part || "").trim(); }).filter(Boolean);
+        return parts.length > 1 ? parts : [];
+      }
+      function virtualPathForChannel(channel) {
+        return parsedCategoryPath(sourceCategoryLabel(channel)).join(" / ");
+      }
+      function channelInSelectedCategory(channel, id) {
+        if (!id) return true;
+        if (id.indexOf("source:") === 0) return channel.categoryId === id.slice("source:".length);
+        if (id.indexOf("custom:") === 0) return customMemberships(id.slice("custom:".length)).indexOf(channel.id) !== -1;
+        if (id.indexOf("virtual:") === 0) {
+          const selected = id.slice("virtual:".length);
+          const path = virtualPathForChannel(channel);
+          return path === selected || path.indexOf(selected + " / ") === 0;
+        }
+        return channel.categoryId === id;
+      }
       function visibleChannels(ignoreQuery) {
         const hidden = hiddenMap();
         return items(state.app.channels).filter(function(channel) {
           if (channel.categoryId && hidden[channel.categoryId]) return false;
-          if (state.view !== "favorites" && state.category && channel.categoryId !== state.category) return false;
+          if (state.view !== "favorites" && state.category && !channelInSelectedCategory(channel, state.category)) return false;
           if (!ignoreQuery && state.query && !channelMatchesQuery(channel)) return false;
           if (state.view === "favorites" && !favoriteMap()[channel.id] && !autoFavoriteMap()[channel.id]) return false;
           return true;
@@ -1392,15 +1467,25 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function categoryGrid() {
         const hidden = hiddenMap();
-        const categories = categoriesWithChannels(function(channel) {
+        const sourceCategories = sourceCategoriesWithChannels(function(channel) {
           return !(channel.categoryId && hidden[channel.categoryId]);
         });
-        if (!categories.length) return "<div class=\"empty\">No categories yet.</div>";
-        return "<div class=\"category-grid\">" + categories.map(function(category) {
-          return "<button class=\"tile" + (state.category === category.id ? " active" : "") + "\" data-category=\"" + escapeHTML(category.id) + "\"><strong>" + escapeHTML(category.name || category.id) + "</strong></button>";
+        const custom = customGroupCategories();
+        const virtual = virtualGroupCategories(function(channel) {
+          return !(channel.categoryId && hidden[channel.categoryId]);
+        });
+        const sections = [];
+        if (custom.length) sections.push(categoryGridSection("My groups", custom));
+        if (virtual.length) sections.push(categoryGridSection("Virtual folders", virtual));
+        if (sourceCategories.length) sections.push(categoryGridSection("Source categories", sourceCategories));
+        return sections.length ? sections.join("") : "<div class=\"empty\">No categories yet.</div>";
+      }
+      function categoryGridSection(title, categories) {
+        return sectionHeader(title) + "<div class=\"category-grid\">" + categories.map(function(category) {
+          return "<button class=\"tile" + (state.category === category.id ? " active" : "") + "\" data-category=\"" + escapeHTML(category.id) + "\"><strong>" + escapeHTML(category.name || category.id) + "</strong><span>" + escapeHTML(category.count ? category.count + " channels" : category.kind || "") + "</span></button>";
         }).join("") + "</div>";
       }
-      function categoriesWithChannels(includeChannel) {
+      function sourceCategoriesWithChannels(includeChannel) {
         const categoryCounts = {};
         items(state.app.channels).forEach(function(channel) {
           if (includeChannel && !includeChannel(channel)) return;
@@ -1408,7 +1493,35 @@ const playerPageHTMLTemplate = `<!doctype html>
         });
         return items(state.app.categories).filter(function(category) {
           return !!categoryCounts[category.id];
+        }).map(function(category) {
+          return { id: sourceCategoryID(category.id), sourceID: category.id, name: category.name || category.id, kind: "source", count: categoryCounts[category.id] || 0 };
         });
+      }
+      function customGroupCategories() {
+        return customGroups().map(function(group) {
+          return { id: customCategoryID(group.id), name: group.name, kind: "custom", count: customMemberships(group.id).filter(channelByID).length };
+        }).filter(function(group) {
+          return group.count > 0;
+        });
+      }
+      function virtualGroupCategories(includeChannel) {
+        const groups = {};
+        items(state.app.channels).forEach(function(channel) {
+          if (includeChannel && !includeChannel(channel)) return;
+          const parts = parsedCategoryPath(sourceCategoryLabel(channel));
+          for (let index = 0; index < parts.length; index++) {
+            const path = parts.slice(0, index + 1).join(" / ");
+            groups[path] = groups[path] || { id: virtualCategoryID(path), name: path, kind: "virtual", count: 0 };
+            groups[path].count++;
+          }
+        });
+        return Object.keys(groups).sort().map(function(path) { return groups[path]; });
+      }
+      function allFilterCategories() {
+        const hidden = hiddenMap();
+        return customGroupCategories()
+          .concat(virtualGroupCategories(function(channel) { return !(channel.categoryId && hidden[channel.categoryId]); }))
+          .concat(sourceCategoriesWithChannels(function(channel) { return !(channel.categoryId && hidden[channel.categoryId]); }));
       }
       function recentChannels(limit) {
         const seen = {};
@@ -1433,7 +1546,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         const channels = visibleChannels(false);
         byId("view").innerHTML = state.view === "favorites"
           ? sectionHeader("Favorite channels") + rowCards(channels.slice(0, 60))
-          : sectionHeader("Categories") + categoryGrid() + sectionHeader("Channels") + rowCards(channels.slice(0, 24));
+          : categoryGrid() + sectionHeader(categoryName(state.category) || "Channels") + rowCards(channels.slice(0, 24));
       }
       function recordingCustom(recording) {
         return recording && recording.custom_properties && typeof recording.custom_properties === "object" ? recording.custom_properties : {};
@@ -1675,7 +1788,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           + "<button data-player-action=\"open-stream\">" + menuIcon("external") + "<span>Use external video player<small>Open the stream route in a new tab</small></span></button>";
       }
       function renderGuidePage() {
-        const categories = items(state.app.categories);
+        const categories = allFilterCategories();
         const slots = guideSlots();
         byId("view").innerHTML = "<div class=\"guide-page\"><div class=\"guide-tools\"><select id=\"category-select\" class=\"select\"><option value=\"\">All categories</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select><button id=\"guide-inline-refresh\" class=\"refresh-button\" type=\"button\" data-guide-refresh=\"true\" aria-label=\"Refresh guide\" title=\"Refresh guide\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" aria-hidden=\"true\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M20 12a8 8 0 0 1-14.1 5.15M4 12A8 8 0 0 1 18.1 6.85\"/><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M6 17.25H3.75V19.5M18 6.75h2.25V4.5\"/></svg></button><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program or channel\" value=\"" + escapeHTML(state.query) + "\"></div><div class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div></div></div>";
         byId("category-select").onchange = function(event) { state.category = event.target.value; renderGuidePage(); };
@@ -1741,16 +1854,119 @@ const playerPageHTMLTemplate = `<!doctype html>
         return window.innerHeight + window.scrollY > document.documentElement.scrollHeight - 900;
       }
       function renderSettings() {
-        byId("view").innerHTML = "<div class=\"settings-card\"><h2>Hidden categories</h2><div id=\"settings-list\" class=\"settings-list\"></div></div>";
+        ensureSelectedCustomGroup();
+        byId("view").innerHTML = "<div class=\"settings-stack\">"
+          + "<div class=\"settings-card\"><h2>Advanced category parsing</h2><div id=\"category-parsing-settings\" class=\"settings-list\"></div></div>"
+          + "<div class=\"settings-card\"><h2>Custom groups</h2><div id=\"custom-group-settings\" class=\"settings-list\"></div></div>"
+          + "<div class=\"settings-card\"><h2>Hidden source categories</h2><div id=\"settings-list\" class=\"settings-list\"></div></div>"
+          + "</div>";
+        renderCategoryParsingSettings();
+        renderCustomGroupSettings();
         const root = byId("settings-list");
-        const categories = categoriesWithChannels();
+        const categories = sourceCategoriesWithChannels();
         root.innerHTML = categories.map(function(category) {
-          return "<label><span>" + escapeHTML(category.name || category.id) + "</span><input type=\"checkbox\" data-hide=\"" + escapeHTML(category.id) + "\"" + (hiddenMap()[category.id] ? " checked" : "") + "></label>";
-        }).join("") || "<div class=\"empty\">No categories available for this connection.</div>";
+          return "<label><span>" + escapeHTML(category.name || category.sourceID) + "</span><input type=\"checkbox\" data-hide=\"" + escapeHTML(category.sourceID) + "\"" + (hiddenMap()[category.sourceID] ? " checked" : "") + "></label>";
+        }).join("") || "<div class=\"empty\">No source categories available for this connection.</div>";
       }
       function categoryName(id) {
-        const category = items(state.app.categories).find(function(item) { return item.id === id; });
+        const category = allFilterCategories().find(function(item) { return item.id === id; });
         return category ? category.name : "";
+      }
+      function categoryParsingPreview() {
+        const rows = [];
+        items(state.app.categories).some(function(category) {
+          const path = parsedCategoryPath(category.name || category.id);
+          if (!path.length) return false;
+          rows.push("<div>" + escapeHTML(category.name || category.id) + " -> " + escapeHTML(path.join(" / ")) + "</div>");
+          return rows.length >= 6;
+        });
+        return rows.join("") || "<div>No source categories match this parser yet.</div>";
+      }
+      function renderCategoryParsingSettings() {
+        const settings = categoryParsing();
+        const root = byId("category-parsing-settings");
+        root.innerHTML = "<label><span>Generate virtual folders</span><input type=\"checkbox\" data-category-parse-field=\"enabled\"" + (settings.enabled ? " checked" : "") + "></label>"
+          + "<div class=\"settings-row\"><span>Mode</span><select data-category-parse-field=\"mode\"><option value=\"off\"" + (settings.mode === "off" ? " selected" : "") + ">Off</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">Delimiter</option><option value=\"regex\"" + (settings.mode === "regex" ? " selected" : "") + ">Regex</option></select></div>"
+          + "<div class=\"settings-row\"><span>Delimiter</span><select data-category-parse-field=\"delimiter\"><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Spanish - Movies</option><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Spanish | Movies</option></select></div>"
+          + "<div class=\"settings-row\"><span>Regex</span><input data-category-parse-field=\"regex\" value=\"" + escapeHTML(settings.regex || "") + "\" placeholder=\"^(.+?) - (.+)$\"></div>"
+          + "<div class=\"settings-row\"><span>Output path</span><input data-category-parse-field=\"output\" value=\"" + escapeHTML(settings.output || "") + "\" placeholder=\"$1 / $2\"></div>"
+          + "<div class=\"settings-preview\">" + categoryParsingPreview() + "</div>";
+      }
+      function updateCategoryParsingField(field, target) {
+        const settings = state.app.preferences.categoryParsing || {};
+        if (field === "enabled") {
+          settings.enabled = !!target.checked;
+          if (settings.enabled && (!settings.mode || settings.mode === "off")) settings.mode = "delimiter";
+        } else {
+          settings[field] = target.value;
+          if (field === "mode" && settings.mode === "off") settings.enabled = false;
+          if (field === "mode" && settings.mode !== "off") settings.enabled = true;
+        }
+        if (!settings.delimiter) settings.delimiter = "dash";
+        state.app.preferences.categoryParsing = settings;
+        if (state.category.indexOf("virtual:") === 0 && !categoryName(state.category)) state.category = "";
+        savePrefs();
+        renderSettings();
+      }
+      function ensureSelectedCustomGroup() {
+        const groups = customGroups();
+        if (groups.some(function(group) { return group.id === state.selectedCustomGroup; })) return;
+        state.selectedCustomGroup = groups.length ? groups[0].id : "";
+      }
+      function selectedCustomGroup() {
+        ensureSelectedCustomGroup();
+        return customGroups().find(function(group) { return group.id === state.selectedCustomGroup; }) || null;
+      }
+      function renderCustomGroupSettings() {
+        const root = byId("custom-group-settings");
+        const groups = customGroups();
+        const selected = selectedCustomGroup();
+        const memberships = selected ? customMemberships(selected.id) : [];
+        const availableChannels = items(state.app.channels).filter(function(channel) { return !selected || memberships.indexOf(channel.id) === -1; });
+        root.innerHTML = "<div class=\"settings-row\"><span>New group</span><input id=\"custom-group-name\" placeholder=\"Spanish\"><button data-custom-group-action=\"create\">Create</button></div>"
+          + (groups.length ? "<div class=\"settings-row\"><span>Edit group</span><select id=\"custom-group-select\">" + groups.map(function(group) { return "<option value=\"" + escapeHTML(group.id) + "\"" + (selected && selected.id === group.id ? " selected" : "") + ">" + escapeHTML(group.name) + "</option>"; }).join("") + "</select><button data-custom-group-action=\"delete\">Delete</button></div>" : "<div class=\"empty\">Create a group to build your own channel lineup.</div>")
+          + (selected ? "<div class=\"settings-row\"><span>Add channel</span><select id=\"custom-group-channel\">" + availableChannels.slice(0, 500).map(function(channel) { return "<option value=\"" + escapeHTML(channel.id) + "\">" + escapeHTML(channel.name || channel.id) + "</option>"; }).join("") + "</select><button data-custom-group-action=\"add-channel\">Add</button></div>"
+          + "<div class=\"settings-preview\">" + (memberships.length ? memberships.map(function(id) { const channel = channelByID(id); return "<div>" + escapeHTML((channel && channel.name) || id) + " <button data-custom-group-action=\"remove-channel\" data-channel-id=\"" + escapeHTML(id) + "\">Remove</button></div>"; }).join("") : "<div>No channels in this group yet.</div>") + "</div>" : "");
+      }
+      function slug(value) {
+        return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "group";
+      }
+      function createCustomGroup(name) {
+        name = String(name || "").trim();
+        if (!name) return;
+        const base = "group:" + slug(name);
+        let id = base;
+        let index = 2;
+        while (customGroups().some(function(group) { return group.id === id; })) id = base + "-" + index++;
+        state.app.preferences.customGroups.push({ id: id, name: name, order: customGroups().length + 1 });
+        state.app.preferences.customGroupMemberships[id] = [];
+        state.selectedCustomGroup = id;
+        savePrefs();
+        render();
+      }
+      function deleteSelectedCustomGroup() {
+        const selected = selectedCustomGroup();
+        if (!selected) return;
+        state.app.preferences.customGroups = customGroups().filter(function(group) { return group.id !== selected.id; });
+        delete state.app.preferences.customGroupMemberships[selected.id];
+        if (state.category === customCategoryID(selected.id)) state.category = "";
+        state.selectedCustomGroup = "";
+        savePrefs();
+        render();
+      }
+      function addChannelToSelectedGroup(channelID) {
+        const selected = selectedCustomGroup();
+        if (!selected || !channelID) return;
+        state.app.preferences.customGroupMemberships[selected.id] = uniqueIDs(customMemberships(selected.id).concat([channelID]));
+        savePrefs();
+        render();
+      }
+      function removeChannelFromSelectedGroup(channelID) {
+        const selected = selectedCustomGroup();
+        if (!selected || !channelID) return;
+        state.app.preferences.customGroupMemberships[selected.id] = customMemberships(selected.id).filter(function(id) { return id !== channelID; });
+        savePrefs();
+        render();
       }
       function colorClass(index) {
         return ["purple", "green", "red", "gray", "blue"][index % 5];
@@ -2212,6 +2428,16 @@ const playerPageHTMLTemplate = `<!doctype html>
           scheduleProgram(scheduleTarget.getAttribute("data-schedule-channel"), scheduleTarget.getAttribute("data-schedule-program"), scheduleTarget);
           return;
         }
+        const customGroupAction = event.target.closest("[data-custom-group-action]");
+        if (customGroupAction) {
+          event.preventDefault();
+          const action = customGroupAction.getAttribute("data-custom-group-action");
+          if (action === "create") createCustomGroup((byId("custom-group-name") || {}).value || "");
+          if (action === "delete") deleteSelectedCustomGroup();
+          if (action === "add-channel") addChannelToSelectedGroup((byId("custom-group-channel") || {}).value || "");
+          if (action === "remove-channel") removeChannelFromSelectedGroup(customGroupAction.getAttribute("data-channel-id"));
+          return;
+        }
         const channelTarget = event.target.closest("[data-channel]");
         if (channelTarget) {
           const channel = channelByID(channelTarget.getAttribute("data-channel"));
@@ -2243,6 +2469,16 @@ const playerPageHTMLTemplate = `<!doctype html>
         }, { passive: true });
       });
       document.addEventListener("change", function(event) {
+        const parseField = event.target.getAttribute("data-category-parse-field");
+        if (parseField) {
+          updateCategoryParsingField(parseField, event.target);
+          return;
+        }
+        if (event.target && event.target.id === "custom-group-select") {
+          state.selectedCustomGroup = event.target.value;
+          renderSettings();
+          return;
+        }
         const id = event.target.getAttribute("data-hide");
         if (!id) return;
         if (event.target.checked) state.app.preferences.hiddenCategories[id] = true;

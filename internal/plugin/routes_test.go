@@ -323,7 +323,7 @@ func TestHTTPRoutesServerPreferencesRoutePersistsFullPayload(t *testing.T) {
 	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
 		Method: "POST",
 		Path:   "/dispatcharr/api/preferences",
-		Body:   []byte(`{"favorites":{"channel:1":true},"autoFavorites":{"channel:2":true},"hiddenCategories":{"sports":true},"recentChannels":["channel:1"],"continueWatching":{"channel:1":{"plays":3}},"playback":{"streamMode":"redirect","outputFormat":"hls"}}`),
+		Body:   []byte(`{"favorites":{"channel:1":true},"autoFavorites":{"channel:2":true},"hiddenCategories":{"sports":true},"recentChannels":["channel:1"],"continueWatching":{"channel:1":{"plays":3}},"playback":{"streamMode":"redirect","outputFormat":"hls"},"categoryParsing":{"enabled":true,"mode":"delimiter","delimiter":"pipe","regex":"","output":""},"customGroups":[{"id":"group:spanish","name":"Spanish","order":10}],"customGroupMemberships":{"group:spanish":["channel:1","channel:2"]}}`),
 	})
 	if err != nil {
 		t.Fatalf("preferences route: %v", err)
@@ -340,6 +340,15 @@ func TestHTTPRoutesServerPreferencesRoutePersistsFullPayload(t *testing.T) {
 	}
 	if len(prefs.RecentChannels) != 1 || prefs.RecentChannels[0] != "channel:1" {
 		t.Fatalf("expected recent channel to persist: %+v", prefs)
+	}
+	if !prefs.CategoryParsing.Enabled || prefs.CategoryParsing.Delimiter != "pipe" {
+		t.Fatalf("expected category parsing settings to persist: %+v", prefs.CategoryParsing)
+	}
+	if len(prefs.CustomGroups) != 1 || prefs.CustomGroups[0].Name != "Spanish" {
+		t.Fatalf("expected custom groups to persist: %+v", prefs.CustomGroups)
+	}
+	if got := prefs.CustomGroupMemberships["group:spanish"]; len(got) != 2 || got[0] != "channel:1" || got[1] != "channel:2" {
+		t.Fatalf("expected custom group memberships to persist: %+v", prefs.CustomGroupMemberships)
 	}
 }
 

@@ -103,6 +103,8 @@ func (s *Store) Preferences() Preferences {
 	preferences.HiddenCategories = cloneBoolMap(s.preferences.HiddenCategories)
 	preferences.RecentChannels = append([]string(nil), s.preferences.RecentChannels...)
 	preferences.ContinueWatching = cloneAnyMap(s.preferences.ContinueWatching)
+	preferences.CustomGroups = cloneCustomGroups(s.preferences.CustomGroups)
+	preferences.CustomGroupMemberships = cloneStringSliceMap(s.preferences.CustomGroupMemberships)
 	return preferences
 }
 
@@ -305,6 +307,18 @@ func (s *Store) ensurePreferences() {
 	if s.preferences.ContinueWatching == nil {
 		s.preferences.ContinueWatching = map[string]any{}
 	}
+	if s.preferences.CategoryParsing.Mode == "" {
+		s.preferences.CategoryParsing.Mode = "off"
+	}
+	if s.preferences.CategoryParsing.Delimiter == "" {
+		s.preferences.CategoryParsing.Delimiter = "dash"
+	}
+	if s.preferences.CustomGroups == nil {
+		s.preferences.CustomGroups = []CustomGroup{}
+	}
+	if s.preferences.CustomGroupMemberships == nil {
+		s.preferences.CustomGroupMemberships = map[string][]string{}
+	}
 	if s.preferences.Playback.StreamMode == "" {
 		s.preferences.Playback.StreamMode = "redirect"
 	}
@@ -326,6 +340,8 @@ func (s *Store) preferencesSnapshotLocked() Preferences {
 	preferences.HiddenCategories = cloneBoolMap(s.preferences.HiddenCategories)
 	preferences.RecentChannels = append([]string(nil), s.preferences.RecentChannels...)
 	preferences.ContinueWatching = cloneAnyMap(s.preferences.ContinueWatching)
+	preferences.CustomGroups = cloneCustomGroups(s.preferences.CustomGroups)
+	preferences.CustomGroupMemberships = cloneStringSliceMap(s.preferences.CustomGroupMemberships)
 	return preferences
 }
 
@@ -341,6 +357,18 @@ func cloneAnyMap(values map[string]any) map[string]any {
 	clone := make(map[string]any, len(values))
 	for key, value := range values {
 		clone[key] = value
+	}
+	return clone
+}
+
+func cloneCustomGroups(values []CustomGroup) []CustomGroup {
+	return append([]CustomGroup(nil), values...)
+}
+
+func cloneStringSliceMap(values map[string][]string) map[string][]string {
+	clone := make(map[string][]string, len(values))
+	for key, value := range values {
+		clone[key] = append([]string(nil), value...)
 	}
 	return clone
 }
