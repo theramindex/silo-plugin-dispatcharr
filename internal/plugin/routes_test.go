@@ -183,6 +183,48 @@ func TestHTTPRoutesServerAppRouteHydratesColdCatalog(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerRefreshRouteForcesCatalogSync(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{
+		Catalog: model.CatalogState{
+			Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+			Channels: []model.Channel{{ID: "dispatcharr:old", Name: "Old Channel"}},
+		},
+	})
+	syncer := &stubCatalogSyncer{store: store}
+	server := NewHTTPRoutesServerWithSyncer(store, func() config.Settings {
+		return config.Settings{
+			SourceMode:      config.SourceModeDirectLogin,
+			DispatcharrURL:  "https://dispatcharr.example.com",
+			DispatcharrUser: "demo",
+			DispatcharrPass: "secret",
+			ChannelRefreshH: 24,
+			EPGRefreshH:     24,
+		}
+	}, syncer)
+
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "POST", Path: "/dispatcharr/api/refresh"})
+	if err != nil {
+		t.Fatalf("refresh route: %v", err)
+	}
+	if response.GetStatusCode() != 200 {
+		t.Fatalf("expected 200, got %d", response.GetStatusCode())
+	}
+	if syncer.calls != 1 {
+		t.Fatalf("expected refresh to force one sync, got %d calls", syncer.calls)
+	}
+
+	var payload AppPayload
+	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+		t.Fatalf("unmarshal app payload: %v", err)
+	}
+	if len(payload.Channels) != 1 || payload.Channels[0].ID != "dispatcharr:news" {
+		t.Fatalf("expected refreshed channel payload, got %+v", payload.Channels)
+	}
+}
+
 func TestHTTPRoutesServerFavoriteRouteUpdatesPreferences(t *testing.T) {
 	t.Parallel()
 

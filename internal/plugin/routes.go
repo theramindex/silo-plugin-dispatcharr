@@ -130,6 +130,8 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return assetResponse("assets/mpegts.min.js")
 	case "/dispatcharr/status", "/dispatcharr/api/status":
 		return s.respondJSON(http.StatusOK, BuildHealthPayload(s.store.Current()))
+	case "/dispatcharr/api/refresh":
+		return s.handleRefresh(ctx, request)
 	case "/dispatcharr/api/app":
 		s.ensureCatalogHydrated(ctx)
 		return s.respondJSON(http.StatusOK, s.buildAppPayload())
@@ -217,6 +219,29 @@ func (s *HTTPRoutesServer) ensureCatalogHydrated(ctx context.Context) {
 	if err := s.syncer.SyncNow(ctx, settings, time.Now().Unix()); err != nil {
 		s.store.RecordFailure(time.Now().Unix(), err.Error())
 	}
+}
+
+func (s *HTTPRoutesServer) handleRefresh(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if request.GetMethod() != http.MethodPost {
+		return textResponse(http.StatusMethodNotAllowed, "refresh requires POST"), nil
+	}
+	if s.syncer == nil || s.settingsProvider == nil {
+		return textResponse(http.StatusServiceUnavailable, "catalog sync is not available"), nil
+	}
+
+	s.hydrateMu.Lock()
+	defer s.hydrateMu.Unlock()
+
+	settings := s.settingsProvider()
+	if err := settings.Validate(); err != nil {
+		s.store.RecordFailure(time.Now().Unix(), err.Error())
+		return textResponse(http.StatusBadRequest, err.Error()), nil
+	}
+	if err := s.syncer.SyncNow(ctx, settings, time.Now().Unix()); err != nil {
+		s.store.RecordFailure(time.Now().Unix(), err.Error())
+		return textResponse(http.StatusBadGateway, err.Error()), nil
+	}
+	return s.respondJSON(http.StatusOK, s.buildAppPayload())
 }
 
 func (s *HTTPRoutesServer) buildAppPayload() AppPayload {
@@ -832,13 +857,18 @@ const playerPageHTMLTemplate = `<!doctype html>
       .star { color: var(--warn); font-size: 1rem; }
       .main { min-width: 0; overflow: auto; padding: 1rem 1.25rem 2rem; }
       .shell.is-player .main { padding: 0; overflow: hidden; background: #050505; }
-      .topbar { display: flex; align-items: center; justify-content: flex-end; gap: 1rem; margin-bottom: 0.85rem; position: sticky; top: 0; z-index: 5; background: linear-gradient(180deg, var(--bg) 70%, rgba(23,23,23,0)); padding-bottom: 0.65rem; }
+      .topbar { display: flex; align-items: center; justify-content: flex-end; gap: 0.65rem; margin-bottom: 0.85rem; position: sticky; top: 0; z-index: 5; background: linear-gradient(180deg, var(--bg) 70%, rgba(23,23,23,0)); padding-bottom: 0.65rem; }
       .shell.is-player .topbar { display: none; }
       .title { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
       .title h2 { margin: 0; font-size: 1.35rem; }
       .status { color: var(--muted); font-size: 0.82rem; white-space: nowrap; }
       .search { border: 1px solid var(--line); border-radius: 999px; background: #242426; color: var(--text); padding: 0.62rem 0.85rem; min-width: min(24rem, 40vw); }
       .topbar .search { width: min(32rem, 100%); }
+      .refresh-button { width: 2.45rem; height: 2.45rem; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); display: inline-grid; place-items: center; flex: 0 0 auto; }
+      .refresh-button:hover { background: var(--panel-2); }
+      .refresh-button:disabled { cursor: default; opacity: 0.7; }
+      .refresh-button svg { width: 1.1rem; height: 1.1rem; display: block; }
+      .refresh-button.is-loading svg { animation: spin 880ms linear infinite; }
       .section-title { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1rem 0 0.55rem; color: var(--muted); font-size: 0.95rem; font-weight: 850; }
       .row-scroll { display: flex; gap: 0.6rem; overflow-x: auto; padding-bottom: 0.3rem; }
       .continue-card { flex: 0 0 15.5rem; border: 0; border-radius: 0.7rem; background: transparent; color: var(--text); text-align: left; }
@@ -1010,6 +1040,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       </aside>
       <main class="main">
         <div class="topbar">
+          <button id="guide-refresh" class="refresh-button" type="button" data-guide-refresh="true" aria-label="Refresh guide" title="Refresh guide">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20 12a8 8 0 0 1-14.1 5.15M4 12A8 8 0 0 1 18.1 6.85"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 17.25H3.75V19.5M18 6.75h2.25V4.5"/></svg>
+          </button>
           <input id="global-search" class="search" placeholder="Search by program or channel">
         </div>
         <div id="view"></div>
@@ -1020,7 +1053,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       const base = path.endsWith("/dispatcharr/player") ? path.slice(0, -"/dispatcharr/player".length) : (path.endsWith("/dispatcharr") ? path.slice(0, -"/dispatcharr".length) : "");
       const prefsKey = "silo.ramindex.dispatcharr.preferences.v1";
       const pluginInstallationID = (base.match(/\/api\/v1\/plugins\/(\d+)/) || [])[1] || "";
-      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, guideChannels: [], guideRendered: 0, guideLoading: false };
+      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false };
 
       function route(url) { return base + url; }
       function byId(id) { return document.getElementById(id); }
@@ -1263,15 +1296,41 @@ const playerPageHTMLTemplate = `<!doctype html>
         state.view = id ? "live" : "home";
         render();
       }
-      async function loadApp() {
-        state.app = await getJSON("/dispatcharr/api/app");
+      async function hydrateApp(payload) {
+        state.app = payload;
         const siloPrefs = await loadUserPrefs().catch(function() { return null; });
         const localPrefs = readLocalPrefs();
         state.app.preferences = siloPrefs ? mergePrefs(siloPrefs, {}) : mergePrefs(state.app.preferences, localPrefs);
         state.app.programs = items(state.app.programs);
         normalizePreferences();
         savePrefs();
+      }
+      async function loadApp() {
+        await hydrateApp(await getJSON("/dispatcharr/api/app"));
         render();
+      }
+      async function refreshAppData() {
+        if (state.refreshing) return;
+        const button = byId("guide-refresh");
+        state.refreshing = true;
+        if (button) {
+          button.classList.add("is-loading");
+          button.disabled = true;
+        }
+        try {
+          await hydrateApp(await postJSON("/dispatcharr/api/refresh", {}));
+          state.recordings = null;
+          render();
+          showAppToast("Guide refreshed from Dispatcharr.");
+        } catch (error) {
+          showAppToast("Dispatcharr refresh failed.");
+        } finally {
+          state.refreshing = false;
+          if (button) {
+            button.classList.remove("is-loading");
+            button.disabled = false;
+          }
+        }
       }
       function renderRail() {
         document.querySelectorAll(".nav button").forEach(function(button) {
@@ -2099,6 +2158,12 @@ const playerPageHTMLTemplate = `<!doctype html>
           state.recordings = null;
           loadRecordings(true);
           renderRecordingsPage();
+          return;
+        }
+        const guideRefresh = event.target.closest("[data-guide-refresh]");
+        if (guideRefresh) {
+          event.preventDefault();
+          refreshAppData();
           return;
         }
         const recordingPlayback = event.target.closest("[data-recording-playback]");
