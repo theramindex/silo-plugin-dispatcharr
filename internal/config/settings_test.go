@@ -116,6 +116,28 @@ func TestGlobalConfigSchema_ContainsExpectedFields(t *testing.T) {
 	}
 }
 
+func TestUserConfigSchema_DeclaresCurrentPreferenceShape(t *testing.T) {
+	t.Parallel()
+
+	preferences := mustFindSchema(t, UserConfigSchema(), "preferences")
+	var schema map[string]any
+	if err := json.Unmarshal([]byte(preferences.GetJsonSchema()), &schema); err != nil {
+		t.Fatalf("decode preferences schema: %v", err)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected preferences schema properties, got %q", preferences.GetJsonSchema())
+	}
+	for _, key := range []string{"favorites", "autoFavorites", "hiddenCategories", "recentChannels", "continueWatching", "playback", "categoryParsing", "customGroups", "customGroupMemberships"} {
+		if _, ok := properties[key]; !ok {
+			t.Fatalf("expected preferences schema to declare %q", key)
+		}
+	}
+	if _, ok := properties["auto_favorites"]; ok {
+		t.Fatal("preferences schema should use the camelCase frontend preference keys")
+	}
+}
+
 func TestGlobalConfigSchema_SecretsAndStatusFields(t *testing.T) {
 	t.Parallel()
 

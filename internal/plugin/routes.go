@@ -1024,6 +1024,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       .settings-row button:hover, .settings-actions button:hover { background: var(--panel-2); }
       .settings-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.65rem; }
       .settings-preview { margin-top: 0.65rem; display: grid; gap: 0.35rem; color: var(--muted); font-size: 0.82rem; }
+      .settings-note { color: var(--muted); font-size: 0.82rem; line-height: 1.35; }
+      .settings-warning { color: #ffd37a; }
       .empty { color: var(--muted); padding: 1rem 0; }
       .hide { display: none !important; }
       @media (max-width: 900px) {
@@ -1076,7 +1078,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       const base = path.endsWith("/dispatcharr/player") ? path.slice(0, -"/dispatcharr/player".length) : (path.endsWith("/dispatcharr") ? path.slice(0, -"/dispatcharr".length) : "");
       const prefsKey = "silo.ramindex.dispatcharr.preferences.v1";
       const pluginInstallationID = (base.match(/\/api\/v1\/plugins\/(\d+)/) || [])[1] || "";
-      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, selectedCustomGroup: "" };
+      const state = { app: null, view: "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, selectedCustomGroup: "", customGroupQuery: "", profileSaveStatus: "idle", profileSaveMessage: "" };
 
       function route(url) { return base + url; }
       function byId(id) { return document.getElementById(id); }
@@ -1208,11 +1210,27 @@ const playerPageHTMLTemplate = `<!doctype html>
       function writeLocalPrefs() {
         try { localStorage.setItem(prefsKey, JSON.stringify(state.app.preferences)); } catch (_) {}
       }
-      function savePrefs() {
+      function savePrefs(options) {
         if (!state.app || !state.app.preferences) return;
+        options = options || {};
         writeLocalPrefs();
         if (pluginInstallationID) {
-          corePutNoContent("/api/v1/settings/plugins/" + encodeURIComponent(pluginInstallationID), { values: { preferences: JSON.stringify(state.app.preferences) } }).catch(function() {});
+          state.profileSaveStatus = "saving";
+          state.profileSaveMessage = "";
+          corePutNoContent("/api/v1/settings/plugins/" + encodeURIComponent(pluginInstallationID), { values: { preferences: JSON.stringify(state.app.preferences) } }).then(function() {
+            state.profileSaveStatus = "saved";
+            state.profileSaveMessage = "Saved to your Silo profile.";
+            if (state.view === "settings") renderSettings();
+          }).catch(function(error) {
+            state.profileSaveStatus = "error";
+            state.profileSaveMessage = "Saved on this device, but not to your Silo profile.";
+            if (!options.quiet) showAppToast(state.profileSaveMessage);
+            if (state.view === "settings") renderSettings();
+            try { console.warn("Dispatcharr profile preference save failed", error); } catch (_) {}
+          });
+        } else {
+          state.profileSaveStatus = "local";
+          state.profileSaveMessage = "Saved on this device. Silo profile sync is unavailable here.";
         }
         postJSON("/dispatcharr/api/preferences", state.app.preferences).catch(function() {});
       }
@@ -1397,7 +1415,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         state.app.preferences = siloPrefs ? mergePrefs(siloPrefs, {}) : mergePrefs(state.app.preferences, localPrefs);
         state.app.programs = items(state.app.programs);
         normalizePreferences();
-        savePrefs();
+        savePrefs({ quiet: true });
       }
       async function loadApp() {
         await hydrateApp(await getJSON("/dispatcharr/api/app"));
@@ -1477,7 +1495,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         const sections = [];
         if (custom.length) sections.push(categoryGridSection("My groups", custom));
         if (virtual.length) sections.push(categoryGridSection("Virtual folders", virtual));
-        if (sourceCategories.length) sections.push(categoryGridSection("Source categories", sourceCategories));
+        if (!virtual.length && sourceCategories.length) sections.push(categoryGridSection("Source categories", sourceCategories));
         return sections.length ? sections.join("") : "<div class=\"empty\">No categories yet.</div>";
       }
       function categoryGridSection(title, categories) {
@@ -1885,12 +1903,18 @@ const playerPageHTMLTemplate = `<!doctype html>
       function renderCategoryParsingSettings() {
         const settings = categoryParsing();
         const root = byId("category-parsing-settings");
-        root.innerHTML = "<label><span>Generate virtual folders</span><input type=\"checkbox\" data-category-parse-field=\"enabled\"" + (settings.enabled ? " checked" : "") + "></label>"
+        const mode = settings.enabled ? settings.mode : "off";
+        root.innerHTML = profileSaveStatusHTML()
+          + "<label><span>Generate virtual folders</span><input type=\"checkbox\" data-category-parse-field=\"enabled\"" + (settings.enabled ? " checked" : "") + "></label>"
           + "<div class=\"settings-row\"><span>Mode</span><select data-category-parse-field=\"mode\"><option value=\"off\"" + (settings.mode === "off" ? " selected" : "") + ">Off</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">Delimiter</option><option value=\"regex\"" + (settings.mode === "regex" ? " selected" : "") + ">Regex</option></select></div>"
-          + "<div class=\"settings-row\"><span>Delimiter</span><select data-category-parse-field=\"delimiter\"><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Spanish - Movies</option><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Spanish | Movies</option></select></div>"
-          + "<div class=\"settings-row\"><span>Regex</span><input data-category-parse-field=\"regex\" value=\"" + escapeHTML(settings.regex || "") + "\" placeholder=\"^(.+?) - (.+)$\"></div>"
-          + "<div class=\"settings-row\"><span>Output path</span><input data-category-parse-field=\"output\" value=\"" + escapeHTML(settings.output || "") + "\" placeholder=\"$1 / $2\"></div>"
-          + "<div class=\"settings-preview\">" + categoryParsingPreview() + "</div>";
+          + (mode === "delimiter" ? "<div class=\"settings-row\"><span>Delimiter</span><select data-category-parse-field=\"delimiter\"><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Spanish - Movies</option><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Spanish | Movies</option></select></div>" : "")
+          + (mode === "regex" ? "<div class=\"settings-row\"><span>Regex</span><input data-category-parse-field=\"regex\" value=\"" + escapeHTML(settings.regex || "") + "\" placeholder=\"^(.+?) - (.+)$\"></div><div class=\"settings-row\"><span>Output path</span><input data-category-parse-field=\"output\" value=\"" + escapeHTML(settings.output || "") + "\" placeholder=\"$1 / $2\"></div>" : "")
+          + (mode !== "off" ? "<div class=\"settings-preview\">" + categoryParsingPreview() + "</div>" : "<div class=\"settings-note\">Virtual folders are off. Source categories will be shown exactly as provided.</div>");
+      }
+      function profileSaveStatusHTML() {
+        if (!state.profileSaveMessage) return "";
+        const warning = state.profileSaveStatus === "error" || state.profileSaveStatus === "local";
+        return "<div class=\"settings-note" + (warning ? " settings-warning" : "") + "\">" + escapeHTML(state.profileSaveMessage) + "</div>";
       }
       function updateCategoryParsingField(field, target) {
         const settings = state.app.preferences.categoryParsing || {};
@@ -1922,10 +1946,17 @@ const playerPageHTMLTemplate = `<!doctype html>
         const groups = customGroups();
         const selected = selectedCustomGroup();
         const memberships = selected ? customMemberships(selected.id) : [];
-        const availableChannels = items(state.app.channels).filter(function(channel) { return !selected || memberships.indexOf(channel.id) === -1; });
+        const query = lower(state.customGroupQuery);
+        const availableChannels = items(state.app.channels).filter(function(channel) {
+          if (selected && memberships.indexOf(channel.id) !== -1) return false;
+          if (!query) return true;
+          return lower(channel.name || channel.id).indexOf(query) !== -1 || lower(sourceCategoryLabel(channel)).indexOf(query) !== -1;
+        });
         root.innerHTML = "<div class=\"settings-row\"><span>New group</span><input id=\"custom-group-name\" placeholder=\"Spanish\"><button data-custom-group-action=\"create\">Create</button></div>"
           + (groups.length ? "<div class=\"settings-row\"><span>Edit group</span><select id=\"custom-group-select\">" + groups.map(function(group) { return "<option value=\"" + escapeHTML(group.id) + "\"" + (selected && selected.id === group.id ? " selected" : "") + ">" + escapeHTML(group.name) + "</option>"; }).join("") + "</select><button data-custom-group-action=\"delete\">Delete</button></div>" : "<div class=\"empty\">Create a group to build your own channel lineup.</div>")
-          + (selected ? "<div class=\"settings-row\"><span>Add channel</span><select id=\"custom-group-channel\">" + availableChannels.slice(0, 500).map(function(channel) { return "<option value=\"" + escapeHTML(channel.id) + "\">" + escapeHTML(channel.name || channel.id) + "</option>"; }).join("") + "</select><button data-custom-group-action=\"add-channel\">Add</button></div>"
+          + (selected ? "<div class=\"settings-row\"><span>Find channel</span><input id=\"custom-group-channel-search\" placeholder=\"Name or category\" value=\"" + escapeHTML(state.customGroupQuery) + "\"></div>"
+          + "<div class=\"settings-row\"><span>Add channel</span><select id=\"custom-group-channel\">" + availableChannels.slice(0, 80).map(function(channel) { return "<option value=\"" + escapeHTML(channel.id) + "\">" + escapeHTML(channel.name || channel.id) + "</option>"; }).join("") + "</select><button data-custom-group-action=\"add-channel\">Add</button></div>"
+          + "<div class=\"settings-note\">" + escapeHTML(availableChannels.length ? "Showing " + Math.min(availableChannels.length, 80) + " of " + availableChannels.length + " matching channels." : "No matching channels.") + "</div>"
           + "<div class=\"settings-preview\">" + (memberships.length ? memberships.map(function(id) { const channel = channelByID(id); return "<div>" + escapeHTML((channel && channel.name) || id) + " <button data-custom-group-action=\"remove-channel\" data-channel-id=\"" + escapeHTML(id) + "\">Remove</button></div>"; }).join("") : "<div>No channels in this group yet.</div>") + "</div>" : "");
       }
       function slug(value) {
@@ -2491,6 +2522,15 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (event.target && event.target.id === "player-volume-slider") {
           state.volume = Number(event.target.value || 0) / 100;
           applyVolumeToVideo();
+        }
+        if (event.target && event.target.id === "custom-group-channel-search") {
+          state.customGroupQuery = event.target.value || "";
+          renderSettings();
+          const input = byId("custom-group-channel-search");
+          if (input) {
+            input.focus();
+            input.setSelectionRange(input.value.length, input.value.length);
+          }
         }
       });
       document.querySelectorAll(".nav button").forEach(function(button) {
