@@ -174,6 +174,35 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
+	t.Parallel()
+
+	response, err := NewHTTPRoutesServer(cache.NewStore()).Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/admin"})
+	if err != nil {
+		t.Fatalf("admin route: %v", err)
+	}
+	if response.GetStatusCode() != 200 {
+		t.Fatalf("expected 200, got %d", response.GetStatusCode())
+	}
+	body := string(response.GetBody())
+	for _, want := range []string{
+		`const adminSettingsKey = "adminCategorySettings"`,
+		`function defaultAdminCategorySettings()`,
+		`function renderAdminPage()`,
+		`Category listing`,
+		`Normal (source order)`,
+		`Delimiter (virtual groups)`,
+		`Custom (manual remap)`,
+		`data-admin-category-field=\"mode\"`,
+		`data-admin-group-action=\"create\"`,
+		`adminGroupMemberships`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected admin page to include category mapping marker %q", want)
+		}
+	}
+}
+
 func TestHTTPRoutesServerRecordingsDisabledForXtream(t *testing.T) {
 	t.Parallel()
 
