@@ -2068,7 +2068,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         normalizeAdminCategorySettings();
         const settings = adminSettings();
         byId("view").innerHTML = "<div class=\"settings-stack\">"
-          + "<div class=\"settings-card\"><h2>Category listing</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
+          + "<div class=\"settings-card\"><h2>Category method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
           + (settings.mode === "custom" ? "<div class=\"settings-card\"><h2>Custom admin groups</h2><div id=\"admin-group-settings\" class=\"settings-list\"></div></div>" : "")
           + "<div class=\"settings-card\"><h2>Preview</h2><div class=\"settings-preview\">" + adminCategoryPreview() + "</div></div>"
           + "</div>";
@@ -2079,7 +2079,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         const settings = adminSettings();
         const root = byId("admin-category-settings");
         root.innerHTML = adminSaveStatusHTML()
-          + "<div class=\"settings-row\"><span>Mode</span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Normal (source order)</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">Delimiter (virtual groups)</option><option value=\"custom\"" + (settings.mode === "custom" ? " selected" : "") + ">Custom (manual remap)</option></select></div>"
+          + "<div class=\"settings-row\"><span>Mode</span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Normal</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">By delimiter</option><option value=\"custom\"" + (settings.mode === "custom" ? " selected" : "") + ">Admin custom</option></select></div>"
           + (settings.mode === "delimiter" ? "<div class=\"settings-row\"><span>Delimiter</span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Sports - NHL Teams</option></select></div>" : "")
           + (settings.mode === "normal" ? "<div class=\"settings-note\">Source categories are shown as provided, without remapping or resorting.</div>" : "")
           + (settings.mode === "delimiter" ? "<div class=\"settings-note\">Source category names are split into virtual folders using the selected delimiter.</div>" : "")
