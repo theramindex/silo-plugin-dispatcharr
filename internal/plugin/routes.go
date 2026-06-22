@@ -1501,7 +1501,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         });
         const sections = [];
         if (custom.length) sections.push(categoryGridSection("My groups", custom));
-        if (virtual.length) sections.push(categoryGridSection("Virtual folders", virtual));
+        if (virtual.length) sections.push(categoryGridSection("Virtual Categories", virtual));
         if (!virtual.length && sourceCategories.length) sections.push(categoryGridSection("Source categories", sourceCategories));
         return sections.length ? sections.join("") : "<div class=\"empty\">No categories yet.</div>";
       }
@@ -1518,7 +1518,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function virtualFolderBreadcrumbs(path) {
         const parts = path.split(" / ").filter(Boolean);
-        const crumbs = ["<button data-category=\"\">Virtual folders</button>"];
+        const crumbs = ["<button data-category=\"\">Virtual Categories</button>"];
         parts.forEach(function(part, index) {
           const crumbPath = parts.slice(0, index + 1).join(" / ");
           crumbs.push("<span class=\"sep\">/</span><button data-category=\"" + escapeHTML(virtualCategoryID(crumbPath)) + "\">" + escapeHTML(part) + "</button>");
@@ -1577,9 +1577,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function allFilterCategories() {
         const hidden = hiddenMap();
+        const virtual = virtualGroupCategories(function(channel) { return !(channel.categoryId && hidden[channel.categoryId]); });
         return customGroupCategories()
-          .concat(virtualGroupCategories(function(channel) { return !(channel.categoryId && hidden[channel.categoryId]); }))
-          .concat(sourceCategoriesWithChannels(function(channel) { return !(channel.categoryId && hidden[channel.categoryId]); }));
+          .concat(virtual.length ? virtual : sourceCategoriesWithChannels(function(channel) { return !(channel.categoryId && hidden[channel.categoryId]); }));
       }
       function recentChannels(limit) {
         const seen = {};
@@ -1960,11 +1960,11 @@ const playerPageHTMLTemplate = `<!doctype html>
         const root = byId("category-parsing-settings");
         const mode = settings.enabled ? settings.mode : "off";
         root.innerHTML = profileSaveStatusHTML()
-          + "<label><span>Generate virtual folders</span><input type=\"checkbox\" data-category-parse-field=\"enabled\"" + (settings.enabled ? " checked" : "") + "></label>"
+          + "<label><span>Generate virtual categories</span><input type=\"checkbox\" data-category-parse-field=\"enabled\"" + (settings.enabled ? " checked" : "") + "></label>"
           + "<div class=\"settings-row\"><span>Mode</span><select data-category-parse-field=\"mode\"><option value=\"off\"" + (settings.mode === "off" ? " selected" : "") + ">Off</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">Delimiter</option><option value=\"regex\"" + (settings.mode === "regex" ? " selected" : "") + ">Regex</option></select></div>"
           + (mode === "delimiter" ? "<div class=\"settings-row\"><span>Delimiter</span><select data-category-parse-field=\"delimiter\"><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Spanish - Movies</option><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Spanish | Movies</option></select></div>" : "")
           + (mode === "regex" ? "<div class=\"settings-row\"><span>Regex</span><input data-category-parse-field=\"regex\" value=\"" + escapeHTML(settings.regex || "") + "\" placeholder=\"^(.+?) - (.+)$\"></div><div class=\"settings-row\"><span>Output path</span><input data-category-parse-field=\"output\" value=\"" + escapeHTML(settings.output || "") + "\" placeholder=\"$1 / $2\"></div>" : "")
-          + (mode !== "off" ? "<div class=\"settings-preview\">" + categoryParsingPreview() + "</div>" : "<div class=\"settings-note\">Virtual folders are off. Source categories will be shown exactly as provided.</div>");
+          + (mode !== "off" ? "<div class=\"settings-preview\">" + categoryParsingPreview() + "</div>" : "<div class=\"settings-note\">Virtual Categories are off. Source categories will be shown exactly as provided.</div>");
       }
       function profileSaveStatusHTML() {
         if (!state.profileSaveMessage) return "";
