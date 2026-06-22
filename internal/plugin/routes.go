@@ -257,7 +257,7 @@ func (s *HTTPRoutesServer) buildAppPayload() AppPayload {
 		Series:       s.seriesPayload(),
 		Preferences:  preferences,
 		Sessions:     s.store.ActiveSessions(),
-		Capabilities: appCapabilities(preferences),
+		Capabilities: appCapabilities(snapshot.Catalog.Source.Mode, preferences),
 	}
 }
 
@@ -304,6 +304,9 @@ func (s *HTTPRoutesServer) seriesPayload() ContentPayload {
 }
 
 func (s *HTTPRoutesServer) handleRecordings(ctx context.Context) (*pluginv1.HandleHTTPResponse, error) {
+	if !dvrEnabledForSource(s.store.Current().Catalog.Source.Mode) {
+		return s.respondJSON(http.StatusOK, RecordingsPayload{Available: false, Reason: "Recordings require Dispatcharr Direct Connect.", Items: []json.RawMessage{}})
+	}
 	client, err := s.dispatcharrClient()
 	if err != nil {
 		return s.respondJSON(http.StatusOK, RecordingsPayload{Available: false, Reason: err.Error(), Items: []json.RawMessage{}})
@@ -316,6 +319,9 @@ func (s *HTTPRoutesServer) handleRecordings(ctx context.Context) (*pluginv1.Hand
 }
 
 func (s *HTTPRoutesServer) handleScheduleRecording(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if !dvrEnabledForSource(s.store.Current().Catalog.Source.Mode) {
+		return textResponse(http.StatusConflict, "recordings require Dispatcharr Direct Connect"), nil
+	}
 	var payload scheduleRecordingRequest
 	if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
 		return textResponse(http.StatusBadRequest, "invalid recording payload"), nil
@@ -733,19 +739,23 @@ func liveCategories(snapshot cache.Snapshot) []model.Category {
 	return categories
 }
 
-func appCapabilities(preferences cache.Preferences) AppCapabilities {
+func appCapabilities(sourceMode model.SourceMode, preferences cache.Preferences) AppCapabilities {
 	return AppCapabilities{
 		LiveTV:                true,
 		Guide:                 true,
 		VOD:                   true,
 		Series:                true,
-		Recordings:            true,
+		Recordings:            dvrEnabledForSource(sourceMode),
 		Favorites:             true,
 		HiddenCategories:      true,
 		BackendProxySupported: preferences.Playback.BackendProxySupported,
 		StreamMode:            preferences.Playback.StreamMode,
 		NativeLiveTVExport:    false,
 	}
+}
+
+func dvrEnabledForSource(sourceMode model.SourceMode) bool {
+	return sourceMode == model.SourceModeDirectLogin
 }
 
 func queryValue(request *pluginv1.HandleHTTPRequest, key string) string {
@@ -1113,6 +1123,10 @@ const playerPageHTMLTemplate = `<!doctype html>
         return { favorites: {}, autoFavorites: {}, hiddenCategories: {}, recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" } };
       }
       function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
+      function sourceMode() { return state.app && state.app.source ? String(state.app.source.mode || "") : ""; }
+      function dvrEnabled() {
+        return !!(state.app && state.app.capabilities && state.app.capabilities.recordings && sourceMode() === "direct_login");
+      }
       function favoriteMap() { return prefs().favorites || {}; }
       function autoFavoriteMap() { return prefs().autoFavorites || {}; }
       function hiddenMap() { return prefs().hiddenCategories || {}; }
@@ -1339,7 +1353,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function renderRail() {
         document.querySelectorAll(".nav button").forEach(function(button) {
-          button.classList.toggle("active", button.dataset.view === state.view);
+          const unavailable = button.dataset.view === "recordings" && !dvrEnabled();
+          button.hidden = unavailable;
+          button.classList.toggle("active", !unavailable && button.dataset.view === state.view);
         });
         byId("favorite-count").textContent = Object.keys(favoriteMap()).length + Object.keys(autoFavoriteMap()).length;
       }
@@ -1349,6 +1365,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function render() {
         if (!state.app) return;
+        if (state.view === "recordings" && !dvrEnabled()) state.view = "home";
         document.querySelector(".shell").classList.toggle("is-player", state.view === "player");
         document.querySelector(".shell").classList.toggle("is-guide", state.view === "guide");
         renderRail();
@@ -1484,6 +1501,10 @@ const playerPageHTMLTemplate = `<!doctype html>
         return sectionHeader(title) + "<div class=\"recording-list\">" + recordings.map(renderRecordingCard).join("") + "</div>";
       }
       function loadRecordings(force) {
+        if (!dvrEnabled()) {
+          state.recordings = { available: false, reason: "Recordings require Dispatcharr Direct Connect.", items: [] };
+          return;
+        }
         if (state.recordingsLoading || (state.recordings && !force)) return;
         state.recordingsLoading = true;
         getJSON("/dispatcharr/api/recordings").then(function(payload) {
@@ -1499,6 +1520,10 @@ const playerPageHTMLTemplate = `<!doctype html>
         return programsFor(channelID).find(function(program) { return String(program.id || "") === String(programID || ""); }) || null;
       }
       function scheduleProgram(channelID, programID, button) {
+        if (!dvrEnabled()) {
+          showAppToast("Recordings require Dispatcharr Direct Connect.");
+          return;
+        }
         const channel = channelByID(channelID);
         const program = programByID(channelID, programID);
         if (!channel || !program) {
@@ -1680,7 +1705,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           return "<button class=\"epg-cell program gray\" data-channel=\"" + escapeHTML(channel.id) + "\" style=\"left: 0; width: calc(100% - 0.25rem);\"><time>" + escapeHTML(timeLabel(windowStart)) + "</time><strong>Data not available</strong></button>";
         }
         return programs.map(function(program, index) {
-          const canSchedule = (program.endUnix || 0) > now;
+          const canSchedule = dvrEnabled() && (program.endUnix || 0) > now;
           return "<div class=\"epg-cell program " + colorClass(index + channelIndex) + "\" style=\"" + epgCellStyle(program.startUnix, program.endUnix, windowInfo) + "\"><button class=\"epg-play\" data-channel=\"" + escapeHTML(channel.id) + "\"><time>" + escapeHTML(timeLabel(program.startUnix)) + "</time><strong>" + escapeHTML(program.title || "Data not available") + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>";
         }).join("");
       }

@@ -131,11 +131,60 @@ func TestHTTPRoutesServerAppRouteIncludesAppLayerPayload(t *testing.T) {
 	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
 		t.Fatalf("unmarshal app payload: %v", err)
 	}
-	if !payload.Capabilities.LiveTV || payload.Capabilities.NativeLiveTVExport {
+	if !payload.Capabilities.LiveTV || payload.Capabilities.NativeLiveTVExport || payload.Capabilities.Recordings {
 		t.Fatalf("unexpected capabilities: %+v", payload.Capabilities)
 	}
 	if len(payload.Categories) != 1 || len(payload.Channels) != 1 || len(payload.Programs) != 1 {
 		t.Fatalf("unexpected app payload: %+v", payload)
+	}
+}
+
+func TestHTTPRoutesServerRecordingsDisabledForXtream(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{
+		Catalog: model.CatalogState{
+			Source:   model.LiveTVSource(model.SourceModeXtream),
+			Channels: []model.Channel{{ID: "xtream:1", Name: "News HD"}},
+		},
+	})
+	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings {
+		return config.Settings{
+			SourceMode:      config.SourceModeXtream,
+			XtreamBaseURL:   "https://dispatcharr.example.com",
+			XtreamUsername:  "demo",
+			XtreamPassword:  "secret",
+			ChannelRefreshH: config.DefaultChannelRefreshHours,
+			EPGRefreshH:     config.DefaultEPGRefreshHours,
+		}
+	})
+
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/api/recordings"})
+	if err != nil {
+		t.Fatalf("recordings route: %v", err)
+	}
+	if response.GetStatusCode() != 200 {
+		t.Fatalf("expected 200, got %d", response.GetStatusCode())
+	}
+	var payload RecordingsPayload
+	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+		t.Fatalf("unmarshal recordings payload: %v", err)
+	}
+	if payload.Available || !strings.Contains(payload.Reason, "Dispatcharr Direct") {
+		t.Fatalf("expected recordings disabled for xtream, got %+v", payload)
+	}
+
+	response, err = server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method: "POST",
+		Path:   "/dispatcharr/api/recordings",
+		Body:   []byte(`{"channelId":"xtream:1","title":"News","startUnix":1700000000,"endUnix":1700003600}`),
+	})
+	if err != nil {
+		t.Fatalf("recordings schedule route: %v", err)
+	}
+	if response.GetStatusCode() != 409 {
+		t.Fatalf("expected 409, got %d", response.GetStatusCode())
 	}
 }
 
