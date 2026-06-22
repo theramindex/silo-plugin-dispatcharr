@@ -1581,6 +1581,10 @@ const playerPageHTMLTemplate = `<!doctype html>
         return customGroupCategories()
           .concat(virtual.length ? virtual : sourceCategoriesWithChannels(function(channel) { return !(channel.categoryId && hidden[channel.categoryId]); }));
       }
+      function virtualCategoriesActive() {
+        const hidden = hiddenMap();
+        return virtualGroupCategories(function(channel) { return !(channel.categoryId && hidden[channel.categoryId]); }).length > 0;
+      }
       function recentChannels(limit) {
         const seen = {};
         const channels = [];
@@ -1928,13 +1932,15 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function renderSettings() {
         ensureSelectedCustomGroup();
+        const showSourceCategorySettings = !virtualCategoriesActive();
         byId("view").innerHTML = "<div class=\"settings-stack\">"
           + "<div class=\"settings-card\"><h2>Advanced category parsing</h2><div id=\"category-parsing-settings\" class=\"settings-list\"></div></div>"
           + "<div class=\"settings-card\"><h2>Custom groups</h2><div id=\"custom-group-settings\" class=\"settings-list\"></div></div>"
-          + "<div class=\"settings-card\"><h2>Hidden source categories</h2><div id=\"settings-list\" class=\"settings-list\"></div></div>"
+          + (showSourceCategorySettings ? "<div class=\"settings-card\"><h2>Hidden source categories</h2><div id=\"settings-list\" class=\"settings-list\"></div></div>" : "")
           + "</div>";
         renderCategoryParsingSettings();
         renderCustomGroupSettings();
+        if (!showSourceCategorySettings) return;
         const root = byId("settings-list");
         const categories = sourceCategoriesWithChannels();
         root.innerHTML = categories.map(function(category) {
