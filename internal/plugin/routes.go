@@ -858,7 +858,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       .main { min-width: 0; overflow: auto; padding: 1rem 1.25rem 2rem; }
       .shell.is-player .main { padding: 0; overflow: hidden; background: #050505; }
       .topbar { display: flex; align-items: center; justify-content: flex-end; gap: 0.65rem; margin-bottom: 0.85rem; position: sticky; top: 0; z-index: 5; background: linear-gradient(180deg, var(--bg) 70%, rgba(23,23,23,0)); padding-bottom: 0.65rem; }
-      .shell.is-player .topbar { display: none; }
+      .shell.is-player .topbar, .shell.is-guide .topbar { display: none; }
       .title { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
       .title h2 { margin: 0; font-size: 1.35rem; }
       .status { color: var(--muted); font-size: 0.82rem; white-space: nowrap; }
@@ -889,7 +889,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       .tile { border: 0; border-radius: 0.65rem; background: var(--panel); color: var(--text); min-height: 3.85rem; text-align: left; padding: 0.75rem 0.85rem; font-weight: 850; }
       .tile:hover, .tile.active { background: var(--panel-2); }
       .guide-page { min-width: 0; }
-      .guide-tools { display: grid; grid-template-columns: minmax(12rem, 24rem) minmax(12rem, 28rem); align-items: center; gap: 0.8rem; margin-bottom: 0.7rem; }
+      .guide-tools { display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.7rem; }
+      .guide-tools .select { flex: 0 1 26rem; min-width: min(24rem, 45vw); }
+      .guide-tools .search { flex: 1 1 28rem; min-width: 16rem; margin-left: auto; }
       .select { border: 1px solid var(--line); border-radius: 999px; color: var(--text); background: var(--panel); padding: 0.55rem 0.75rem; }
       .guide-scroll { --epg-logo-col: 6.8rem; --epg-slot: 12rem; --epg-row-h: 3.7rem; overflow-x: auto; overflow-y: visible; padding-bottom: 0.45rem; }
       .guide-timeline { width: calc(var(--epg-logo-col) + var(--epg-width)); min-width: calc(var(--epg-logo-col) + var(--epg-width)); }
@@ -1012,6 +1014,9 @@ const playerPageHTMLTemplate = `<!doctype html>
         .rail { min-height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
         .topbar { position: static; }
         .search { min-width: 0; width: 100%; }
+        .guide-tools { flex-wrap: wrap; }
+        .guide-tools .select, .guide-tools .search { flex: 1 1 100%; min-width: 0; margin-left: 0; }
+        .guide-tools .refresh-button { order: 3; }
         .player-view { grid-template-columns: 1fr; }
         .shell.is-player { display: block; }
         .shell.is-player .rail { display: none; }
@@ -1311,12 +1316,12 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       async function refreshAppData() {
         if (state.refreshing) return;
-        const button = byId("guide-refresh");
+        const buttons = Array.prototype.slice.call(document.querySelectorAll("[data-guide-refresh]"));
         state.refreshing = true;
-        if (button) {
+        buttons.forEach(function(button) {
           button.classList.add("is-loading");
           button.disabled = true;
-        }
+        });
         try {
           await hydrateApp(await postJSON("/dispatcharr/api/refresh", {}));
           state.recordings = null;
@@ -1326,10 +1331,10 @@ const playerPageHTMLTemplate = `<!doctype html>
           showAppToast("Dispatcharr refresh failed.");
         } finally {
           state.refreshing = false;
-          if (button) {
+          buttons.forEach(function(button) {
             button.classList.remove("is-loading");
             button.disabled = false;
-          }
+          });
         }
       }
       function renderRail() {
@@ -1345,6 +1350,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       function render() {
         if (!state.app) return;
         document.querySelector(".shell").classList.toggle("is-player", state.view === "player");
+        document.querySelector(".shell").classList.toggle("is-guide", state.view === "guide");
         renderRail();
         if (state.view === "guide") renderGuidePage();
         else if (state.view === "player") renderPlayerPage();
@@ -1646,8 +1652,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       function renderGuidePage() {
         const categories = items(state.app.categories);
         const slots = guideSlots();
-        byId("view").innerHTML = "<div class=\"guide-page\"><div class=\"guide-tools single\"><select id=\"category-select\" class=\"select\"><option value=\"\">All categories</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select></div><div class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div></div></div>";
+        byId("view").innerHTML = "<div class=\"guide-page\"><div class=\"guide-tools\"><select id=\"category-select\" class=\"select\"><option value=\"\">All categories</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select><button id=\"guide-inline-refresh\" class=\"refresh-button\" type=\"button\" data-guide-refresh=\"true\" aria-label=\"Refresh guide\" title=\"Refresh guide\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" aria-hidden=\"true\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M20 12a8 8 0 0 1-14.1 5.15M4 12A8 8 0 0 1 18.1 6.85\"/><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M6 17.25H3.75V19.5M18 6.75h2.25V4.5\"/></svg></button><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program or channel\" value=\"" + escapeHTML(state.query) + "\"></div><div class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div></div></div>";
         byId("category-select").onchange = function(event) { state.category = event.target.value; renderGuidePage(); };
+        byId("guide-search").oninput = function(event) { state.query = event.target.value; resetGuideRows(); renderEPG(); };
         resetGuideRows();
         renderEPG();
       }
