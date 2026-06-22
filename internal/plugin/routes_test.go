@@ -139,6 +139,29 @@ func TestHTTPRoutesServerAppRouteIncludesAppLayerPayload(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
+	t.Parallel()
+
+	response, err := NewHTTPRoutesServer(cache.NewStore()).Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr"})
+	if err != nil {
+		t.Fatalf("app route: %v", err)
+	}
+	if response.GetStatusCode() != 200 {
+		t.Fatalf("expected 200, got %d", response.GetStatusCode())
+	}
+	body := string(response.GetBody())
+	for _, want := range []string{
+		`virtualChildCategories("",`,
+		`if (state.category.indexOf("virtual:") === 0)`,
+		`const children = virtualChildCategories(path,`,
+		`!children.length ? sectionHeader(categoryName(state.category) || "Channels")`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected app page to include virtual folder drilldown marker %q", want)
+		}
+	}
+}
+
 func TestHTTPRoutesServerRecordingsDisabledForXtream(t *testing.T) {
 	t.Parallel()
 
