@@ -154,6 +154,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`virtualChildCategories("",`,
 		`if (state.category.indexOf("virtual:") === 0)`,
 		`const children = virtualChildCategories(path,`,
+		`virtualFolderBreadcrumbs(path)`,
+		`Virtual folders</button>`,
 		`!children.length ? sectionHeader(categoryName(state.category) || "Channels")`,
 	} {
 		if !strings.Contains(body, want) {

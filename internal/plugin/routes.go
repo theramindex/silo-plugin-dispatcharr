@@ -880,6 +880,10 @@ const playerPageHTMLTemplate = `<!doctype html>
       .refresh-button svg { width: 1.1rem; height: 1.1rem; display: block; }
       .refresh-button.is-loading svg { animation: spin 880ms linear infinite; }
       .section-title { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1rem 0 0.55rem; color: var(--muted); font-size: 0.95rem; font-weight: 850; }
+      .breadcrumbs { display: flex; align-items: center; gap: 0.4rem; min-width: 0; color: var(--muted); }
+      .breadcrumbs button { border: 0; background: transparent; color: var(--text); padding: 0.2rem 0; font: inherit; font-weight: 850; }
+      .breadcrumbs button:hover { color: white; text-decoration: underline; }
+      .breadcrumbs .sep { color: var(--muted); }
       .chip { border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); padding: 0.42rem 0.72rem; font-size: 0.82rem; font-weight: 820; }
       .chip:hover { background: var(--panel-2); }
       .row-scroll { display: flex; gap: 0.6rem; overflow-x: auto; padding-bottom: 0.3rem; }
@@ -1510,7 +1514,16 @@ const playerPageHTMLTemplate = `<!doctype html>
         const parts = path.split(" / ").filter(Boolean);
         const parentPath = parts.slice(0, -1).join(" / ");
         const backID = parentPath ? virtualCategoryID(parentPath) : "";
-        return "<div class=\"section-title\"><span>" + escapeHTML(path || "Virtual folders") + "</span>" + (path ? "<button class=\"chip\" data-category=\"" + escapeHTML(backID) + "\">Back</button>" : "") + "</div>";
+        return "<div class=\"section-title\">" + virtualFolderBreadcrumbs(path) + (path ? "<button class=\"chip\" data-category=\"" + escapeHTML(backID) + "\">Back</button>" : "") + "</div>";
+      }
+      function virtualFolderBreadcrumbs(path) {
+        const parts = path.split(" / ").filter(Boolean);
+        const crumbs = ["<button data-category=\"\">Virtual folders</button>"];
+        parts.forEach(function(part, index) {
+          const crumbPath = parts.slice(0, index + 1).join(" / ");
+          crumbs.push("<span class=\"sep\">/</span><button data-category=\"" + escapeHTML(virtualCategoryID(crumbPath)) + "\">" + escapeHTML(part) + "</button>");
+        });
+        return "<div class=\"breadcrumbs\" aria-label=\"Virtual folder breadcrumbs\">" + crumbs.join("") + "</div>";
       }
       function sourceCategoriesWithChannels(includeChannel) {
         const categoryCounts = {};
