@@ -1597,24 +1597,15 @@ const playerPageHTMLTemplate = `<!doctype html>
         });
         return channels.slice(0, limit || channels.length);
       }
-      function recentChannelsForCategory(categoryID, limit) {
-        const hidden = hiddenMap();
-        const channels = recentChannels().filter(function(channel) {
-          if (channel.categoryId && hidden[channel.categoryId]) return false;
-          return channelInSelectedCategory(channel, categoryID);
-        });
-        return channels.slice(0, limit || channels.length);
-      }
-      function renderHomeGuide(channels) {
-        if (!channels.length) return "<div class=\"empty\">No recently watched channels yet.</div>";
+      function renderHomeGuide(channels, emptyMessage) {
+        if (!channels.length) return "<div class=\"empty\">" + escapeHTML(emptyMessage || "No recently watched channels yet.") + "</div>";
         const slots = guideSlots();
         return "<div class=\"home-guide guide-scroll\"><div class=\"guide-page guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div>" + channels.map(function(channel, channelIndex) {
           return "<div class=\"epg-row\"><button class=\"epg-channel\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(channel.name || "Untitled") + "\">" + logoHTML(channel) + "</button><div class=\"epg-programs\">" + renderEPGCells(channel, channelIndex) + "</div></div>";
         }).join("") + "</div></div>";
       }
-      function renderVirtualCategoryGuide(categoryID) {
-        const recent = recentChannelsForCategory(categoryID, 5);
-        return recent.length ? sectionHeader("TV Guide") + renderHomeGuide(recent) : "";
+      function renderVirtualCategoryGuide(channels) {
+        return sectionHeader("TV Guide") + renderHomeGuide(channels, "No channels in this virtual category yet.");
       }
       function renderLivePage() {
         const channels = visibleChannels(false);
@@ -1629,11 +1620,10 @@ const playerPageHTMLTemplate = `<!doctype html>
             return !(channel.categoryId && hidden[channel.categoryId]);
           });
           byId("view").innerHTML = virtualFolderHeader(path)
-            + renderVirtualCategoryGuide(state.category)
-            + (children.length ? "<div class=\"category-grid\">" + children.map(function(category) {
+            + renderVirtualCategoryGuide(channels)
+            + (children.length ? sectionHeader("Virtual Categories") + "<div class=\"category-grid\">" + children.map(function(category) {
               return "<button class=\"tile\" data-category=\"" + escapeHTML(category.id) + "\"><strong>" + escapeHTML(category.name || category.id) + "</strong><span>" + escapeHTML(category.count ? category.count + " channels" : category.kind || "") + "</span></button>";
-            }).join("") + "</div>" : "")
-            + (!children.length ? sectionHeader(categoryName(state.category) || "Channels") + rowCards(channels.slice(0, 60)) : "");
+            }).join("") + "</div>" : "");
           return;
         }
         byId("view").innerHTML = categoryGrid() + sectionHeader(categoryName(state.category) || "Channels") + rowCards(channels.slice(0, 24));

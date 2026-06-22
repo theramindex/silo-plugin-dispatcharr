@@ -159,9 +159,10 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`const showSourceCategorySettings = !virtualCategoriesActive()`,
 		`delimiter: "pipe"`,
 		`if (!settings.delimiter) settings.delimiter = "pipe"`,
-		`const recent = recentChannelsForCategory(categoryID, 5)`,
-		`renderVirtualCategoryGuide(state.category)`,
-		`!children.length ? sectionHeader(categoryName(state.category) || "Channels")`,
+		`function renderVirtualCategoryGuide(channels)`,
+		`renderVirtualCategoryGuide(channels)`,
+		`No channels in this virtual category yet.`,
+		`sectionHeader("Virtual Categories")`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected app page to include virtual folder drilldown marker %q", want)
