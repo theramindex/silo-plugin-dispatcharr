@@ -1236,7 +1236,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           });
         } else {
           state.profileSaveStatus = "local";
-          state.profileSaveMessage = "Saved on this device. Silo profile sync is unavailable here.";
+          state.profileSaveMessage = "Saved on this device, but not to your Silo profile.";
         }
         postJSON("/dispatcharr/api/preferences", state.app.preferences).catch(function() {});
       }

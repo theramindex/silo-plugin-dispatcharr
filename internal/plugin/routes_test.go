@@ -157,6 +157,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`virtualFolderBreadcrumbs(path)`,
 		`Virtual Categories</button>`,
 		`const showSourceCategorySettings = !virtualCategoriesActive()`,
+		`Saved on this device, but not to your Silo profile.`,
 		`delimiter: "pipe"`,
 		`if (!settings.delimiter) settings.delimiter = "pipe"`,
 		`function renderVirtualCategoryGuide(channels)`,
@@ -167,6 +168,9 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected app page to include virtual folder drilldown marker %q", want)
 		}
+	}
+	if strings.Contains(body, "Saved on this device. Silo profile sync is unavailable here.") {
+		t.Fatalf("expected local-only profile save message to use the standard warning")
 	}
 }
 
