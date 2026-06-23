@@ -3,6 +3,10 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -235,6 +239,46 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	}
 }
 
+func TestAdminVirtualFolderAliasesKeepSourceAndAliasPaths(t *testing.T) {
+	t.Parallel()
+
+	script := extractPlayerScript(t)
+	context := map[string]any{
+		"state": map[string]any{
+			"app": map[string]any{
+				"channels": []map[string]any{
+					{"id": "channel:argentina-sports", "name": "Argentina Sports", "categoryId": "cat:argentina-sports", "categoryName": "International | Argentina | Sports"},
+				},
+				"categories": []map[string]any{
+					{"id": "cat:argentina-sports", "name": "International | Argentina | Sports"},
+				},
+			},
+			"adminCategorySettings": map[string]any{
+				"mode":      "admin_delimiter",
+				"delimiter": "pipe",
+				"adminGroups": []map[string]any{
+					{"id": "admin:sports-argentina", "name": "Sports | Argentina", "order": 1},
+				},
+				"adminGroupMemberships": map[string]any{
+					"admin:sports-argentina": []string{"channel:argentina-sports"},
+				},
+				"presentationOverrides": map[string]any{},
+			},
+		},
+	}
+
+	result := runVirtualAliasScript(t, script, context)
+	if !result.SourcePath {
+		t.Fatalf("expected source path to remain visible: %+v", result)
+	}
+	if !result.AliasPath {
+		t.Fatalf("expected admin alias path to be added: %+v", result)
+	}
+	if result.SourceCount != 1 || result.AliasCount != 1 {
+		t.Fatalf("expected source and alias counts to be one channel each: %+v", result)
+	}
+}
+
 func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
 	t.Parallel()
 
@@ -257,6 +301,97 @@ func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
 			t.Fatalf("expected app page to include ordered favorites marker %q", want)
 		}
 	}
+}
+
+type virtualAliasResult struct {
+	SourcePath  bool `json:"sourcePath"`
+	AliasPath   bool `json:"aliasPath"`
+	SourceCount int  `json:"sourceCount"`
+	AliasCount  int  `json:"aliasCount"`
+}
+
+func extractPlayerScript(t *testing.T) string {
+	t.Helper()
+
+	response, err := NewHTTPRoutesServer(cache.NewStore()).Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/admin"})
+	if err != nil {
+		t.Fatalf("admin route: %v", err)
+	}
+	body := string(response.GetBody())
+	start := strings.Index(body, "<script>\n      const path")
+	end := strings.LastIndex(body, "</script>")
+	if start < 0 || end < 0 || end <= start {
+		t.Fatalf("expected embedded script in admin page")
+	}
+	return body[start+len("<script>") : end]
+}
+
+func runVirtualAliasScript(t *testing.T, script string, context map[string]any) virtualAliasResult {
+	t.Helper()
+
+	payload, err := json.Marshal(context)
+	if err != nil {
+		t.Fatalf("marshal context: %v", err)
+	}
+	dir := t.TempDir()
+	appScriptPath := filepath.Join(dir, "app.js")
+	runnerPath := filepath.Join(dir, "runner.js")
+	if err := os.WriteFile(appScriptPath, []byte(script), 0o600); err != nil {
+		t.Fatalf("write app script: %v", err)
+	}
+	nodeScript := fmt.Sprintf(`
+const fs = require("fs");
+const vm = require("vm");
+const input = %s;
+const script = fs.readFileSync(%q, "utf8");
+const sandbox = {
+  window: { location: { pathname: "/api/v1/plugins/14/dispatcharr/admin", search: "" }, innerHeight: 800, scrollY: 0, addEventListener: () => {} },
+  document: { documentElement: { dataset: {} }, querySelectorAll: () => [], querySelector: () => ({ classList: { toggle: () => {} } }), getElementById: () => ({ innerHTML: "", classList: { add: () => {}, remove: () => {}, toggle: () => {} }, textContent: "" }), addEventListener: () => {} },
+  localStorage: { getItem: () => null, setItem: () => {} },
+  navigator: { sendBeacon: () => true },
+  console: { log: () => {}, warn: () => {}, error: () => {} },
+  URLSearchParams,
+  setTimeout,
+  clearTimeout,
+};
+sandbox.input = input;
+vm.createContext(sandbox);
+vm.runInContext(script, sandbox);
+const result = vm.runInContext(`+"`"+`
+Object.assign(state, input.state);
+JSON.stringify((function() {
+  const all = virtualCategoriesFromPaths("", function() { return true; }, true);
+  const source = all.find(function(item) { return item.name === "International / Argentina / Sports"; });
+  const alias = all.find(function(item) { return item.name === "Sports / Argentina"; });
+  const channelsInSource = effectiveChannels(false).filter(function(channel) {
+    return virtualPathsForChannel(channel).indexOf("International / Argentina / Sports") !== -1;
+  });
+  const channelsInAlias = effectiveChannels(false).filter(function(channel) {
+    return virtualPathsForChannel(channel).indexOf("Sports / Argentina") !== -1;
+  });
+  return {
+    sourcePath: !!source,
+    aliasPath: !!alias,
+    sourceCount: channelsInSource.length,
+    aliasCount: channelsInAlias.length
+  };
+})())
+`+"`"+`, sandbox);
+process.stdout.write(result);
+`, string(payload), appScriptPath)
+	if err := os.WriteFile(runnerPath, []byte(nodeScript), 0o600); err != nil {
+		t.Fatalf("write runner script: %v", err)
+	}
+	cmd := exec.Command("node", runnerPath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("run node script: %v\n%s", err, output)
+	}
+	var result virtualAliasResult
+	if err := json.Unmarshal(output, &result); err != nil {
+		t.Fatalf("decode node result: %v\n%s", err, output)
+	}
+	return result
 }
 
 func TestHTTPRoutesServerRecordingsDisabledForXtream(t *testing.T) {
