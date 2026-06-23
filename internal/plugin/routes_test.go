@@ -180,11 +180,11 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`data-silo-theme="midnight-cinema"`,
 		`function applySiloTheme()`,
 		`--silo-bg`,
-		`.epg-tooltip`,
-		`function showGuideTooltip(target, event)`,
-		`document.addEventListener("focusin", function(event)`,
-		`data-title=\"" + escapeHTML(programTitle) + "\"`,
-		`aria-label=\"" + escapeHTML(programTime + " " + programTitle) + "\"`,
+		`.overflow-tooltip`,
+		`data-overflow-description=\"true\"`,
+		`function descriptionOverflows(target)`,
+		`function showOverflowTooltip(target, event)`,
+		`if (!descriptionOverflows(target)) return;`,
 		`.logo-fallback`,
 		`function channelLogoFallback(channel)`,
 		`onerror=\"this.hidden = true; this.nextElementSibling.hidden = false;\"`,
@@ -211,6 +211,9 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	}
 	if strings.Contains(body, "Saved on this device. Silo profile sync is unavailable here.") {
 		t.Fatalf("expected local-only profile save message to use the standard warning")
+	}
+	if strings.Contains(body, `data-title=\"" + escapeHTML(programTitle) + "\"`) {
+		t.Fatalf("expected guide program cells not to expose hover title popups")
 	}
 }
 
