@@ -1244,6 +1244,15 @@ const playerPageHTMLTemplate = `<!doctype html>
       .settings-preview { margin-top: 0.65rem; display: grid; gap: 0.35rem; color: var(--muted); font-size: 0.82rem; }
       .settings-note { color: var(--muted); font-size: 0.82rem; line-height: 1.35; }
       .settings-warning { color: #ffd37a; }
+      .custom-channel-picker { align-items: flex-start; }
+      .custom-channel-combobox { flex: 1 1 30rem; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; min-width: 0; }
+      .custom-channel-combobox input { grid-column: 1 / -1; width: 100%; min-width: 0; }
+      .custom-channel-options { grid-column: 1 / -1; display: grid; gap: 0.25rem; max-height: 14rem; overflow: auto; border: 1px solid var(--line); border-radius: 0.6rem; background: var(--rail-2); padding: 0.28rem; }
+      .custom-channel-combobox > button { justify-self: end; }
+      .custom-channel-option { width: 100%; border: 0; border-radius: 0.45rem; background: transparent; color: var(--text); display: block; padding: 0.48rem 0.55rem; text-align: left; }
+      .custom-channel-option:hover, .custom-channel-option.selected { background: var(--panel-2); }
+      .custom-channel-option strong, .custom-channel-option small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .custom-channel-option small { margin-top: 0.12rem; color: var(--muted); font-size: 0.74rem; font-weight: 760; }
       .empty { color: var(--muted); padding: 1rem 0; }
       .hide { display: none !important; }
       @media (max-width: 900px) {
@@ -1299,7 +1308,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       const adminSettingsKey = "adminCategorySettings";
       const pluginInstallationID = (base.match(/\/api\/v1\/plugins\/(\d+)/) || [])[1] || "";
       const adminSettingsToken = "__ADMIN_SETTINGS_TOKEN__";
-      const state = { app: null, view: isAdminRoute ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, selectedCustomGroup: "", customGroupQuery: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
+      const state = { app: null, view: isAdminRoute ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
 
       function applySiloTheme() {
         const params = new URLSearchParams(window.location.search);
@@ -2551,12 +2560,17 @@ const playerPageHTMLTemplate = `<!doctype html>
           if (!query) return true;
           return lower(channel.name || channel.id).indexOf(query) !== -1 || lower(sourceCategoryLabel(channel)).indexOf(query) !== -1;
         });
+        if (!availableChannels.some(function(channel) { return channel.id === state.customGroupChannelID; })) state.customGroupChannelID = availableChannels.length ? availableChannels[0].id : "";
+        const pickerChannels = availableChannels.slice(0, 12);
         root.innerHTML = "<div class=\"settings-row\"><span>New group</span><input id=\"custom-group-name\" placeholder=\"Spanish\"><button data-custom-group-action=\"create\">Create</button></div>"
           + (groups.length ? "<div class=\"settings-row\"><span>Edit group</span><select id=\"custom-group-select\">" + groups.map(function(group) { return "<option value=\"" + escapeHTML(group.id) + "\"" + (selected && selected.id === group.id ? " selected" : "") + ">" + escapeHTML(group.name) + "</option>"; }).join("") + "</select><button data-custom-group-action=\"delete\">Delete</button></div>" : "<div class=\"empty\">Create a group to build your own channel lineup.</div>")
-          + (selected ? "<div class=\"settings-row\"><span>Find channel</span><input id=\"custom-group-channel-search\" placeholder=\"Name or category\" value=\"" + escapeHTML(state.customGroupQuery) + "\"></div>"
-          + "<div class=\"settings-row\"><span>Add channel</span><select id=\"custom-group-channel\">" + availableChannels.slice(0, 80).map(function(channel) { return "<option value=\"" + escapeHTML(channel.id) + "\">" + escapeHTML(channel.name || channel.id) + "</option>"; }).join("") + "</select><button data-custom-group-action=\"add-channel\">Add</button></div>"
-          + "<div class=\"settings-note\">" + escapeHTML(availableChannels.length ? "Showing " + Math.min(availableChannels.length, 80) + " of " + availableChannels.length + " matching channels." : "No matching channels.") + "</div>"
+          + (selected ? "<div class=\"settings-row custom-channel-picker\"><span>Add channel</span><div class=\"custom-channel-combobox\"><input id=\"custom-group-channel-search\" role=\"combobox\" aria-controls=\"custom-group-channel-options\" aria-expanded=\"true\" aria-autocomplete=\"list\" placeholder=\"Search by name or category\" value=\"" + escapeHTML(state.customGroupQuery) + "\"><div id=\"custom-group-channel-options\" class=\"custom-channel-options\" role=\"listbox\">" + (pickerChannels.length ? pickerChannels.map(function(channel) { const active = channel.id === state.customGroupChannelID; return "<button class=\"custom-channel-option" + (active ? " selected" : "") + "\" type=\"button\" role=\"option\" aria-selected=\"" + (active ? "true" : "false") + "\" data-custom-group-channel-option=\"" + escapeHTML(channel.id) + "\"><strong>" + escapeHTML(channel.name || channel.id) + "</strong><small>" + escapeHTML(sourceCategoryLabel(channel) || "Live TV") + "</small></button>"; }).join("") : "<div class=\"empty\">No matching channels.</div>") + "</div><button data-custom-group-action=\"add-channel\"" + (!state.customGroupChannelID ? " disabled" : "") + ">Add</button></div></div>"
+          + "<div class=\"settings-note\">" + escapeHTML(availableChannels.length ? "Showing " + Math.min(availableChannels.length, 12) + " of " + availableChannels.length + " matching channels. Keep typing to narrow it down." : "No matching channels.") + "</div>"
           + "<div class=\"settings-preview\">" + (memberships.length ? memberships.map(function(id) { const channel = channelByID(id); return "<div>" + escapeHTML((channel && channel.name) || id) + " <button data-custom-group-action=\"remove-channel\" data-channel-id=\"" + escapeHTML(id) + "\">Remove</button></div>"; }).join("") : "<div>No channels in this group yet.</div>") + "</div>" : "");
+      }
+      function selectCustomGroupChannel(channelID) {
+        state.customGroupChannelID = channelID || "";
+        renderSettings();
       }
       function slug(value) {
         return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "group";
@@ -3069,8 +3083,14 @@ const playerPageHTMLTemplate = `<!doctype html>
           const action = customGroupAction.getAttribute("data-custom-group-action");
           if (action === "create") createCustomGroup((byId("custom-group-name") || {}).value || "");
           if (action === "delete") deleteSelectedCustomGroup();
-          if (action === "add-channel") addChannelToSelectedGroup((byId("custom-group-channel") || {}).value || "");
+          if (action === "add-channel") addChannelToSelectedGroup(state.customGroupChannelID || "");
           if (action === "remove-channel") removeChannelFromSelectedGroup(customGroupAction.getAttribute("data-channel-id"));
+          return;
+        }
+        const customGroupChannelOption = event.target.closest("[data-custom-group-channel-option]");
+        if (customGroupChannelOption) {
+          event.preventDefault();
+          selectCustomGroupChannel(customGroupChannelOption.getAttribute("data-custom-group-channel-option"));
           return;
         }
         const adminSettingsAction = event.target.closest("[data-admin-settings-action]");
@@ -3147,6 +3167,8 @@ const playerPageHTMLTemplate = `<!doctype html>
         }
         if (event.target && event.target.id === "custom-group-select") {
           state.selectedCustomGroup = event.target.value;
+          state.customGroupQuery = "";
+          state.customGroupChannelID = "";
           renderSettings();
           return;
         }
@@ -3165,6 +3187,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         }
         if (event.target && event.target.id === "custom-group-channel-search") {
           state.customGroupQuery = event.target.value || "";
+          state.customGroupChannelID = "";
           renderSettings();
           const input = byId("custom-group-channel-search");
           if (input) {
