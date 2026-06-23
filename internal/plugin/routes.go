@@ -506,7 +506,28 @@ func assetResponse(path string) (*pluginv1.HandleHTTPResponse, error) {
 
 func playerPageHTML(request *pluginv1.HandleHTTPRequest) string {
 	body := strings.Replace(playerPageHTMLTemplate, "__PLAYER_LIBRARIES__", playerLibrariesHTML(), 1)
-	return strings.Replace(body, "__SILO_THEME__", html.EscapeString(sanitizeThemeSlug(queryValue(request, "theme"))), 1)
+	body = strings.Replace(body, "__SILO_THEME__", html.EscapeString(sanitizeThemeSlug(queryValue(request, "theme"))), 1)
+	if request.GetPath() == "/dispatcharr/admin" {
+		body = removeTemplateBlock(body, "<!-- USER_NAV_START -->", "<!-- USER_NAV_END -->")
+		body = removeTemplateBlock(body, "<!-- USER_TOPBAR_START -->", "<!-- USER_TOPBAR_END -->")
+		body = strings.Replace(body, "__APP_TITLE__", "Live TV Admin", 2)
+		return strings.Replace(body, "__ROUTE_CLASS__", "is-admin", 1)
+	}
+	body = strings.Replace(body, "__APP_TITLE__", "Live TV", 2)
+	return strings.Replace(body, "__ROUTE_CLASS__", "", 1)
+}
+
+func removeTemplateBlock(body string, startMarker string, endMarker string) string {
+	start := strings.Index(body, startMarker)
+	if start < 0 {
+		return body
+	}
+	end := strings.Index(body[start:], endMarker)
+	if end < 0 {
+		return body
+	}
+	end += start + len(endMarker)
+	return body[:start] + body[end:]
 }
 
 func sanitizeThemeSlug(value string) string {
@@ -832,7 +853,7 @@ const playerPageHTMLTemplate = `<!doctype html>
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Live TV</title>
+    <title>__APP_TITLE__</title>
     __PLAYER_LIBRARIES__
     <style>
       :root {
@@ -924,6 +945,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       .shell.is-player .main { padding: 0; overflow: hidden; background: #050505; }
       .topbar { display: flex; align-items: center; justify-content: flex-end; gap: 0.65rem; margin-bottom: 0.85rem; position: sticky; top: 0; z-index: 5; background: linear-gradient(180deg, var(--bg) 70%, color-mix(in srgb, var(--bg) 0%, transparent)); padding-bottom: 0.65rem; }
       .shell.is-player .topbar, .shell.is-guide .topbar { display: none; }
+      .shell.is-admin .nav, .shell.is-admin .topbar { display: none; }
       .title { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
       .title h2 { margin: 0; font-size: 1.35rem; }
       .status { color: var(--muted); font-size: 0.82rem; white-space: nowrap; }
@@ -1110,27 +1132,27 @@ const playerPageHTMLTemplate = `<!doctype html>
     </style>
   </head>
   <body>
-    <div class="shell">
+    <div class="shell __ROUTE_CLASS__">
       <aside class="rail">
         <div class="brand">
           <a class="back" href="/" aria-label="Back to Silo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg></a>
-          <h1>Live TV</h1>
+          <h1>__APP_TITLE__</h1>
         </div>
-        <nav class="nav" aria-label="Dispatcharr views">
+        <!-- USER_NAV_START --><nav class="nav" aria-label="Dispatcharr views">
           <button class="active" data-view="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 10.75 12 4l8.25 6.75M6.25 9.25v9.5h11.5v-9.5M9.75 18.75v-5h4.5v5"/></svg><span>Home</span></button>
           <button data-view="favorites"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0 6.25-9 11.25-9 11.25s-9-5-9-11.25A4.75 4.75 0 0 1 11.25 5 4.75 4.75 0 0 1 21 8.25Z"/></svg><span>Favorites</span> <small id="favorite-count">0</small></button>
           <button data-view="guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75h15M4.5 12h15M4.5 17.25h15M8.25 4.5v15M15.75 4.5v15"/></svg><span>TV Guide</span></button>
           <button data-view="recordings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20.25a8.25 8.25 0 1 0 0-16.5 8.25 8.25 0 0 0 0 16.5Zm0-4a4.25 4.25 0 1 1 0-8.5 4.25 4.25 0 0 1 0 8.5Z"/></svg><span>Recordings</span></button>
           <button data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8.25a3.75 3.75 0 1 1 0 7.5 3.75 3.75 0 0 1 0-7.5Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.23.64.84 1 1.51 1H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z"/></svg><span>Preferences</span></button>
-        </nav>
+        </nav><!-- USER_NAV_END -->
       </aside>
       <main class="main">
-        <div class="topbar">
+        <!-- USER_TOPBAR_START --><div class="topbar">
           <button id="guide-refresh" class="refresh-button" type="button" data-guide-refresh="true" aria-label="Refresh guide" title="Refresh guide">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20 12a8 8 0 0 1-14.1 5.15M4 12A8 8 0 0 1 18.1 6.85"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 17.25H3.75V19.5M18 6.75h2.25V4.5"/></svg>
           </button>
           <input id="global-search" class="search" placeholder="Search by program or channel">
-        </div>
+        </div><!-- USER_TOPBAR_END -->
         <div id="view"></div>
       </main>
     </div>
@@ -1670,7 +1692,8 @@ const playerPageHTMLTemplate = `<!doctype html>
           button.hidden = unavailable;
           button.classList.toggle("active", !unavailable && button.dataset.view === state.view);
         });
-        byId("favorite-count").textContent = Object.keys(favoriteMap()).length + Object.keys(autoFavoriteMap()).length;
+        const favoriteCount = byId("favorite-count");
+        if (favoriteCount) favoriteCount.textContent = Object.keys(favoriteMap()).length + Object.keys(autoFavoriteMap()).length;
       }
       function logoHTML(channel) {
         if (channel.logoUrl) return "<img class=\"logo\" src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">";
@@ -3035,7 +3058,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       document.querySelectorAll(".nav button").forEach(function(button) {
         button.onclick = function() { setView(button.dataset.view); };
       });
-      byId("global-search").oninput = function(event) { state.query = event.target.value; render(); };
+      const globalSearch = byId("global-search");
+      if (globalSearch) globalSearch.oninput = function(event) { state.query = event.target.value; render(); };
       window.addEventListener("scroll", function() {
         if (state.view === "guide" && isNearGuideEnd()) appendGuideRows();
       }, { passive: true });

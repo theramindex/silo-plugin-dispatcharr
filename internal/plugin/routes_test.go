@@ -196,6 +196,10 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	}
 	body := string(response.GetBody())
 	for _, want := range []string{
+		`<title>Live TV Admin</title>`,
+		`<h1>Live TV Admin</h1>`,
+		`<div class="shell is-admin">`,
+		`.shell.is-admin .nav, .shell.is-admin .topbar { display: none; }`,
 		`const adminSettingsKey = "adminCategorySettings"`,
 		`function defaultAdminCategorySettings()`,
 		`function renderAdminPage()`,
@@ -217,6 +221,11 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected admin page to include category mapping marker %q", want)
+		}
+	}
+	for _, hidden := range []string{`<span>Home</span>`, `<span>Favorites</span>`, `<span>TV Guide</span>`, `<span>Preferences</span>`} {
+		if strings.Contains(body, hidden) {
+			t.Fatalf("expected admin page shell to hide user nav marker %q", hidden)
 		}
 	}
 }
