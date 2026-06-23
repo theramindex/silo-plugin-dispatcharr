@@ -1637,7 +1637,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       function sourceCategoryID(id) { return "source:" + String(id || ""); }
       function customCategoryID(id) { return "custom:" + String(id || ""); }
       function virtualCategoryID(path) { return "virtual:" + String(path || ""); }
+      function featuredCategoryID(path) { return "featured:" + String(path || ""); }
       function virtualCategoryPath(id) { return String(id || "").indexOf("virtual:") === 0 ? String(id || "").slice("virtual:".length) : ""; }
+      function featuredCategoryPath(id) { return String(id || "").indexOf("featured:") === 0 ? String(id || "").slice("featured:".length) : ""; }
       function categoryParsing() {
         const settings = adminSettings();
         const delimiterEnabled = settings.mode === "delimiter";
@@ -1712,8 +1714,8 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (!id) return true;
         if (id.indexOf("source:") === 0) return channel.categoryId === id.slice("source:".length);
         if (id.indexOf("custom:") === 0) return customMemberships(id.slice("custom:".length)).indexOf(channel.id) !== -1;
-        if (id.indexOf("virtual:") === 0) {
-          const selected = id.slice("virtual:".length);
+        if (id.indexOf("virtual:") === 0 || id.indexOf("featured:") === 0) {
+          const selected = id.indexOf("featured:") === 0 ? featuredCategoryPath(id) : virtualCategoryPath(id);
           return virtualPathsForChannel(channel).some(function(path) {
             return path === selected || path.indexOf(selected + " / ") === 0;
           });
@@ -1970,18 +1972,22 @@ const playerPageHTMLTemplate = `<!doctype html>
           return "<button class=\"tile" + (state.category === category.id ? " active" : "") + "\" data-category=\"" + escapeHTML(category.id) + "\"><strong>" + escapeHTML(category.name || category.id) + "</strong><span>" + escapeHTML(category.count ? category.count + " channels" : category.kind || "") + "</span></button>";
         }).join("") + "</div>";
       }
-      function virtualFolderHeader(path) {
+      function activeVirtualCategoryID(path, featured) {
+        return featured ? featuredCategoryID(path) : virtualCategoryID(path);
+      }
+      function virtualFolderHeader(path, featured) {
         const parts = path.split(" / ").filter(Boolean);
         const parentPath = parts.slice(0, -1).join(" / ");
-        const backID = parentPath ? virtualCategoryID(parentPath) : "";
-        return "<div class=\"section-title\">" + virtualFolderBreadcrumbs(path) + (path ? "<button class=\"chip\" data-category=\"" + escapeHTML(backID) + "\">Back</button>" : "") + "</div>";
+        const backID = parentPath ? activeVirtualCategoryID(parentPath, featured) : "";
+        return "<div class=\"section-title\">" + virtualFolderBreadcrumbs(path, featured) + (path ? "<button class=\"chip\" data-category=\"" + escapeHTML(backID) + "\">Back</button>" : "") + "</div>";
       }
-      function virtualFolderBreadcrumbs(path) {
+      function virtualFolderBreadcrumbs(path, featured) {
         const parts = path.split(" / ").filter(Boolean);
-        const crumbs = ["<button data-category=\"\">Virtual Categories</button>"];
+        const rootLabel = featured ? "Featured Channels" : "Virtual Categories";
+        const crumbs = ["<button data-category=\"\">" + escapeHTML(rootLabel) + "</button>"];
         parts.forEach(function(part, index) {
           const crumbPath = parts.slice(0, index + 1).join(" / ");
-          crumbs.push("<span class=\"sep\">/</span><button data-category=\"" + escapeHTML(virtualCategoryID(crumbPath)) + "\">" + escapeHTML(part) + "</button>");
+          crumbs.push("<span class=\"sep\">/</span><button data-category=\"" + escapeHTML(activeVirtualCategoryID(crumbPath, featured)) + "\">" + escapeHTML(part) + "</button>");
         });
         return "<div class=\"breadcrumbs\" aria-label=\"Virtual folder breadcrumbs\">" + crumbs.join("") + "</div>";
       }
@@ -1998,7 +2004,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           const name = categoryDisplayName(rawName);
           const featured = categoryStartsFeatured(rawName);
           const virtualPath = featured ? parsedCategoryPath(name).join(" / ") : "";
-          return { id: virtualPath ? virtualCategoryID(virtualPath) : sourceCategoryID(category.id), sourceID: category.id, name: name, featured: featured, kind: virtualPath ? "virtual" : "source", count: categoryCounts[category.id] || 0 };
+          return { id: virtualPath ? featuredCategoryID(virtualPath) : sourceCategoryID(category.id), sourceID: category.id, name: name, featured: featured, kind: virtualPath ? "featured" : "source", count: categoryCounts[category.id] || 0 };
         });
       }
       function customGroupCategories() {
@@ -2109,15 +2115,17 @@ const playerPageHTMLTemplate = `<!doctype html>
           byId("view").innerHTML = sectionHeader("Favorite channels") + favoriteCards(channels.slice(0, 60));
           return;
         }
-        if (state.category.indexOf("virtual:") === 0) {
-          const path = virtualCategoryPath(state.category);
+        if (state.category.indexOf("virtual:") === 0 || state.category.indexOf("featured:") === 0) {
+          const featured = state.category.indexOf("featured:") === 0;
+          const path = featured ? featuredCategoryPath(state.category) : virtualCategoryPath(state.category);
           const hidden = hiddenMap();
           const children = virtualChildCategories(path, function(channel) {
             return !(channel.categoryId && hidden[channel.categoryId]);
           });
-          byId("view").innerHTML = virtualFolderHeader(path)
+          byId("view").innerHTML = virtualFolderHeader(path, featured)
             + (children.length ? sectionHeader("Virtual Categories") + "<div class=\"category-grid\">" + children.map(function(category) {
-              return "<button class=\"tile\" data-category=\"" + escapeHTML(category.id) + "\"><strong>" + escapeHTML(category.name || category.id) + "</strong><span>" + escapeHTML(category.count ? category.count + " channels" : category.kind || "") + "</span></button>";
+              const childID = featured ? featuredCategoryID(virtualCategoryPath(category.id)) : category.id;
+              return "<button class=\"tile\" data-category=\"" + escapeHTML(childID) + "\"><strong>" + escapeHTML(category.name || category.id) + "</strong><span>" + escapeHTML(category.count ? category.count + " channels" : category.kind || "") + "</span></button>";
             }).join("") + "</div>" : "")
             + renderVirtualCategoryGuide(channels);
           return;

@@ -162,10 +162,10 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	for _, want := range []string{
 		`function sourceVirtualChildCategories(parentPath, includeChannel)`,
 		`function virtualCategoriesFromPaths(parentPath, includeChannel, includeAllDescendants)`,
-		`if (state.category.indexOf("virtual:") === 0)`,
+		`if (state.category.indexOf("virtual:") === 0 || state.category.indexOf("featured:") === 0)`,
 		`const children = virtualChildCategories(path,`,
-		`virtualFolderBreadcrumbs(path)`,
-		`Virtual Categories</button>`,
+		`virtualFolderBreadcrumbs(path, featured)`,
+		`const rootLabel = featured ? "Featured Channels" : "Virtual Categories"`,
 		`const showSourceCategorySettings = !virtualCategoriesActive()`,
 		`Saved on this device, but not to your Silo profile.`,
 		`<span>Preferences</span>`,
@@ -212,7 +212,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if !strings.Contains(body, `sectionHeader("Continue watching") + rowCards(recent.length ? recent : visibleChannels(false).slice(0, 6)) + sectionHeader("TV Guide") + renderHomeGuide(recent) + sectionHeader("Categories") + categoryGrid()`) {
 		t.Fatalf("expected home page order to be continue watching, TV guide, then category sections")
 	}
-	virtualHeaderIndex := strings.Index(body, `byId("view").innerHTML = virtualFolderHeader(path)`)
+	virtualHeaderIndex := strings.Index(body, `byId("view").innerHTML = virtualFolderHeader(path, featured)`)
 	virtualChildrenIndex := strings.Index(body, `+ (children.length ? sectionHeader("Virtual Categories")`)
 	virtualGuideIndex := strings.Index(body, `+ renderVirtualCategoryGuide(channels)`)
 	if virtualHeaderIndex < 0 || virtualChildrenIndex < 0 || virtualGuideIndex < 0 {
@@ -322,10 +322,16 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 		t.Fatalf("expected starred source category marker to be hidden: %+v", result)
 	}
 	if !result.FeaturedVirtualCategory {
-		t.Fatalf("expected starred delimiter category to open the virtual breadcrumb view: %+v", result)
+		t.Fatalf("expected starred delimiter category to open the featured breadcrumb view: %+v", result)
 	}
 	if result.FeaturedSourceCategory {
 		t.Fatalf("expected starred delimiter category to stop linking to the source-card view: %+v", result)
+	}
+	if !result.FeaturedBreadcrumbRoot || !result.FeaturedBreadcrumbPath || !result.FeaturedGuide {
+		t.Fatalf("expected starred delimiter category to render featured breadcrumbs and guide: %+v", result)
+	}
+	if !result.VirtualBreadcrumbRoot {
+		t.Fatalf("expected normal virtual category breadcrumb root to remain virtual categories: %+v", result)
 	}
 	if result.ChannelCategoryName != "International | Argentina | Sports" {
 		t.Fatalf("expected channel category display name to hide marker: %+v", result)
@@ -368,6 +374,10 @@ type virtualAliasResult struct {
 	FeaturedVirtualCategory bool   `json:"featuredVirtualCategory"`
 	FeaturedSourceCategory  bool   `json:"featuredSourceCategory"`
 	FeaturedMarkerVisible   bool   `json:"featuredMarkerVisible"`
+	FeaturedBreadcrumbRoot  bool   `json:"featuredBreadcrumbRoot"`
+	FeaturedBreadcrumbPath  bool   `json:"featuredBreadcrumbPath"`
+	FeaturedGuide           bool   `json:"featuredGuide"`
+	VirtualBreadcrumbRoot   bool   `json:"virtualBreadcrumbRoot"`
 	ChannelCategoryName     string `json:"channelCategoryName"`
 }
 
@@ -407,7 +417,7 @@ const input = %s;
 const script = fs.readFileSync(%q, "utf8");
 const sandbox = {
   window: { location: { pathname: "/api/v1/plugins/14/dispatcharr/admin", search: "" }, innerHeight: 800, scrollY: 0, addEventListener: () => {} },
-  document: { documentElement: { dataset: {} }, querySelectorAll: () => [], querySelector: () => ({ classList: { toggle: () => {} } }), getElementById: () => ({ innerHTML: "", classList: { add: () => {}, remove: () => {}, toggle: () => {} }, textContent: "" }), addEventListener: () => {} },
+  document: { documentElement: { dataset: {} }, elements: {}, querySelectorAll: () => [], querySelector: () => ({ classList: { toggle: () => {} } }), getElementById: function(id) { this.elements[id] = this.elements[id] || { innerHTML: "", classList: { add: () => {}, remove: () => {}, toggle: () => {} }, textContent: "" }; return this.elements[id]; }, addEventListener: () => {} },
   localStorage: { getItem: () => null, setItem: () => {} },
   navigator: { sendBeacon: () => true },
   console: { log: () => {}, warn: () => {}, error: () => {} },
@@ -432,6 +442,12 @@ JSON.stringify((function() {
   });
   const grid = categoryGrid();
   const channel = channelByID("channel:argentina-sports");
+  state.category = "featured:International / Argentina / Sports";
+  renderLivePage();
+  const featuredView = document.elements.view ? document.elements.view.innerHTML : "";
+  state.category = "virtual:International / Argentina / Sports";
+  renderLivePage();
+  const virtualView = document.elements.view ? document.elements.view.innerHTML : "";
   return {
     sourcePath: !!source,
     aliasPath: !!alias,
@@ -441,9 +457,13 @@ JSON.stringify((function() {
     stringParsedMode: readAdminSettingsValue(JSON.stringify({ mode: "delimiter", delimiter: "pipe" })).mode,
     featuredSection: grid.indexOf(">Featured<") !== -1,
     featuredCategory: grid.indexOf("International | Argentina | Sports") !== -1,
-    featuredVirtualCategory: grid.indexOf('data-category="virtual:International / Argentina / Sports"') !== -1,
+    featuredVirtualCategory: grid.indexOf('data-category="featured:International / Argentina / Sports"') !== -1,
     featuredSourceCategory: grid.indexOf('data-category="source:cat:argentina-sports"') !== -1,
     featuredMarkerVisible: grid.indexOf("* International") !== -1,
+    featuredBreadcrumbRoot: featuredView.indexOf(">Featured Channels</button>") !== -1,
+    featuredBreadcrumbPath: featuredView.indexOf(">International</button>") !== -1 && featuredView.indexOf(">Argentina</button>") !== -1 && featuredView.indexOf(">Sports</button>") !== -1,
+    featuredGuide: featuredView.indexOf(">TV Guide<") !== -1 && featuredView.indexOf('data-channel="channel:argentina-sports"') !== -1,
+    virtualBreadcrumbRoot: virtualView.indexOf(">Virtual Categories</button>") !== -1,
     channelCategoryName: channel ? channel.categoryName : ""
   };
 })())
