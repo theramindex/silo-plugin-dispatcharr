@@ -139,8 +139,14 @@ func main() {
 		panic(err)
 	}
 	store := cache.NewStore()
+	snapshotStorage := cache.NewFileSnapshotStorage("")
+	if snapshot, ok, err := snapshotStorage.Load(); err != nil {
+		fmt.Fprintf(os.Stderr, "dispatcharr: load catalog snapshot: %v\n", err)
+	} else if ok {
+		store.Replace(snapshot)
+	}
 	settings := &settingsState{settings: config.Settings{SourceMode: config.SourceModeDirectLogin, LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
-	service := app.NewService(app.Dependencies{Store: store})
+	service := app.NewService(app.Dependencies{Store: store, SnapshotStorage: snapshotStorage})
 
 	sdkruntime.Serve(sdkruntime.ServeConfig{
 		Servers: sdkruntime.CapabilityServers{

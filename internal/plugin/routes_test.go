@@ -731,6 +731,89 @@ func TestHTTPRoutesServerAppRouteHydratesColdCatalog(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerAppRouteRefreshesStalePersistedSnapshotForCurrentSettings(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{
+		ConfigKey: config.CatalogCacheKey(config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://old.example.com", XtreamUsername: "demo"}),
+		Catalog: model.CatalogState{
+			Source:   model.LiveTVSource(model.SourceModeXtream),
+			Channels: []model.Channel{{ID: "xtream:old", Name: "Old Channel"}},
+		},
+	})
+	syncer := &stubCatalogSyncer{store: store}
+	server := NewHTTPRoutesServerWithSyncer(store, func() config.Settings {
+		return config.Settings{
+			SourceMode:      config.SourceModeDirectLogin,
+			DispatcharrURL:  "https://dispatcharr.example.com",
+			DispatcharrUser: "demo",
+			DispatcharrPass: "secret",
+			ChannelRefreshH: 24,
+			EPGRefreshH:     24,
+		}
+	}, syncer)
+
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/api/app"})
+	if err != nil {
+		t.Fatalf("app route: %v", err)
+	}
+	if response.GetStatusCode() != 200 {
+		t.Fatalf("expected 200, got %d", response.GetStatusCode())
+	}
+	if syncer.calls != 1 {
+		t.Fatalf("expected stale persisted snapshot to refresh, got %d calls", syncer.calls)
+	}
+	var payload AppPayload
+	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+		t.Fatalf("unmarshal app payload: %v", err)
+	}
+	if len(payload.Channels) != 1 || payload.Channels[0].ID != "dispatcharr:news" {
+		t.Fatalf("expected current settings payload, got %+v", payload.Channels)
+	}
+}
+
+func TestHTTPRoutesServerAppRouteClearsStalePersistedSnapshotWhenCurrentSettingsInvalid(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{
+		ConfigKey: config.CatalogCacheKey(config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://old.example.com", XtreamUsername: "demo"}),
+		Catalog: model.CatalogState{
+			Source:   model.LiveTVSource(model.SourceModeXtream),
+			Channels: []model.Channel{{ID: "xtream:old", Name: "Old Channel"}},
+		},
+	})
+	syncer := &stubCatalogSyncer{store: store}
+	server := NewHTTPRoutesServerWithSyncer(store, func() config.Settings {
+		return config.Settings{
+			SourceMode:      config.SourceModeDirectLogin,
+			DispatcharrURL:  "https://dispatcharr.example.com",
+			DispatcharrUser: "demo",
+			ChannelRefreshH: 24,
+			EPGRefreshH:     24,
+		}
+	}, syncer)
+
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/api/app"})
+	if err != nil {
+		t.Fatalf("app route: %v", err)
+	}
+	if response.GetStatusCode() != 200 {
+		t.Fatalf("expected 200, got %d", response.GetStatusCode())
+	}
+	if syncer.calls != 0 {
+		t.Fatalf("expected invalid settings to skip sync, got %d calls", syncer.calls)
+	}
+	var payload AppPayload
+	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+		t.Fatalf("unmarshal app payload: %v", err)
+	}
+	if len(payload.Channels) != 0 {
+		t.Fatalf("expected stale channels to be cleared, got %+v", payload.Channels)
+	}
+}
+
 func TestHTTPRoutesServerRefreshRouteForcesCatalogSync(t *testing.T) {
 	t.Parallel()
 
@@ -802,9 +885,10 @@ type stubCatalogSyncer struct {
 	calls int
 }
 
-func (s *stubCatalogSyncer) SyncNow(_ context.Context, _ config.Settings, nowUnix int64) error {
+func (s *stubCatalogSyncer) SyncNow(_ context.Context, settings config.Settings, nowUnix int64) error {
 	s.calls++
 	s.store.Replace(cache.Snapshot{
+		ConfigKey: config.CatalogCacheKey(settings),
 		Catalog: model.CatalogState{
 			Source:   model.LiveTVSource(model.SourceModeDirectLogin),
 			Channels: []model.Channel{{ID: "dispatcharr:news", Name: "News HD"}},

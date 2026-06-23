@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -99,4 +101,19 @@ func (s Settings) Validate() error {
 	}
 
 	return nil
+}
+
+func CatalogCacheKey(settings Settings) string {
+	parts := []string{
+		string(settings.SourceMode),
+		strings.TrimSpace(settings.DispatcharrURL),
+		strings.TrimSpace(settings.DispatcharrUser),
+		strings.TrimSpace(settings.DispatcharrAPIKey),
+		strings.TrimSpace(settings.XtreamBaseURL),
+		strings.TrimSpace(settings.XtreamUsername),
+		strings.TrimSpace(settings.M3UURL),
+		strings.TrimSpace(settings.EPGXMLURL),
+	}
+	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
+	return hex.EncodeToString(sum[:])
 }

@@ -220,24 +220,53 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 }
 
 func (s *HTTPRoutesServer) ensureCatalogHydrated(ctx context.Context) {
-	if len(s.store.Current().Catalog.Channels) > 0 || s.syncer == nil || s.settingsProvider == nil {
+	if s.syncer == nil || s.settingsProvider == nil {
+		return
+	}
+
+	settings := s.settingsProvider()
+	current := s.store.Current()
+	if len(current.Catalog.Channels) > 0 && catalogSnapshotMatchesSettings(current, settings) {
 		return
 	}
 
 	s.hydrateMu.Lock()
 	defer s.hydrateMu.Unlock()
 
-	if len(s.store.Current().Catalog.Channels) > 0 {
+	current = s.store.Current()
+	if len(current.Catalog.Channels) > 0 && catalogSnapshotMatchesSettings(current, settings) {
 		return
 	}
-
-	settings := s.settingsProvider()
+	if len(current.Catalog.Channels) > 0 && !catalogSnapshotMatchesSettings(current, settings) {
+		s.store.Replace(cache.Snapshot{
+			Catalog:   model.CatalogState{Source: model.LiveTVSource(modelSourceModeForSettings(settings))},
+			ConfigKey: config.CatalogCacheKey(settings),
+		})
+	}
 	if err := settings.Validate(); err != nil {
 		s.store.RecordFailure(time.Now().Unix(), err.Error())
 		return
 	}
 	if err := s.syncer.SyncNow(ctx, settings, time.Now().Unix()); err != nil {
 		s.store.RecordFailure(time.Now().Unix(), err.Error())
+	}
+}
+
+func catalogSnapshotMatchesSettings(snapshot cache.Snapshot, settings config.Settings) bool {
+	if len(snapshot.Catalog.Channels) == 0 {
+		return false
+	}
+	return snapshot.Catalog.Source.Mode == modelSourceModeForSettings(settings) && snapshot.ConfigKey == config.CatalogCacheKey(settings)
+}
+
+func modelSourceModeForSettings(settings config.Settings) model.SourceMode {
+	switch settings.SourceMode {
+	case config.SourceModeXtream:
+		return model.SourceModeXtream
+	case config.SourceModeM3UXMLTV:
+		return model.SourceModeM3UXMLTV
+	default:
+		return model.SourceModeDirectLogin
 	}
 }
 

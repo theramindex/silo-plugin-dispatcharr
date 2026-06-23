@@ -40,6 +40,7 @@ type DispatcharrClient interface {
 
 type Dependencies struct {
 	Store              *cache.Store
+	SnapshotStorage    cache.SnapshotStorage
 	XtreamFactory      func(baseURL, username, password string) XtreamClient
 	DispatcharrFactory func(settings config.Settings) DispatcharrClient
 	FetchURL           func(ctx context.Context, rawURL string) ([]byte, error)
@@ -47,6 +48,7 @@ type Dependencies struct {
 
 type Service struct {
 	store              *cache.Store
+	snapshotStorage    cache.SnapshotStorage
 	xtreamFactory      func(baseURL, username, password string) XtreamClient
 	dispatcharrFactory func(settings config.Settings) DispatcharrClient
 	fetchURL           func(ctx context.Context, rawURL string) ([]byte, error)
@@ -98,7 +100,24 @@ func NewService(deps Dependencies) *Service {
 		}
 	}
 
-	return &Service{store: store, xtreamFactory: factory, dispatcharrFactory: dispatcharrFactory, fetchURL: fetcher}
+	return &Service{store: store, snapshotStorage: deps.SnapshotStorage, xtreamFactory: factory, dispatcharrFactory: dispatcharrFactory, fetchURL: fetcher}
+}
+
+func (s *Service) replaceSnapshot(snapshot cache.Snapshot) {
+	s.store.Replace(snapshot)
+	s.persistSnapshot()
+}
+
+func (s *Service) replacePrograms(programs []model.Program, atUnix int64) {
+	s.store.ReplacePrograms(programs, atUnix)
+	s.persistSnapshot()
+}
+
+func (s *Service) persistSnapshot() {
+	if s.snapshotStorage == nil {
+		return
+	}
+	_ = s.snapshotStorage.Save(s.store.Current())
 }
 
 func (s *Service) SwitchSourceMode(ctx context.Context, previous, next config.Settings, nowUnix int64) (string, error) {

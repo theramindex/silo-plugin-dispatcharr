@@ -53,6 +53,45 @@ func TestSyncStoresChannelsAndPrograms(t *testing.T) {
 	}
 }
 
+func TestSyncPersistsCatalogSnapshot(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	snapshotStorage := &memorySnapshotStorage{}
+	service := NewService(Dependencies{
+		Store:           store,
+		SnapshotStorage: snapshotStorage,
+		XtreamFactory: func(string, string, string) XtreamClient {
+			return &stubXtreamClient{
+				streams: []xtream.LiveStream{{Num: 1, Name: "News HD", StreamID: 1001, EPGChannelID: "news.hd"}},
+				epg:     xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "epg-1", Title: "Morning News", StartTimestamp: "1700000000", StopTimestamp: "1700003600"}}},
+			}
+		},
+	})
+	settings := config.Settings{
+		SourceMode:      config.SourceModeXtream,
+		XtreamBaseURL:   "https://dispatcharr.example.com",
+		XtreamUsername:  "demo",
+		XtreamPassword:  "secret",
+		ChannelRefreshH: 24,
+		EPGRefreshH:     6,
+	}
+
+	if err := service.SyncNow(context.Background(), settings, 210); err != nil {
+		t.Fatalf("expected sync success, got %v", err)
+	}
+
+	if snapshotStorage.saves != 1 {
+		t.Fatalf("expected snapshot to be persisted once, got %d saves", snapshotStorage.saves)
+	}
+	if snapshotStorage.snapshot.ConfigKey != config.CatalogCacheKey(settings) {
+		t.Fatalf("expected persisted config key to match settings")
+	}
+	if len(snapshotStorage.snapshot.Catalog.Channels) != 1 || len(snapshotStorage.snapshot.Catalog.Programs) != 1 {
+		t.Fatalf("expected persisted catalog data, got %+v", snapshotStorage.snapshot.Catalog)
+	}
+}
+
 func TestSyncXtreamUsesCustomXMLTVGuide(t *testing.T) {
 	t.Parallel()
 
@@ -453,3 +492,22 @@ func (s *stubDispatcharrClient) SeriesStreamURL(seriesUUID string) string {
 	return "https://dispatcharr.example.com/proxy/vod/series/" + seriesUUID
 }
 func (s *stubDispatcharrClient) AbsoluteURL(raw string) string { return raw }
+
+type memorySnapshotStorage struct {
+	snapshot cache.Snapshot
+	saves    int
+}
+
+func (s *memorySnapshotStorage) Load() (cache.Snapshot, bool, error) {
+	return s.snapshot, len(s.snapshot.Catalog.Channels) > 0, nil
+}
+
+func (s *memorySnapshotStorage) Save(snapshot cache.Snapshot) error {
+	s.snapshot = snapshot
+	s.saves++
+	return nil
+}
+
+func (s *memorySnapshotStorage) Path() string {
+	return "memory"
+}

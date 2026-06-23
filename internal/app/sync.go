@@ -76,7 +76,8 @@ func (s *Service) SyncNow(ctx context.Context, settings config.Settings, nowUnix
 		catalog := model.CatalogState{Source: model.LiveTVSource(model.SourceModeM3UXMLTV), Channels: channels, Programs: programs, Health: model.SyncHealth{LastSuccessUnix: nowUnix}}
 		state := cache.SnapshotFromCatalog(catalog)
 		state.Health.LastSuccessUnix = nowUnix
-		s.store.Replace(state)
+		state.ConfigKey = config.CatalogCacheKey(settings)
+		s.replaceSnapshot(state)
 		return nil
 	default:
 		return fmt.Errorf("source mode %q not implemented", settings.SourceMode)
@@ -215,7 +216,8 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 	}
 	state := cache.SnapshotFromCatalog(catalog)
 	state.Health.LastSuccessUnix = nowUnix
-	s.store.Replace(state)
+	state.ConfigKey = config.CatalogCacheKey(settings)
+	s.replaceSnapshot(state)
 	return nil
 }
 
@@ -283,7 +285,8 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 	}
 	state := cache.SnapshotFromCatalog(catalog)
 	state.Health.LastSuccessUnix = nowUnix
-	s.store.Replace(state)
+	state.ConfigKey = config.CatalogCacheKey(settings)
+	s.replaceSnapshot(state)
 	if tightDeadline {
 		s.StartAsyncEPGRefresh(settings)
 	}
@@ -513,6 +516,6 @@ func (s *Service) refreshEPG(ctx context.Context, settings config.Settings, nowU
 
 	snapshot := s.store.Current()
 	programs := programsFromXMLTVDocument(snapshot.Catalog.Channels, doc)
-	s.store.ReplacePrograms(programs, nowUnix)
+	s.replacePrograms(programs, nowUnix)
 	return nil
 }
