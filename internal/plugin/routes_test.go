@@ -142,7 +142,11 @@ func TestHTTPRoutesServerAppRouteIncludesAppLayerPayload(t *testing.T) {
 func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	t.Parallel()
 
-	response, err := NewHTTPRoutesServer(cache.NewStore()).Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr"})
+	response, err := NewHTTPRoutesServer(cache.NewStore()).Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method: "GET",
+		Path:   "/dispatcharr",
+		Query:  &structpb.Struct{Fields: map[string]*structpb.Value{"theme": structpb.NewStringValue("midnight-cinema")}},
+	})
 	if err != nil {
 		t.Fatalf("app route: %v", err)
 	}
@@ -164,6 +168,9 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`renderVirtualCategoryGuide(channels)`,
 		`No channels in this virtual category yet.`,
 		`sectionHeader("Virtual Categories")`,
+		`data-silo-theme="midnight-cinema"`,
+		`function applySiloTheme()`,
+		`--silo-bg`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected app page to include virtual folder drilldown marker %q", want)

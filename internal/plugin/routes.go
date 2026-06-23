@@ -5,6 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"net/url"
 	"sort"
@@ -123,7 +124,7 @@ type watchRequest struct {
 func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
 	switch request.GetPath() {
 	case "/dispatcharr", "/dispatcharr/player", "/dispatcharr/admin":
-		return htmlResponse(http.StatusOK, playerPageHTML()), nil
+		return htmlResponse(http.StatusOK, playerPageHTML(request)), nil
 	case "/dispatcharr/assets/hls.min.js", "/assets/hls.min.js":
 		return assetResponse("assets/hls.min.js")
 	case "/dispatcharr/assets/mpegts.min.js", "/assets/mpegts.min.js":
@@ -503,8 +504,19 @@ func assetResponse(path string) (*pluginv1.HandleHTTPResponse, error) {
 	}, nil
 }
 
-func playerPageHTML() string {
-	return strings.Replace(playerPageHTMLTemplate, "__PLAYER_LIBRARIES__", playerLibrariesHTML(), 1)
+func playerPageHTML(request *pluginv1.HandleHTTPRequest) string {
+	body := strings.Replace(playerPageHTMLTemplate, "__PLAYER_LIBRARIES__", playerLibrariesHTML(), 1)
+	return strings.Replace(body, "__SILO_THEME__", html.EscapeString(sanitizeThemeSlug(queryValue(request, "theme"))), 1)
+}
+
+func sanitizeThemeSlug(value string) string {
+	value = strings.TrimSpace(strings.ToLower(value))
+	return strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' || r == '_' {
+			return r
+		}
+		return -1
+	}, value)
 }
 
 func playerLibrariesHTML() string {
@@ -816,7 +828,7 @@ func textResponse(status int, message string) *pluginv1.HandleHTTPResponse {
 }
 
 const playerPageHTMLTemplate = `<!doctype html>
-<html lang="en">
+<html lang="en" data-silo-theme="__SILO_THEME__">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -825,20 +837,63 @@ const playerPageHTMLTemplate = `<!doctype html>
     <style>
       :root {
         color-scheme: dark;
-        --bg: #171717;
-        --rail: #1d1d1f;
-        --rail-2: #222225;
-        --panel: #2b2b2d;
-        --panel-2: #353536;
-        --line: #3e3e40;
-        --text: #f5f3ef;
-        --muted: #a7a5a0;
-        --accent: #ff2f7d;
-        --green: #173f31;
-        --purple: #3b2147;
-        --red: #4a211e;
-        --blue: #1d3347;
-        --warn: #f4c95f;
+        --fallback-bg: #171717;
+        --fallback-rail: #1d1d1f;
+        --fallback-rail-2: #222225;
+        --fallback-panel: #2b2b2d;
+        --fallback-panel-2: #353536;
+        --fallback-line: #3e3e40;
+        --fallback-text: #f5f3ef;
+        --fallback-muted: #a7a5a0;
+        --fallback-accent: #ff2f7d;
+        --fallback-green: #173f31;
+        --fallback-purple: #3b2147;
+        --fallback-red: #4a211e;
+        --fallback-blue: #1d3347;
+        --fallback-warn: #f4c95f;
+        --bg: var(--silo-bg, var(--silo-background, var(--fallback-bg)));
+        --rail: var(--silo-sidebar, var(--silo-surface, var(--fallback-rail)));
+        --rail-2: var(--silo-surface-2, var(--silo-card, var(--fallback-rail-2)));
+        --panel: var(--silo-card, var(--silo-surface, var(--fallback-panel)));
+        --panel-2: var(--silo-card-hover, var(--silo-surface-hover, var(--fallback-panel-2)));
+        --line: var(--silo-border, var(--silo-line, var(--fallback-line)));
+        --text: var(--silo-text, var(--silo-foreground, var(--fallback-text)));
+        --muted: var(--silo-muted, var(--silo-muted-foreground, var(--fallback-muted)));
+        --accent: var(--silo-accent, var(--silo-primary, var(--fallback-accent)));
+        --green: var(--silo-success-surface, var(--fallback-green));
+        --purple: var(--silo-info-surface, var(--fallback-purple));
+        --red: var(--silo-danger-surface, var(--fallback-red));
+        --blue: var(--silo-selection-surface, var(--fallback-blue));
+        --warn: var(--silo-warning, var(--fallback-warn));
+        --on-accent: var(--silo-on-accent, var(--silo-primary-foreground, #ffffff));
+      }
+      :root[data-silo-theme="midnight-cinema"] {
+        --fallback-bg: #171717;
+        --fallback-rail: #1d1d1f;
+        --fallback-rail-2: #222225;
+        --fallback-panel: #2b2b2d;
+        --fallback-panel-2: #353536;
+        --fallback-line: #3e3e40;
+        --fallback-text: #f5f3ef;
+        --fallback-muted: #a7a5a0;
+        --fallback-accent: #ff2f7d;
+      }
+      :root[data-silo-theme="light"], :root[data-silo-theme="daylight"] {
+        color-scheme: light;
+        --fallback-bg: #f7f5f1;
+        --fallback-rail: #ebe7df;
+        --fallback-rail-2: #ffffff;
+        --fallback-panel: #ffffff;
+        --fallback-panel-2: #eee9df;
+        --fallback-line: #d9d2c6;
+        --fallback-text: #191714;
+        --fallback-muted: #6e675e;
+        --fallback-accent: #b52462;
+        --fallback-green: #dcefe5;
+        --fallback-purple: #eadff4;
+        --fallback-red: #f2dedb;
+        --fallback-blue: #dce9f3;
+        --fallback-warn: #9b7418;
       }
       * { box-sizing: border-box; }
       body { margin: 0; min-height: 100vh; overflow: hidden; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
@@ -853,26 +908,26 @@ const playerPageHTMLTemplate = `<!doctype html>
       .back { width: 2.25rem; height: 2.25rem; color: var(--muted); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; display: inline-grid; place-items: center; flex: 0 0 auto; }
       .back:hover { color: var(--text); background: var(--panel); }
       .back svg { width: 1.05rem; height: 1.05rem; display: block; }
-      .source-icon { width: 1.45rem; height: 1.45rem; border-radius: 999px; display: inline-grid; place-items: center; background: var(--accent); }
+      .source-icon { width: 1.45rem; height: 1.45rem; border-radius: 999px; display: inline-grid; place-items: center; background: var(--accent); color: var(--on-accent); }
       .nav { display: grid; gap: 0.28rem; margin-bottom: 1rem; }
       .nav button { width: 100%; border: 0; border-radius: 0.65rem; background: transparent; color: var(--muted); display: flex; align-items: center; gap: 0.65rem; padding: 0.7rem 0.72rem; text-align: left; font-weight: 750; }
-      .nav button.active, .nav button:hover { background: #2a292b; color: var(--text); }
+      .nav button.active, .nav button:hover { background: var(--panel-2); color: var(--text); }
       .nav svg { width: 1.15rem; height: 1.15rem; flex: 0 0 auto; stroke-width: 1.9; }
       .nav small { margin-left: auto; color: var(--muted); }
       .channel-row { width: 100%; border: 0; border-radius: 0.75rem; background: transparent; color: var(--text); display: grid; grid-template-columns: 3.1rem minmax(0, 1fr) 1.8rem; align-items: center; gap: 0.65rem; padding: 0.45rem; text-align: left; }
-      .channel-row:hover, .channel-row.active { background: #2a292b; }
-      .logo { width: 3rem; height: 2.05rem; object-fit: contain; border-radius: 0.5rem; background: #121213; }
+      .channel-row:hover, .channel-row.active { background: var(--panel-2); }
+      .logo { width: 3rem; height: 2.05rem; object-fit: contain; border-radius: 0.5rem; background: var(--rail); }
       .channel-row strong, .tile strong, .program strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .muted { color: var(--muted); }
       .star { color: var(--warn); font-size: 1rem; }
       .main { min-width: 0; overflow: auto; padding: 1rem 1.25rem 2rem; }
       .shell.is-player .main { padding: 0; overflow: hidden; background: #050505; }
-      .topbar { display: flex; align-items: center; justify-content: flex-end; gap: 0.65rem; margin-bottom: 0.85rem; position: sticky; top: 0; z-index: 5; background: linear-gradient(180deg, var(--bg) 70%, rgba(23,23,23,0)); padding-bottom: 0.65rem; }
+      .topbar { display: flex; align-items: center; justify-content: flex-end; gap: 0.65rem; margin-bottom: 0.85rem; position: sticky; top: 0; z-index: 5; background: linear-gradient(180deg, var(--bg) 70%, color-mix(in srgb, var(--bg) 0%, transparent)); padding-bottom: 0.65rem; }
       .shell.is-player .topbar, .shell.is-guide .topbar { display: none; }
       .title { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
       .title h2 { margin: 0; font-size: 1.35rem; }
       .status { color: var(--muted); font-size: 0.82rem; white-space: nowrap; }
-      .search { border: 1px solid var(--line); border-radius: 999px; background: #242426; color: var(--text); padding: 0.62rem 0.85rem; min-width: min(24rem, 40vw); }
+      .search { border: 1px solid var(--line); border-radius: 999px; background: var(--rail-2); color: var(--text); padding: 0.62rem 0.85rem; min-width: min(24rem, 40vw); }
       .topbar .search { width: min(32rem, 100%); }
       .refresh-button { width: 2.45rem; height: 2.45rem; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); display: inline-grid; place-items: center; flex: 0 0 auto; }
       .refresh-button:hover { background: var(--panel-2); }
@@ -1086,6 +1141,14 @@ const playerPageHTMLTemplate = `<!doctype html>
       const adminSettingsKey = "adminCategorySettings";
       const pluginInstallationID = (base.match(/\/api\/v1\/plugins\/(\d+)/) || [])[1] || "";
       const state = { app: null, view: path.endsWith("/dispatcharr/admin") ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, selectedCustomGroup: "", customGroupQuery: "", adminCategorySettings: null, selectedAdminGroup: "", adminGroupQuery: "", profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
+
+      function applySiloTheme() {
+        const params = new URLSearchParams(window.location.search);
+        const theme = String(params.get("theme") || document.documentElement.dataset.siloTheme || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+        if (theme) document.documentElement.dataset.siloTheme = theme;
+      }
+
+      applySiloTheme();
 
       function route(url) { return base + url; }
       function byId(id) { return document.getElementById(id); }
