@@ -10,6 +10,7 @@ import (
 )
 
 const DefaultAdminSettingsFile = "/var/lib/continuum/plugins/silo.ramindex.dispatcharr/category-settings.json"
+const defaultAdminECMURL = ""
 
 type adminSettingsStorage interface {
 	Load() (json.RawMessage, bool, error)
@@ -99,8 +100,26 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 		delimiter = "pipe"
 	}
 
-	return map[string]any{
-		"mode":      mode,
-		"delimiter": delimiter,
+	ecmEnabled := true
+	if enabled, ok := payload["ecmEnabled"].(bool); ok {
+		ecmEnabled = enabled
 	}
+	ecmURL, _ := payload["ecmURL"].(string)
+	ecmURL = normalizeAdminECMURL(ecmURL)
+
+	return map[string]any{
+		"mode":       mode,
+		"delimiter":  delimiter,
+		"ecmEnabled": ecmEnabled,
+		"ecmURL":     ecmURL,
+	}
+}
+
+func normalizeAdminECMURL(value string) string {
+	trimmed := strings.TrimSpace(value)
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "https://") || strings.HasPrefix(lower, "http://") {
+		return trimmed
+	}
+	return defaultAdminECMURL
 }
