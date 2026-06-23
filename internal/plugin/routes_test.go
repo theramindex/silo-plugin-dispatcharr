@@ -161,9 +161,10 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	body := string(response.GetBody())
 	for _, want := range []string{
 		`function sourceVirtualChildCategories(parentPath, includeChannel)`,
+		`function featuredChildCategories(parentPath, includeChannel)`,
 		`function virtualCategoriesFromPaths(parentPath, includeChannel, includeAllDescendants)`,
 		`if (state.category.indexOf("virtual:") === 0 || state.category.indexOf("featured:") === 0)`,
-		`const children = virtualChildCategories(path,`,
+		`const children = (featured ? featuredChildCategories : virtualChildCategories)(path,`,
 		`virtualFolderBreadcrumbs(path, featured)`,
 		`const rootLabel = featured ? "Featured Groups" : "Virtual Groups"`,
 		`const showSourceCategorySettings = !virtualCategoriesActive()`,
@@ -415,6 +416,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.FeaturedViewToggle || !result.FeaturedListView {
 		t.Fatalf("expected featured virtual category to toggle between guide and channel list views: %+v", result)
 	}
+	if !result.SimpleFeaturedCategory || !result.SimpleFeaturedGuide || !result.SimpleFeaturedViewToggle || result.SimpleFeaturedSourcePage {
+		t.Fatalf("expected simple starred groups to use the featured drilldown guide/list view: %+v", result)
+	}
 	if !result.VirtualBreadcrumbRoot {
 		t.Fatalf("expected normal virtual group breadcrumb root to remain virtual groups: %+v", result)
 	}
@@ -457,36 +461,40 @@ func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
 }
 
 type virtualAliasResult struct {
-	SourcePath              bool   `json:"sourcePath"`
-	AliasPath               bool   `json:"aliasPath"`
-	SecondAliasPath         bool   `json:"secondAliasPath"`
-	SourceCount             int    `json:"sourceCount"`
-	AliasCount              int    `json:"aliasCount"`
-	SecondAliasCount        int    `json:"secondAliasCount"`
-	ObjectParsedMode        string `json:"objectParsedMode"`
-	StringParsedMode        string `json:"stringParsedMode"`
-	FeaturedSection         bool   `json:"featuredSection"`
-	FeaturedCategory        bool   `json:"featuredCategory"`
-	FeaturedAlphabetical    bool   `json:"featuredAlphabetical"`
-	FeaturedVirtualCategory bool   `json:"featuredVirtualCategory"`
-	FeaturedSourceCategory  bool   `json:"featuredSourceCategory"`
-	FeaturedMarkerVisible   bool   `json:"featuredMarkerVisible"`
-	FeaturedBreadcrumbRoot  bool   `json:"featuredBreadcrumbRoot"`
-	FeaturedBreadcrumbPath  bool   `json:"featuredBreadcrumbPath"`
-	FeaturedGuide           bool   `json:"featuredGuide"`
-	FeaturedGuideHeading    bool   `json:"featuredGuideHeading"`
-	FeaturedViewToggle      bool   `json:"featuredViewToggle"`
-	FeaturedListView        bool   `json:"featuredListView"`
-	FeaturedBackButton      bool   `json:"featuredBackButton"`
-	VirtualBreadcrumbRoot   bool   `json:"virtualBreadcrumbRoot"`
-	VirtualGuideHeading     bool   `json:"virtualGuideHeading"`
-	VirtualBackButton       bool   `json:"virtualBackButton"`
-	ChannelCategoryName     string `json:"channelCategoryName"`
-	ReplayRewindable        bool   `json:"replayRewindable"`
-	NormalRewindable        bool   `json:"normalRewindable"`
-	ReplayPlayerClass       bool   `json:"replayPlayerClass"`
-	ReplayPlayerControls    bool   `json:"replayPlayerControls"`
-	ReplayPlayerTag         bool   `json:"replayPlayerTag"`
+	SourcePath               bool   `json:"sourcePath"`
+	AliasPath                bool   `json:"aliasPath"`
+	SecondAliasPath          bool   `json:"secondAliasPath"`
+	SourceCount              int    `json:"sourceCount"`
+	AliasCount               int    `json:"aliasCount"`
+	SecondAliasCount         int    `json:"secondAliasCount"`
+	ObjectParsedMode         string `json:"objectParsedMode"`
+	StringParsedMode         string `json:"stringParsedMode"`
+	FeaturedSection          bool   `json:"featuredSection"`
+	FeaturedCategory         bool   `json:"featuredCategory"`
+	FeaturedAlphabetical     bool   `json:"featuredAlphabetical"`
+	FeaturedVirtualCategory  bool   `json:"featuredVirtualCategory"`
+	FeaturedSourceCategory   bool   `json:"featuredSourceCategory"`
+	FeaturedMarkerVisible    bool   `json:"featuredMarkerVisible"`
+	FeaturedBreadcrumbRoot   bool   `json:"featuredBreadcrumbRoot"`
+	FeaturedBreadcrumbPath   bool   `json:"featuredBreadcrumbPath"`
+	FeaturedGuide            bool   `json:"featuredGuide"`
+	FeaturedGuideHeading     bool   `json:"featuredGuideHeading"`
+	FeaturedViewToggle       bool   `json:"featuredViewToggle"`
+	FeaturedListView         bool   `json:"featuredListView"`
+	FeaturedBackButton       bool   `json:"featuredBackButton"`
+	SimpleFeaturedCategory   bool   `json:"simpleFeaturedCategory"`
+	SimpleFeaturedGuide      bool   `json:"simpleFeaturedGuide"`
+	SimpleFeaturedViewToggle bool   `json:"simpleFeaturedViewToggle"`
+	SimpleFeaturedSourcePage bool   `json:"simpleFeaturedSourcePage"`
+	VirtualBreadcrumbRoot    bool   `json:"virtualBreadcrumbRoot"`
+	VirtualGuideHeading      bool   `json:"virtualGuideHeading"`
+	VirtualBackButton        bool   `json:"virtualBackButton"`
+	ChannelCategoryName      string `json:"channelCategoryName"`
+	ReplayRewindable         bool   `json:"replayRewindable"`
+	NormalRewindable         bool   `json:"normalRewindable"`
+	ReplayPlayerClass        bool   `json:"replayPlayerClass"`
+	ReplayPlayerControls     bool   `json:"replayPlayerControls"`
+	ReplayPlayerTag          bool   `json:"replayPlayerTag"`
 }
 
 func extractPlayerScript(t *testing.T) string {
@@ -576,6 +584,10 @@ JSON.stringify((function() {
   state.category = "featured:International / Argentina / Sports";
   renderLivePage();
   const featuredView = document.elements.view ? document.elements.view.innerHTML : "";
+  state.category = "featured:Admin Favorites";
+  renderLivePage();
+  const simpleFeaturedView = document.elements.view ? document.elements.view.innerHTML : "";
+  state.category = "featured:International / Argentina / Sports";
   state.virtualCategoryView = "list";
   renderLivePage();
   const featuredListView = document.elements.view ? document.elements.view.innerHTML : "";
@@ -609,6 +621,10 @@ JSON.stringify((function() {
     featuredViewToggle: featuredView.indexOf('data-virtual-category-view="guide"') !== -1 && featuredView.indexOf('data-virtual-category-view="list"') !== -1,
     featuredListView: featuredListView.indexOf(">Channels<") !== -1 && featuredListView.indexOf('class="virtual-channel-button" data-channel="channel:argentina-sports"') !== -1 && featuredListView.indexOf(">TV Guide<") === -1,
     featuredBackButton: featuredView.indexOf(">Back</button>") !== -1,
+    simpleFeaturedCategory: grid.indexOf('data-category="featured:Admin Favorites"') !== -1,
+    simpleFeaturedGuide: simpleFeaturedView.indexOf(">Featured Groups</button>") !== -1 && simpleFeaturedView.indexOf(">Admin Favorites</button>") !== -1 && simpleFeaturedView.indexOf('data-channel="channel:admin-favorites"') !== -1,
+    simpleFeaturedViewToggle: simpleFeaturedView.indexOf('data-virtual-category-view="guide"') !== -1 && simpleFeaturedView.indexOf('data-virtual-category-view="list"') !== -1,
+    simpleFeaturedSourcePage: simpleFeaturedView.indexOf(">Featured Groups<") !== -1 && simpleFeaturedView.indexOf(">Virtual Groups<") !== -1 && simpleFeaturedView.indexOf(">Admin Favorites<") !== -1,
     virtualBreadcrumbRoot: virtualView.indexOf(">Virtual Groups</button>") !== -1,
     virtualGuideHeading: virtualView.indexOf(">TV Guide<") !== -1,
     virtualBackButton: virtualView.indexOf(">Back</button>") !== -1,

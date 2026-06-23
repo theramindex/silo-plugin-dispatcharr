@@ -1875,7 +1875,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         return categoryDisplayName(sourceCategoryRawName(id));
       }
       function sourceCategoryRawLabel(channel) {
-        return channel.categoryName || sourceCategoryRawName(channel.categoryId) || "";
+        return sourceCategoryRawName(channel.categoryId) || channel.categoryName || "";
       }
       function sourceCategoryLabel(channel) {
         return categoryDisplayName(sourceCategoryRawLabel(channel));
@@ -1915,12 +1915,25 @@ const playerPageHTMLTemplate = `<!doctype html>
         parts = parts.map(function(part) { return String(part || "").trim(); }).filter(Boolean);
         return parts.length > 1 ? parts : [];
       }
+      function categoryPathFromDisplayName(name) {
+        const display = categoryDisplayName(name);
+        const parts = parsedCategoryPath(display);
+        return parts.length > 1 ? parts.join(" / ") : display;
+      }
       function virtualPathForChannel(channel) {
         const paths = virtualPathsForChannel(channel);
         return paths.length ? paths[0] : "";
       }
       function sourceVirtualPathForChannel(channel) {
         return parsedCategoryPath(sourceCategoryLabel(channel)).join(" / ");
+      }
+      function featuredPathForSourceName(name) {
+        if (!categoryStartsFeatured(name)) return "";
+        return categoryPathFromDisplayName(name);
+      }
+      function featuredPathsForChannel(channel) {
+        const path = featuredPathForSourceName(sourceCategoryRawLabel(channel));
+        return path ? [path] : [];
       }
       function configuredCategoryPath(value) {
         const display = categoryDisplayName(value);
@@ -1955,8 +1968,14 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (!id) return true;
         if (id.indexOf("source:") === 0) return channel.categoryId === id.slice("source:".length);
         if (id.indexOf("custom:") === 0) return customMemberships(id.slice("custom:".length)).indexOf(channel.id) !== -1;
-        if (id.indexOf("virtual:") === 0 || id.indexOf("featured:") === 0) {
-          const selected = id.indexOf("featured:") === 0 ? featuredCategoryPath(id) : virtualCategoryPath(id);
+        if (id.indexOf("featured:") === 0) {
+          const selected = featuredCategoryPath(id);
+          return featuredPathsForChannel(channel).some(function(path) {
+            return path === selected || path.indexOf(selected + " / ") === 0;
+          });
+        }
+        if (id.indexOf("virtual:") === 0) {
+          const selected = virtualCategoryPath(id);
           return virtualPathsForChannel(channel).some(function(path) {
             return path === selected || path.indexOf(selected + " / ") === 0;
           });
@@ -2292,8 +2311,8 @@ const playerPageHTMLTemplate = `<!doctype html>
           const rawName = category.name || category.id;
           const name = categoryDisplayName(rawName);
           const featured = categoryStartsFeatured(rawName);
-          const virtualPath = featured ? parsedCategoryPath(name).join(" / ") : "";
-          return { id: virtualPath ? featuredCategoryID(virtualPath) : sourceCategoryID(category.id), sourceID: category.id, name: name, featured: featured, kind: virtualPath ? "featured" : "source", count: categoryCounts[category.id] || 0 };
+          const featuredPath = featured ? featuredPathForSourceName(rawName) : "";
+          return { id: featuredPath ? featuredCategoryID(featuredPath) : sourceCategoryID(category.id), sourceID: category.id, name: name, featured: featured, kind: featuredPath ? "featured" : "source", count: categoryCounts[category.id] || 0 };
         });
       }
       function customGroupCategories() {
@@ -2334,12 +2353,18 @@ const playerPageHTMLTemplate = `<!doctype html>
         });
       }
       function sourceVirtualChildCategories(parentPath, includeChannel) {
+        return childCategoriesFromChannelPaths(parentPath, includeChannel, virtualPathsForChannel, virtualCategoryID, "virtual");
+      }
+      function featuredChildCategories(parentPath, includeChannel) {
+        return childCategoriesFromChannelPaths(parentPath, includeChannel, featuredPathsForChannel, featuredCategoryID, "featured");
+      }
+      function childCategoriesFromChannelPaths(parentPath, includeChannel, pathsForChannel, categoryIDForPath, kind) {
         parentPath = String(parentPath || "");
         const children = {};
         effectiveChannels(false).forEach(function(channel) {
           if (includeChannel && !includeChannel(channel)) return;
-          virtualPathsForChannel(channel).forEach(function(virtualPath) {
-            const parts = virtualPath.split(" / ").filter(Boolean);
+          pathsForChannel(channel).forEach(function(groupPath) {
+            const parts = groupPath.split(" / ").filter(Boolean);
             for (let index = 0; index < parts.length; index++) {
               const path = parts.slice(0, index + 1).join(" / ");
               const parentParts = parentPath ? parentPath.split(" / ").filter(Boolean) : [];
@@ -2348,7 +2373,7 @@ const playerPageHTMLTemplate = `<!doctype html>
                 if (parts[parentIndex] !== parentParts[parentIndex]) return;
               }
               if (index !== parentParts.length) continue;
-              children[path] = children[path] || { id: virtualCategoryID(path), name: parts[parentParts.length], kind: "virtual", count: 0, channelIDs: {} };
+              children[path] = children[path] || { id: categoryIDForPath(path), name: parts[parentParts.length], kind: kind, count: 0, channelIDs: {} };
               children[path].channelIDs[channel.id] = true;
             }
           });
@@ -2437,13 +2462,12 @@ const playerPageHTMLTemplate = `<!doctype html>
           const featured = state.category.indexOf("featured:") === 0;
           const path = featured ? featuredCategoryPath(state.category) : virtualCategoryPath(state.category);
           const hidden = hiddenMap();
-          const children = virtualChildCategories(path, function(channel) {
+          const children = (featured ? featuredChildCategories : virtualChildCategories)(path, function(channel) {
             return !(channel.categoryId && hidden[channel.categoryId]);
           });
           byId("view").innerHTML = virtualFolderHeader(path, featured)
             + (children.length ? "<div class=\"category-grid\">" + children.map(function(category) {
-              const childID = featured ? featuredCategoryID(virtualCategoryPath(category.id)) : category.id;
-              return "<button class=\"tile\" data-category=\"" + escapeHTML(childID) + "\"><strong>" + escapeHTML(category.name || category.id) + "</strong><span>" + escapeHTML(category.count ? category.count + " channels" : category.kind || "") + "</span></button>";
+              return "<button class=\"tile\" data-category=\"" + escapeHTML(category.id) + "\"><strong>" + escapeHTML(category.name || category.id) + "</strong><span>" + escapeHTML(category.count ? category.count + " channels" : category.kind || "") + "</span></button>";
             }).join("") + "</div>" : "")
             + renderVirtualCategoryContent(channels);
           return;
