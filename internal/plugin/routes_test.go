@@ -245,6 +245,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`<h1>Live TV Admin</h1>`,
 		`<div class="shell is-admin">`,
 		`.shell.is-admin .topbar { display: none; }`,
+		`.shell.is-admin.is-admin-manager .main { padding: 0; }`,
 		`<nav id="admin-tabs" class="nav admin-nav" aria-label="Live TV admin sections"></nav>`,
 		`const adminSettingsKey = "adminCategorySettings"`,
 		`adminTab: "settings"`,
@@ -263,12 +264,15 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`data-admin-tab=\"manager\"`,
 		`data-admin-ecm-field=\"enabled\"`,
 		`data-admin-ecm-field=\"url\"`,
-		`state.adminTab === "manager" ? renderExternalChannelManager() : renderAdminSettingsTab()`,
+		`byId("view").innerHTML = state.adminTab === "manager" ? renderExternalChannelManager()`,
 		`data-admin-category-field=\"mode\"`,
 		`data-admin-settings-action=\"save\"`,
 		`data-admin-settings-action=\"discard\"`,
 		`function renderExternalChannelManager()`,
+		`classList.toggle("is-admin-manager"`,
 		``,
+		`class=\"external-manager-surface\"`,
+		`class=\"external-manager-toolbar\"`,
 		`class=\"external-manager-frame\"`,
 		`target=\"_blank\"`,
 		`Unsaved changes.`,
@@ -286,6 +290,9 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	}
 	if strings.Contains(body, `+ renderAdminTabs()`) {
 		t.Fatal("expected admin tabs to render in the sidebar, not above admin content")
+	}
+	if strings.Contains(body, `<div class=\"settings-card\"><div class=\"external-manager-head\"`) {
+		t.Fatal("expected ECM iframe to render as a full action-area surface, not inside a settings card")
 	}
 	for _, hidden := range []string{`<span>Home</span>`, `<span>Favorites</span>`, `<span>TV Guide</span>`, `<span>Preferences</span>`} {
 		if strings.Contains(body, hidden) {

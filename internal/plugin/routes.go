@@ -1084,6 +1084,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       .topbar { display: flex; align-items: center; justify-content: flex-end; gap: 0.65rem; margin-bottom: 0.85rem; position: sticky; top: 0; z-index: 5; background: linear-gradient(180deg, var(--bg) 70%, color-mix(in srgb, var(--bg) 0%, transparent)); padding-bottom: 0.65rem; }
       .shell.is-player .topbar, .shell.is-guide .topbar { display: none; }
       .shell.is-admin .topbar { display: none; }
+      .shell.is-admin.is-admin-manager .main { padding: 0; }
+      .shell.is-admin.is-admin-manager .main { overflow: hidden; }
+      .shell.is-admin.is-admin-manager #view { height: 100%; }
       .admin-nav { margin-top: 0.35rem; }
       .title { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
       .title h2 { margin: 0; font-size: 1.35rem; }
@@ -1243,9 +1246,6 @@ const playerPageHTMLTemplate = `<!doctype html>
       .recording-badge.interrupted, .recording-badge.failed { background: rgba(99,40,35,0.5); color: #ffe0dc; }
       .settings-stack { display: grid; gap: 0.85rem; }
       .settings-card h2 { margin: 0 0 0.7rem; font-size: 1.05rem; }
-      .admin-tabs { display: inline-flex; flex-wrap: wrap; gap: 0.35rem; border: 1px solid var(--line); border-radius: 999px; background: var(--rail-2); padding: 0.25rem; width: fit-content; max-width: 100%; }
-      .admin-tabs button { border: 0; border-radius: 999px; background: transparent; color: var(--muted); padding: 0.48rem 0.78rem; font-weight: 850; }
-      .admin-tabs button.active, .admin-tabs button:hover { background: var(--panel-2); color: var(--text); }
       .settings-list { display: grid; gap: 0.55rem; }
       .settings-list label, .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--panel); border-radius: 0.65rem; padding: 0.7rem; }
       .settings-row input, .settings-row select { min-width: 12rem; border: 1px solid var(--line); border-radius: 0.55rem; background: var(--rail-2); color: var(--text); padding: 0.45rem 0.55rem; }
@@ -1259,9 +1259,10 @@ const playerPageHTMLTemplate = `<!doctype html>
       .settings-warning { color: #ffd37a; }
       .settings-link { border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); display: inline-flex; align-items: center; justify-content: center; padding: 0.45rem 0.7rem; font-size: 0.86rem; font-weight: 820; text-decoration: none; }
       .settings-link:hover { background: var(--panel-2); }
-      .external-manager-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.7rem; }
-      .external-manager-head h2 { margin: 0; }
-      .external-manager-frame { width: 100%; min-height: min(44rem, calc(100vh - 13rem)); border: 1px solid var(--line); border-radius: 0.7rem; background: var(--bg); }
+      .external-manager-surface { position: relative; height: 100%; min-height: 0; background: var(--bg); }
+      .external-manager-toolbar { position: absolute; top: 0.8rem; right: 0.8rem; z-index: 2; display: flex; justify-content: flex-end; pointer-events: none; }
+      .external-manager-toolbar .settings-link { pointer-events: auto; background: color-mix(in srgb, var(--panel) 88%, transparent); backdrop-filter: blur(16px); }
+      .external-manager-frame { width: 100%; height: 100%; border: 0; border-radius: 0; background: var(--bg); display: block; }
       .custom-channel-picker { align-items: flex-start; }
       .custom-channel-combobox { flex: 1 1 30rem; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; min-width: 0; }
       .custom-channel-combobox input { grid-column: 1 / -1; width: 100%; min-width: 0; }
@@ -2569,9 +2570,9 @@ const playerPageHTMLTemplate = `<!doctype html>
         normalizeAdminCategorySettings();
         if (!adminECMEnabled() && state.adminTab === "manager") state.adminTab = "settings";
         renderAdminSidebarTabs();
-        byId("view").innerHTML = "<div class=\"settings-stack\">"
-          + (state.adminTab === "manager" ? renderExternalChannelManager() : renderAdminSettingsTab())
-          + "</div>";
+        const shell = document.querySelector(".shell");
+        if (shell) shell.classList.toggle("is-admin-manager", state.adminTab === "manager");
+        byId("view").innerHTML = state.adminTab === "manager" ? renderExternalChannelManager() : "<div class=\"settings-stack\">" + renderAdminSettingsTab() + "</div>";
         if (state.adminTab !== "manager") {
           renderAdminCategorySettings();
           renderAdminECMSettings();
@@ -2596,7 +2597,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function renderExternalChannelManager() {
         const managerURL = adminECMURL();
-        return "<div class=\"settings-card\"><div class=\"external-manager-head\"><h2>Channel Manager</h2><a class=\"settings-link\" href=\"" + escapeHTML(managerURL) + "\" target=\"_blank\" rel=\"noopener noreferrer\">Open in new window</a></div><iframe class=\"external-manager-frame\" src=\"" + escapeHTML(managerURL) + "\" title=\"Channel Manager\"></iframe></div>";
+        return "<div class=\"external-manager-surface\"><div class=\"external-manager-toolbar\"><a class=\"settings-link\" href=\"" + escapeHTML(managerURL) + "\" target=\"_blank\" rel=\"noopener noreferrer\">Open in new window</a></div><iframe class=\"external-manager-frame\" src=\"" + escapeHTML(managerURL) + "\" title=\"Channel Manager\"></iframe></div>";
       }
       function renderAdminECMSettings() {
         const settings = adminSettings();
