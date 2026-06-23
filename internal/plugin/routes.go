@@ -1089,7 +1089,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       .shell.is-admin.is-admin-manager .main { overflow: hidden; }
       .shell.is-admin #view { min-height: 0; padding: 1rem 1.25rem 2rem; }
       .shell.is-admin.is-admin-manager #view { height: 100%; padding: 0; }
-      .admin-topbar { position: sticky; top: 0; z-index: 7; display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 4.15rem; padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, var(--bg) 86%, color-mix(in srgb, var(--bg) 0%, transparent)); }
+      .admin-topbar { position: sticky; top: 0; z-index: 7; display: flex; align-items: center; justify-content: flex-start; gap: 1rem; min-height: 4.15rem; padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, var(--bg) 86%, color-mix(in srgb, var(--bg) 0%, transparent)); }
       .admin-title { display: flex; align-items: center; gap: 0.65rem; min-width: 0; }
       .admin-title h1 { margin: 0; font-size: 1.45rem; font-weight: 900; letter-spacing: 0; white-space: nowrap; }
       .admin-tabs { display: inline-flex; align-items: center; gap: 0.25rem; max-width: 100%; padding: 0.22rem; border: 1px solid var(--line); border-radius: 999px; background: var(--rail-2); }
