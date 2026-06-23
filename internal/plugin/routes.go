@@ -1066,6 +1066,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       .channel-row { width: 100%; border: 0; border-radius: 0.75rem; background: transparent; color: var(--text); display: grid; grid-template-columns: 3.1rem minmax(0, 1fr) 1.8rem; align-items: center; gap: 0.65rem; padding: 0.45rem; text-align: left; }
       .channel-row:hover, .channel-row.active { background: var(--panel-2); }
       .logo { width: 3rem; height: 2.05rem; object-fit: contain; border-radius: 0.5rem; background: var(--rail); }
+      .logo-fallback { display: inline-grid; place-items: center; padding: 0 0.35rem; color: var(--text); font-size: 0.78rem; font-weight: 950; letter-spacing: 0; text-align: center; text-transform: uppercase; }
+      .logo[hidden] { display: none; }
       .channel-row strong, .tile strong, .program strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .muted { color: var(--muted); }
       .star { color: var(--warn); font-size: 1rem; }
@@ -1874,9 +1876,21 @@ const playerPageHTMLTemplate = `<!doctype html>
         const favoriteCount = byId("favorite-count");
         if (favoriteCount) favoriteCount.textContent = Object.keys(favoriteMap()).length + Object.keys(autoFavoriteMap()).length;
       }
+      function channelLogoFallback(channel) {
+        const name = String((channel && channel.name) || "TV").trim();
+        const region = name.match(/^\(([A-Za-z0-9]{2,4})\)/);
+        if (region) return region[1].slice(0, 4);
+        const parts = name.replace(/[^A-Za-z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean);
+        if (parts.length > 1) return parts.slice(0, 2).map(function(part) { return part.charAt(0); }).join("");
+        return (parts[0] || name || "TV").slice(0, 5);
+      }
       function logoHTML(channel) {
-        if (channel.logoUrl) return "<img class=\"logo\" src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">";
-        return "<div class=\"logo\" aria-hidden=\"true\"></div>";
+        const fallback = "<span class=\"logo logo-fallback\"" + (channel && channel.logoUrl ? " hidden" : "") + " aria-hidden=\"true\">" + escapeHTML(channelLogoFallback(channel)) + "</span>";
+        if (channel && channel.logoUrl) return "<img class=\"logo\" src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\" onerror=\"this.hidden = true; this.nextElementSibling.hidden = false;\">" + fallback;
+        return fallback;
+      }
+      function renderGuideChannelButton(channel) {
+        return "<button class=\"epg-channel\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(channel.name || "Untitled") + "\" title=\"" + escapeHTML(channel.name || "Untitled") + "\">" + logoHTML(channel) + "</button>";
       }
       function render() {
         if (!state.app) return;
@@ -2066,7 +2080,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (!channels.length) return "<div class=\"empty\">" + escapeHTML(emptyMessage || "No recently watched channels yet.") + "</div>";
         const slots = guideSlots();
         return "<div class=\"home-guide guide-scroll\"><div class=\"guide-page guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div>" + channels.map(function(channel, channelIndex) {
-          return "<div class=\"epg-row\"><button class=\"epg-channel\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(channel.name || "Untitled") + "\">" + logoHTML(channel) + "</button><div class=\"epg-programs\">" + renderEPGCells(channel, channelIndex) + "</div></div>";
+          return "<div class=\"epg-row\">" + renderGuideChannelButton(channel) + "<div class=\"epg-programs\">" + renderEPGCells(channel, channelIndex) + "</div></div>";
         }).join("") + "</div></div>";
       }
       function renderVirtualCategoryGuide(channels) {
@@ -2412,7 +2426,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         }).join("");
       }
       function renderEPGRow(channel, channelIndex) {
-        return "<div class=\"epg-row\"><button class=\"epg-channel\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(channel.name || "Untitled") + "\">" + logoHTML(channel) + "</button><div class=\"epg-programs\">" + renderEPGCells(channel, channelIndex) + "</div></div>";
+        return "<div class=\"epg-row\">" + renderGuideChannelButton(channel) + "<div class=\"epg-programs\">" + renderEPGCells(channel, channelIndex) + "</div></div>";
       }
       function renderEPG() {
         const root = byId("epg");
