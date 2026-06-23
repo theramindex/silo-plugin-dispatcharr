@@ -264,6 +264,9 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`function renderAdminSettingsTab()`,
 		`function renderAdminECMSettings()`,
 		`function adminECMURL()`,
+		`ecmEnabled: false`,
+		`state.adminCategorySettings.ecmEnabled = state.adminCategorySettings.ecmEnabled === true`,
+		`return adminSettings().ecmEnabled === true && !!adminECMURL();`,
 		`Category method`,
 		`Normal`,
 		`By delimiter`,
@@ -279,7 +282,6 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`data-admin-settings-action=\"discard\"`,
 		`function renderExternalChannelManager()`,
 		`classList.toggle("is-admin-manager"`,
-		``,
 		`class=\"external-manager-surface\"`,
 		`class=\"external-manager-frame\"`,
 		`Unsaved changes.`,
@@ -303,6 +305,9 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	}
 	if strings.Contains(body, `external-manager-toolbar`) || strings.Contains(body, `Open in new window`) {
 		t.Fatal("expected ECM iframe to render without a floating open-in-new-window overlay")
+	}
+	if strings.Contains(body, `https://`+`ecm.ramindex.org`) {
+		t.Fatal("expected admin page not to include a hardcoded ECM URL")
 	}
 	for _, hidden := range []string{`<span>Home</span>`, `<span>Favorites</span>`, `<span>TV Guide</span>`, `<span>Preferences</span>`} {
 		if strings.Contains(body, hidden) {

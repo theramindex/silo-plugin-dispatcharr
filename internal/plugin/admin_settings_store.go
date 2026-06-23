@@ -100,7 +100,7 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 		delimiter = "pipe"
 	}
 
-	ecmEnabled := true
+	ecmEnabled := false
 	if enabled, ok := payload["ecmEnabled"].(bool); ok {
 		ecmEnabled = enabled
 	}
