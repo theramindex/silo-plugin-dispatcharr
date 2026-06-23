@@ -1296,7 +1296,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function normalizeAdminCategorySettings() {
         state.adminCategorySettings = Object.assign(defaultAdminCategorySettings(), state.adminCategorySettings || {});
-        if (["normal", "delimiter", "custom"].indexOf(state.adminCategorySettings.mode) === -1) state.adminCategorySettings.mode = "normal";
+        if (state.adminCategorySettings.mode === "custom") state.adminCategorySettings.mode = "admin_delimiter";
+        if (["normal", "delimiter", "admin_delimiter"].indexOf(state.adminCategorySettings.mode) === -1) state.adminCategorySettings.mode = "normal";
         if (!state.adminCategorySettings.delimiter) state.adminCategorySettings.delimiter = "pipe";
         state.adminCategorySettings.adminGroups = adminGroups();
         state.adminCategorySettings.adminGroupMemberships = state.adminCategorySettings.adminGroupMemberships || {};
@@ -1474,7 +1475,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       function virtualCategoryPath(id) { return String(id || "").indexOf("virtual:") === 0 ? String(id || "").slice("virtual:".length) : ""; }
       function categoryParsing() {
         const settings = adminSettings();
-        return { enabled: settings.mode === "delimiter", mode: settings.mode === "delimiter" ? "delimiter" : "off", delimiter: settings.delimiter || "pipe", regex: "", output: "" };
+        const delimiterEnabled = settings.mode === "delimiter" || settings.mode === "admin_delimiter";
+        return { enabled: delimiterEnabled, mode: delimiterEnabled ? "delimiter" : "off", delimiter: settings.delimiter || "pipe", regex: "", output: "" };
       }
       function customGroups() {
         return items(prefs().customGroups).slice().filter(function(group) {
@@ -1503,14 +1505,21 @@ const playerPageHTMLTemplate = `<!doctype html>
       function sourceCategoryLabel(channel) {
         return channel.categoryName || sourceCategoryName(channel.categoryId) || "";
       }
+      function delimiterPattern() {
+        return (adminSettings().delimiter || "pipe") === "pipe" ? /\s*\|\s*/ : /\s+-\s*/;
+      }
+      function parsedDelimitedPath(name) {
+        name = String(name || "").trim();
+        if (!name) return [];
+        return name.split(delimiterPattern()).map(function(part) { return String(part || "").trim(); }).filter(Boolean);
+      }
       function parsedCategoryPath(name) {
         const settings = categoryParsing();
         name = String(name || "").trim();
         if (!settings.enabled || !name) return [];
         let parts = [];
         if (settings.mode === "delimiter") {
-          const delimiter = settings.delimiter === "pipe" ? /\s*\|\s*/ : /\s+-\s*/;
-          parts = name.split(delimiter);
+          parts = parsedDelimitedPath(name);
         } else if (settings.mode === "regex" && settings.regex) {
           try {
             const pattern = new RegExp(settings.regex);
@@ -1526,7 +1535,25 @@ const playerPageHTMLTemplate = `<!doctype html>
         return parts.length > 1 ? parts : [];
       }
       function virtualPathForChannel(channel) {
-        return parsedCategoryPath(sourceCategoryLabel(channel)).join(" / ");
+        const paths = virtualPathsForChannel(channel);
+        return paths.length ? paths[0] : "";
+      }
+      function adminGroupPath(group) {
+        const parts = parsedDelimitedPath(group && group.name);
+        return (parts.length ? parts : [String((group && group.name) || "").trim()]).filter(Boolean).join(" / ");
+      }
+      function adminGroupPathsForChannel(channel) {
+        if ((adminSettings().mode || "normal") !== "admin_delimiter") return [];
+        return adminGroups().filter(function(group) {
+          return adminMemberships(group.id).indexOf(channel.id) !== -1;
+        }).map(adminGroupPath).filter(Boolean);
+      }
+      function virtualPathsForChannel(channel) {
+        const paths = [];
+        const sourcePath = parsedCategoryPath(sourceCategoryLabel(channel)).join(" / ");
+        if (sourcePath) paths.push(sourcePath);
+        adminGroupPathsForChannel(channel).forEach(function(path) { paths.push(path); });
+        return uniqueIDs(paths);
       }
       function channelInSelectedCategory(channel, id) {
         if (!id) return true;
@@ -1535,8 +1562,9 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (id.indexOf("admin:") === 0) return adminMemberships(id).indexOf(channel.id) !== -1;
         if (id.indexOf("virtual:") === 0) {
           const selected = id.slice("virtual:".length);
-          const path = virtualPathForChannel(channel);
-          return path === selected || path.indexOf(selected + " / ") === 0;
+          return virtualPathsForChannel(channel).some(function(path) {
+            return path === selected || path.indexOf(selected + " / ") === 0;
+          });
         }
         return channel.categoryId === id;
       }
@@ -1809,35 +1837,59 @@ const playerPageHTMLTemplate = `<!doctype html>
         });
       }
       function virtualGroupCategories(includeChannel) {
+        return virtualCategoriesFromPaths("", includeChannel, true);
+      }
+      function virtualCategoriesFromPaths(parentPath, includeChannel, includeAllDescendants) {
+        parentPath = String(parentPath || "");
         const groups = {};
         effectiveChannels(false).forEach(function(channel) {
           if (includeChannel && !includeChannel(channel)) return;
-          const parts = parsedCategoryPath(sourceCategoryLabel(channel));
-          for (let index = 0; index < parts.length; index++) {
-            const path = parts.slice(0, index + 1).join(" / ");
-            groups[path] = groups[path] || { id: virtualCategoryID(path), name: path, kind: "virtual", count: 0 };
-            groups[path].count++;
-          }
+          virtualPathsForChannel(channel).forEach(function(path) {
+            const parts = path.split(" / ").filter(Boolean);
+            const parentParts = parentPath ? parentPath.split(" / ").filter(Boolean) : [];
+            if (parts.length <= parentParts.length) return;
+            for (let index = 0; index < parentParts.length; index++) {
+              if (parts[index] !== parentParts[index]) return;
+            }
+            const limit = includeAllDescendants ? parts.length : parentParts.length + 1;
+            for (let index = parentParts.length; index < limit; index++) {
+              const childPath = parts.slice(0, index + 1).join(" / ");
+              groups[childPath] = groups[childPath] || { id: virtualCategoryID(childPath), name: includeAllDescendants ? childPath : parts[index], kind: "virtual", count: 0, channelIDs: {} };
+              groups[childPath].channelIDs[channel.id] = true;
+            }
+          });
         });
-        return Object.keys(groups).sort().map(function(path) { return groups[path]; });
+        return Object.keys(groups).sort().map(function(path) {
+          const group = groups[path];
+          group.count = Object.keys(group.channelIDs).length;
+          delete group.channelIDs;
+          return group;
+        });
       }
-      function virtualChildCategories(parentPath, includeChannel) {
+      function sourceVirtualChildCategories(parentPath, includeChannel) {
         parentPath = String(parentPath || "");
         const children = {};
         effectiveChannels(false).forEach(function(channel) {
           if (includeChannel && !includeChannel(channel)) return;
           const parts = parsedCategoryPath(sourceCategoryLabel(channel));
-          if (!parts.length) return;
-          const parentParts = parentPath ? parentPath.split(" / ").filter(Boolean) : [];
-          if (parts.length <= parentParts.length) return;
-          for (let index = 0; index < parentParts.length; index++) {
-            if (parts[index] !== parentParts[index]) return;
+          for (let index = 0; index < parts.length; index++) {
+            const path = parts.slice(0, index + 1).join(" / ");
+            const parentParts = parentPath ? parentPath.split(" / ").filter(Boolean) : [];
+            if (parts.length <= parentParts.length) return;
+            for (let parentIndex = 0; parentIndex < parentParts.length; parentIndex++) {
+              if (parts[parentIndex] !== parentParts[parentIndex]) return;
+            }
+            if (index !== parentParts.length) continue;
+            children[path] = children[path] || { id: virtualCategoryID(path), name: parts[parentParts.length], kind: "virtual", count: 0 };
+            children[path].count++;
           }
-          const childPath = parts.slice(0, parentParts.length + 1).join(" / ");
-          children[childPath] = children[childPath] || { id: virtualCategoryID(childPath), name: parts[parentParts.length], kind: "virtual", count: 0 };
-          children[childPath].count++;
         });
         return Object.keys(children).sort().map(function(path) { return children[path]; });
+      }
+      function virtualChildCategories(parentPath, includeChannel) {
+        return adminSettings().mode === "admin_delimiter"
+          ? virtualCategoriesFromPaths(parentPath, includeChannel, false)
+          : sourceVirtualChildCategories(parentPath, includeChannel);
       }
       function allFilterCategories() {
         const hidden = hiddenMap();
@@ -1845,7 +1897,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function adminListingTitle() {
         const mode = adminSettings().mode || "normal";
-        if (mode === "custom") return "Admin categories";
+        if (mode === "admin_delimiter") return "Admin + Virtual Categories";
         if (mode === "delimiter") return "Virtual Categories";
         return "Source categories";
       }
@@ -1853,13 +1905,13 @@ const playerPageHTMLTemplate = `<!doctype html>
         const hidden = hiddenMap();
         includeChannel = includeChannel || function(channel) { return !(channel.categoryId && hidden[channel.categoryId]); };
         const mode = adminSettings().mode || "normal";
-        if (mode === "custom") return adminGroupCategories();
-        if (mode === "delimiter") return parentPath ? virtualChildCategories(parentPath, includeChannel) : virtualChildCategories("", includeChannel);
+        if (mode === "admin_delimiter") return virtualChildCategories(parentPath, includeChannel);
+        if (mode === "delimiter") return parentPath ? sourceVirtualChildCategories(parentPath, includeChannel) : sourceVirtualChildCategories("", includeChannel);
         return sourceCategoriesWithChannels(includeChannel);
       }
       function virtualCategoriesActive() {
         const hidden = hiddenMap();
-        return adminSettings().mode === "delimiter" && virtualGroupCategories(function(channel) { return !(channel.categoryId && hidden[channel.categoryId]); }).length > 0;
+        return (adminSettings().mode === "delimiter" || adminSettings().mode === "admin_delimiter") && virtualGroupCategories(function(channel) { return !(channel.categoryId && hidden[channel.categoryId]); }).length > 0;
       }
       function recentChannels(limit) {
         const seen = {};
@@ -2253,22 +2305,22 @@ const playerPageHTMLTemplate = `<!doctype html>
         byId("view").innerHTML = "<div class=\"settings-stack\">"
           + "<div class=\"settings-card\"><h2>Category method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
           + "<div class=\"settings-card\"><h2>Presentation overrides</h2><div id=\"admin-presentation-settings\" class=\"settings-list\"></div></div>"
-          + (settings.mode === "custom" ? "<div class=\"settings-card\"><h2>Custom admin groups</h2><div id=\"admin-group-settings\" class=\"settings-list\"></div></div>" : "")
+          + (settings.mode === "admin_delimiter" ? "<div class=\"settings-card\"><h2>Admin channel groups</h2><div id=\"admin-group-settings\" class=\"settings-list\"></div></div>" : "")
           + "<div class=\"settings-card\"><h2>Preview</h2><div class=\"settings-preview\">" + adminCategoryPreview() + "</div></div>"
           + "</div>";
         renderAdminCategorySettings();
         renderAdminPresentationSettings();
-        if (settings.mode === "custom") renderAdminGroupSettings();
+        if (settings.mode === "admin_delimiter") renderAdminGroupSettings();
       }
       function renderAdminCategorySettings() {
         const settings = adminSettings();
         const root = byId("admin-category-settings");
         root.innerHTML = adminSaveStatusHTML()
-          + "<div class=\"settings-row\"><span>Mode</span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Normal</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">By delimiter</option><option value=\"custom\"" + (settings.mode === "custom" ? " selected" : "") + ">Admin custom</option></select></div>"
-          + (settings.mode === "delimiter" ? "<div class=\"settings-row\"><span>Delimiter</span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Sports - NHL Teams</option></select></div>" : "")
+          + "<div class=\"settings-row\"><span>Mode</span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Normal</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">By delimiter</option><option value=\"admin_delimiter\"" + (settings.mode === "admin_delimiter" ? " selected" : "") + ">Admin + delimiter</option></select></div>"
+          + (settings.mode !== "normal" ? "<div class=\"settings-row\"><span>Delimiter</span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Sports - NHL Teams</option></select></div>" : "")
           + (settings.mode === "normal" ? "<div class=\"settings-note\">Source categories are shown as provided, without remapping or resorting.</div>" : "")
           + (settings.mode === "delimiter" ? "<div class=\"settings-note\">Source category names are split into virtual folders using the selected delimiter.</div>" : "")
-          + (settings.mode === "custom" ? "<div class=\"settings-note\">Create shared admin groups and assign channels manually. A channel can live in multiple admin groups.</div>" : "");
+          + (settings.mode === "admin_delimiter" ? "<div class=\"settings-note\">Source category names and admin channel groups are split into virtual folders using the selected delimiter. A channel can live in multiple admin groups.</div>" : "");
       }
       function adminCategoryPreview() {
         const categories = adminListingCategories("").slice(0, 8);
@@ -2354,7 +2406,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           if (!query) return true;
           return lower(channel.name || channel.id).indexOf(query) !== -1 || lower(sourceCategoryLabel(channel)).indexOf(query) !== -1;
         });
-        root.innerHTML = "<div class=\"settings-row\"><span>New admin group</span><input id=\"admin-group-name\" placeholder=\"NHL Teams\"><button data-admin-group-action=\"create\">Create</button></div>"
+        root.innerHTML = "<div class=\"settings-row\"><span>New admin group</span><input id=\"admin-group-name\" placeholder=\"Sports | Argentina\"><button data-admin-group-action=\"create\">Create</button></div>"
           + (groups.length ? "<div class=\"settings-row\"><span>Edit admin group</span><select id=\"admin-group-select\">" + groups.map(function(group) { return "<option value=\"" + escapeHTML(group.id) + "\"" + (selected && selected.id === group.id ? " selected" : "") + ">" + escapeHTML(group.name) + "</option>"; }).join("") + "</select><button data-admin-group-action=\"delete\">Delete</button></div>" : "<div class=\"empty\">Create an admin group to remap channels.</div>")
           + (selected ? "<div class=\"settings-row\"><span>Find channel</span><input id=\"admin-group-channel-search\" placeholder=\"Name or source category\" value=\"" + escapeHTML(state.adminGroupQuery) + "\"></div>"
           + "<div class=\"settings-row\"><span>Add channel</span><select id=\"admin-group-channel\">" + availableChannels.slice(0, 100).map(function(channel) { return "<option value=\"" + escapeHTML(channel.id) + "\">" + escapeHTML(channel.name || channel.id) + "</option>"; }).join("") + "</select><button data-admin-group-action=\"add-channel\">Add</button></div>"

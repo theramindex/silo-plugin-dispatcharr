@@ -155,7 +155,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	}
 	body := string(response.GetBody())
 	for _, want := range []string{
-		`virtualChildCategories("",`,
+		`function sourceVirtualChildCategories(parentPath, includeChannel)`,
+		`function virtualCategoriesFromPaths(parentPath, includeChannel, includeAllDescendants)`,
 		`if (state.category.indexOf("virtual:") === 0)`,
 		`const children = virtualChildCategories(path,`,
 		`virtualFolderBreadcrumbs(path)`,
@@ -206,7 +207,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`Category method`,
 		`Normal`,
 		`By delimiter`,
-		`Admin custom`,
+		`Admin + delimiter`,
 		`data-admin-category-field=\"mode\"`,
 		`data-admin-group-action=\"create\"`,
 		`adminGroupMemberships`,
@@ -475,7 +476,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
 		Method: "POST",
 		Path:   "/dispatcharr/api/admin-settings",
-		Body:   []byte(`{"mode":"custom","delimiter":"pipe","adminGroups":[{"id":"admin:sports","name":"Sports","order":1}],"adminGroupMemberships":{"admin:sports":["channel:1"]},"presentationOverrides":{"channel:1":{"name":"Sports Alt","order":2}}}`),
+		Body:   []byte(`{"mode":"admin_delimiter","delimiter":"pipe","adminGroups":[{"id":"admin:sports","name":"Sports | Argentina","order":1}],"adminGroupMemberships":{"admin:sports":["channel:1"]},"presentationOverrides":{"channel:1":{"name":"Sports Alt","order":2}}}`),
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
@@ -495,7 +496,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
 		t.Fatalf("unmarshal admin settings: %v", err)
 	}
-	if payload["mode"] != "custom" || payload["delimiter"] != "pipe" {
+	if payload["mode"] != "admin_delimiter" || payload["delimiter"] != "pipe" {
 		t.Fatalf("expected admin settings to persist: %+v", payload)
 	}
 }
