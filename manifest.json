@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.dispatcharr",
-  "version": "0.2.84",
+  "version": "0.2.85",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -21,20 +21,8 @@
     {
       "type": "scheduled_task.v1",
       "id": "dispatcharr-sync",
-      "display_name": "Refresh Live TV Catalog",
-      "description": "Refreshes Live TV channels, categories, guide data, and on-demand catalog data from Dispatcharr."
-    },
-    {
-      "type": "scheduled_task.v1",
-      "id": "dispatcharr-refresh-channels",
-      "display_name": "Refresh Live TV Channels",
-      "description": "Refreshes the Live TV channel list, categories, and stream URLs from Dispatcharr."
-    },
-    {
-      "type": "scheduled_task.v1",
-      "id": "dispatcharr-refresh-epg",
-      "display_name": "Refresh Live TV Guide",
-      "description": "Refreshes EPG and TV guide program data for the current channel lineup."
+      "display_name": "Dispatcharr for Silo",
+      "description": "Dispatcharr-backed IPTV app with Live TV, guide, favorites, VOD catalog, and series catalog routes."
     },
     {
       "type": "http_routes.v1",
