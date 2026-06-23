@@ -1123,8 +1123,10 @@ const playerPageHTMLTemplate = `<!doctype html>
       .time-head span { min-width: 0; padding: 0 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .time-head span:first-child { position: sticky; left: 0; z-index: 3; color: var(--text); font-size: 1.15rem; background: var(--bg); }
       .epg-row { display: grid; grid-template-columns: var(--epg-logo-col) var(--epg-width); gap: 0.25rem; height: var(--epg-row-h); margin-bottom: 0.35rem; overflow: visible; }
-      .epg-channel { position: sticky; left: 0; z-index: 2; border: 0; border-radius: 0.55rem; background: var(--bg); color: white; display: grid; place-items: center; padding: 0; height: var(--epg-row-h); min-height: var(--epg-row-h); overflow: hidden; }
+      .epg-channel { position: sticky; left: 0; z-index: 2; border: 0; border-radius: 0.55rem; background: var(--bg); color: white; display: grid; place-items: center; padding: 0; height: var(--epg-row-h); min-height: var(--epg-row-h); overflow: visible; }
       .epg-channel .logo { width: 5.7rem; height: 3.25rem; border-radius: 0; background: transparent; }
+      .epg-channel::after { content: attr(data-channel-name); position: absolute; left: calc(100% + 0.45rem); top: 50%; z-index: 5; max-width: min(20rem, 48vw); border: 1px solid rgba(255,255,255,0.2); border-radius: 0.55rem; background: rgba(20,20,23,0.96); box-shadow: 0 0.75rem 1.8rem rgba(0,0,0,0.38); color: var(--text); padding: 0.42rem 0.58rem; font-size: 0.82rem; font-weight: 900; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; opacity: 0; transform: translate(-0.2rem, -50%); transition: opacity 120ms ease, transform 120ms ease; }
+      .epg-channel:hover::after, .epg-channel:focus-visible::after { opacity: 1; transform: translate(0, -50%); }
       .epg-programs { position: relative; height: var(--epg-row-h); min-width: 0; overflow: hidden; }
       .epg-cell { position: absolute; top: 0; height: var(--epg-row-h); min-height: 0; border: 0; border-radius: 0.55rem; text-align: left; color: var(--text); background: var(--panel); padding: 0.48rem 0.7rem; min-width: 0; overflow: hidden; white-space: nowrap; }
       .epg-cell time, .epg-cell strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1890,7 +1892,8 @@ const playerPageHTMLTemplate = `<!doctype html>
         return fallback;
       }
       function renderGuideChannelButton(channel) {
-        return "<button class=\"epg-channel\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(channel.name || "Untitled") + "\" title=\"" + escapeHTML(channel.name || "Untitled") + "\">" + logoHTML(channel) + "</button>";
+        const channelName = channel.name || "Untitled";
+        return "<button class=\"epg-channel\" data-channel=\"" + escapeHTML(channel.id) + "\" data-channel-name=\"" + escapeHTML(channelName) + "\" aria-label=\"" + escapeHTML(channelName) + "\" title=\"" + escapeHTML(channelName) + "\">" + logoHTML(channel) + "</button>";
       }
       function render() {
         if (!state.app) return;
