@@ -219,9 +219,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`Discard`,
 		`function effectiveChannel(channel)`,
 		`/dispatcharr/api/admin-settings`,
-		`savePluginSettingValue(adminSettingsKey, JSON.stringify(state.adminCategorySettings))`,
-		`const hasSavedAdminSettings = !!(values && values[adminSettingsKey])`,
-		`state.adminCategorySettings = hasSavedAdminSettings ? savedAdminSettings`,
+		`state.adminCategorySettings = await loadAdminCategorySettings().catch(function()`,
 		`const adminSettingsToken = "`,
 		`x-dispatcharr-admin-token`,
 	} {
@@ -689,6 +687,59 @@ func TestHTTPRoutesServerAdminSettingsRouteReturnsSavedPayloadWhenHostPersistFai
 	}
 	if !server.store.HasAdminSettings() {
 		t.Fatal("expected admin settings to be saved in plugin store")
+	}
+}
+
+func TestHTTPRoutesServerAdminSettingsRoutePersistsPayloadToFile(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "category-settings.json")
+	server := NewHTTPRoutesServerWithSyncerAndAdminSettingsFile(cache.NewStore(), nil, nil, path)
+	server.adminPersister = func(context.Context, map[string]any) error {
+		return nil
+	}
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method:  "POST",
+		Path:    "/dispatcharr/api/admin-settings",
+		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
+		Body:    []byte(`{"mode":"admin_delimiter","delimiter":"dash","groupAliases":[{"from":"International | Argentina | Sports"}]}`),
+	})
+	if err != nil {
+		t.Fatalf("admin settings route: %v", err)
+	}
+	if response.GetStatusCode() != 200 {
+		t.Fatalf("expected 200, got %d", response.GetStatusCode())
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read admin settings file: %v", err)
+	}
+	var saved map[string]any
+	if err := json.Unmarshal(data, &saved); err != nil {
+		t.Fatalf("decode admin settings file: %v", err)
+	}
+	if saved["mode"] != "delimiter" || saved["delimiter"] != "dash" {
+		t.Fatalf("expected normalized admin settings file, got %+v", saved)
+	}
+	if _, ok := saved["groupAliases"]; ok {
+		t.Fatalf("expected stale remapping keys to be stripped: %+v", saved)
+	}
+
+	nextServer := NewHTTPRoutesServerWithSyncerAndAdminSettingsFile(cache.NewStore(), nil, nil, path)
+	response, err = nextServer.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method:  "GET",
+		Path:    "/dispatcharr/api/admin-settings",
+		Headers: map[string]string{"x-dispatcharr-admin-token": nextServer.adminToken},
+	})
+	if err != nil {
+		t.Fatalf("admin settings route: %v", err)
+	}
+	var loaded map[string]any
+	if err := json.Unmarshal(response.GetBody(), &loaded); err != nil {
+		t.Fatalf("decode loaded admin settings: %v", err)
+	}
+	if loaded["mode"] != "delimiter" || loaded["delimiter"] != "dash" {
+		t.Fatalf("expected admin settings to load from file: %+v", loaded)
 	}
 }
 
