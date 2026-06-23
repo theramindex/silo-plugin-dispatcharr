@@ -11,7 +11,11 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-const SyncTaskKey = "dispatcharr-sync"
+const (
+	SyncTaskKey           = "dispatcharr-sync"
+	ChannelRefreshTaskKey = "dispatcharr-refresh-channels"
+	EPGRefreshTaskKey     = "dispatcharr-refresh-epg"
+)
 
 type ScheduledTaskServer struct {
 	pluginv1.UnimplementedScheduledTaskServer
@@ -28,13 +32,23 @@ func NewScheduledTaskServerWithProvider(service *app.Service, provider func() co
 }
 
 func (s *ScheduledTaskServer) Run(ctx context.Context, request *pluginv1.RunScheduledTaskRequest) (*pluginv1.RunScheduledTaskResponse, error) {
-	if isSyncTaskKey(request.GetTaskKey()) {
-		if err := s.service.SyncNow(ctx, s.settingsProvider(), time.Now().Unix()); err != nil {
+	taskKey := request.GetTaskKey()
+	taskKind := "unknown"
+	now := time.Now().Unix()
+	switch {
+	case isTaskKey(taskKey, SyncTaskKey), isTaskKey(taskKey, ChannelRefreshTaskKey):
+		taskKind = "catalog"
+		if err := s.service.SyncNow(ctx, s.settingsProvider(), now); err != nil {
+			return nil, err
+		}
+	case isTaskKey(taskKey, EPGRefreshTaskKey):
+		taskKind = "epg"
+		if err := s.service.RefreshEPGNow(ctx, s.settingsProvider(), now); err != nil {
 			return nil, err
 		}
 	}
 
-	output, err := structpb.NewStruct(map[string]any{"status": "ok"})
+	output, err := structpb.NewStruct(map[string]any{"status": "ok", "task": taskKind})
 	if err != nil {
 		return nil, err
 	}
@@ -42,5 +56,9 @@ func (s *ScheduledTaskServer) Run(ctx context.Context, request *pluginv1.RunSche
 }
 
 func isSyncTaskKey(taskKey string) bool {
-	return taskKey == SyncTaskKey || strings.HasSuffix(taskKey, ":"+SyncTaskKey)
+	return isTaskKey(taskKey, SyncTaskKey)
+}
+
+func isTaskKey(taskKey string, capabilityID string) bool {
+	return taskKey == capabilityID || strings.HasSuffix(taskKey, ":"+capabilityID)
 }

@@ -454,7 +454,20 @@ func (s *Service) StartAsyncEPGRefresh(settings config.Settings) {
 	}()
 }
 
+func (s *Service) RefreshEPGNow(ctx context.Context, settings config.Settings, nowUnix int64) error {
+	if err := settings.Validate(); err != nil {
+		return err
+	}
+	if _, err := epgURL(settings); err != nil {
+		return s.SyncNow(ctx, settings, nowUnix)
+	}
+	return s.refreshEPG(ctx, settings, nowUnix)
+}
+
 func epgURL(settings config.Settings) (string, error) {
+	if settings.SourceMode == config.SourceModeM3UXMLTV && strings.TrimSpace(settings.EPGXMLURL) != "" {
+		return strings.TrimSpace(settings.EPGXMLURL), nil
+	}
 	if settings.SourceMode == config.SourceModeXtream && strings.TrimSpace(settings.EPGXMLURL) != "" {
 		return strings.TrimSpace(settings.EPGXMLURL), nil
 	}

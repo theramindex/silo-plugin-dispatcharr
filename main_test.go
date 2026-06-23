@@ -132,6 +132,27 @@ func TestManifestExposesAdminNavigationRoute(t *testing.T) {
 	t.Fatalf("expected manifest to expose /dispatcharr/admin as a navigable admin route")
 }
 
+func TestManifestExposesRefreshScheduledTasks(t *testing.T) {
+	t.Parallel()
+
+	manifest, err := loadManifest()
+	if err != nil {
+		t.Fatalf("load manifest: %v", err)
+	}
+
+	found := map[string]bool{}
+	for _, capability := range manifest.GetCapabilities() {
+		if capability.GetType() == "scheduled_task.v1" {
+			found[capability.GetId()] = true
+		}
+	}
+	for _, id := range []string{"dispatcharr-sync", "dispatcharr-refresh-channels", "dispatcharr-refresh-epg"} {
+		if !found[id] {
+			t.Fatalf("expected manifest to expose scheduled task %q, got %+v", id, found)
+		}
+	}
+}
+
 func mustStruct(t *testing.T, value map[string]any) *structpb.Struct {
 	t.Helper()
 	result, err := structpb.NewStruct(value)

@@ -82,7 +82,7 @@ Silo shows plugin Apps entries in the normal user sidebar when an HTTP route is 
 
 This plugin declares `/dispatcharr` that way. Admin-only plugin pages can use `navigation_kind: "admin"` with `access: "admin"`.
 
-Scheduled task cadence is not read from the plugin manifest by current Silo host builds. The plugin exposes the `scheduled_task.v1` capability, but Silo stores the active schedule in its task trigger table. Configure `plugin:<installation_id>:dispatcharr-sync` with a 24-hour interval trigger, and optionally a startup trigger for immediate cache hydration after restarts.
+Scheduled task cadence is not read from the plugin manifest by current Silo host builds. The plugin exposes `scheduled_task.v1` capabilities, but Silo stores active schedules in its task trigger table. Configure `plugin:<installation_id>:dispatcharr-sync` or `plugin:<installation_id>:dispatcharr-refresh-channels` with a slower catalog interval such as 24 hours, and configure `plugin:<installation_id>:dispatcharr-refresh-epg` with a shorter guide interval such as 6 hours. A startup trigger is useful for immediate cache hydration after restarts.
 
 ## Build
 
