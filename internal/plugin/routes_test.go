@@ -191,6 +191,15 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if !strings.Contains(body, `sectionHeader("Continue watching") + rowCards(recent.length ? recent : visibleChannels(false).slice(0, 6)) + sectionHeader("TV Guide") + renderHomeGuide(recent) + sectionHeader("Categories") + categoryGrid()`) {
 		t.Fatalf("expected home page order to be continue watching, TV guide, then category sections")
 	}
+	virtualHeaderIndex := strings.Index(body, `byId("view").innerHTML = virtualFolderHeader(path)`)
+	virtualChildrenIndex := strings.Index(body, `+ (children.length ? sectionHeader("Virtual Categories")`)
+	virtualGuideIndex := strings.Index(body, `+ renderVirtualCategoryGuide(channels)`)
+	if virtualHeaderIndex < 0 || virtualChildrenIndex < 0 || virtualGuideIndex < 0 {
+		t.Fatalf("expected virtual category drilldown to render breadcrumbs, subfolders, and channel guide")
+	}
+	if !(virtualHeaderIndex < virtualChildrenIndex && virtualChildrenIndex < virtualGuideIndex) {
+		t.Fatalf("expected virtual category drilldown order to be breadcrumbs, subfolders, then channel guide")
+	}
 	if strings.Contains(body, "Saved on this device. Silo profile sync is unavailable here.") {
 		t.Fatalf("expected local-only profile save message to use the standard warning")
 	}
