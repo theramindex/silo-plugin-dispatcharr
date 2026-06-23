@@ -1964,7 +1964,10 @@ const playerPageHTMLTemplate = `<!doctype html>
           return !!categoryCounts[category.id];
         }).map(function(category) {
           const rawName = category.name || category.id;
-          return { id: sourceCategoryID(category.id), sourceID: category.id, name: categoryDisplayName(rawName), featured: categoryStartsFeatured(rawName), kind: "source", count: categoryCounts[category.id] || 0 };
+          const name = categoryDisplayName(rawName);
+          const featured = categoryStartsFeatured(rawName);
+          const virtualPath = featured ? parsedCategoryPath(name).join(" / ") : "";
+          return { id: virtualPath ? virtualCategoryID(virtualPath) : sourceCategoryID(category.id), sourceID: category.id, name: name, featured: featured, kind: virtualPath ? "virtual" : "source", count: categoryCounts[category.id] || 0 };
         });
       }
       function customGroupCategories() {
