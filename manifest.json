@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.dispatcharr",
-  "version": "0.2.88",
+  "version": "0.2.89",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -188,6 +188,20 @@
       "method": "POST",
       "path": "/dispatcharr/api/preferences",
       "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-admin-settings",
+      "method": "GET",
+      "path": "/dispatcharr/api/admin-settings",
+      "access": "admin",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-admin-settings-update",
+      "method": "POST",
+      "path": "/dispatcharr/api/admin-settings",
+      "access": "admin",
       "navigable": false
     },
     {

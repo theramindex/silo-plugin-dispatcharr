@@ -132,6 +132,29 @@ func TestManifestExposesAdminNavigationRoute(t *testing.T) {
 	t.Fatalf("expected manifest to expose /dispatcharr/admin as a navigable admin route")
 }
 
+func TestManifestExposesAdminSettingsAPIRoutes(t *testing.T) {
+	t.Parallel()
+
+	manifest, err := loadManifest()
+	if err != nil {
+		t.Fatalf("load manifest: %v", err)
+	}
+
+	found := map[string]bool{}
+	for _, route := range manifest.GetHttpRoutes() {
+		if route.GetPath() != "/dispatcharr/api/admin-settings" {
+			continue
+		}
+		if route.GetAccess() != "admin" || route.GetNavigable() {
+			t.Fatalf("unexpected admin settings route metadata: %+v", route)
+		}
+		found[route.GetMethod()] = true
+	}
+	if !found["GET"] || !found["POST"] {
+		t.Fatalf("expected manifest to expose admin settings GET and POST routes, got %+v", found)
+	}
+}
+
 func TestManifestKeepsInternalRefreshTasksOffPluginCard(t *testing.T) {
 	t.Parallel()
 

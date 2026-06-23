@@ -218,6 +218,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`data-admin-presentation-field=\"logoUrl\"`,
 		`data-admin-presentation-field=\"hidden\"`,
 		`data-admin-presentation-field=\"order\"`,
+		`/dispatcharr/api/admin-settings`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected admin page to include category mapping marker %q", want)
