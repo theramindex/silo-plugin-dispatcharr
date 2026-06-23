@@ -1240,6 +1240,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       .settings-list { display: grid; gap: 0.55rem; }
       .settings-list label, .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--panel); border-radius: 0.65rem; padding: 0.7rem; }
       .settings-row input, .settings-row select { min-width: 12rem; border: 1px solid var(--line); border-radius: 0.55rem; background: var(--rail-2); color: var(--text); padding: 0.45rem 0.55rem; }
+      .settings-row input[type="checkbox"], .settings-list label input[type="checkbox"] { min-width: 0; width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
       .settings-row button, .settings-actions button { border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); padding: 0.45rem 0.7rem; font-weight: 820; }
       .settings-row button:hover, .settings-actions button:hover { background: var(--panel-2); }
       .settings-row button:disabled, .settings-actions button:disabled { cursor: default; opacity: 0.48; }
@@ -1385,7 +1386,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
       function defaultAdminCategorySettings() {
-        return { mode: "normal", delimiter: "pipe" };
+        return { mode: "normal", delimiter: "pipe", ecmEnabled: true, ecmURL: "" };
       }
       function cloneAdminCategorySettings(settings) {
         try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -1461,10 +1462,25 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (["normal", "delimiter"].indexOf(state.adminCategorySettings.mode) === -1) state.adminCategorySettings.mode = "normal";
         if (!state.adminCategorySettings.delimiter) state.adminCategorySettings.delimiter = "pipe";
         if (state.adminCategorySettings.delimiter !== "pipe" && state.adminCategorySettings.delimiter !== "dash") state.adminCategorySettings.delimiter = "pipe";
+        state.adminCategorySettings.ecmEnabled = state.adminCategorySettings.ecmEnabled !== false;
+        state.adminCategorySettings.ecmURL = normalizeAdminECMURL(state.adminCategorySettings.ecmURL);
         delete state.adminCategorySettings.groupAliases;
         delete state.adminCategorySettings.adminGroups;
         delete state.adminCategorySettings.adminGroupMemberships;
         delete state.adminCategorySettings.presentationOverrides;
+      }
+      function normalizeAdminECMURL(value) {
+        const fallback = "";
+        const trimmed = String(value || "").trim();
+        const lower = trimmed.toLowerCase();
+        if (lower.indexOf("https://") === 0 || lower.indexOf("http://") === 0) return trimmed;
+        return fallback;
+      }
+      function adminECMEnabled() {
+        return adminSettings().ecmEnabled !== false;
+      }
+      function adminECMURL() {
+        return normalizeAdminECMURL(adminSettings().ecmURL);
       }
       function recordWatchPreference(channel) {
         if (!state.app || !state.app.preferences || !channel) return;
@@ -2529,18 +2545,32 @@ const playerPageHTMLTemplate = `<!doctype html>
         markAdminSettingsDraft();
         renderAdminPage();
       }
+      function updateAdminECMField(field, target) {
+        const settings = state.adminCategorySettings || defaultAdminCategorySettings();
+        if (field === "enabled") settings.ecmEnabled = !!target.checked;
+        if (field === "url") settings.ecmURL = target.value;
+        state.adminCategorySettings = settings;
+        normalizeAdminCategorySettings();
+        if (!adminECMEnabled() && state.adminTab === "manager") state.adminTab = "settings";
+        markAdminSettingsDraft();
+        renderAdminPage();
+      }
       function renderAdminPage() {
         normalizeAdminCategorySettings();
+        if (!adminECMEnabled() && state.adminTab === "manager") state.adminTab = "settings";
         byId("view").innerHTML = "<div class=\"settings-stack\">"
           + renderAdminTabs()
           + (state.adminTab === "manager" ? renderExternalChannelManager() : renderAdminSettingsTab())
           + "</div>";
-        if (state.adminTab !== "manager") renderAdminCategorySettings();
+        if (state.adminTab !== "manager") {
+          renderAdminCategorySettings();
+          renderAdminECMSettings();
+        }
       }
       function renderAdminTabs() {
         return "<div class=\"admin-tabs\" role=\"tablist\" aria-label=\"Admin settings\">"
           + "<button role=\"tab\" data-admin-tab=\"settings\" class=\"" + (state.adminTab === "settings" ? "active" : "") + "\">Settings</button>"
-          + "<button role=\"tab\" data-admin-tab=\"manager\" class=\"" + (state.adminTab === "manager" ? "active" : "") + "\">Channel Manager</button>"
+          + (adminECMEnabled() ? "<button role=\"tab\" data-admin-tab=\"manager\" class=\"" + (state.adminTab === "manager" ? "active" : "") + "\">Channel Manager</button>" : "")
           + "</div>";
       }
       function setAdminTab(tab) {
@@ -2550,12 +2580,21 @@ const playerPageHTMLTemplate = `<!doctype html>
       function renderAdminSettingsTab() {
         return ""
           + "<div class=\"settings-card\"><h2>Category method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
+          + "<div class=\"settings-card\"><h2>ECM</h2><div id=\"admin-ecm-settings\" class=\"settings-list\"></div></div>"
           + "<div class=\"settings-card\"><h2>Preview</h2><div class=\"settings-preview\">" + adminCategoryPreview() + "</div></div>"
           + "";
       }
       function renderExternalChannelManager() {
-        const managerURL = "";
+        const managerURL = adminECMURL();
         return "<div class=\"settings-card\"><div class=\"external-manager-head\"><h2>Channel Manager</h2><a class=\"settings-link\" href=\"" + escapeHTML(managerURL) + "\" target=\"_blank\" rel=\"noopener noreferrer\">Open in new window</a></div><iframe class=\"external-manager-frame\" src=\"" + escapeHTML(managerURL) + "\" title=\"Channel Manager\"></iframe></div>";
+      }
+      function renderAdminECMSettings() {
+        const settings = adminSettings();
+        const root = byId("admin-ecm-settings");
+        if (!root) return;
+        root.innerHTML = "<label><span>Enable ECM</span><input type=\"checkbox\" data-admin-ecm-field=\"enabled\"" + (settings.ecmEnabled !== false ? " checked" : "") + "></label>"
+          + "<div class=\"settings-row\"><span>ECM URL</span><input type=\"url\" data-admin-ecm-field=\"url\" value=\"" + escapeHTML(settings.ecmURL || "") + "\"></div>"
+          + "<div class=\"settings-note\">When enabled, the Channel Manager tab embeds this ECM instance for admin channel management.</div>";
       }
       function renderAdminCategorySettings() {
         const settings = adminSettings();
@@ -3204,6 +3243,11 @@ const playerPageHTMLTemplate = `<!doctype html>
         const adminField = event.target.getAttribute("data-admin-category-field");
         if (adminField) {
           updateCategoryParsingField(adminField, event.target);
+          return;
+        }
+        const adminECMField = event.target.getAttribute("data-admin-ecm-field");
+        if (adminECMField) {
+          updateAdminECMField(adminECMField, event.target);
           return;
         }
         if (event.target && event.target.id === "custom-group-select") {

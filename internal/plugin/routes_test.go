@@ -251,11 +251,17 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`function renderAdminPage()`,
 		`function renderAdminTabs()`,
 		`function renderAdminSettingsTab()`,
+		`function renderAdminECMSettings()`,
+		`function adminECMURL()`,
 		`Category method`,
 		`Normal`,
 		`By delimiter`,
+		`Enable ECM`,
+		`ECM URL`,
 		`data-admin-tab=\"settings\"`,
 		`data-admin-tab=\"manager\"`,
+		`data-admin-ecm-field=\"enabled\"`,
+		`data-admin-ecm-field=\"url\"`,
 		`state.adminTab === "manager" ? renderExternalChannelManager() : renderAdminSettingsTab()`,
 		`data-admin-category-field=\"mode\"`,
 		`data-admin-settings-action=\"save\"`,
@@ -782,7 +788,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayloadToFile(t *testing.T) {
 		Method:  "POST",
 		Path:    "/dispatcharr/api/admin-settings",
 		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
-		Body:    []byte(`{"mode":"admin_delimiter","delimiter":"dash","groupAliases":[{"from":"International | Argentina | Sports"}]}`),
+		Body:    []byte(`{"mode":"admin_delimiter","delimiter":"dash","ecmEnabled":false,"ecmURL":" https://ecm.example.test/manage ","groupAliases":[{"from":"International | Argentina | Sports"}]}`),
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
@@ -800,6 +806,9 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayloadToFile(t *testing.T) {
 	}
 	if saved["mode"] != "delimiter" || saved["delimiter"] != "dash" {
 		t.Fatalf("expected normalized admin settings file, got %+v", saved)
+	}
+	if saved["ecmEnabled"] != false || saved["ecmURL"] != "https://ecm.example.test/manage" {
+		t.Fatalf("expected normalized ECM settings file, got %+v", saved)
 	}
 	if _, ok := saved["groupAliases"]; ok {
 		t.Fatalf("expected stale remapping keys to be stripped: %+v", saved)
@@ -820,6 +829,9 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayloadToFile(t *testing.T) {
 	}
 	if loaded["mode"] != "delimiter" || loaded["delimiter"] != "dash" {
 		t.Fatalf("expected admin settings to load from file: %+v", loaded)
+	}
+	if loaded["ecmEnabled"] != false || loaded["ecmURL"] != "https://ecm.example.test/manage" {
+		t.Fatalf("expected ECM settings to load from file: %+v", loaded)
 	}
 }
 
