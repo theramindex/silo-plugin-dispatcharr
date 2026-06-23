@@ -193,10 +193,18 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`content: attr(data-channel-name)`,
 		`.epg-channel:hover::after`,
 		`.epg-channel:focus-visible::after`,
+		`customGroupChannelID`,
+		`role=\"combobox\"`,
+		`role=\"listbox\"`,
+		`data-custom-group-channel-option=`,
+		`function selectCustomGroupChannel(channelID)`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected app page to include virtual folder drilldown marker %q", want)
 		}
+	}
+	if strings.Contains(body, `id=\"custom-group-channel\"><option`) {
+		t.Fatalf("expected custom group channel picker not to render a native select")
 	}
 	if !strings.Contains(body, `const recent = recentChannels(10);`) {
 		t.Fatalf("expected home guide to be based on up to 10 continue-watching channels")
