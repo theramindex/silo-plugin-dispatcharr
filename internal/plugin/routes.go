@@ -2080,10 +2080,10 @@ const playerPageHTMLTemplate = `<!doctype html>
             return !(channel.categoryId && hidden[channel.categoryId]);
           });
           byId("view").innerHTML = virtualFolderHeader(path)
-            + renderVirtualCategoryGuide(channels)
             + (children.length ? sectionHeader("Virtual Categories") + "<div class=\"category-grid\">" + children.map(function(category) {
               return "<button class=\"tile\" data-category=\"" + escapeHTML(category.id) + "\"><strong>" + escapeHTML(category.name || category.id) + "</strong><span>" + escapeHTML(category.count ? category.count + " channels" : category.kind || "") + "</span></button>";
-            }).join("") + "</div>" : "");
+            }).join("") + "</div>" : "")
+            + renderVirtualCategoryGuide(channels);
           return;
         }
         byId("view").innerHTML = categoryGrid() + sectionHeader(categoryName(state.category) || "Channels") + rowCards(channels.slice(0, 24));
