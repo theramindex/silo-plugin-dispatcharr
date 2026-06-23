@@ -272,9 +272,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`classList.toggle("is-admin-manager"`,
 		``,
 		`class=\"external-manager-surface\"`,
-		`class=\"external-manager-toolbar\"`,
 		`class=\"external-manager-frame\"`,
-		`target=\"_blank\"`,
 		`Unsaved changes.`,
 		`Save`,
 		`Discard`,
@@ -293,6 +291,9 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	}
 	if strings.Contains(body, `<div class=\"settings-card\"><div class=\"external-manager-head\"`) {
 		t.Fatal("expected ECM iframe to render as a full action-area surface, not inside a settings card")
+	}
+	if strings.Contains(body, `external-manager-toolbar`) || strings.Contains(body, `Open in new window`) {
+		t.Fatal("expected ECM iframe to render without a floating open-in-new-window overlay")
 	}
 	for _, hidden := range []string{`<span>Home</span>`, `<span>Favorites</span>`, `<span>TV Guide</span>`, `<span>Preferences</span>`} {
 		if strings.Contains(body, hidden) {
