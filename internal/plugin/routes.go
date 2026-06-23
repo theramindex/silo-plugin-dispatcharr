@@ -1442,8 +1442,12 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function readAdminSettingsValue(value) {
         if (!value) return defaultAdminCategorySettings();
-        try { return Object.assign(defaultAdminCategorySettings(), JSON.parse(value)); }
+        try {
+          if (typeof value === "string") return Object.assign(defaultAdminCategorySettings(), JSON.parse(value));
+          if (typeof value === "object") return Object.assign(defaultAdminCategorySettings(), value);
+        }
         catch (_) { return defaultAdminCategorySettings(); }
+        return defaultAdminCategorySettings();
       }
       async function loadPluginSettingsValues() {
         if (!pluginInstallationID) return null;
