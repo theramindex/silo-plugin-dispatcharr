@@ -120,6 +120,13 @@ func (s *Store) AdminSettings() json.RawMessage {
 	return append(json.RawMessage(nil), s.adminSettings...)
 }
 
+func (s *Store) HasAdminSettings() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return len(s.adminSettings) > 0
+}
+
 func (s *Store) SetAdminSettings(settings json.RawMessage) json.RawMessage {
 	s.mu.Lock()
 	defer s.mu.Unlock()

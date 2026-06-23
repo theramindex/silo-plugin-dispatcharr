@@ -15,6 +15,7 @@ import (
 	"time"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
+	sdkruntime "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/runtime"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
@@ -29,6 +30,7 @@ type HTTPRoutesServer struct {
 	pluginv1.UnimplementedHttpRoutesServer
 	store            *cache.Store
 	settingsProvider func() config.Settings
+	adminPersister   func(context.Context, map[string]any) error
 	syncer           catalogSyncer
 	hydrateMu        sync.Mutex
 }
@@ -162,7 +164,7 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 	case "/dispatcharr/api/preferences":
 		return s.handlePreferences(request)
 	case "/dispatcharr/api/admin-settings":
-		return s.handleAdminSettings(request)
+		return s.handleAdminSettings(ctx, request)
 	case "/dispatcharr/api/favorites":
 		return s.handleFavorite(request)
 	case "/dispatcharr/api/hidden-categories":
@@ -390,19 +392,41 @@ func (s *HTTPRoutesServer) handlePreferences(request *pluginv1.HandleHTTPRequest
 	return s.respondJSON(http.StatusOK, s.store.SetPreferences(preferences))
 }
 
-func (s *HTTPRoutesServer) handleAdminSettings(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+func (s *HTTPRoutesServer) handleAdminSettings(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
 	if request.GetMethod() != http.MethodPost {
+		if s.store.HasAdminSettings() {
+			return s.respondJSON(http.StatusOK, json.RawMessage(s.store.AdminSettings()))
+		}
+		if s.settingsProvider != nil {
+			if configured := s.settingsProvider().AdminSettings; len(configured) > 0 {
+				return s.respondJSON(http.StatusOK, json.RawMessage(configured))
+			}
+		}
 		return s.respondJSON(http.StatusOK, json.RawMessage(s.store.AdminSettings()))
 	}
 	var payload map[string]any
 	if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
 		return textResponse(http.StatusBadRequest, "invalid admin settings payload"), nil
 	}
+	if err := s.persistAdminSettings(ctx, payload); err != nil {
+		return textResponse(http.StatusBadGateway, "could not persist admin settings"), nil
+	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return textResponse(http.StatusBadRequest, "invalid admin settings payload"), nil
 	}
 	return s.respondJSON(http.StatusOK, json.RawMessage(s.store.SetAdminSettings(encoded)))
+}
+
+func (s *HTTPRoutesServer) persistAdminSettings(ctx context.Context, payload map[string]any) error {
+	if s.adminPersister != nil {
+		return s.adminPersister(ctx, payload)
+	}
+	host := sdkruntime.Host()
+	if host == nil {
+		return fmt.Errorf("runtime host unavailable")
+	}
+	return host.SetGlobalConfigEntry(ctx, "category_settings", payload)
 }
 
 func (s *HTTPRoutesServer) handleFavorite(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {

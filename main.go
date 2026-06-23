@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	_ "embed"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	goruntime "runtime"
@@ -13,6 +14,7 @@ import (
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	publicmanifest "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/manifest"
 	sdkruntime "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/runtime"
+	"github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/runtimedefault"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/app"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
@@ -28,7 +30,7 @@ var manifestJSON []byte
 var buildVersion string
 
 type runtimeServer struct {
-	pluginv1.UnimplementedRuntimeServer
+	runtimedefault.Server
 	manifest *pluginv1.PluginManifest
 	settings *settingsState
 }
@@ -103,6 +105,10 @@ func (s *runtimeServer) Configure(_ context.Context, request *pluginv1.Configure
 		case "m3u_xmltv":
 			current.M3UURL = asString(values["m3u_url"])
 			current.EPGXMLURL = asString(values["epg_xml_url"])
+		case "category_settings":
+			if encoded, err := json.Marshal(values); err == nil {
+				current.AdminSettings = encoded
+			}
 		}
 	}
 	if current.ChannelRefreshH == 0 {

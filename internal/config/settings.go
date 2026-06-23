@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -34,6 +35,7 @@ type Settings struct {
 	ChannelRefreshH   int
 	EPGRefreshH       int
 	ModeSwitchWarning string
+	AdminSettings     json.RawMessage
 }
 
 func (s Settings) Validate() error {

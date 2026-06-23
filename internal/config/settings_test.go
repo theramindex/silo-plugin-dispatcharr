@@ -100,8 +100,8 @@ func TestGlobalConfigSchema_ContainsExpectedFields(t *testing.T) {
 	t.Parallel()
 
 	schema := GlobalConfigSchema()
-	if len(schema) != 1 {
-		t.Fatalf("expected one config schema entry, got %d", len(schema))
+	if len(schema) != 2 {
+		t.Fatalf("expected two config schema entries, got %d", len(schema))
 	}
 
 	byKey := map[string]bool{}
@@ -109,7 +109,7 @@ func TestGlobalConfigSchema_ContainsExpectedFields(t *testing.T) {
 		byKey[item.GetKey()] = true
 	}
 
-	for _, key := range []string{"connection"} {
+	for _, key := range []string{"connection", "category_settings"} {
 		if !byKey[key] {
 			t.Fatalf("expected schema key %q", key)
 		}

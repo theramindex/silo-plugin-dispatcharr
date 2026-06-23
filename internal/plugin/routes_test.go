@@ -473,6 +473,11 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	t.Parallel()
 
 	server := NewHTTPRoutesServer(cache.NewStore())
+	var persisted map[string]any
+	server.adminPersister = func(_ context.Context, payload map[string]any) error {
+		persisted = payload
+		return nil
+	}
 	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
 		Method: "POST",
 		Path:   "/dispatcharr/api/admin-settings",
@@ -498,6 +503,31 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	}
 	if payload["mode"] != "admin_delimiter" || payload["delimiter"] != "pipe" {
 		t.Fatalf("expected admin settings to persist: %+v", payload)
+	}
+	if persisted["mode"] != "admin_delimiter" || persisted["delimiter"] != "pipe" {
+		t.Fatalf("expected admin settings to write through to host config: %+v", persisted)
+	}
+}
+
+func TestHTTPRoutesServerAdminSettingsRouteReadsConfiguredPayload(t *testing.T) {
+	t.Parallel()
+
+	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), func() config.Settings {
+		return config.Settings{AdminSettings: json.RawMessage(`{"mode":"delimiter","delimiter":"pipe"}`)}
+	})
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method: "GET",
+		Path:   "/dispatcharr/api/admin-settings",
+	})
+	if err != nil {
+		t.Fatalf("admin settings route: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+		t.Fatalf("unmarshal admin settings: %v", err)
+	}
+	if payload["mode"] != "delimiter" || payload["delimiter"] != "pipe" {
+		t.Fatalf("expected configured admin settings: %+v", payload)
 	}
 }
 

@@ -104,6 +104,47 @@ const connectionJSONSchema = `{
   ]
 }`
 
+const categorySettingsJSONSchema = `{
+  "type": "object",
+  "properties": {
+    "mode": {
+      "type": "string",
+      "enum": ["normal", "delimiter", "admin_delimiter", "custom"],
+      "default": "normal"
+    },
+    "delimiter": {
+      "type": "string",
+      "enum": ["pipe", "dash"],
+      "default": "pipe"
+    },
+    "adminGroups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "order": {"type": "integer"}
+        },
+        "required": ["id", "name"],
+        "additionalProperties": false
+      }
+    },
+    "adminGroupMemberships": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {"type": "string"}
+      }
+    },
+    "presentationOverrides": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}`
+
 func GlobalConfigSchema() []*ConfigSchema {
 	return []*ConfigSchema{
 		objectSchema("connection", "Dispatcharr for Silo", "Pick one source type. Silo shows every field in this form, so fill only the fields named by the selected source type.", connectionJSONSchema, true, []*pluginv1.AdminFormField{
@@ -123,6 +164,7 @@ func GlobalConfigSchema() []*ConfigSchema {
 			{Key: "channel_refresh_hours", Label: "Channel Refresh Hours", Description: "Refresh cadence for channels and categories.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_NUMBER, DefaultValue: structpb.NewNumberValue(DefaultChannelRefreshHours)},
 			{Key: "epg_refresh_hours", Label: "EPG Refresh Hours", Description: "Refresh cadence for guide data.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_NUMBER, DefaultValue: structpb.NewNumberValue(DefaultEPGRefreshHours)},
 		}, "Save Dispatcharr for Silo settings"),
+		objectSchema("category_settings", "Live TV Category Settings", "Admin-managed Live TV category mode, virtual group paths, and presentation overrides.", categorySettingsJSONSchema, false, []*pluginv1.AdminFormField{}, "Save category settings"),
 	}
 }
 

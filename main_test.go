@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
@@ -90,6 +91,35 @@ func TestRuntimeConfigureMapsM3UXMLTVFromConnectionEntry(t *testing.T) {
 	}
 }
 
+func TestRuntimeConfigureReadsCategorySettings(t *testing.T) {
+	t.Parallel()
+
+	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeDirectLogin, LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
+	server := &runtimeServer{settings: state}
+
+	req := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{
+		{Key: "category_settings", Value: mustStruct(t, map[string]any{
+			"mode":      "admin_delimiter",
+			"delimiter": "pipe",
+			"adminGroups": []any{
+				map[string]any{"id": "admin:sports", "name": "Sports | Argentina", "order": 1},
+			},
+		})},
+	}}
+
+	if _, err := server.Configure(context.Background(), req); err != nil {
+		t.Fatalf("configure: %v", err)
+	}
+
+	var settings map[string]any
+	if err := json.Unmarshal(state.Get().AdminSettings, &settings); err != nil {
+		t.Fatalf("decode admin settings: %v", err)
+	}
+	if settings["mode"] != "admin_delimiter" || settings["delimiter"] != "pipe" {
+		t.Fatalf("expected category settings to be loaded, got %+v", settings)
+	}
+}
+
 func TestManifestGlobalConfigSchemasValidateExpectedObjects(t *testing.T) {
 	t.Parallel()
 
@@ -109,6 +139,16 @@ func TestManifestGlobalConfigSchemasValidateExpectedObjects(t *testing.T) {
 	}
 	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "m3u_xmltv", "m3u_url": "https://provider.example.com/playlist.m3u"}); err == nil {
 		t.Fatalf("expected incomplete m3u/xmltv connection to fail validation")
+	}
+	if err := configsdk.ValidateManifestGlobalValue(manifest, "category_settings", map[string]any{
+		"mode":      "admin_delimiter",
+		"delimiter": "pipe",
+		"adminGroups": []any{
+			map[string]any{"id": "admin:sports", "name": "Sports | Argentina", "order": 1},
+		},
+		"adminGroupMemberships": map[string]any{"admin:sports": []any{"channel:1"}},
+	}); err != nil {
+		t.Fatalf("validate category settings schema: %v", err)
 	}
 }
 
