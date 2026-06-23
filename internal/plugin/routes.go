@@ -2281,7 +2281,7 @@ const playerPageHTMLTemplate = `<!doctype html>
             return !(channel.categoryId && hidden[channel.categoryId]);
           });
           byId("view").innerHTML = virtualFolderHeader(path, featured)
-            + (children.length ? sectionHeader("Virtual Groups") + "<div class=\"category-grid\">" + children.map(function(category) {
+            + (children.length ? "<div class=\"category-grid\">" + children.map(function(category) {
               const childID = featured ? featuredCategoryID(virtualCategoryPath(category.id)) : category.id;
               return "<button class=\"tile\" data-category=\"" + escapeHTML(childID) + "\"><strong>" + escapeHTML(category.name || category.id) + "</strong><span>" + escapeHTML(category.count ? category.count + " channels" : category.kind || "") + "</span></button>";
             }).join("") + "</div>" : "")

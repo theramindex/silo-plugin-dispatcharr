@@ -182,7 +182,6 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`data-virtual-category-view=\"guide\"`,
 		`data-virtual-category-view=\"list\"`,
 		`No channels in this virtual group yet.`,
-		`sectionHeader("Virtual Groups")`,
 		`function isRewindableChannel(channel)`,
 		`video.controls = rewindable`,
 		`isLive: !rewindable`,
@@ -226,13 +225,16 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		t.Fatalf("expected home page order to be continue watching, TV guide, then group sections")
 	}
 	virtualHeaderIndex := strings.Index(body, `byId("view").innerHTML = virtualFolderHeader(path, featured)`)
-	virtualChildrenIndex := strings.Index(body, `+ (children.length ? sectionHeader("Virtual Groups")`)
+	virtualChildrenIndex := strings.Index(body, `+ (children.length ? "<div class=\"category-grid\">`)
 	virtualContentIndex := strings.Index(body, `+ renderVirtualCategoryContent(channels)`)
 	if virtualHeaderIndex < 0 || virtualChildrenIndex < 0 || virtualContentIndex < 0 {
 		t.Fatalf("expected virtual category drilldown to render breadcrumbs, subfolders, and switchable channel content")
 	}
 	if !(virtualHeaderIndex < virtualChildrenIndex && virtualChildrenIndex < virtualContentIndex) {
 		t.Fatalf("expected virtual category drilldown order to be breadcrumbs, subfolders, then channel content")
+	}
+	if strings.Contains(body, `+ (children.length ? sectionHeader("Virtual Groups")`) || strings.Contains(body, `+ (children.length ? sectionHeader("Virtual Categories")`) {
+		t.Fatalf("expected virtual child groups to render without a duplicate section heading")
 	}
 	if strings.Contains(body, "Saved on this device. Silo profile sync is unavailable here.") {
 		t.Fatalf("expected local-only profile save message to use the standard warning")
