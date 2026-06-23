@@ -281,6 +281,12 @@ func TestAdminVirtualFolderAliasesApplyToSourceGroups(t *testing.T) {
 	if result.SourceCount != 1 || result.AliasCount != 1 {
 		t.Fatalf("expected source and alias counts to be one channel each: %+v", result)
 	}
+	if result.ObjectParsedMode != "admin_delimiter" {
+		t.Fatalf("expected admin settings JSON object to preserve mode: %+v", result)
+	}
+	if result.StringParsedMode != "delimiter" {
+		t.Fatalf("expected admin settings JSON string to preserve mode: %+v", result)
+	}
 }
 
 func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
@@ -308,10 +314,12 @@ func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
 }
 
 type virtualAliasResult struct {
-	SourcePath  bool `json:"sourcePath"`
-	AliasPath   bool `json:"aliasPath"`
-	SourceCount int  `json:"sourceCount"`
-	AliasCount  int  `json:"aliasCount"`
+	SourcePath       bool   `json:"sourcePath"`
+	AliasPath        bool   `json:"aliasPath"`
+	SourceCount      int    `json:"sourceCount"`
+	AliasCount       int    `json:"aliasCount"`
+	ObjectParsedMode string `json:"objectParsedMode"`
+	StringParsedMode string `json:"stringParsedMode"`
 }
 
 func extractPlayerScript(t *testing.T) string {
@@ -377,7 +385,9 @@ JSON.stringify((function() {
     sourcePath: !!source,
     aliasPath: !!alias,
     sourceCount: channelsInSource.length,
-    aliasCount: channelsInAlias.length
+    aliasCount: channelsInAlias.length,
+    objectParsedMode: readAdminSettingsValue({ mode: "admin_delimiter", delimiter: "pipe" }).mode,
+    stringParsedMode: readAdminSettingsValue(JSON.stringify({ mode: "delimiter", delimiter: "pipe" })).mode
   };
 })())
 `+"`"+`, sandbox);
