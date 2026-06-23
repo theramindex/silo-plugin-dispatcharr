@@ -119,6 +119,21 @@ func TestGlobalConfigSchema_ContainsExpectedFields(t *testing.T) {
 func TestUserConfigSchema_DeclaresCurrentPreferenceShape(t *testing.T) {
 	t.Parallel()
 
+	userSchema := UserConfigSchema()
+	if len(userSchema) != 2 {
+		t.Fatalf("expected two user config schema entries, got %d", len(userSchema))
+	}
+
+	byKey := map[string]bool{}
+	for _, item := range userSchema {
+		byKey[item.GetKey()] = true
+	}
+	for _, key := range []string{"preferences", "adminCategorySettings"} {
+		if !byKey[key] {
+			t.Fatalf("expected user schema key %q", key)
+		}
+	}
+
 	preferences := mustFindSchema(t, UserConfigSchema(), "preferences")
 	var schema map[string]any
 	if err := json.Unmarshal([]byte(preferences.GetJsonSchema()), &schema); err != nil {
@@ -135,6 +150,28 @@ func TestUserConfigSchema_DeclaresCurrentPreferenceShape(t *testing.T) {
 	}
 	if _, ok := properties["auto_favorites"]; ok {
 		t.Fatal("preferences schema should use the camelCase frontend preference keys")
+	}
+}
+
+func TestUserConfigSchema_DeclaresAdminCategorySettingsShape(t *testing.T) {
+	t.Parallel()
+
+	adminSettings := mustFindSchema(t, UserConfigSchema(), "adminCategorySettings")
+	var schema map[string]any
+	if err := json.Unmarshal([]byte(adminSettings.GetJsonSchema()), &schema); err != nil {
+		t.Fatalf("decode admin category settings schema: %v", err)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected admin category settings schema properties, got %q", adminSettings.GetJsonSchema())
+	}
+	for _, key := range []string{"mode", "delimiter"} {
+		if _, ok := properties[key]; !ok {
+			t.Fatalf("expected admin category settings schema to declare %q", key)
+		}
+	}
+	if additionalProperties, ok := schema["additionalProperties"].(bool); !ok || additionalProperties {
+		t.Fatalf("expected admin category settings schema to reject unknown keys, got %+v", schema["additionalProperties"])
 	}
 }
 
