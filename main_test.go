@@ -138,8 +138,14 @@ func TestManifestGlobalConfigSchemasValidateExpectedObjects(t *testing.T) {
 		t.Fatalf("expected incomplete m3u/xmltv connection to fail validation")
 	}
 	if err := configsdk.ValidateManifestGlobalValue(manifest, "category_settings", map[string]any{
-		"mode":      "delimiter",
-		"delimiter": "pipe",
+		"mode":       "delimiter",
+		"delimiter":  "pipe",
+		"ecmEnabled": false,
+		"ecmURL":     "https://ecm.example.test/manage",
+		"categoryAliases": []any{
+			map[string]any{"sourcePath": "International | Arabic | Sports", "aliasPath": "Sports | Arabic"},
+			map[string]any{"sourcePath": "International | Arabic | Sports", "aliasPath": "World Cup | Arabic"},
+		},
 	}); err != nil {
 		t.Fatalf("validate category settings schema: %v", err)
 	}
