@@ -898,7 +898,7 @@ func liveCategories(snapshot cache.Snapshot) []model.Category {
 		seen[channel.CategoryID] = true
 		name := channel.CategoryName
 		if name == "" {
-			name = "Category " + channel.CategoryID
+			name = "Group " + channel.CategoryID
 		}
 		categories = append(categories, model.Category{ID: channel.CategoryID, Name: name, Kind: "live"})
 	}
@@ -1226,6 +1226,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       .timeline-fill { position: absolute; inset: 0 auto 0 0; width: 41%; border-radius: inherit; background: rgba(255,255,255,0.92); }
       .timeline-knob { position: absolute; left: 41%; top: 50%; width: 0.85rem; height: 0.85rem; margin-left: -0.42rem; margin-top: -0.42rem; border-radius: 999px; background: white; }
       .live-dot { display: inline-block; width: 0.45rem; height: 0.45rem; border-radius: 999px; background: #ff334d; margin-right: 0.3rem; vertical-align: middle; }
+      .playback-shell.is-replay .player-bottom { bottom: 3rem; padding-bottom: 0.75rem; }
+      .playback-shell.is-replay .timeline { display: none; }
       .player-toast { position: absolute; right: 1.25rem; top: 4.55rem; z-index: 3; opacity: 0; transform: translateY(-0.4rem); pointer-events: none; transition: opacity 160ms ease, transform 160ms ease; max-width: min(24rem, calc(100vw - 2.5rem)); padding: 0.65rem 0.85rem; border: 1px solid rgba(255,255,255,0.14); border-radius: 999px; background: rgba(20,20,21,0.9); color: white; font-size: 0.82rem; font-weight: 800; box-shadow: 0 1rem 2rem rgba(0,0,0,0.36); backdrop-filter: blur(18px); }
       .player-toast.show { opacity: 1; transform: translateY(0); }
       .app-toast { position: fixed; left: 50%; bottom: 1.5rem; z-index: 80; transform: translateX(-50%) translateY(0.6rem); opacity: 0; pointer-events: none; border: 1px solid rgba(255,255,255,0.14); border-radius: 999px; background: rgba(20,20,21,0.92); color: white; padding: 0.7rem 1rem; font-weight: 850; box-shadow: 0 0.75rem 2rem rgba(0,0,0,0.35); transition: opacity 160ms ease, transform 160ms ease; }
@@ -1651,13 +1653,13 @@ const playerPageHTMLTemplate = `<!doctype html>
         }).then(function() {
           state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
           state.adminSaveStatus = "saved";
-          state.adminSaveMessage = "Saved category settings.";
+          state.adminSaveMessage = "Saved group settings.";
           if (state.view === "admin") renderAdminPage();
         }).catch(function(error) {
           state.adminSaveStatus = "error";
-          state.adminSaveMessage = "Could not save category settings: " + readableError(error);
+          state.adminSaveMessage = "Could not save group settings: " + readableError(error);
           if (state.view === "admin") renderAdminPage();
-          try { console.warn("Dispatcharr admin category save failed", error); } catch (_) {}
+          try { console.warn("Dispatcharr admin group settings save failed", error); } catch (_) {}
         });
       }
       function discardAdminCategorySettings() {
@@ -1758,6 +1760,12 @@ const playerPageHTMLTemplate = `<!doctype html>
       function sourceCategoryLabel(channel) {
         return categoryDisplayName(sourceCategoryRawLabel(channel));
       }
+      function normalizedGroupName(value) {
+        return categoryDisplayName(value).toLowerCase();
+      }
+      function isWorldCupReplayGroup(value) {
+        return normalizedGroupName(value) === "world cup replays";
+      }
       function delimiterPattern() {
         return (adminSettings().delimiter || "pipe") === "pipe" ? /\s*\|\s*/ : /\s+-\s*/;
       }
@@ -1814,6 +1822,14 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (sourcePath) paths.push(sourcePath);
         aliasVirtualPathsForSourcePath(sourcePath).forEach(function(path) { paths.push(path); });
         return uniqueIDs(paths);
+      }
+      function isRewindableChannel(channel) {
+        if (!channel) return false;
+        if (isWorldCupReplayGroup(sourceCategoryRawLabel(channel)) || isWorldCupReplayGroup(sourceCategoryLabel(channel))) return true;
+        return virtualPathsForChannel(channel).some(function(path) {
+          if (isWorldCupReplayGroup(path)) return true;
+          return path.split(" / ").some(isWorldCupReplayGroup);
+        });
       }
       function channelInSelectedCategory(channel, id) {
         if (!id) return true;
@@ -2074,11 +2090,11 @@ const playerPageHTMLTemplate = `<!doctype html>
           return !(category.kind === "source" && featuredSourceIDs[category.sourceID]);
         });
         const sections = [];
-        if (featured.length) sections.push(categoryGridSection("Featured", featured));
-        if (custom.length) sections.push(categoryGridSection("My groups", custom));
+        if (featured.length) sections.push(categoryGridSection("Featured Groups", featured));
+        if (custom.length) sections.push(categoryGridSection("My Groups", custom));
         if (regularListing.length) sections.push(categoryGridSection(adminListingTitle(), regularListing));
-        if (!listing.length && sourceCategories.length) sections.push(categoryGridSection("Source categories", sourceCategories));
-        return sections.length ? sections.join("") : "<div class=\"empty\">No categories yet.</div>";
+        if (!listing.length && sourceCategories.length) sections.push(categoryGridSection("Channel Groups", sourceCategories));
+        return sections.length ? sections.join("") : "<div class=\"empty\">No groups yet.</div>";
       }
       function categoryGridSection(title, categories) {
         return sectionHeader(title) + "<div class=\"category-grid\">" + categories.map(function(category) {
@@ -2096,7 +2112,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function virtualFolderBreadcrumbs(path, featured) {
         const parts = path.split(" / ").filter(Boolean);
-        const rootLabel = featured ? "Featured Channels" : "Virtual Categories";
+        const rootLabel = featured ? "Featured Groups" : "Virtual Groups";
         const crumbs = ["<button data-category=\"\">" + escapeHTML(rootLabel) + "</button>"];
         parts.forEach(function(part, index) {
           const crumbPath = parts.slice(0, index + 1).join(" / ");
@@ -2193,8 +2209,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function adminListingTitle() {
         const mode = adminSettings().mode || "normal";
-        if (mode === "delimiter") return "Virtual Categories";
-        return "Source categories";
+        if (mode === "delimiter") return "Virtual Groups";
+        return "Channel Groups";
       }
       function adminListingCategories(parentPath, includeChannel) {
         const hidden = hiddenMap();
@@ -2227,7 +2243,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         }).join("") + "</div></div>";
       }
       function renderVirtualCategoryGuide(channels) {
-        return sectionHeaderWithActions("TV Guide", renderVirtualCategoryViewToggle()) + renderHomeGuide(channels, "No channels in this virtual category yet.");
+        return sectionHeaderWithActions("TV Guide", renderVirtualCategoryViewToggle()) + renderHomeGuide(channels, "No channels in this virtual group yet.");
       }
       function virtualCategoryView() {
         return state.virtualCategoryView === "list" ? "list" : "guide";
@@ -2237,7 +2253,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         return "<div class=\"view-toggle\" aria-label=\"Virtual category view\"><button type=\"button\" data-virtual-category-view=\"guide\" class=\"" + (active === "guide" ? "active" : "") + "\" aria-pressed=\"" + (active === "guide" ? "true" : "false") + "\">Guide</button><button type=\"button\" data-virtual-category-view=\"list\" class=\"" + (active === "list" ? "active" : "") + "\" aria-pressed=\"" + (active === "list" ? "true" : "false") + "\">List</button></div>";
       }
       function renderVirtualCategoryChannelList(channels) {
-        if (!channels.length) return sectionHeaderWithActions("Channels", renderVirtualCategoryViewToggle()) + "<div class=\"empty\">No channels in this virtual category yet.</div>";
+        if (!channels.length) return sectionHeaderWithActions("Channels", renderVirtualCategoryViewToggle()) + "<div class=\"empty\">No channels in this virtual group yet.</div>";
         return sectionHeaderWithActions("Channels", renderVirtualCategoryViewToggle()) + "<div class=\"channel-button-list\">" + channels.map(function(channel) {
           const program = currentProgram(channel) || {};
           const subtitle = program.title || channel.categoryName || "Live TV";
@@ -2265,7 +2281,7 @@ const playerPageHTMLTemplate = `<!doctype html>
             return !(channel.categoryId && hidden[channel.categoryId]);
           });
           byId("view").innerHTML = virtualFolderHeader(path, featured)
-            + (children.length ? sectionHeader("Virtual Categories") + "<div class=\"category-grid\">" + children.map(function(category) {
+            + (children.length ? sectionHeader("Virtual Groups") + "<div class=\"category-grid\">" + children.map(function(category) {
               const childID = featured ? featuredCategoryID(virtualCategoryPath(category.id)) : category.id;
               return "<button class=\"tile\" data-category=\"" + escapeHTML(childID) + "\"><strong>" + escapeHTML(category.name || category.id) + "</strong><span>" + escapeHTML(category.count ? category.count + " channels" : category.kind || "") + "</span></button>";
             }).join("") + "</div>" : "")
@@ -2432,11 +2448,16 @@ const playerPageHTMLTemplate = `<!doctype html>
         const program = currentProgram(channel) || {};
         const channelName = channel ? channel.name || "Untitled channel" : "Choose a channel";
         const categoryNameText = channel ? channel.categoryName || "Live TV" : "Live TV";
+        const replayMode = isRewindableChannel(channel);
         const title = program.title || channelName;
         const description = program.description || categoryNameText;
         const start = timeLabel(program.startUnix) || "LIVE";
         const end = timeLabel(program.endUnix) || "Now";
-        byId("view").innerHTML = "<section class=\"playback-shell\"><div class=\"playback-stage\"><video id=\"player\" class=\"playback-video\" autoplay playsinline></video><div class=\"playback-scrim\"></div><button id=\"player-center-button\" class=\"player-center-button hidden\" data-player-action=\"play-toggle\" aria-label=\"Play\">" + icon("play") + "</button><div class=\"player-top\"><button class=\"player-exit\" data-player-action=\"back\" aria-label=\"Back to Live TV browse\"><span class=\"player-icon\">" + icon("x") + "</span><span>Exit</span></button><div class=\"player-top-actions\"><div class=\"player-audio\"><button id=\"player-audio-button\" class=\"player-chip\" data-player-action=\"audio-menu\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "<span>Audio</span>" + icon("chevron-down") + "</button><div id=\"player-audio-menu\" class=\"player-menu\" role=\"menu\"></div></div><div class=\"player-volume\"><button id=\"player-volume-button\" class=\"player-icon\" data-player-action=\"volume-menu\" aria-label=\"Volume\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("speaker") + "</button><div id=\"player-volume-popover\" class=\"volume-popover\"><span>VOL</span><input id=\"player-volume-slider\" type=\"range\" min=\"0\" max=\"100\" step=\"1\" value=\"" + Math.round(state.volume * 100) + "\" aria-label=\"Volume\"><span id=\"player-volume-value\" class=\"volume-value\"></span></div></div><button class=\"player-icon\" data-player-action=\"cast\" aria-label=\"AirPlay or Cast\">" + icon("airplay") + "</button><button id=\"player-guide-button\" class=\"player-icon player-guide-button\" data-player-action=\"guide\" aria-label=\"Guide\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("guide") + "</button><button id=\"player-fullscreen-button\" class=\"player-icon\" data-player-action=\"fullscreen\" aria-label=\"Fullscreen\" aria-pressed=\"false\">" + icon("fullscreen") + "</button><div class=\"player-more\"><button id=\"player-more-button\" class=\"player-icon\" data-player-action=\"more\" aria-label=\"More\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("ellipsis") + "</button><div id=\"player-more-menu\" class=\"player-more-menu\"></div></div></div></div><div id=\"player-toast\" class=\"player-toast\" role=\"status\"></div><div id=\"player-guide-panel\" class=\"player-guide-panel\"></div><div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel) + "<div class=\"player-kicker\">" + escapeHTML(channelName) + "</div><h2 class=\"player-title\">" + escapeHTML(title) + "</h2><p class=\"player-description\" data-overflow-description=\"true\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span class=\"player-tag\">AV</span></div></div><div class=\"player-bottom-actions\">" + playerFavoriteButtonHTML(channel) + "<button class=\"player-icon\" data-player-action=\"pip\" aria-label=\"Picture in Picture\">" + icon("pip") + "</button><button id=\"player-subtitles-button\" class=\"player-icon\" data-player-action=\"subtitles\" aria-label=\"Subtitles\" aria-pressed=\"false\">" + icon("captions") + "</button><button id=\"player-language-button\" class=\"player-icon\" data-player-action=\"language-menu\" aria-label=\"Audio language\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "</button></div></div><div class=\"timeline\"><span>" + escapeHTML(start) + "</span><div class=\"timeline-bar\"><div class=\"timeline-fill\"></div><div class=\"timeline-knob\"></div></div><span><span class=\"live-dot\"></span>LIVE&nbsp;&nbsp;" + escapeHTML(end) + "</span></div></div></div></section>";
+        const playbackShellClass = replayMode ? "playback-shell is-replay" : "playback-shell";
+        const videoAttributes = replayMode ? " autoplay playsinline controls" : " autoplay playsinline";
+        const modeTag = replayMode ? "Replay" : "AV";
+        const timelineEnd = replayMode ? escapeHTML(end) : "<span class=\"live-dot\"></span>LIVE&nbsp;&nbsp;" + escapeHTML(end);
+        byId("view").innerHTML = "<section class=\"" + playbackShellClass + "\"><div class=\"playback-stage\"><video id=\"player\" class=\"playback-video\"" + videoAttributes + "></video><div class=\"playback-scrim\"></div><button id=\"player-center-button\" class=\"player-center-button hidden\" data-player-action=\"play-toggle\" aria-label=\"Play\">" + icon("play") + "</button><div class=\"player-top\"><button class=\"player-exit\" data-player-action=\"back\" aria-label=\"Back to Live TV browse\"><span class=\"player-icon\">" + icon("x") + "</span><span>Exit</span></button><div class=\"player-top-actions\"><div class=\"player-audio\"><button id=\"player-audio-button\" class=\"player-chip\" data-player-action=\"audio-menu\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "<span>Audio</span>" + icon("chevron-down") + "</button><div id=\"player-audio-menu\" class=\"player-menu\" role=\"menu\"></div></div><div class=\"player-volume\"><button id=\"player-volume-button\" class=\"player-icon\" data-player-action=\"volume-menu\" aria-label=\"Volume\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("speaker") + "</button><div id=\"player-volume-popover\" class=\"volume-popover\"><span>VOL</span><input id=\"player-volume-slider\" type=\"range\" min=\"0\" max=\"100\" step=\"1\" value=\"" + Math.round(state.volume * 100) + "\" aria-label=\"Volume\"><span id=\"player-volume-value\" class=\"volume-value\"></span></div></div><button class=\"player-icon\" data-player-action=\"cast\" aria-label=\"AirPlay or Cast\">" + icon("airplay") + "</button><button id=\"player-guide-button\" class=\"player-icon player-guide-button\" data-player-action=\"guide\" aria-label=\"Guide\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("guide") + "</button><button id=\"player-fullscreen-button\" class=\"player-icon\" data-player-action=\"fullscreen\" aria-label=\"Fullscreen\" aria-pressed=\"false\">" + icon("fullscreen") + "</button><div class=\"player-more\"><button id=\"player-more-button\" class=\"player-icon\" data-player-action=\"more\" aria-label=\"More\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("ellipsis") + "</button><div id=\"player-more-menu\" class=\"player-more-menu\"></div></div></div></div><div id=\"player-toast\" class=\"player-toast\" role=\"status\"></div><div id=\"player-guide-panel\" class=\"player-guide-panel\"></div><div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel) + "<div class=\"player-kicker\">" + escapeHTML(channelName) + "</div><h2 class=\"player-title\">" + escapeHTML(title) + "</h2><p class=\"player-description\" data-overflow-description=\"true\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span class=\"player-tag\">" + escapeHTML(modeTag) + "</span></div></div><div class=\"player-bottom-actions\">" + playerFavoriteButtonHTML(channel) + "<button class=\"player-icon\" data-player-action=\"pip\" aria-label=\"Picture in Picture\">" + icon("pip") + "</button><button id=\"player-subtitles-button\" class=\"player-icon\" data-player-action=\"subtitles\" aria-label=\"Subtitles\" aria-pressed=\"false\">" + icon("captions") + "</button><button id=\"player-language-button\" class=\"player-icon\" data-player-action=\"language-menu\" aria-label=\"Audio language\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "</button></div></div><div class=\"timeline\"><span>" + escapeHTML(start) + "</span><div class=\"timeline-bar\"><div class=\"timeline-fill\"></div><div class=\"timeline-knob\"></div></div><span>" + timelineEnd + "</span></div></div></div></section>";
         updateAudioMenu();
         updateVolumeMenu();
         renderPlayerGuidePanel();
@@ -2561,7 +2582,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       function renderGuidePage() {
         const categories = allFilterCategories();
         const slots = guideSlots();
-        byId("view").innerHTML = "<div class=\"guide-page\"><div class=\"guide-tools\"><select id=\"category-select\" class=\"select\"><option value=\"\">All categories</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select><button id=\"guide-inline-refresh\" class=\"refresh-button\" type=\"button\" data-guide-refresh=\"true\" aria-label=\"Refresh guide\" title=\"Refresh guide\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" aria-hidden=\"true\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M20 12a8 8 0 0 1-14.1 5.15M4 12A8 8 0 0 1 18.1 6.85\"/><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M6 17.25H3.75V19.5M18 6.75h2.25V4.5\"/></svg></button><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program or channel\" value=\"" + escapeHTML(state.query) + "\"></div><div class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div></div></div>";
+        byId("view").innerHTML = "<div class=\"guide-page\"><div class=\"guide-tools\"><select id=\"category-select\" class=\"select\"><option value=\"\">All groups</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select><button id=\"guide-inline-refresh\" class=\"refresh-button\" type=\"button\" data-guide-refresh=\"true\" aria-label=\"Refresh guide\" title=\"Refresh guide\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" aria-hidden=\"true\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M20 12a8 8 0 0 1-14.1 5.15M4 12A8 8 0 0 1 18.1 6.85\"/><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M6 17.25H3.75V19.5M18 6.75h2.25V4.5\"/></svg></button><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program or channel\" value=\"" + escapeHTML(state.query) + "\"></div><div class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div></div></div>";
         byId("category-select").onchange = function(event) { state.category = event.target.value; renderGuidePage(); };
         byId("guide-search").oninput = function(event) { state.query = event.target.value; resetGuideRows(); renderEPG(); };
         resetGuideRows();
@@ -2645,7 +2666,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         const showSourceCategorySettings = !virtualCategoriesActive();
         byId("view").innerHTML = "<div class=\"settings-stack\">"
           + "<div class=\"settings-card\"><h2>Custom groups</h2><div id=\"custom-group-settings\" class=\"settings-list\"></div></div>"
-          + (showSourceCategorySettings ? "<div class=\"settings-card\"><h2>Hidden source categories</h2><div id=\"settings-list\" class=\"settings-list\"></div></div>" : "")
+          + (showSourceCategorySettings ? "<div class=\"settings-card\"><h2>Hidden channel groups</h2><div id=\"settings-list\" class=\"settings-list\"></div></div>" : "")
           + "</div>";
         renderCustomGroupSettings();
         if (!showSourceCategorySettings) return;
@@ -2653,7 +2674,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         const categories = sourceCategoriesWithChannels();
         root.innerHTML = categories.map(function(category) {
           return "<label><span>" + escapeHTML(category.name || category.sourceID) + "</span><input type=\"checkbox\" data-hide=\"" + escapeHTML(category.sourceID) + "\"" + (hiddenMap()[category.sourceID] ? " checked" : "") + "></label>";
-        }).join("") || "<div class=\"empty\">No source categories available for this connection.</div>";
+        }).join("") || "<div class=\"empty\">No channel groups available for this connection.</div>";
       }
       function categoryName(id) {
         if (String(id || "").indexOf("source:") === 0) return sourceCategoryName(String(id || "").slice("source:".length));
@@ -2727,7 +2748,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function renderAdminSettingsTab() {
         return ""
-          + "<div class=\"settings-card\"><h2>Category method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
+          + "<div class=\"settings-card\"><h2>Group method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
           + "<div class=\"settings-card\"><h2>Alternative Group Names</h2><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>"
           + "<div class=\"settings-card\"><h2>ECM</h2><div id=\"admin-ecm-settings\" class=\"settings-list\"></div></div>"
           + "<div class=\"settings-card\"><h2>Preview</h2><div class=\"settings-preview\">" + adminCategoryPreview() + "</div></div>"
@@ -2751,8 +2772,8 @@ const playerPageHTMLTemplate = `<!doctype html>
         root.innerHTML = adminSaveStatusHTML()
           + "<div class=\"settings-row\"><span>Mode</span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Normal</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">By delimiter</option></select></div>"
           + (settings.mode !== "normal" ? "<div class=\"settings-row\"><span>Delimiter</span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Sports - NHL Teams</option></select></div>" : "")
-          + (settings.mode === "normal" ? "<div class=\"settings-note\">Source categories are shown as provided, without remapping or resorting.</div>" : "")
-          + (settings.mode === "delimiter" ? "<div class=\"settings-note\">Source category names are split into virtual folders using the selected delimiter.</div>" : "");
+          + (settings.mode === "normal" ? "<div class=\"settings-note\">Channel groups are shown as provided, without remapping or resorting.</div>" : "")
+          + (settings.mode === "delimiter" ? "<div class=\"settings-note\">Channel group names are split into virtual groups using the selected delimiter.</div>" : "");
       }
       function adminSourceGroups() {
         const groups = {};
@@ -2822,7 +2843,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         const categories = adminListingCategories("").slice(0, 8);
         return categories.length ? categories.map(function(category) {
           return "<div>" + escapeHTML(category.name || category.id) + " · " + escapeHTML(String(category.count || 0)) + " channels</div>";
-        }).join("") : "<div>No admin categories available yet.</div>";
+        }).join("") : "<div>No channel groups available yet.</div>";
       }
       function ensureSelectedCustomGroup() {
         const groups = customGroups();
@@ -2848,7 +2869,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         const pickerChannels = availableChannels.slice(0, 12);
         root.innerHTML = "<div class=\"settings-row\"><span>New group</span><input id=\"custom-group-name\" placeholder=\"Spanish\"><button data-custom-group-action=\"create\">Create</button></div>"
           + (groups.length ? "<div class=\"settings-row\"><span>Edit group</span><select id=\"custom-group-select\">" + groups.map(function(group) { return "<option value=\"" + escapeHTML(group.id) + "\"" + (selected && selected.id === group.id ? " selected" : "") + ">" + escapeHTML(group.name) + "</option>"; }).join("") + "</select><button data-custom-group-action=\"delete\">Delete</button></div>" : "<div class=\"empty\">Create a group to build your own channel lineup.</div>")
-          + (selected ? "<div class=\"settings-row custom-channel-picker\"><span>Add channel</span><div class=\"custom-channel-combobox\"><input id=\"custom-group-channel-search\" role=\"combobox\" aria-controls=\"custom-group-channel-options\" aria-expanded=\"true\" aria-autocomplete=\"list\" placeholder=\"Search by name or category\" value=\"" + escapeHTML(state.customGroupQuery) + "\"><div id=\"custom-group-channel-options\" class=\"custom-channel-options\" role=\"listbox\">" + (pickerChannels.length ? pickerChannels.map(function(channel) { const active = channel.id === state.customGroupChannelID; return "<button class=\"custom-channel-option" + (active ? " selected" : "") + "\" type=\"button\" role=\"option\" aria-selected=\"" + (active ? "true" : "false") + "\" data-custom-group-channel-option=\"" + escapeHTML(channel.id) + "\"><strong>" + escapeHTML(channel.name || channel.id) + "</strong><small>" + escapeHTML(sourceCategoryLabel(channel) || "Live TV") + "</small></button>"; }).join("") : "<div class=\"empty\">No matching channels.</div>") + "</div><button data-custom-group-action=\"add-channel\"" + (!state.customGroupChannelID ? " disabled" : "") + ">Add</button></div></div>"
+          + (selected ? "<div class=\"settings-row custom-channel-picker\"><span>Add channel</span><div class=\"custom-channel-combobox\"><input id=\"custom-group-channel-search\" role=\"combobox\" aria-controls=\"custom-group-channel-options\" aria-expanded=\"true\" aria-autocomplete=\"list\" placeholder=\"Search by name or group\" value=\"" + escapeHTML(state.customGroupQuery) + "\"><div id=\"custom-group-channel-options\" class=\"custom-channel-options\" role=\"listbox\">" + (pickerChannels.length ? pickerChannels.map(function(channel) { const active = channel.id === state.customGroupChannelID; return "<button class=\"custom-channel-option" + (active ? " selected" : "") + "\" type=\"button\" role=\"option\" aria-selected=\"" + (active ? "true" : "false") + "\" data-custom-group-channel-option=\"" + escapeHTML(channel.id) + "\"><strong>" + escapeHTML(channel.name || channel.id) + "</strong><small>" + escapeHTML(sourceCategoryLabel(channel) || "Live TV") + "</small></button>"; }).join("") : "<div class=\"empty\">No matching channels.</div>") + "</div><button data-custom-group-action=\"add-channel\"" + (!state.customGroupChannelID ? " disabled" : "") + ">Add</button></div></div>"
           + "<div class=\"settings-note\">" + escapeHTML(availableChannels.length ? "Showing " + Math.min(availableChannels.length, 12) + " of " + availableChannels.length + " matching channels. Keep typing to narrow it down." : "No matching channels.") + "</div>"
           + "<div class=\"settings-preview\">" + (memberships.length ? memberships.map(function(id) { const channel = channelByID(id); return "<div>" + escapeHTML((channel && channel.name) || id) + " <button data-custom-group-action=\"remove-channel\" data-channel-id=\"" + escapeHTML(id) + "\">Remove</button></div>"; }).join("") : "<div>No channels in this group yet.</div>") + "</div>" : "");
       }
@@ -3136,9 +3157,11 @@ const playerPageHTMLTemplate = `<!doctype html>
         }
         updateFullscreenButton();
       }
-      function setVideoSource(url) {
+      function setVideoSource(url, options) {
         const video = byId("player");
         if (!video) return;
+        const rewindable = !!(options && options.rewindable);
+        video.controls = rewindable;
         applyVolumeToVideo();
         state.selectedAudioTrack = 0;
         state.selectedTextTrack = -1;
@@ -3176,7 +3199,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           state.hls.loadSource(url);
           state.hls.attachMedia(video);
         } else if (window.mpegts && mpegts.isSupported() && !isHLS) {
-          state.tsPlayer = mpegts.createPlayer({ type: "mpegts", isLive: true, url: url });
+          state.tsPlayer = mpegts.createPlayer({ type: "mpegts", isLive: !rewindable, url: url });
           state.tsPlayer.attachMediaElement(video);
           state.tsPlayer.load();
         } else {
@@ -3194,7 +3217,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         state.currentChannel = channel;
         state.view = "player";
         render();
-        setVideoSource(browserStreamURL(channel));
+        setVideoSource(browserStreamURL(channel), { rewindable: isRewindableChannel(channel) });
         startWatch(channel);
         const guide = await getJSON("/dispatcharr/api/guide?channel_id=" + encodeURIComponent(channel.id)).catch(function() { return { programs: [] }; });
         const nowGuide = byId("now-guide");

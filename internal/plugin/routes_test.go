@@ -165,7 +165,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`if (state.category.indexOf("virtual:") === 0 || state.category.indexOf("featured:") === 0)`,
 		`const children = virtualChildCategories(path,`,
 		`virtualFolderBreadcrumbs(path, featured)`,
-		`const rootLabel = featured ? "Featured Channels" : "Virtual Categories"`,
+		`const rootLabel = featured ? "Featured Groups" : "Virtual Groups"`,
 		`const showSourceCategorySettings = !virtualCategoriesActive()`,
 		`Saved on this device, but not to your Silo profile.`,
 		`<span>Preferences</span>`,
@@ -181,8 +181,11 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`renderVirtualCategoryGuide(channels)`,
 		`data-virtual-category-view=\"guide\"`,
 		`data-virtual-category-view=\"list\"`,
-		`No channels in this virtual category yet.`,
-		`sectionHeader("Virtual Categories")`,
+		`No channels in this virtual group yet.`,
+		`sectionHeader("Virtual Groups")`,
+		`function isRewindableChannel(channel)`,
+		`video.controls = rewindable`,
+		`isLive: !rewindable`,
 		`data-silo-theme="midnight-cinema"`,
 		`function applySiloTheme()`,
 		`--silo-bg`,
@@ -220,10 +223,10 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		t.Fatalf("expected home guide to be based on up to 10 continue-watching channels")
 	}
 	if !strings.Contains(body, `sectionHeader("Continue watching") + rowCards(recent.length ? recent : visibleChannels(false).slice(0, 6)) + sectionHeader("TV Guide") + renderHomeGuide(recent) + categoryGrid()`) {
-		t.Fatalf("expected home page order to be continue watching, TV guide, then category sections")
+		t.Fatalf("expected home page order to be continue watching, TV guide, then group sections")
 	}
 	virtualHeaderIndex := strings.Index(body, `byId("view").innerHTML = virtualFolderHeader(path, featured)`)
-	virtualChildrenIndex := strings.Index(body, `+ (children.length ? sectionHeader("Virtual Categories")`)
+	virtualChildrenIndex := strings.Index(body, `+ (children.length ? sectionHeader("Virtual Groups")`)
 	virtualContentIndex := strings.Index(body, `+ renderVirtualCategoryContent(channels)`)
 	if virtualHeaderIndex < 0 || virtualChildrenIndex < 0 || virtualContentIndex < 0 {
 		t.Fatalf("expected virtual category drilldown to render breadcrumbs, subfolders, and switchable channel content")
@@ -274,7 +277,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`ecmEnabled: false`,
 		`state.adminCategorySettings.ecmEnabled = state.adminCategorySettings.ecmEnabled === true`,
 		`return adminSettings().ecmEnabled === true && !!adminECMURL();`,
-		`Category method`,
+		`Group method`,
 		`Alternative Group Names`,
 		`Alternative group name`,
 		`Normal`,
@@ -339,11 +342,13 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 					{"id": "channel:world-cup", "name": "World Cup Feed", "categoryId": "cat:world-cup", "categoryName": "* World Cup"},
 					{"id": "channel:admin-favorites", "name": "Admin Favorite", "categoryId": "cat:admin-favorites", "categoryName": "* Admin Favorites"},
 					{"id": "channel:argentina-sports", "name": "Argentina Sports", "categoryId": "cat:argentina-sports", "categoryName": "* International | Argentina | Sports"},
+					{"id": "channel:world-cup-replay", "name": "World Cup Replay", "categoryId": "cat:world-cup-replays", "categoryName": "World Cup Replays"},
 				},
 				"categories": []map[string]any{
 					{"id": "cat:world-cup", "name": "* World Cup"},
 					{"id": "cat:admin-favorites", "name": "* Admin Favorites"},
 					{"id": "cat:argentina-sports", "name": "* International | Argentina | Sports"},
+					{"id": "cat:world-cup-replays", "name": "World Cup Replays"},
 				},
 			},
 			"adminCategorySettings": map[string]any{
@@ -400,6 +405,12 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if result.ChannelCategoryName != "International | Argentina | Sports" {
 		t.Fatalf("expected channel category display name to hide marker: %+v", result)
 	}
+	if !result.ReplayRewindable || result.NormalRewindable {
+		t.Fatalf("expected only World Cup Replays channels to be rewindable: %+v", result)
+	}
+	if !result.ReplayPlayerClass || !result.ReplayPlayerControls || !result.ReplayPlayerTag {
+		t.Fatalf("expected World Cup Replays player to expose replay controls: %+v", result)
+	}
 }
 
 func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
@@ -448,6 +459,11 @@ type virtualAliasResult struct {
 	FeaturedListView        bool   `json:"featuredListView"`
 	VirtualBreadcrumbRoot   bool   `json:"virtualBreadcrumbRoot"`
 	ChannelCategoryName     string `json:"channelCategoryName"`
+	ReplayRewindable        bool   `json:"replayRewindable"`
+	NormalRewindable        bool   `json:"normalRewindable"`
+	ReplayPlayerClass       bool   `json:"replayPlayerClass"`
+	ReplayPlayerControls    bool   `json:"replayPlayerControls"`
+	ReplayPlayerTag         bool   `json:"replayPlayerTag"`
 }
 
 func extractPlayerScript(t *testing.T) string {
@@ -484,9 +500,28 @@ const fs = require("fs");
 const vm = require("vm");
 const input = %s;
 const script = fs.readFileSync(%q, "utf8");
+function makeElement() {
+  const attributes = {};
+  return {
+    innerHTML: "",
+    textContent: "",
+    value: "",
+    style: {},
+    classList: { add: () => {}, remove: () => {}, toggle: () => {} },
+    setAttribute: (name, value) => { attributes[name] = String(value); },
+    getAttribute: (name) => attributes[name] || null,
+    removeAttribute: (name) => { delete attributes[name]; },
+    focus: () => {},
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    addEventListener: () => {},
+    play: () => Promise.resolve(),
+    pause: () => {},
+  };
+}
 const sandbox = {
   window: { location: { pathname: "/api/v1/plugins/14/dispatcharr/admin", search: "" }, innerHeight: 800, scrollY: 0, addEventListener: () => {} },
-  document: { documentElement: { dataset: {} }, elements: {}, querySelectorAll: () => [], querySelector: () => ({ classList: { toggle: () => {} } }), getElementById: function(id) { this.elements[id] = this.elements[id] || { innerHTML: "", classList: { add: () => {}, remove: () => {}, toggle: () => {} }, textContent: "" }; return this.elements[id]; }, addEventListener: () => {} },
+  document: { documentElement: { dataset: {} }, elements: {}, fullscreenElement: null, querySelectorAll: () => [], querySelector: () => makeElement(), getElementById: function(id) { this.elements[id] = this.elements[id] || makeElement(); return this.elements[id]; }, addEventListener: () => {} },
   localStorage: { getItem: () => null, setItem: () => {} },
   navigator: { sendBeacon: () => true },
   console: { log: () => {}, warn: () => {}, error: () => {} },
@@ -525,6 +560,10 @@ JSON.stringify((function() {
   state.category = "virtual:International / Argentina / Sports";
   renderLivePage();
   const virtualView = document.elements.view ? document.elements.view.innerHTML : "";
+  const replayChannel = channelByID("channel:world-cup-replay");
+  state.currentChannel = replayChannel;
+  renderPlayerPage();
+  const replayPlayerView = document.elements.view ? document.elements.view.innerHTML : "";
   return {
     sourcePath: !!source,
     aliasPath: !!alias,
@@ -534,19 +573,24 @@ JSON.stringify((function() {
     secondAliasCount: channelsInSecondAlias.length,
     objectParsedMode: readAdminSettingsValue({ mode: "delimiter", delimiter: "pipe" }).mode,
     stringParsedMode: readAdminSettingsValue(JSON.stringify({ mode: "delimiter", delimiter: "pipe" })).mode,
-    featuredSection: grid.indexOf(">Featured<") !== -1,
+    featuredSection: grid.indexOf(">Featured Groups<") !== -1,
     featuredCategory: grid.indexOf("International | Argentina | Sports") !== -1,
     featuredAlphabetical: grid.indexOf(">Admin Favorites</strong>") !== -1 && grid.indexOf(">World Cup</strong>") !== -1 && grid.indexOf(">Admin Favorites</strong>") < grid.indexOf(">World Cup</strong>"),
     featuredVirtualCategory: grid.indexOf('data-category="featured:International / Argentina / Sports"') !== -1,
     featuredSourceCategory: grid.indexOf('data-category="source:cat:argentina-sports"') !== -1,
     featuredMarkerVisible: grid.indexOf("* International") !== -1,
-    featuredBreadcrumbRoot: featuredView.indexOf(">Featured Channels</button>") !== -1,
+    featuredBreadcrumbRoot: featuredView.indexOf(">Featured Groups</button>") !== -1,
     featuredBreadcrumbPath: featuredView.indexOf(">International</button>") !== -1 && featuredView.indexOf(">Argentina</button>") !== -1 && featuredView.indexOf(">Sports</button>") !== -1,
     featuredGuide: featuredView.indexOf(">TV Guide<") !== -1 && featuredView.indexOf('data-channel="channel:argentina-sports"') !== -1,
     featuredViewToggle: featuredView.indexOf('data-virtual-category-view="guide"') !== -1 && featuredView.indexOf('data-virtual-category-view="list"') !== -1,
     featuredListView: featuredListView.indexOf(">Channels<") !== -1 && featuredListView.indexOf('class="virtual-channel-button" data-channel="channel:argentina-sports"') !== -1 && featuredListView.indexOf(">TV Guide<") === -1,
-    virtualBreadcrumbRoot: virtualView.indexOf(">Virtual Categories</button>") !== -1,
-    channelCategoryName: channel ? channel.categoryName : ""
+    virtualBreadcrumbRoot: virtualView.indexOf(">Virtual Groups</button>") !== -1,
+    channelCategoryName: channel ? channel.categoryName : "",
+    replayRewindable: isRewindableChannel(replayChannel),
+    normalRewindable: isRewindableChannel(channel),
+    replayPlayerClass: replayPlayerView.indexOf('class="playback-shell is-replay"') !== -1,
+    replayPlayerControls: replayPlayerView.indexOf('controls></video>') !== -1,
+    replayPlayerTag: replayPlayerView.indexOf(">Replay</span>") !== -1
   };
 })())
 `+"`"+`, sandbox);
