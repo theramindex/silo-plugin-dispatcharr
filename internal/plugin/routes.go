@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"log"
 	"net/http"
 	"net/url"
 	"sort"
@@ -418,14 +419,13 @@ func (s *HTTPRoutesServer) handleAdminSettings(ctx context.Context, request *plu
 	if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
 		return textResponse(http.StatusBadRequest, "invalid admin settings payload"), nil
 	}
-	if err := s.persistAdminSettings(ctx, payload); err != nil {
-		return textResponse(http.StatusBadGateway, "could not persist admin settings"), nil
-	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return textResponse(http.StatusBadRequest, "invalid admin settings payload"), nil
 	}
-	return s.respondJSON(http.StatusOK, json.RawMessage(s.store.SetAdminSettings(encoded)))
+	saved := s.store.SetAdminSettings(encoded)
+	s.persistAdminSettingsAsync(payload)
+	return s.respondJSON(http.StatusOK, json.RawMessage(saved))
 }
 
 func (s *HTTPRoutesServer) adminSettingsAuthorized(request *pluginv1.HandleHTTPRequest) bool {
@@ -456,6 +456,26 @@ func (s *HTTPRoutesServer) persistAdminSettings(ctx context.Context, payload map
 		return fmt.Errorf("runtime host unavailable")
 	}
 	return host.SetGlobalConfigEntry(ctx, "category_settings", payload)
+}
+
+func (s *HTTPRoutesServer) persistAdminSettingsAsync(payload map[string]any) {
+	if s.adminPersister != nil {
+		if err := s.persistAdminSettings(context.Background(), payload); err != nil {
+			log.Printf("dispatcharr: persist admin settings failed: %v", err)
+		}
+		return
+	}
+	copyPayload := make(map[string]any, len(payload))
+	for key, value := range payload {
+		copyPayload[key] = value
+	}
+	go func() {
+		persistCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		if err := s.persistAdminSettings(persistCtx, copyPayload); err != nil {
+			log.Printf("dispatcharr: persist admin settings failed: %v", err)
+		}
+	}()
 }
 
 func (s *HTTPRoutesServer) handleFavorite(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {

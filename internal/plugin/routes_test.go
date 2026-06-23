@@ -653,6 +653,30 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerAdminSettingsRouteReturnsSavedPayloadWhenHostPersistFails(t *testing.T) {
+	t.Parallel()
+
+	server := NewHTTPRoutesServer(cache.NewStore())
+	server.adminPersister = func(context.Context, map[string]any) error {
+		return fmt.Errorf("host timeout")
+	}
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method:  "POST",
+		Path:    "/dispatcharr/api/admin-settings",
+		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
+		Body:    []byte(`{"mode":"admin_delimiter","delimiter":"pipe","groupAliases":[{"id":"alias:sports","source":"International | Argentina | Sports","alias":"Sports | Argentina","order":1}]}`),
+	})
+	if err != nil {
+		t.Fatalf("admin settings route: %v", err)
+	}
+	if response.GetStatusCode() != 200 {
+		t.Fatalf("expected 200 when host persistence fails, got %d", response.GetStatusCode())
+	}
+	if !server.store.HasAdminSettings() {
+		t.Fatal("expected admin settings to be saved in plugin store")
+	}
+}
+
 func TestHTTPRoutesServerAdminSettingsRouteReadsConfiguredPayload(t *testing.T) {
 	t.Parallel()
 
