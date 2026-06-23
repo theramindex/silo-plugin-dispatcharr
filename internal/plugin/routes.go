@@ -1417,7 +1417,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
       function defaultAdminCategorySettings() {
-        return { mode: "normal", delimiter: "pipe", ecmEnabled: true, ecmURL: "" };
+        return { mode: "normal", delimiter: "pipe", ecmEnabled: false, ecmURL: "" };
       }
       function cloneAdminCategorySettings(settings) {
         try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -1493,7 +1493,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (["normal", "delimiter"].indexOf(state.adminCategorySettings.mode) === -1) state.adminCategorySettings.mode = "normal";
         if (!state.adminCategorySettings.delimiter) state.adminCategorySettings.delimiter = "pipe";
         if (state.adminCategorySettings.delimiter !== "pipe" && state.adminCategorySettings.delimiter !== "dash") state.adminCategorySettings.delimiter = "pipe";
-        state.adminCategorySettings.ecmEnabled = state.adminCategorySettings.ecmEnabled !== false;
+        state.adminCategorySettings.ecmEnabled = state.adminCategorySettings.ecmEnabled === true;
         state.adminCategorySettings.ecmURL = normalizeAdminECMURL(state.adminCategorySettings.ecmURL);
         delete state.adminCategorySettings.groupAliases;
         delete state.adminCategorySettings.adminGroups;
@@ -1508,7 +1508,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         return fallback;
       }
       function adminECMEnabled() {
-        return adminSettings().ecmEnabled !== false;
+        return adminSettings().ecmEnabled === true && !!adminECMURL();
       }
       function adminECMURL() {
         return normalizeAdminECMURL(adminSettings().ecmURL);
@@ -2653,7 +2653,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         const settings = adminSettings();
         const root = byId("admin-ecm-settings");
         if (!root) return;
-        root.innerHTML = "<label><span>Enable ECM</span><input type=\"checkbox\" data-admin-ecm-field=\"enabled\"" + (settings.ecmEnabled !== false ? " checked" : "") + "></label>"
+        root.innerHTML = "<label><span>Enable ECM</span><input type=\"checkbox\" data-admin-ecm-field=\"enabled\"" + (settings.ecmEnabled === true ? " checked" : "") + "></label>"
           + "<div class=\"settings-row\"><span>ECM URL</span><input type=\"url\" data-admin-ecm-field=\"url\" value=\"" + escapeHTML(settings.ecmURL || "") + "\"></div>"
           + "<div class=\"settings-note\">When enabled, the Channel Manager tab embeds this ECM instance for admin channel management.</div>";
       }
