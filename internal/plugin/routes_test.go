@@ -214,11 +214,11 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`Admin virtual folders + delimiter`,
 		`data-admin-category-field=\"mode\"`,
 		`data-admin-group-action=\"create\"`,
-		`adminGroupMemberships`,
+		`groupAliases`,
 		`presentationOverrides`,
-		`Admin virtual folder aliases`,
-		`New alias folder`,
-		`Edit alias folder`,
+		`Admin group aliases`,
+		`New group alias`,
+		`Edit group alias`,
 		`function effectiveChannel(channel)`,
 		`function renderAdminPresentationSettings()`,
 		`Presentation overrides`,
@@ -241,7 +241,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	}
 }
 
-func TestAdminVirtualFolderAliasesKeepSourceAndAliasPaths(t *testing.T) {
+func TestAdminVirtualFolderAliasesApplyToSourceGroups(t *testing.T) {
 	t.Parallel()
 
 	script := extractPlayerScript(t)
@@ -258,11 +258,13 @@ func TestAdminVirtualFolderAliasesKeepSourceAndAliasPaths(t *testing.T) {
 			"adminCategorySettings": map[string]any{
 				"mode":      "admin_delimiter",
 				"delimiter": "pipe",
-				"adminGroups": []map[string]any{
-					{"id": "admin:sports-argentina", "name": "Sports | Argentina", "order": 1},
-				},
-				"adminGroupMemberships": map[string]any{
-					"admin:sports-argentina": []string{"channel:argentina-sports"},
+				"groupAliases": []map[string]any{
+					{
+						"id":     "alias:sports-argentina",
+						"source": "International | Argentina | Sports",
+						"alias":  "Sports | Argentina",
+						"order":  1,
+					},
 				},
 				"presentationOverrides": map[string]any{},
 			},
@@ -622,7 +624,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 		Method:  "POST",
 		Path:    "/dispatcharr/api/admin-settings",
 		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
-		Body:    []byte(`{"mode":"admin_delimiter","delimiter":"pipe","adminGroups":[{"id":"admin:sports","name":"Sports | Argentina","order":1}],"adminGroupMemberships":{"admin:sports":["channel:1"]},"presentationOverrides":{"channel:1":{"name":"Sports Alt","order":2}}}`),
+		Body:    []byte(`{"mode":"admin_delimiter","delimiter":"pipe","groupAliases":[{"id":"alias:sports","source":"International | Argentina | Sports","alias":"Sports | Argentina","order":1}],"presentationOverrides":{"channel:1":{"name":"Sports Alt","order":2}}}`),
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
