@@ -1278,6 +1278,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       .settings-list { display: grid; gap: 0.55rem; }
       .settings-list label, .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--panel); border-radius: 0.65rem; padding: 0.7rem; }
       .settings-row input, .settings-row select { min-width: 12rem; border: 1px solid var(--line); border-radius: 0.55rem; background: var(--rail-2); color: var(--text); padding: 0.45rem 0.55rem; }
+      .settings-row.ecm-url-row input { flex: 1 1 34rem; max-width: 42rem; }
       .settings-row input[type="checkbox"], .settings-list label input[type="checkbox"] { min-width: 0; width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
       .settings-row button, .settings-actions button { border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); padding: 0.45rem 0.7rem; font-weight: 820; }
       .settings-row button:hover, .settings-actions button:hover { background: var(--panel-2); }
@@ -2764,7 +2765,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         const root = byId("admin-ecm-settings");
         if (!root) return;
         root.innerHTML = "<label><span>Enable ECM</span><input type=\"checkbox\" data-admin-ecm-field=\"enabled\"" + (settings.ecmEnabled === true ? " checked" : "") + "></label>"
-          + "<div class=\"settings-row\"><span>ECM URL</span><input type=\"url\" data-admin-ecm-field=\"url\" value=\"" + escapeHTML(settings.ecmURL || "") + "\"></div>"
+          + "<div class=\"settings-row ecm-url-row\"><span>ECM URL</span><input type=\"url\" data-admin-ecm-field=\"url\" value=\"" + escapeHTML(settings.ecmURL || "") + "\"></div>"
           + "<div class=\"settings-note\">When enabled, the Channel Manager tab embeds this ECM instance for admin channel management.</div>";
       }
       function renderAdminCategorySettings() {
