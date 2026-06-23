@@ -112,6 +112,26 @@ func TestManifestGlobalConfigSchemasValidateExpectedObjects(t *testing.T) {
 	}
 }
 
+func TestManifestExposesAdminNavigationRoute(t *testing.T) {
+	t.Parallel()
+
+	manifest, err := loadManifest()
+	if err != nil {
+		t.Fatalf("load manifest: %v", err)
+	}
+
+	for _, route := range manifest.GetHttpRoutes() {
+		if route.GetPath() != "/dispatcharr/admin" {
+			continue
+		}
+		if !route.GetNavigable() || route.GetNavigationKind() != "admin" || route.GetNavigationLabel() != "Live TV Admin" || route.GetAccess() != "admin" {
+			t.Fatalf("unexpected admin route metadata: %+v", route)
+		}
+		return
+	}
+	t.Fatalf("expected manifest to expose /dispatcharr/admin as a navigable admin route")
+}
+
 func mustStruct(t *testing.T, value map[string]any) *structpb.Struct {
 	t.Helper()
 	result, err := structpb.NewStruct(value)
