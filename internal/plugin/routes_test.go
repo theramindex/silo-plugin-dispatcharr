@@ -402,7 +402,10 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 		t.Fatalf("expected featured virtual category to toggle between guide and channel list views: %+v", result)
 	}
 	if !result.VirtualBreadcrumbRoot {
-		t.Fatalf("expected normal virtual category breadcrumb root to remain virtual categories: %+v", result)
+		t.Fatalf("expected normal virtual group breadcrumb root to remain virtual groups: %+v", result)
+	}
+	if result.FeaturedBackButton || result.VirtualBackButton {
+		t.Fatalf("expected virtual drilldowns to omit the redundant Back button: %+v", result)
 	}
 	if result.ChannelCategoryName != "International | Argentina | Sports" {
 		t.Fatalf("expected channel category display name to hide marker: %+v", result)
@@ -459,7 +462,9 @@ type virtualAliasResult struct {
 	FeaturedGuide           bool   `json:"featuredGuide"`
 	FeaturedViewToggle      bool   `json:"featuredViewToggle"`
 	FeaturedListView        bool   `json:"featuredListView"`
+	FeaturedBackButton      bool   `json:"featuredBackButton"`
 	VirtualBreadcrumbRoot   bool   `json:"virtualBreadcrumbRoot"`
+	VirtualBackButton       bool   `json:"virtualBackButton"`
 	ChannelCategoryName     string `json:"channelCategoryName"`
 	ReplayRewindable        bool   `json:"replayRewindable"`
 	NormalRewindable        bool   `json:"normalRewindable"`
@@ -586,7 +591,9 @@ JSON.stringify((function() {
     featuredGuide: featuredView.indexOf(">TV Guide<") !== -1 && featuredView.indexOf('data-channel="channel:argentina-sports"') !== -1,
     featuredViewToggle: featuredView.indexOf('data-virtual-category-view="guide"') !== -1 && featuredView.indexOf('data-virtual-category-view="list"') !== -1,
     featuredListView: featuredListView.indexOf(">Channels<") !== -1 && featuredListView.indexOf('class="virtual-channel-button" data-channel="channel:argentina-sports"') !== -1 && featuredListView.indexOf(">TV Guide<") === -1,
+    featuredBackButton: featuredView.indexOf(">Back</button>") !== -1,
     virtualBreadcrumbRoot: virtualView.indexOf(">Virtual Groups</button>") !== -1,
+    virtualBackButton: virtualView.indexOf(">Back</button>") !== -1,
     channelCategoryName: channel ? channel.categoryName : "",
     replayRewindable: isRewindableChannel(replayChannel),
     normalRewindable: isRewindableChannel(channel),

@@ -2105,10 +2105,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         return featured ? featuredCategoryID(path) : virtualCategoryID(path);
       }
       function virtualFolderHeader(path, featured) {
-        const parts = path.split(" / ").filter(Boolean);
-        const parentPath = parts.slice(0, -1).join(" / ");
-        const backID = parentPath ? activeVirtualCategoryID(parentPath, featured) : "";
-        return "<div class=\"section-title\">" + virtualFolderBreadcrumbs(path, featured) + (path ? "<button class=\"chip\" data-category=\"" + escapeHTML(backID) + "\">Back</button>" : "") + "</div>";
+        return "<div class=\"section-title\">" + virtualFolderBreadcrumbs(path, featured) + "</div>";
       }
       function virtualFolderBreadcrumbs(path, featured) {
         const parts = path.split(" / ").filter(Boolean);
