@@ -1112,6 +1112,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       .refresh-button svg { width: 1.1rem; height: 1.1rem; display: block; }
       .refresh-button.is-loading svg { animation: spin 880ms linear infinite; }
       .section-title { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1rem 0 0.55rem; color: var(--muted); font-size: 0.95rem; font-weight: 850; }
+      .section-title.actions-only { justify-content: flex-end; }
       .breadcrumbs { display: flex; align-items: center; gap: 0.4rem; min-width: 0; color: var(--muted); }
       .breadcrumbs button { border: 0; background: transparent; color: var(--text); padding: 0.2rem 0; font: inherit; font-weight: 850; }
       .breadcrumbs button:hover { color: white; text-decoration: underline; }
@@ -2058,6 +2059,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       function sectionHeaderWithActions(title, actions) {
         return "<div class=\"section-title\"><span>" + escapeHTML(title) + "</span>" + (actions || "") + "</div>";
       }
+      function sectionActions(actions) {
+        return "<div class=\"section-title actions-only\">" + (actions || "") + "</div>";
+      }
       function rowCards(channels) {
         if (!channels.length) return "<div class=\"empty\">No channels yet.</div>";
         return "<div class=\"row-scroll\">" + channels.map(function(channel) {
@@ -2240,7 +2244,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         }).join("") + "</div></div>";
       }
       function renderVirtualCategoryGuide(channels) {
-        return sectionHeaderWithActions("TV Guide", renderVirtualCategoryViewToggle()) + renderHomeGuide(channels, "No channels in this virtual group yet.");
+        return sectionActions(renderVirtualCategoryViewToggle()) + renderHomeGuide(channels, "No channels in this virtual group yet.");
       }
       function virtualCategoryView() {
         return state.virtualCategoryView === "list" ? "list" : "guide";
