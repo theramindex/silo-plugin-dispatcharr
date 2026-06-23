@@ -99,11 +99,8 @@ func TestRuntimeConfigureReadsCategorySettings(t *testing.T) {
 
 	req := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{
 		{Key: "category_settings", Value: mustStruct(t, map[string]any{
-			"mode":      "admin_delimiter",
+			"mode":      "delimiter",
 			"delimiter": "pipe",
-			"adminGroups": []any{
-				map[string]any{"id": "admin:sports", "name": "Sports | Argentina", "order": 1},
-			},
 		})},
 	}}
 
@@ -115,7 +112,7 @@ func TestRuntimeConfigureReadsCategorySettings(t *testing.T) {
 	if err := json.Unmarshal(state.Get().AdminSettings, &settings); err != nil {
 		t.Fatalf("decode admin settings: %v", err)
 	}
-	if settings["mode"] != "admin_delimiter" || settings["delimiter"] != "pipe" {
+	if settings["mode"] != "delimiter" || settings["delimiter"] != "pipe" {
 		t.Fatalf("expected category settings to be loaded, got %+v", settings)
 	}
 }
@@ -141,16 +138,8 @@ func TestManifestGlobalConfigSchemasValidateExpectedObjects(t *testing.T) {
 		t.Fatalf("expected incomplete m3u/xmltv connection to fail validation")
 	}
 	if err := configsdk.ValidateManifestGlobalValue(manifest, "category_settings", map[string]any{
-		"mode":      "admin_delimiter",
+		"mode":      "delimiter",
 		"delimiter": "pipe",
-		"groupAliases": []any{
-			map[string]any{
-				"id":     "alias:sports-argentina",
-				"source": "International | Argentina | Sports",
-				"alias":  "Sports | Argentina",
-				"order":  1,
-			},
-		},
 	}); err != nil {
 		t.Fatalf("validate category settings schema: %v", err)
 	}

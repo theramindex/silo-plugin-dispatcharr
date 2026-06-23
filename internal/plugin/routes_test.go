@@ -211,21 +211,13 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`Category method`,
 		`Normal`,
 		`By delimiter`,
-		`Admin virtual folders + delimiter`,
 		`data-admin-category-field=\"mode\"`,
-		`data-admin-group-action=\"create\"`,
-		`groupAliases`,
-		`presentationOverrides`,
-		`Admin group aliases`,
-		`New group alias`,
-		`Edit group alias`,
+		`data-admin-settings-action=\"save\"`,
+		`data-admin-settings-action=\"discard\"`,
+		`Unsaved changes.`,
+		`Save`,
+		`Discard`,
 		`function effectiveChannel(channel)`,
-		`function renderAdminPresentationSettings()`,
-		`Presentation overrides`,
-		`data-admin-presentation-field=\"name\"`,
-		`data-admin-presentation-field=\"logoUrl\"`,
-		`data-admin-presentation-field=\"hidden\"`,
-		`data-admin-presentation-field=\"order\"`,
 		`/dispatcharr/api/admin-settings`,
 		`savePluginSettingValue(adminSettingsKey, JSON.stringify(state.adminCategorySettings))`,
 		`const hasSavedAdminSettings = !!(values && values[adminSettingsKey])`,
@@ -244,7 +236,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	}
 }
 
-func TestAdminVirtualFolderAliasesApplyToSourceGroups(t *testing.T) {
+func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	t.Parallel()
 
 	script := extractPlayerScript(t)
@@ -259,17 +251,8 @@ func TestAdminVirtualFolderAliasesApplyToSourceGroups(t *testing.T) {
 				},
 			},
 			"adminCategorySettings": map[string]any{
-				"mode":      "admin_delimiter",
+				"mode":      "delimiter",
 				"delimiter": "pipe",
-				"groupAliases": []map[string]any{
-					{
-						"id":     "alias:sports-argentina",
-						"source": "International | Argentina | Sports",
-						"alias":  "Sports | Argentina",
-						"order":  1,
-					},
-				},
-				"presentationOverrides": map[string]any{},
 			},
 		},
 	}
@@ -278,13 +261,13 @@ func TestAdminVirtualFolderAliasesApplyToSourceGroups(t *testing.T) {
 	if !result.SourcePath {
 		t.Fatalf("expected source path to remain visible: %+v", result)
 	}
-	if !result.AliasPath {
-		t.Fatalf("expected admin alias path to be added: %+v", result)
+	if result.AliasPath {
+		t.Fatalf("expected Silo admin alias path to be absent: %+v", result)
 	}
-	if result.SourceCount != 1 || result.AliasCount != 1 {
-		t.Fatalf("expected source and alias counts to be one channel each: %+v", result)
+	if result.SourceCount != 1 || result.AliasCount != 0 {
+		t.Fatalf("expected source count to be one channel and alias count to be zero: %+v", result)
 	}
-	if result.ObjectParsedMode != "admin_delimiter" {
+	if result.ObjectParsedMode != "delimiter" {
 		t.Fatalf("expected admin settings JSON object to preserve mode: %+v", result)
 	}
 	if result.StringParsedMode != "delimiter" {
@@ -389,7 +372,7 @@ JSON.stringify((function() {
     aliasPath: !!alias,
     sourceCount: channelsInSource.length,
     aliasCount: channelsInAlias.length,
-    objectParsedMode: readAdminSettingsValue({ mode: "admin_delimiter", delimiter: "pipe" }).mode,
+    objectParsedMode: readAdminSettingsValue({ mode: "delimiter", delimiter: "pipe" }).mode,
     stringParsedMode: readAdminSettingsValue(JSON.stringify({ mode: "delimiter", delimiter: "pipe" })).mode
   };
 })())
@@ -637,7 +620,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 		Method:  "POST",
 		Path:    "/dispatcharr/api/admin-settings",
 		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
-		Body:    []byte(`{"mode":"admin_delimiter","delimiter":"pipe","groupAliases":[{"id":"alias:sports","source":"International | Argentina | Sports","alias":"Sports | Argentina","order":1}],"presentationOverrides":{"channel:1":{"name":"Sports Alt","order":2}}}`),
+		Body:    []byte(`{"mode":"delimiter","delimiter":"pipe"}`),
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
@@ -658,10 +641,10 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
 		t.Fatalf("unmarshal admin settings: %v", err)
 	}
-	if payload["mode"] != "admin_delimiter" || payload["delimiter"] != "pipe" {
+	if payload["mode"] != "delimiter" || payload["delimiter"] != "pipe" {
 		t.Fatalf("expected admin settings to persist: %+v", payload)
 	}
-	if persisted["mode"] != "admin_delimiter" || persisted["delimiter"] != "pipe" {
+	if persisted["mode"] != "delimiter" || persisted["delimiter"] != "pipe" {
 		t.Fatalf("expected admin settings to write through to host config: %+v", persisted)
 	}
 }
@@ -677,7 +660,7 @@ func TestHTTPRoutesServerAdminSettingsRouteReturnsSavedPayloadWhenHostPersistFai
 		Method:  "POST",
 		Path:    "/dispatcharr/api/admin-settings",
 		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
-		Body:    []byte(`{"mode":"admin_delimiter","delimiter":"pipe","groupAliases":[{"id":"alias:sports","source":"International | Argentina | Sports","alias":"Sports | Argentina","order":1}]}`),
+		Body:    []byte(`{"mode":"delimiter","delimiter":"pipe"}`),
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
