@@ -1560,9 +1560,18 @@ const playerPageHTMLTemplate = `<!doctype html>
       function rawChannelByID(id) {
         return items(state.app.channels).find(function(channel) { return channel.id === id; }) || null;
       }
+      function categoryStartsFeatured(name) {
+        return String(name || "").trim().indexOf("*") === 0;
+      }
+      function categoryDisplayName(name) {
+        name = String(name || "").trim();
+        return categoryStartsFeatured(name) ? name.slice(1).trim() : name;
+      }
       function effectiveChannel(channel) {
         if (!channel) return null;
         const copy = Object.assign({}, channel);
+        const label = sourceCategoryLabel(channel);
+        if (label) copy.categoryName = label;
         return copy;
       }
       function effectiveChannels(includeHidden) {
@@ -1593,12 +1602,18 @@ const playerPageHTMLTemplate = `<!doctype html>
       function customMemberships(groupID) {
         return uniqueIDs(items((prefs().customGroupMemberships || {})[groupID]));
       }
-      function sourceCategoryName(id) {
+      function sourceCategoryRawName(id) {
         const category = items(state.app.categories).find(function(item) { return item.id === id; });
         return category ? category.name : "";
       }
+      function sourceCategoryName(id) {
+        return categoryDisplayName(sourceCategoryRawName(id));
+      }
+      function sourceCategoryRawLabel(channel) {
+        return channel.categoryName || sourceCategoryRawName(channel.categoryId) || "";
+      }
       function sourceCategoryLabel(channel) {
-        return channel.categoryName || sourceCategoryName(channel.categoryId) || "";
+        return categoryDisplayName(sourceCategoryRawLabel(channel));
       }
       function delimiterPattern() {
         return (adminSettings().delimiter || "pipe") === "pipe" ? /\s*\|\s*/ : /\s+-\s*/;
@@ -1874,9 +1889,16 @@ const playerPageHTMLTemplate = `<!doctype html>
         });
         const custom = customGroupCategories();
         const listing = adminListingCategories("");
+        const featured = sourceCategories.filter(function(category) { return !!category.featured; });
+        const featuredSourceIDs = {};
+        featured.forEach(function(category) { featuredSourceIDs[category.sourceID] = true; });
+        const regularListing = listing.filter(function(category) {
+          return !(category.kind === "source" && featuredSourceIDs[category.sourceID]);
+        });
         const sections = [];
+        if (featured.length) sections.push(categoryGridSection("Featured", featured));
         if (custom.length) sections.push(categoryGridSection("My groups", custom));
-        if (listing.length) sections.push(categoryGridSection(adminListingTitle(), listing));
+        if (regularListing.length) sections.push(categoryGridSection(adminListingTitle(), regularListing));
         if (!listing.length && sourceCategories.length) sections.push(categoryGridSection("Source categories", sourceCategories));
         return sections.length ? sections.join("") : "<div class=\"empty\">No categories yet.</div>";
       }
@@ -1909,7 +1931,8 @@ const playerPageHTMLTemplate = `<!doctype html>
         return items(state.app.categories).filter(function(category) {
           return !!categoryCounts[category.id];
         }).map(function(category) {
-          return { id: sourceCategoryID(category.id), sourceID: category.id, name: category.name || category.id, kind: "source", count: categoryCounts[category.id] || 0 };
+          const rawName = category.name || category.id;
+          return { id: sourceCategoryID(category.id), sourceID: category.id, name: categoryDisplayName(rawName), featured: categoryStartsFeatured(rawName), kind: "source", count: categoryCounts[category.id] || 0 };
         });
       }
       function customGroupCategories() {
@@ -2356,6 +2379,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         }).join("") || "<div class=\"empty\">No source categories available for this connection.</div>";
       }
       function categoryName(id) {
+        if (String(id || "").indexOf("source:") === 0) return sourceCategoryName(String(id || "").slice("source:".length));
         const category = allFilterCategories().find(function(item) { return item.id === id; });
         return category ? category.name : "";
       }

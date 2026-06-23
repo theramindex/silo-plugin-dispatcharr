@@ -244,10 +244,10 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 		"state": map[string]any{
 			"app": map[string]any{
 				"channels": []map[string]any{
-					{"id": "channel:argentina-sports", "name": "Argentina Sports", "categoryId": "cat:argentina-sports", "categoryName": "International | Argentina | Sports"},
+					{"id": "channel:argentina-sports", "name": "Argentina Sports", "categoryId": "cat:argentina-sports", "categoryName": "* International | Argentina | Sports"},
 				},
 				"categories": []map[string]any{
-					{"id": "cat:argentina-sports", "name": "International | Argentina | Sports"},
+					{"id": "cat:argentina-sports", "name": "* International | Argentina | Sports"},
 				},
 			},
 			"adminCategorySettings": map[string]any{
@@ -272,6 +272,15 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	}
 	if result.StringParsedMode != "delimiter" {
 		t.Fatalf("expected admin settings JSON string to preserve mode: %+v", result)
+	}
+	if !result.FeaturedSection || !result.FeaturedCategory {
+		t.Fatalf("expected starred source category to render in featured section: %+v", result)
+	}
+	if result.FeaturedMarkerVisible {
+		t.Fatalf("expected starred source category marker to be hidden: %+v", result)
+	}
+	if result.ChannelCategoryName != "International | Argentina | Sports" {
+		t.Fatalf("expected channel category display name to hide marker: %+v", result)
 	}
 }
 
@@ -300,12 +309,16 @@ func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
 }
 
 type virtualAliasResult struct {
-	SourcePath       bool   `json:"sourcePath"`
-	AliasPath        bool   `json:"aliasPath"`
-	SourceCount      int    `json:"sourceCount"`
-	AliasCount       int    `json:"aliasCount"`
-	ObjectParsedMode string `json:"objectParsedMode"`
-	StringParsedMode string `json:"stringParsedMode"`
+	SourcePath            bool   `json:"sourcePath"`
+	AliasPath             bool   `json:"aliasPath"`
+	SourceCount           int    `json:"sourceCount"`
+	AliasCount            int    `json:"aliasCount"`
+	ObjectParsedMode      string `json:"objectParsedMode"`
+	StringParsedMode      string `json:"stringParsedMode"`
+	FeaturedSection       bool   `json:"featuredSection"`
+	FeaturedCategory      bool   `json:"featuredCategory"`
+	FeaturedMarkerVisible bool   `json:"featuredMarkerVisible"`
+	ChannelCategoryName   string `json:"channelCategoryName"`
 }
 
 func extractPlayerScript(t *testing.T) string {
@@ -367,13 +380,19 @@ JSON.stringify((function() {
   const channelsInAlias = effectiveChannels(false).filter(function(channel) {
     return virtualPathsForChannel(channel).indexOf("Sports / Argentina") !== -1;
   });
+  const grid = categoryGrid();
+  const channel = channelByID("channel:argentina-sports");
   return {
     sourcePath: !!source,
     aliasPath: !!alias,
     sourceCount: channelsInSource.length,
     aliasCount: channelsInAlias.length,
     objectParsedMode: readAdminSettingsValue({ mode: "delimiter", delimiter: "pipe" }).mode,
-    stringParsedMode: readAdminSettingsValue(JSON.stringify({ mode: "delimiter", delimiter: "pipe" })).mode
+    stringParsedMode: readAdminSettingsValue(JSON.stringify({ mode: "delimiter", delimiter: "pipe" })).mode,
+    featuredSection: grid.indexOf(">Featured<") !== -1,
+    featuredCategory: grid.indexOf("International | Argentina | Sports") !== -1,
+    featuredMarkerVisible: grid.indexOf("* International") !== -1,
+    channelCategoryName: channel ? channel.categoryName : ""
   };
 })())
 `+"`"+`, sandbox);
