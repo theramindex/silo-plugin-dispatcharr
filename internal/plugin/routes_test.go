@@ -185,6 +185,10 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`document.addEventListener("focusin", function(event)`,
 		`data-title=\"" + escapeHTML(programTitle) + "\"`,
 		`aria-label=\"" + escapeHTML(programTime + " " + programTitle) + "\"`,
+		`.logo-fallback`,
+		`function channelLogoFallback(channel)`,
+		`onerror=\"this.hidden = true; this.nextElementSibling.hidden = false;\"`,
+		`title=\"" + escapeHTML(channel.name || "Untitled") + "\"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected app page to include virtual folder drilldown marker %q", want)
