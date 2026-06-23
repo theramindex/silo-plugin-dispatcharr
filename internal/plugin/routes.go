@@ -1133,8 +1133,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       .epg-cell .epg-schedule svg { width: 1rem; height: 1rem; }
       .epg-cell:hover .epg-schedule, .epg-cell .epg-schedule:focus-visible { opacity: 1; }
       .epg-cell .epg-schedule:hover { background: rgba(255,47,125,0.86); }
-      .epg-tooltip { position: fixed; z-index: 50; max-width: min(42rem, calc(100vw - 1.5rem)); border: 1px solid rgba(255,255,255,0.18); border-radius: 0.65rem; background: rgba(20,20,23,0.98); box-shadow: 0 1rem 2.5rem rgba(0,0,0,0.45); color: var(--text); padding: 0.62rem 0.75rem; font-size: 0.9rem; font-weight: 850; line-height: 1.25; pointer-events: none; opacity: 0; transform: translateY(0.25rem); transition: opacity 120ms ease, transform 120ms ease; }
-      .epg-tooltip.visible { opacity: 1; transform: translateY(0); }
+      .overflow-tooltip { position: fixed; z-index: 50; max-width: min(42rem, calc(100vw - 1.5rem)); border: 1px solid rgba(255,255,255,0.18); border-radius: 0.65rem; background: rgba(20,20,23,0.98); box-shadow: 0 1rem 2.5rem rgba(0,0,0,0.45); color: var(--text); padding: 0.62rem 0.75rem; font-size: 0.9rem; font-weight: 850; line-height: 1.25; pointer-events: none; opacity: 0; transform: translateY(0.25rem); transition: opacity 120ms ease, transform 120ms ease; }
+      .overflow-tooltip.visible { opacity: 1; transform: translateY(0); }
       .player-view { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 1rem; align-items: start; }
       video { width: 100%; aspect-ratio: 16 / 9; background: #050505; border: 1px solid var(--line); border-radius: 0.75rem; }
       .playback-shell { position: relative; min-height: 100vh; overflow: hidden; background: #050505; display: grid; place-items: center; }
@@ -2269,7 +2269,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         const description = program.description || categoryNameText;
         const start = timeLabel(program.startUnix) || "LIVE";
         const end = timeLabel(program.endUnix) || "Now";
-        byId("view").innerHTML = "<section class=\"playback-shell\"><div class=\"playback-stage\"><video id=\"player\" class=\"playback-video\" autoplay playsinline></video><div class=\"playback-scrim\"></div><button id=\"player-center-button\" class=\"player-center-button hidden\" data-player-action=\"play-toggle\" aria-label=\"Play\">" + icon("play") + "</button><div class=\"player-top\"><button class=\"player-exit\" data-player-action=\"back\" aria-label=\"Back to Live TV browse\"><span class=\"player-icon\">" + icon("x") + "</span><span>Exit</span></button><div class=\"player-top-actions\"><div class=\"player-audio\"><button id=\"player-audio-button\" class=\"player-chip\" data-player-action=\"audio-menu\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "<span>Audio</span>" + icon("chevron-down") + "</button><div id=\"player-audio-menu\" class=\"player-menu\" role=\"menu\"></div></div><div class=\"player-volume\"><button id=\"player-volume-button\" class=\"player-icon\" data-player-action=\"volume-menu\" aria-label=\"Volume\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("speaker") + "</button><div id=\"player-volume-popover\" class=\"volume-popover\"><span>VOL</span><input id=\"player-volume-slider\" type=\"range\" min=\"0\" max=\"100\" step=\"1\" value=\"" + Math.round(state.volume * 100) + "\" aria-label=\"Volume\"><span id=\"player-volume-value\" class=\"volume-value\"></span></div></div><button class=\"player-icon\" data-player-action=\"cast\" aria-label=\"AirPlay or Cast\">" + icon("airplay") + "</button><button id=\"player-guide-button\" class=\"player-icon player-guide-button\" data-player-action=\"guide\" aria-label=\"Guide\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("guide") + "</button><button id=\"player-fullscreen-button\" class=\"player-icon\" data-player-action=\"fullscreen\" aria-label=\"Fullscreen\" aria-pressed=\"false\">" + icon("fullscreen") + "</button><div class=\"player-more\"><button id=\"player-more-button\" class=\"player-icon\" data-player-action=\"more\" aria-label=\"More\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("ellipsis") + "</button><div id=\"player-more-menu\" class=\"player-more-menu\"></div></div></div></div><div id=\"player-toast\" class=\"player-toast\" role=\"status\"></div><div id=\"player-guide-panel\" class=\"player-guide-panel\"></div><div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel) + "<div class=\"player-kicker\">" + escapeHTML(channelName) + "</div><h2 class=\"player-title\">" + escapeHTML(title) + "</h2><p class=\"player-description\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span class=\"player-tag\">AV</span></div></div><div class=\"player-bottom-actions\">" + playerFavoriteButtonHTML(channel) + "<button class=\"player-icon\" data-player-action=\"pip\" aria-label=\"Picture in Picture\">" + icon("pip") + "</button><button id=\"player-subtitles-button\" class=\"player-icon\" data-player-action=\"subtitles\" aria-label=\"Subtitles\" aria-pressed=\"false\">" + icon("captions") + "</button><button id=\"player-language-button\" class=\"player-icon\" data-player-action=\"language-menu\" aria-label=\"Audio language\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "</button></div></div><div class=\"timeline\"><span>" + escapeHTML(start) + "</span><div class=\"timeline-bar\"><div class=\"timeline-fill\"></div><div class=\"timeline-knob\"></div></div><span><span class=\"live-dot\"></span>LIVE&nbsp;&nbsp;" + escapeHTML(end) + "</span></div></div></div></section>";
+        byId("view").innerHTML = "<section class=\"playback-shell\"><div class=\"playback-stage\"><video id=\"player\" class=\"playback-video\" autoplay playsinline></video><div class=\"playback-scrim\"></div><button id=\"player-center-button\" class=\"player-center-button hidden\" data-player-action=\"play-toggle\" aria-label=\"Play\">" + icon("play") + "</button><div class=\"player-top\"><button class=\"player-exit\" data-player-action=\"back\" aria-label=\"Back to Live TV browse\"><span class=\"player-icon\">" + icon("x") + "</span><span>Exit</span></button><div class=\"player-top-actions\"><div class=\"player-audio\"><button id=\"player-audio-button\" class=\"player-chip\" data-player-action=\"audio-menu\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "<span>Audio</span>" + icon("chevron-down") + "</button><div id=\"player-audio-menu\" class=\"player-menu\" role=\"menu\"></div></div><div class=\"player-volume\"><button id=\"player-volume-button\" class=\"player-icon\" data-player-action=\"volume-menu\" aria-label=\"Volume\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("speaker") + "</button><div id=\"player-volume-popover\" class=\"volume-popover\"><span>VOL</span><input id=\"player-volume-slider\" type=\"range\" min=\"0\" max=\"100\" step=\"1\" value=\"" + Math.round(state.volume * 100) + "\" aria-label=\"Volume\"><span id=\"player-volume-value\" class=\"volume-value\"></span></div></div><button class=\"player-icon\" data-player-action=\"cast\" aria-label=\"AirPlay or Cast\">" + icon("airplay") + "</button><button id=\"player-guide-button\" class=\"player-icon player-guide-button\" data-player-action=\"guide\" aria-label=\"Guide\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("guide") + "</button><button id=\"player-fullscreen-button\" class=\"player-icon\" data-player-action=\"fullscreen\" aria-label=\"Fullscreen\" aria-pressed=\"false\">" + icon("fullscreen") + "</button><div class=\"player-more\"><button id=\"player-more-button\" class=\"player-icon\" data-player-action=\"more\" aria-label=\"More\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("ellipsis") + "</button><div id=\"player-more-menu\" class=\"player-more-menu\"></div></div></div></div><div id=\"player-toast\" class=\"player-toast\" role=\"status\"></div><div id=\"player-guide-panel\" class=\"player-guide-panel\"></div><div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel) + "<div class=\"player-kicker\">" + escapeHTML(channelName) + "</div><h2 class=\"player-title\">" + escapeHTML(title) + "</h2><p class=\"player-description\" data-overflow-description=\"true\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span class=\"player-tag\">AV</span></div></div><div class=\"player-bottom-actions\">" + playerFavoriteButtonHTML(channel) + "<button class=\"player-icon\" data-player-action=\"pip\" aria-label=\"Picture in Picture\">" + icon("pip") + "</button><button id=\"player-subtitles-button\" class=\"player-icon\" data-player-action=\"subtitles\" aria-label=\"Subtitles\" aria-pressed=\"false\">" + icon("captions") + "</button><button id=\"player-language-button\" class=\"player-icon\" data-player-action=\"language-menu\" aria-label=\"Audio language\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "</button></div></div><div class=\"timeline\"><span>" + escapeHTML(start) + "</span><div class=\"timeline-bar\"><div class=\"timeline-fill\"></div><div class=\"timeline-knob\"></div></div><span><span class=\"live-dot\"></span>LIVE&nbsp;&nbsp;" + escapeHTML(end) + "</span></div></div></div></section>";
         updateAudioMenu();
         updateVolumeMenu();
         renderPlayerGuidePanel();
@@ -2346,21 +2346,25 @@ const playerPageHTMLTemplate = `<!doctype html>
           + "<button data-player-action=\"copy-stream\">" + menuIcon("copy") + "<span>Copy stream URL<small>For an external player</small></span></button>"
           + "<button data-player-action=\"open-stream\">" + menuIcon("external") + "<span>Use external video player<small>Open the stream route in a new tab</small></span></button>";
       }
-      function guideTooltip() {
-        let tooltip = byId("epg-tooltip");
+      function overflowTooltip() {
+        let tooltip = byId("overflow-tooltip");
         if (tooltip) return tooltip;
         tooltip = document.createElement("div");
-        tooltip.id = "epg-tooltip";
-        tooltip.className = "epg-tooltip";
+        tooltip.id = "overflow-tooltip";
+        tooltip.className = "overflow-tooltip";
         tooltip.setAttribute("role", "tooltip");
         document.body.appendChild(tooltip);
         return tooltip;
       }
-      function guideTooltipTarget(event) {
+      function overflowTooltipTarget(event) {
         if (!event.target || !event.target.closest) return null;
-        return event.target.closest(".epg-cell[data-title]");
+        return event.target.closest("[data-overflow-description]");
       }
-      function positionGuideTooltip(tooltip, target, event) {
+      function descriptionOverflows(target) {
+        if (!target) return false;
+        return target.scrollWidth > target.clientWidth + 1 || target.scrollHeight > target.clientHeight + 1;
+      }
+      function positionOverflowTooltip(tooltip, target, event) {
         const padding = 12;
         const gap = 8;
         const rect = target.getBoundingClientRect();
@@ -2374,16 +2378,17 @@ const playerPageHTMLTemplate = `<!doctype html>
         tooltip.style.left = left + "px";
         tooltip.style.top = Math.min(top, Math.max(padding, window.innerHeight - height - padding)) + "px";
       }
-      function showGuideTooltip(target, event) {
-        const title = target ? target.getAttribute("data-title") : "";
-        if (!title) return;
-        const tooltip = guideTooltip();
-        tooltip.textContent = title;
+      function showOverflowTooltip(target, event) {
+        if (!descriptionOverflows(target)) return;
+        const description = target ? String(target.textContent || "").trim() : "";
+        if (!description) return;
+        const tooltip = overflowTooltip();
+        tooltip.textContent = description;
         tooltip.classList.add("visible");
-        positionGuideTooltip(tooltip, target, event);
+        positionOverflowTooltip(tooltip, target, event);
       }
-      function hideGuideTooltip() {
-        const tooltip = byId("epg-tooltip");
+      function hideOverflowTooltip() {
+        const tooltip = byId("overflow-tooltip");
         if (tooltip) tooltip.classList.remove("visible");
       }
       function renderGuidePage() {
@@ -2416,13 +2421,13 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (!programs.length) {
           const emptyTitle = "Data not available";
           const emptyTime = timeLabel(windowStart);
-          return "<button class=\"epg-cell program gray\" data-channel=\"" + escapeHTML(channel.id) + "\" data-title=\"" + escapeHTML(emptyTitle) + "\" aria-label=\"" + escapeHTML(emptyTime + " " + emptyTitle) + "\" style=\"left: 0; width: calc(100% - 0.25rem);\"><time>" + escapeHTML(emptyTime) + "</time><strong>" + escapeHTML(emptyTitle) + "</strong></button>";
+          return "<button class=\"epg-cell program gray\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(emptyTime + " " + emptyTitle) + "\" style=\"left: 0; width: calc(100% - 0.25rem);\"><time>" + escapeHTML(emptyTime) + "</time><strong>" + escapeHTML(emptyTitle) + "</strong></button>";
         }
         return programs.map(function(program, index) {
           const canSchedule = dvrEnabled() && (program.endUnix || 0) > now;
           const programTitle = program.title || "Data not available";
           const programTime = timeLabel(program.startUnix);
-          return "<div class=\"epg-cell program " + colorClass(index + channelIndex) + "\" data-title=\"" + escapeHTML(programTitle) + "\" style=\"" + epgCellStyle(program.startUnix, program.endUnix, windowInfo) + "\"><button class=\"epg-play\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(programTime + " " + programTitle) + "\"><time>" + escapeHTML(programTime) + "</time><strong>" + escapeHTML(programTitle) + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>";
+          return "<div class=\"epg-cell program " + colorClass(index + channelIndex) + "\" style=\"" + epgCellStyle(program.startUnix, program.endUnix, windowInfo) + "\"><button class=\"epg-play\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(programTime + " " + programTitle) + "\"><time>" + escapeHTML(programTime) + "</time><strong>" + escapeHTML(programTitle) + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>";
         }).join("");
       }
       function renderEPGRow(channel, channelIndex) {
@@ -3088,26 +3093,26 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (categoryTarget) setCategory(categoryTarget.getAttribute("data-category"));
       });
       document.addEventListener("mouseover", function(event) {
-        const target = guideTooltipTarget(event);
+        const target = overflowTooltipTarget(event);
         if (!target || (event.relatedTarget && target.contains(event.relatedTarget))) return;
-        showGuideTooltip(target, event);
+        showOverflowTooltip(target, event);
       });
       document.addEventListener("mousemove", function(event) {
-        const target = guideTooltipTarget(event);
-        if (target) showGuideTooltip(target, event);
+        const target = overflowTooltipTarget(event);
+        if (target) showOverflowTooltip(target, event);
       }, { passive: true });
       document.addEventListener("mouseout", function(event) {
-        const target = guideTooltipTarget(event);
+        const target = overflowTooltipTarget(event);
         if (!target || (event.relatedTarget && target.contains(event.relatedTarget))) return;
-        hideGuideTooltip();
+        hideOverflowTooltip();
       });
       document.addEventListener("focusin", function(event) {
-        const target = guideTooltipTarget(event);
-        if (target) showGuideTooltip(target, event);
+        const target = overflowTooltipTarget(event);
+        if (target) showOverflowTooltip(target, event);
       });
       document.addEventListener("focusout", function(event) {
-        const target = guideTooltipTarget(event);
-        if (target) hideGuideTooltip();
+        const target = overflowTooltipTarget(event);
+        if (target) hideOverflowTooltip();
       });
       document.addEventListener("fullscreenchange", updateFullscreenButton);
       document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
