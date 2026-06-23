@@ -286,6 +286,8 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`By delimiter`,
 		`Enable ECM`,
 		`ECM URL`,
+		`ecm-url-row`,
+		`.settings-row.ecm-url-row input`,
 		`data-admin-tab=\"settings\"`,
 		`data-admin-tab=\"manager\"`,
 		`data-admin-ecm-field=\"enabled\"`,
