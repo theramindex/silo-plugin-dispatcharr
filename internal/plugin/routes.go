@@ -432,7 +432,10 @@ func (s *HTTPRoutesServer) adminSettingsAuthorized(request *pluginv1.HandleHTTPR
 	if s.adminToken == "" {
 		return false
 	}
-	return headerValue(request.GetHeaders(), "x-dispatcharr-admin-token") == s.adminToken
+	if headerValue(request.GetHeaders(), "x-dispatcharr-admin-token") == s.adminToken {
+		return true
+	}
+	return queryValue(request, "admin_token") == s.adminToken
 }
 
 func headerValue(headers map[string]string, key string) string {
@@ -1434,7 +1437,11 @@ const playerPageHTMLTemplate = `<!doctype html>
         return readSiloPrefsValue(values ? values.preferences : "");
       }
       async function loadAdminCategorySettings() {
-        return readAdminSettingsValue(await getJSON("/dispatcharr/api/admin-settings"));
+        return readAdminSettingsValue(await getJSON(adminSettingsURL()));
+      }
+      function adminSettingsURL() {
+        if (!adminSettingsToken) return "/dispatcharr/api/admin-settings";
+        return "/dispatcharr/api/admin-settings?admin_token=" + encodeURIComponent(adminSettingsToken);
       }
       async function savePluginSettingValue(key, value) {
         if (!pluginInstallationID) throw new Error("plugin installation settings unavailable");
@@ -1473,7 +1480,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         state.adminCategorySettings = Object.assign(defaultAdminCategorySettings(), state.adminCategorySettings || {});
         state.adminSaveStatus = "saving";
         state.adminSaveMessage = "";
-        postJSON("/dispatcharr/api/admin-settings", state.adminCategorySettings).then(function(saved) {
+        postJSON(adminSettingsURL(), state.adminCategorySettings).then(function(saved) {
           state.adminCategorySettings = readAdminSettingsValue(saved);
           state.adminSaveStatus = "saved";
           state.adminSaveMessage = "Saved admin virtual folders.";

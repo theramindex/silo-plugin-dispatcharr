@@ -689,6 +689,24 @@ func TestHTTPRoutesServerAdminSettingsRouteRequiresAdminPageToken(t *testing.T) 
 	}
 }
 
+func TestHTTPRoutesServerAdminSettingsRouteAcceptsQueryToken(t *testing.T) {
+	t.Parallel()
+
+	server := NewHTTPRoutesServer(cache.NewStore())
+	query, _ := structpb.NewStruct(map[string]any{"admin_token": server.adminToken})
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method: "GET",
+		Path:   "/dispatcharr/api/admin-settings",
+		Query:  query,
+	})
+	if err != nil {
+		t.Fatalf("admin settings route: %v", err)
+	}
+	if response.GetStatusCode() != 200 {
+		t.Fatalf("expected 200 with admin settings query token, got %d", response.GetStatusCode())
+	}
+}
+
 func TestHTTPRoutesServerWatchLifecycleUpdatesSessionState(t *testing.T) {
 	t.Parallel()
 
