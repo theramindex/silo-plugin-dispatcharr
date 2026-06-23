@@ -398,6 +398,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.FeaturedBreadcrumbRoot || !result.FeaturedBreadcrumbPath || !result.FeaturedGuide {
 		t.Fatalf("expected starred delimiter category to render featured breadcrumbs and guide: %+v", result)
 	}
+	if result.FeaturedGuideHeading || result.VirtualGuideHeading {
+		t.Fatalf("expected virtual drilldown guide views to omit the redundant TV Guide heading: %+v", result)
+	}
 	if !result.FeaturedViewToggle || !result.FeaturedListView {
 		t.Fatalf("expected featured virtual category to toggle between guide and channel list views: %+v", result)
 	}
@@ -460,10 +463,12 @@ type virtualAliasResult struct {
 	FeaturedBreadcrumbRoot  bool   `json:"featuredBreadcrumbRoot"`
 	FeaturedBreadcrumbPath  bool   `json:"featuredBreadcrumbPath"`
 	FeaturedGuide           bool   `json:"featuredGuide"`
+	FeaturedGuideHeading    bool   `json:"featuredGuideHeading"`
 	FeaturedViewToggle      bool   `json:"featuredViewToggle"`
 	FeaturedListView        bool   `json:"featuredListView"`
 	FeaturedBackButton      bool   `json:"featuredBackButton"`
 	VirtualBreadcrumbRoot   bool   `json:"virtualBreadcrumbRoot"`
+	VirtualGuideHeading     bool   `json:"virtualGuideHeading"`
 	VirtualBackButton       bool   `json:"virtualBackButton"`
 	ChannelCategoryName     string `json:"channelCategoryName"`
 	ReplayRewindable        bool   `json:"replayRewindable"`
@@ -588,11 +593,13 @@ JSON.stringify((function() {
     featuredMarkerVisible: grid.indexOf("* International") !== -1,
     featuredBreadcrumbRoot: featuredView.indexOf(">Featured Groups</button>") !== -1,
     featuredBreadcrumbPath: featuredView.indexOf(">International</button>") !== -1 && featuredView.indexOf(">Argentina</button>") !== -1 && featuredView.indexOf(">Sports</button>") !== -1,
-    featuredGuide: featuredView.indexOf(">TV Guide<") !== -1 && featuredView.indexOf('data-channel="channel:argentina-sports"') !== -1,
+    featuredGuide: featuredView.indexOf('data-channel="channel:argentina-sports"') !== -1,
+    featuredGuideHeading: featuredView.indexOf(">TV Guide<") !== -1,
     featuredViewToggle: featuredView.indexOf('data-virtual-category-view="guide"') !== -1 && featuredView.indexOf('data-virtual-category-view="list"') !== -1,
     featuredListView: featuredListView.indexOf(">Channels<") !== -1 && featuredListView.indexOf('class="virtual-channel-button" data-channel="channel:argentina-sports"') !== -1 && featuredListView.indexOf(">TV Guide<") === -1,
     featuredBackButton: featuredView.indexOf(">Back</button>") !== -1,
     virtualBreadcrumbRoot: virtualView.indexOf(">Virtual Groups</button>") !== -1,
+    virtualGuideHeading: virtualView.indexOf(">TV Guide<") !== -1,
     virtualBackButton: virtualView.indexOf(">Back</button>") !== -1,
     channelCategoryName: channel ? channel.categoryName : "",
     replayRewindable: isRewindableChannel(replayChannel),
