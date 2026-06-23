@@ -14,6 +14,7 @@ type Snapshot struct {
 	Catalog                model.CatalogState
 	Health                 model.SyncHealth
 	PlaybackResolvedAtUnix int64
+	ConfigKey              string
 }
 
 type Store struct {

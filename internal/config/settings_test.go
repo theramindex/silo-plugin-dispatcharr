@@ -241,6 +241,28 @@ func TestGlobalConfigSchema_ProvidesAdminFormsForSiloUI(t *testing.T) {
 	}
 }
 
+func TestCatalogCacheKeyChangesForDifferentSourceSettings(t *testing.T) {
+	t.Parallel()
+
+	direct := Settings{
+		SourceMode:      SourceModeDirectLogin,
+		DispatcharrURL:  "https://dispatcharr.example.com",
+		DispatcharrUser: "demo",
+	}
+	xtream := Settings{
+		SourceMode:     SourceModeXtream,
+		XtreamBaseURL:  "https://dispatcharr.example.com",
+		XtreamUsername: "demo",
+	}
+
+	if CatalogCacheKey(direct) == CatalogCacheKey(xtream) {
+		t.Fatal("expected source settings to produce different catalog cache keys")
+	}
+	if CatalogCacheKey(direct) == "" {
+		t.Fatal("expected non-empty catalog cache key")
+	}
+}
+
 func mustFindSchema(t *testing.T, schema []*ConfigSchema, key string) *ConfigSchema {
 	t.Helper()
 	for _, item := range schema {
