@@ -227,6 +227,9 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`data-admin-presentation-field=\"hidden\"`,
 		`data-admin-presentation-field=\"order\"`,
 		`/dispatcharr/api/admin-settings`,
+		`savePluginSettingValue(adminSettingsKey, JSON.stringify(state.adminCategorySettings))`,
+		`const hasSavedAdminSettings = !!(values && values[adminSettingsKey])`,
+		`state.adminCategorySettings = hasSavedAdminSettings ? savedAdminSettings`,
 		`const adminSettingsToken = "`,
 		`x-dispatcharr-admin-token`,
 	} {

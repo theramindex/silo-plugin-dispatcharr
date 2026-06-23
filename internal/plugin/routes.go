@@ -1504,6 +1504,9 @@ const playerPageHTMLTemplate = `<!doctype html>
         state.adminSaveMessage = "";
         postJSON(adminSettingsURL(), state.adminCategorySettings).then(function(saved) {
           state.adminCategorySettings = readAdminSettingsValue(saved);
+          if (!pluginInstallationID) return null;
+          return savePluginSettingValue(adminSettingsKey, JSON.stringify(state.adminCategorySettings));
+        }).then(function() {
           state.adminSaveStatus = "saved";
           state.adminSaveMessage = "Saved admin virtual folders.";
           if (state.view === "admin") renderAdminPage();
@@ -1801,8 +1804,10 @@ const playerPageHTMLTemplate = `<!doctype html>
         const siloPrefs = readSiloPrefsValue(values && values.preferences ? values.preferences : "");
         const localPrefs = readLocalPrefs();
         state.app.preferences = siloPrefs ? mergePrefs(siloPrefs, {}) : mergePrefs(state.app.preferences, localPrefs);
-        state.adminCategorySettings = await loadAdminCategorySettings().catch(function() {
-          return readAdminSettingsValue(values && values[adminSettingsKey] ? values[adminSettingsKey] : "");
+        const savedAdminSettings = readAdminSettingsValue(values && values[adminSettingsKey] ? values[adminSettingsKey] : "");
+        const hasSavedAdminSettings = !!(values && values[adminSettingsKey]);
+        state.adminCategorySettings = hasSavedAdminSettings ? savedAdminSettings : await loadAdminCategorySettings().catch(function() {
+          return savedAdminSettings;
         });
         state.app.programs = items(state.app.programs);
         normalizePreferences();
