@@ -203,9 +203,41 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`data-admin-category-field=\"mode\"`,
 		`data-admin-group-action=\"create\"`,
 		`adminGroupMemberships`,
+		`presentationOverrides`,
+		`function effectiveChannel(channel)`,
+		`function renderAdminPresentationSettings()`,
+		`Presentation overrides`,
+		`data-admin-presentation-field=\"name\"`,
+		`data-admin-presentation-field=\"logoUrl\"`,
+		`data-admin-presentation-field=\"hidden\"`,
+		`data-admin-presentation-field=\"order\"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected admin page to include category mapping marker %q", want)
+		}
+	}
+}
+
+func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
+	t.Parallel()
+
+	response, err := NewHTTPRoutesServer(cache.NewStore()).Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr"})
+	if err != nil {
+		t.Fatalf("app route: %v", err)
+	}
+	if response.GetStatusCode() != 200 {
+		t.Fatalf("expected 200, got %d", response.GetStatusCode())
+	}
+	body := string(response.GetBody())
+	for _, want := range []string{
+		`favoriteOrder: []`,
+		`function orderedFavoriteChannels(`,
+		`function moveFavorite(channelID, direction)`,
+		`data-favorite-move=\"up\"`,
+		`data-favorite-move=\"down\"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected app page to include ordered favorites marker %q", want)
 		}
 	}
 }

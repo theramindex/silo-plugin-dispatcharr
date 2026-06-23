@@ -1140,7 +1140,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       const prefsKey = "silo.ramindex.dispatcharr.preferences.v1";
       const adminSettingsKey = "adminCategorySettings";
       const pluginInstallationID = (base.match(/\/api\/v1\/plugins\/(\d+)/) || [])[1] || "";
-      const state = { app: null, view: path.endsWith("/dispatcharr/admin") ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, selectedCustomGroup: "", customGroupQuery: "", adminCategorySettings: null, selectedAdminGroup: "", adminGroupQuery: "", profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
+      const state = { app: null, view: path.endsWith("/dispatcharr/admin") ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, selectedCustomGroup: "", customGroupQuery: "", adminCategorySettings: null, selectedAdminGroup: "", adminGroupQuery: "", adminPresentationChannel: "", adminPresentationQuery: "", profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
 
       function applySiloTheme() {
         const params = new URLSearchParams(window.location.search);
@@ -1200,11 +1200,11 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function menuIcon(name) { return "<span class=\"menu-icon\">" + icon(name) + "</span>"; }
       function defaultPrefs() {
-        return { favorites: {}, autoFavorites: {}, hiddenCategories: {}, recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, customGroups: [], customGroupMemberships: {} };
+        return { favorites: {}, favoriteOrder: [], autoFavorites: {}, hiddenCategories: {}, recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, customGroups: [], customGroupMemberships: {} };
       }
       function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
       function defaultAdminCategorySettings() {
-        return { mode: "normal", delimiter: "pipe", adminGroups: [], adminGroupMemberships: {} };
+        return { mode: "normal", delimiter: "pipe", adminGroups: [], adminGroupMemberships: {}, presentationOverrides: {} };
       }
       function adminSettings() {
         return Object.assign(defaultAdminCategorySettings(), state.adminCategorySettings || {});
@@ -1216,11 +1216,13 @@ const playerPageHTMLTemplate = `<!doctype html>
       function favoriteMap() { return prefs().favorites || {}; }
       function autoFavoriteMap() { return prefs().autoFavorites || {}; }
       function hiddenMap() { return prefs().hiddenCategories || {}; }
+      function presentationOverrides() { return adminSettings().presentationOverrides || {}; }
       function mergePrefs(remote, local) {
         remote = Object.assign(defaultPrefs(), remote || {});
         local = Object.assign(defaultPrefs(), local || {});
         return {
           favorites: Object.assign({}, remote.favorites, local.favorites),
+          favoriteOrder: uniqueIDs(items(local.favoriteOrder).length ? items(local.favoriteOrder) : items(remote.favoriteOrder)),
           autoFavorites: Object.assign({}, remote.autoFavorites, local.autoFavorites),
           hiddenCategories: Object.assign({}, remote.hiddenCategories, local.hiddenCategories),
           recentChannels: uniqueIDs(items(remote.recentChannels).concat(items(local.recentChannels))).slice(0, 24),
@@ -1239,6 +1241,8 @@ const playerPageHTMLTemplate = `<!doctype html>
         state.app.preferences.customGroupMemberships = state.app.preferences.customGroupMemberships || {};
         const valid = {};
         items(state.app.channels).forEach(function(channel) { valid[channel.id] = true; });
+        const explicitFavorites = Object.keys(state.app.preferences.favorites || {}).filter(function(id) { return !!state.app.preferences.favorites[id] && !!valid[id]; });
+        state.app.preferences.favoriteOrder = uniqueIDs(items(state.app.preferences.favoriteOrder).filter(function(id) { return !!state.app.preferences.favorites[id] && !!valid[id]; }).concat(explicitFavorites));
         const recent = uniqueIDs(items(state.app.preferences.recentChannels).filter(function(id) { return !!valid[id]; }));
         const watched = Object.keys(state.app.preferences.continueWatching || {}).sort(function(left, right) {
           const leftPlayed = Number((state.app.preferences.continueWatching[left] || {}).playedAt || 0);
@@ -1256,10 +1260,25 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (!state.adminCategorySettings.delimiter) state.adminCategorySettings.delimiter = "pipe";
         state.adminCategorySettings.adminGroups = adminGroups();
         state.adminCategorySettings.adminGroupMemberships = state.adminCategorySettings.adminGroupMemberships || {};
+        state.adminCategorySettings.presentationOverrides = state.adminCategorySettings.presentationOverrides || {};
         const valid = {};
         if (state.app) items(state.app.channels).forEach(function(channel) { valid[channel.id] = true; });
         Object.keys(state.adminCategorySettings.adminGroupMemberships).forEach(function(groupID) {
           state.adminCategorySettings.adminGroupMemberships[groupID] = uniqueIDs(items(state.adminCategorySettings.adminGroupMemberships[groupID]).filter(function(id) { return !!valid[id]; }));
+        });
+        Object.keys(state.adminCategorySettings.presentationOverrides).forEach(function(id) {
+          const override = state.adminCategorySettings.presentationOverrides[id] || {};
+          if (!valid[id]) {
+            delete state.adminCategorySettings.presentationOverrides[id];
+            return;
+          }
+          const clean = {};
+          if (String(override.name || "").trim()) clean.name = String(override.name || "").trim();
+          if (String(override.logoUrl || "").trim()) clean.logoUrl = String(override.logoUrl || "").trim();
+          if (override.hidden === true) clean.hidden = true;
+          if (override.order !== undefined && override.order !== null && String(override.order).trim() !== "") clean.order = Number(override.order);
+          if (Object.keys(clean).length) state.adminCategorySettings.presentationOverrides[id] = clean;
+          else delete state.adminCategorySettings.presentationOverrides[id];
         });
       }
       function recordWatchPreference(channel) {
@@ -1381,7 +1400,38 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (!response.ok) throw new Error("request failed");
       }
       function channelByID(id) {
+        const channel = rawChannelByID(id);
+        return channel ? effectiveChannel(channel) : null;
+      }
+      function rawChannelByID(id) {
         return items(state.app.channels).find(function(channel) { return channel.id === id; }) || null;
+      }
+      function effectiveChannel(channel) {
+        if (!channel) return null;
+        const override = presentationOverrides()[channel.id] || {};
+        const copy = Object.assign({}, channel);
+        if (override.name) copy.name = override.name;
+        if (override.logoUrl) copy.logoUrl = override.logoUrl;
+        copy.presentationHidden = override.hidden === true;
+        copy.presentationOrder = override.order !== undefined && override.order !== null && String(override.order).trim() !== "" ? Number(override.order) : null;
+        return copy;
+      }
+      function effectiveChannels(includeHidden) {
+        return items(state.app.channels).map(function(channel, index) {
+          const copy = effectiveChannel(channel);
+          copy.sourceIndex = index;
+          return copy;
+        }).filter(function(channel) {
+          return includeHidden || !channel.presentationHidden;
+        }).sort(function(left, right) {
+          const leftOrder = left.presentationOrder;
+          const rightOrder = right.presentationOrder;
+          const leftHasOrder = Number.isFinite(leftOrder);
+          const rightHasOrder = Number.isFinite(rightOrder);
+          if (leftHasOrder && rightHasOrder && leftOrder !== rightOrder) return leftOrder - rightOrder;
+          if (leftHasOrder !== rightHasOrder) return leftHasOrder ? -1 : 1;
+          return (left.sourceIndex || 0) - (right.sourceIndex || 0);
+        });
       }
       function sourceCategoryID(id) { return "source:" + String(id || ""); }
       function customCategoryID(id) { return "custom:" + String(id || ""); }
@@ -1457,13 +1507,37 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function visibleChannels(ignoreQuery) {
         const hidden = hiddenMap();
-        return items(state.app.channels).filter(function(channel) {
+        const channels = effectiveChannels(false).filter(function(channel) {
           if (channel.categoryId && hidden[channel.categoryId]) return false;
           if (state.view !== "favorites" && state.category && !channelInSelectedCategory(channel, state.category)) return false;
           if (!ignoreQuery && state.query && !channelMatchesQuery(channel)) return false;
           if (state.view === "favorites" && !favoriteMap()[channel.id] && !autoFavoriteMap()[channel.id]) return false;
           return true;
         });
+        return state.view === "favorites" ? orderedFavoriteChannels(channels) : channels;
+      }
+      function orderedFavoriteChannels(channels) {
+        const byID = {};
+        items(channels || effectiveChannels(false)).forEach(function(channel) { byID[channel.id] = channel; });
+        const ordered = uniqueIDs(items(prefs().favoriteOrder)).map(function(id) { return byID[id]; }).filter(Boolean);
+        const missing = items(channels || effectiveChannels(false)).filter(function(channel) {
+          return (favoriteMap()[channel.id] || autoFavoriteMap()[channel.id]) && ordered.indexOf(channel) === -1;
+        });
+        return ordered.concat(missing);
+      }
+      function moveFavorite(channelID, direction) {
+        const favorites = orderedFavoriteChannels(visibleChannels(true)).filter(function(channel) { return !!favoriteMap()[channel.id]; });
+        const order = favorites.map(function(channel) { return channel.id; });
+        const index = order.indexOf(channelID);
+        if (index === -1) return;
+        const target = direction === "up" ? index - 1 : index + 1;
+        if (target < 0 || target >= order.length) return;
+        const value = order[index];
+        order[index] = order[target];
+        order[target] = value;
+        state.app.preferences.favoriteOrder = order;
+        savePrefs();
+        render();
       }
       function channelMatchesQuery(channel) {
         if (!state.query) return true;
@@ -1629,6 +1703,13 @@ const playerPageHTMLTemplate = `<!doctype html>
           return "<button class=\"continue-card\" data-channel=\"" + escapeHTML(channel.id) + "\"><div class=\"poster-box\">" + (channel.logoUrl ? "<img src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">" : "<span>" + escapeHTML((channel.name || "TV").slice(0, 5)) + "</span>") + "</div><div class=\"progress\"><i></i></div><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><div class=\"muted\">" + escapeHTML(channel.categoryName || "Live TV") + "</div></button>";
         }).join("") + "</div>";
       }
+      function favoriteCards(channels) {
+        if (!channels.length) return "<div class=\"empty\">No favorite channels yet.</div>";
+        return "<div class=\"row-scroll\">" + channels.map(function(channel, index) {
+          const controls = favoriteMap()[channel.id] ? "<div class=\"settings-actions\"><button data-favorite-move=\"up\" data-channel-id=\"" + escapeHTML(channel.id) + "\"" + (index === 0 ? " disabled" : "") + ">Move up</button><button data-favorite-move=\"down\" data-channel-id=\"" + escapeHTML(channel.id) + "\"" + (index === channels.length - 1 ? " disabled" : "") + ">Move down</button></div>" : "";
+          return "<div class=\"continue-card\"><button class=\"continue-card\" data-channel=\"" + escapeHTML(channel.id) + "\"><div class=\"poster-box\">" + (channel.logoUrl ? "<img src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">" : "<span>" + escapeHTML((channel.name || "TV").slice(0, 5)) + "</span>") + "</div><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><div class=\"muted\">" + escapeHTML(channel.categoryName || "Live TV") + "</div></button>" + controls + "</div>";
+        }).join("") + "</div>";
+      }
       function categoryGrid() {
         const hidden = hiddenMap();
         const sourceCategories = sourceCategoriesWithChannels(function(channel) {
@@ -1664,7 +1745,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function sourceCategoriesWithChannels(includeChannel) {
         const categoryCounts = {};
-        items(state.app.channels).forEach(function(channel) {
+        effectiveChannels(false).forEach(function(channel) {
           if (includeChannel && !includeChannel(channel)) return;
           if (channel.categoryId) categoryCounts[channel.categoryId] = (categoryCounts[channel.categoryId] || 0) + 1;
         });
@@ -1690,7 +1771,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function virtualGroupCategories(includeChannel) {
         const groups = {};
-        items(state.app.channels).forEach(function(channel) {
+        effectiveChannels(false).forEach(function(channel) {
           if (includeChannel && !includeChannel(channel)) return;
           const parts = parsedCategoryPath(sourceCategoryLabel(channel));
           for (let index = 0; index < parts.length; index++) {
@@ -1704,7 +1785,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       function virtualChildCategories(parentPath, includeChannel) {
         parentPath = String(parentPath || "");
         const children = {};
-        items(state.app.channels).forEach(function(channel) {
+        effectiveChannels(false).forEach(function(channel) {
           if (includeChannel && !includeChannel(channel)) return;
           const parts = parsedCategoryPath(sourceCategoryLabel(channel));
           if (!parts.length) return;
@@ -1766,7 +1847,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       function renderLivePage() {
         const channels = visibleChannels(false);
         if (state.view === "favorites") {
-          byId("view").innerHTML = sectionHeader("Favorite channels") + rowCards(channels.slice(0, 60));
+          byId("view").innerHTML = sectionHeader("Favorite channels") + favoriteCards(channels.slice(0, 60));
           return;
         }
         if (state.category.indexOf("virtual:") === 0) {
@@ -2132,10 +2213,12 @@ const playerPageHTMLTemplate = `<!doctype html>
         const settings = adminSettings();
         byId("view").innerHTML = "<div class=\"settings-stack\">"
           + "<div class=\"settings-card\"><h2>Category method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
+          + "<div class=\"settings-card\"><h2>Presentation overrides</h2><div id=\"admin-presentation-settings\" class=\"settings-list\"></div></div>"
           + (settings.mode === "custom" ? "<div class=\"settings-card\"><h2>Custom admin groups</h2><div id=\"admin-group-settings\" class=\"settings-list\"></div></div>" : "")
           + "<div class=\"settings-card\"><h2>Preview</h2><div class=\"settings-preview\">" + adminCategoryPreview() + "</div></div>"
           + "</div>";
         renderAdminCategorySettings();
+        renderAdminPresentationSettings();
         if (settings.mode === "custom") renderAdminGroupSettings();
       }
       function renderAdminCategorySettings() {
@@ -2163,13 +2246,71 @@ const playerPageHTMLTemplate = `<!doctype html>
         ensureSelectedAdminGroup();
         return adminGroups().find(function(group) { return group.id === state.selectedAdminGroup; }) || null;
       }
+      function ensureSelectedAdminPresentationChannel() {
+        if (rawChannelByID(state.adminPresentationChannel)) return;
+        const channels = effectiveChannels(true);
+        state.adminPresentationChannel = channels.length ? channels[0].id : "";
+      }
+      function selectedAdminPresentationChannel() {
+        ensureSelectedAdminPresentationChannel();
+        return rawChannelByID(state.adminPresentationChannel);
+      }
+      function adminPresentationOverride(channelID) {
+        state.adminCategorySettings.presentationOverrides = state.adminCategorySettings.presentationOverrides || {};
+        state.adminCategorySettings.presentationOverrides[channelID] = state.adminCategorySettings.presentationOverrides[channelID] || {};
+        return state.adminCategorySettings.presentationOverrides[channelID];
+      }
+      function renderAdminPresentationSettings() {
+        const root = byId("admin-presentation-settings");
+        if (!root) return;
+        const selected = selectedAdminPresentationChannel();
+        const query = lower(state.adminPresentationQuery);
+        const channels = effectiveChannels(true).filter(function(channel) {
+          if (!query) return true;
+          return lower([channel.name, sourceCategoryLabel(channel), channel.id].join(" ")).indexOf(query) !== -1;
+        });
+        const override = selected ? (presentationOverrides()[selected.id] || {}) : {};
+        root.innerHTML = adminSaveStatusHTML()
+          + "<div class=\"settings-row\"><span>Find channel</span><input id=\"admin-presentation-search\" placeholder=\"Name or source category\" value=\"" + escapeHTML(state.adminPresentationQuery) + "\"></div>"
+          + (channels.length ? "<div class=\"settings-row\"><span>Channel</span><select id=\"admin-presentation-channel\">" + channels.slice(0, 150).map(function(channel) { return "<option value=\"" + escapeHTML(channel.id) + "\"" + (selected && selected.id === channel.id ? " selected" : "") + ">" + escapeHTML(channel.name || channel.id) + "</option>"; }).join("") + "</select></div>" : "<div class=\"empty\">No matching channels.</div>")
+          + (selected ? "<div class=\"settings-note\">Source: " + escapeHTML(selected.name || selected.id) + (sourceCategoryLabel(selected) ? " · " + escapeHTML(sourceCategoryLabel(selected)) : "") + "</div>"
+          + "<div class=\"settings-row\"><span>Display name</span><input data-admin-presentation-field=\"name\" placeholder=\"" + escapeHTML(selected.name || "Channel name") + "\" value=\"" + escapeHTML(override.name || "") + "\"></div>"
+          + "<div class=\"settings-row\"><span>Logo URL</span><input data-admin-presentation-field=\"logoUrl\" placeholder=\"" + escapeHTML(selected.logoUrl || "https://...") + "\" value=\"" + escapeHTML(override.logoUrl || "") + "\"></div>"
+          + "<label><span>Hide from Silo</span><input type=\"checkbox\" data-admin-presentation-field=\"hidden\"" + (override.hidden ? " checked" : "") + "></label>"
+          + "<div class=\"settings-row\"><span>Sort order</span><input type=\"number\" data-admin-presentation-field=\"order\" placeholder=\"Source order\" value=\"" + escapeHTML(override.order !== undefined ? String(override.order) : "") + "\"></div>"
+          + "<div class=\"settings-actions\"><button data-admin-presentation-action=\"clear\">Clear overrides</button></div>" : "");
+      }
+      function updatePresentationOverride(field, target) {
+        const selected = selectedAdminPresentationChannel();
+        if (!selected) return;
+        const override = adminPresentationOverride(selected.id);
+        if (field === "hidden") override.hidden = !!target.checked;
+        else {
+          const value = String(target.value || "").trim();
+          if (field === "order") {
+            if (value) override.order = Number(value);
+            else delete override.order;
+          } else if (value) override[field] = value;
+          else delete override[field];
+        }
+        normalizeAdminCategorySettings();
+        saveAdminCategorySettings();
+        render();
+      }
+      function clearSelectedPresentationOverride() {
+        const selected = selectedAdminPresentationChannel();
+        if (!selected) return;
+        delete state.adminCategorySettings.presentationOverrides[selected.id];
+        saveAdminCategorySettings();
+        render();
+      }
       function renderAdminGroupSettings() {
         const root = byId("admin-group-settings");
         const groups = adminGroups();
         const selected = selectedAdminGroup();
         const memberships = selected ? adminMemberships(selected.id) : [];
         const query = lower(state.adminGroupQuery);
-        const availableChannels = items(state.app.channels).filter(function(channel) {
+        const availableChannels = effectiveChannels(false).filter(function(channel) {
           if (selected && memberships.indexOf(channel.id) !== -1) return false;
           if (!query) return true;
           return lower(channel.name || channel.id).indexOf(query) !== -1 || lower(sourceCategoryLabel(channel)).indexOf(query) !== -1;
@@ -2696,8 +2837,13 @@ const playerPageHTMLTemplate = `<!doctype html>
         }
         if (action === "favorite" && state.currentChannel) {
           const id = state.currentChannel.id;
-          if (favoriteMap()[id]) delete state.app.preferences.favorites[id];
-          else state.app.preferences.favorites[id] = true;
+          if (favoriteMap()[id]) {
+            delete state.app.preferences.favorites[id];
+            state.app.preferences.favoriteOrder = items(state.app.preferences.favoriteOrder).filter(function(item) { return item !== id; });
+          } else {
+            state.app.preferences.favorites[id] = true;
+            state.app.preferences.favoriteOrder = uniqueIDs(items(state.app.preferences.favoriteOrder).concat([id]));
+          }
           if (button) {
             const isFavorite = !!favoriteMap()[id];
             button.innerHTML = icon(isFavorite ? "heart-solid" : "heart");
@@ -2765,6 +2911,18 @@ const playerPageHTMLTemplate = `<!doctype html>
           if (action === "remove-channel") removeChannelFromSelectedAdminGroup(adminGroupAction.getAttribute("data-channel-id"));
           return;
         }
+        const adminPresentationAction = event.target.closest("[data-admin-presentation-action]");
+        if (adminPresentationAction) {
+          event.preventDefault();
+          if (adminPresentationAction.getAttribute("data-admin-presentation-action") === "clear") clearSelectedPresentationOverride();
+          return;
+        }
+        const favoriteMove = event.target.closest("[data-favorite-move]");
+        if (favoriteMove) {
+          event.preventDefault();
+          moveFavorite(favoriteMove.getAttribute("data-channel-id"), favoriteMove.getAttribute("data-favorite-move"));
+          return;
+        }
         const channelTarget = event.target.closest("[data-channel]");
         if (channelTarget) {
           const channel = channelByID(channelTarget.getAttribute("data-channel"));
@@ -2806,6 +2964,16 @@ const playerPageHTMLTemplate = `<!doctype html>
           renderAdminPage();
           return;
         }
+        if (event.target && event.target.id === "admin-presentation-channel") {
+          state.adminPresentationChannel = event.target.value;
+          renderAdminPage();
+          return;
+        }
+        const adminPresentationField = event.target.getAttribute("data-admin-presentation-field");
+        if (adminPresentationField) {
+          updatePresentationOverride(adminPresentationField, event.target);
+          return;
+        }
         if (event.target && event.target.id === "custom-group-select") {
           state.selectedCustomGroup = event.target.value;
           renderSettings();
@@ -2838,6 +3006,25 @@ const playerPageHTMLTemplate = `<!doctype html>
           renderAdminPage();
           const input = byId("admin-group-channel-search");
           if (input) {
+            input.focus();
+            input.setSelectionRange(input.value.length, input.value.length);
+          }
+        }
+        if (event.target && event.target.id === "admin-presentation-search") {
+          state.adminPresentationQuery = event.target.value || "";
+          renderAdminPage();
+          const input = byId("admin-presentation-search");
+          if (input) {
+            input.focus();
+            input.setSelectionRange(input.value.length, input.value.length);
+          }
+        }
+        const adminPresentationField = event.target.getAttribute("data-admin-presentation-field");
+        if (adminPresentationField && adminPresentationField !== "hidden") {
+          updatePresentationOverride(adminPresentationField, event.target);
+          const selector = "[data-admin-presentation-field=\"" + adminPresentationField + "\"]";
+          const input = document.querySelector(selector);
+          if (input && input.setSelectionRange) {
             input.focus();
             input.setSelectionRange(input.value.length, input.value.length);
           }
