@@ -1316,7 +1316,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
       function defaultAdminCategorySettings() {
-        return { mode: "normal", delimiter: "pipe", adminGroups: [], adminGroupMemberships: {}, presentationOverrides: {} };
+        return { mode: "normal", delimiter: "pipe", groupAliases: [], presentationOverrides: {} };
       }
       function adminSettings() {
         return Object.assign(defaultAdminCategorySettings(), state.adminCategorySettings || {});
@@ -1371,14 +1371,12 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (state.adminCategorySettings.mode === "custom") state.adminCategorySettings.mode = "admin_delimiter";
         if (["normal", "delimiter", "admin_delimiter"].indexOf(state.adminCategorySettings.mode) === -1) state.adminCategorySettings.mode = "normal";
         if (!state.adminCategorySettings.delimiter) state.adminCategorySettings.delimiter = "pipe";
-        state.adminCategorySettings.adminGroups = adminGroups();
-        state.adminCategorySettings.adminGroupMemberships = state.adminCategorySettings.adminGroupMemberships || {};
+        state.adminCategorySettings.groupAliases = groupAliases();
+        delete state.adminCategorySettings.adminGroups;
+        delete state.adminCategorySettings.adminGroupMemberships;
         state.adminCategorySettings.presentationOverrides = state.adminCategorySettings.presentationOverrides || {};
         const valid = {};
         if (state.app) items(state.app.channels).forEach(function(channel) { valid[channel.id] = true; });
-        Object.keys(state.adminCategorySettings.adminGroupMemberships).forEach(function(groupID) {
-          state.adminCategorySettings.adminGroupMemberships[groupID] = uniqueIDs(items(state.adminCategorySettings.adminGroupMemberships[groupID]).filter(function(id) { return !!valid[id]; }));
-        });
         Object.keys(state.adminCategorySettings.presentationOverrides).forEach(function(id) {
           const override = state.adminCategorySettings.presentationOverrides[id] || {};
           if (!valid[id]) {
@@ -1564,15 +1562,12 @@ const playerPageHTMLTemplate = `<!doctype html>
       function customMemberships(groupID) {
         return uniqueIDs(items((prefs().customGroupMemberships || {})[groupID]));
       }
-      function adminGroups() {
-        return items(adminSettings().adminGroups).slice().filter(function(group) {
-          return group && group.id && group.name;
+      function groupAliases() {
+        return items(adminSettings().groupAliases).slice().filter(function(alias) {
+          return alias && alias.id && alias.source && alias.alias;
         }).sort(function(left, right) {
-          return (Number(left.order || 0) - Number(right.order || 0)) || String(left.name || "").localeCompare(String(right.name || ""));
+          return (Number(left.order || 0) - Number(right.order || 0)) || String(left.alias || "").localeCompare(String(right.alias || ""));
         });
-      }
-      function adminMemberships(groupID) {
-        return uniqueIDs(items((adminSettings().adminGroupMemberships || {})[groupID]));
       }
       function sourceCategoryName(id) {
         const category = items(state.app.categories).find(function(item) { return item.id === id; });
@@ -1588,6 +1583,12 @@ const playerPageHTMLTemplate = `<!doctype html>
         name = String(name || "").trim();
         if (!name) return [];
         return name.split(delimiterPattern()).map(function(part) { return String(part || "").trim(); }).filter(Boolean);
+      }
+      function parsedGroupAliasPath(name) {
+        name = String(name || "").trim();
+        if (!name) return [];
+        if (name.indexOf("/") !== -1) return name.split(/\s*\/\s*/).map(function(part) { return String(part || "").trim(); }).filter(Boolean);
+        return parsedDelimitedPath(name);
       }
       function parsedCategoryPath(name) {
         const settings = categoryParsing();
@@ -1614,28 +1615,35 @@ const playerPageHTMLTemplate = `<!doctype html>
         const paths = virtualPathsForChannel(channel);
         return paths.length ? paths[0] : "";
       }
-      function adminGroupPath(group) {
-        const parts = parsedDelimitedPath(group && group.name);
-        return (parts.length ? parts : [String((group && group.name) || "").trim()]).filter(Boolean).join(" / ");
+      function sourceVirtualPathForChannel(channel) {
+        return parsedCategoryPath(sourceCategoryLabel(channel)).join(" / ");
       }
-      function adminGroupPathsForChannel(channel) {
+      function groupAliasSourcePath(alias) {
+        return parsedGroupAliasPath(alias && alias.source).join(" / ");
+      }
+      function groupAliasPath(alias) {
+        const parts = parsedGroupAliasPath(alias && alias.alias);
+        return (parts.length ? parts : [String((alias && alias.alias) || "").trim()]).filter(Boolean).join(" / ");
+      }
+      function groupAliasPathsForChannel(channel) {
         if ((adminSettings().mode || "normal") !== "admin_delimiter") return [];
-        return adminGroups().filter(function(group) {
-          return adminMemberships(group.id).indexOf(channel.id) !== -1;
-        }).map(adminGroupPath).filter(Boolean);
+        const sourcePath = sourceVirtualPathForChannel(channel);
+        if (!sourcePath) return [];
+        return groupAliases().filter(function(alias) {
+          return groupAliasSourcePath(alias) === sourcePath;
+        }).map(groupAliasPath).filter(Boolean);
       }
       function virtualPathsForChannel(channel) {
         const paths = [];
-        const sourcePath = parsedCategoryPath(sourceCategoryLabel(channel)).join(" / ");
+        const sourcePath = sourceVirtualPathForChannel(channel);
         if (sourcePath) paths.push(sourcePath);
-        adminGroupPathsForChannel(channel).forEach(function(path) { paths.push(path); });
+        groupAliasPathsForChannel(channel).forEach(function(path) { paths.push(path); });
         return uniqueIDs(paths);
       }
       function channelInSelectedCategory(channel, id) {
         if (!id) return true;
         if (id.indexOf("source:") === 0) return channel.categoryId === id.slice("source:".length);
         if (id.indexOf("custom:") === 0) return customMemberships(id.slice("custom:".length)).indexOf(channel.id) !== -1;
-        if (id.indexOf("admin:") === 0) return adminMemberships(id).indexOf(channel.id) !== -1;
         if (id.indexOf("virtual:") === 0) {
           const selected = id.slice("virtual:".length);
           return virtualPathsForChannel(channel).some(function(path) {
@@ -1901,13 +1909,6 @@ const playerPageHTMLTemplate = `<!doctype html>
       function customGroupCategories() {
         return customGroups().map(function(group) {
           return { id: customCategoryID(group.id), name: group.name, kind: "custom", count: customMemberships(group.id).filter(channelByID).length };
-        }).filter(function(group) {
-          return group.count > 0;
-        });
-      }
-      function adminGroupCategories() {
-        return adminGroups().map(function(group) {
-          return { id: group.id, name: group.name, kind: "admin", count: adminMemberships(group.id).filter(channelByID).length };
         }).filter(function(group) {
           return group.count > 0;
         });
@@ -2381,7 +2382,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         byId("view").innerHTML = "<div class=\"settings-stack\">"
           + "<div class=\"settings-card\"><h2>Category method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
           + "<div class=\"settings-card\"><h2>Presentation overrides</h2><div id=\"admin-presentation-settings\" class=\"settings-list\"></div></div>"
-          + (settings.mode === "admin_delimiter" ? "<div class=\"settings-card\"><h2>Admin virtual folder aliases</h2><div id=\"admin-group-settings\" class=\"settings-list\"></div></div>" : "")
+          + (settings.mode === "admin_delimiter" ? "<div class=\"settings-card\"><h2>Admin group aliases</h2><div id=\"admin-group-settings\" class=\"settings-list\"></div></div>" : "")
           + "<div class=\"settings-card\"><h2>Preview</h2><div class=\"settings-preview\">" + adminCategoryPreview() + "</div></div>"
           + "</div>";
         renderAdminCategorySettings();
@@ -2396,7 +2397,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           + (settings.mode !== "normal" ? "<div class=\"settings-row\"><span>Delimiter</span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Sports - NHL Teams</option></select></div>" : "")
           + (settings.mode === "normal" ? "<div class=\"settings-note\">Source categories are shown as provided, without remapping or resorting.</div>" : "")
           + (settings.mode === "delimiter" ? "<div class=\"settings-note\">Source category names are split into virtual folders using the selected delimiter.</div>" : "")
-          + (settings.mode === "admin_delimiter" ? "<div class=\"settings-note\">Source category names and admin alias folder names are split using the selected delimiter. A channel can live in multiple admin virtual folder aliases.</div>" : "");
+          + (settings.mode === "admin_delimiter" ? "<div class=\"settings-note\">Source category groups are split using the selected delimiter. Admin group aliases add another Silo group path for every channel in the matched source group.</div>" : "");
       }
       function adminCategoryPreview() {
         const categories = adminListingCategories("").slice(0, 8);
@@ -2405,13 +2406,13 @@ const playerPageHTMLTemplate = `<!doctype html>
         }).join("") : "<div>No admin categories available yet.</div>";
       }
       function ensureSelectedAdminGroup() {
-        const groups = adminGroups();
-        if (groups.some(function(group) { return group.id === state.selectedAdminGroup; })) return;
-        state.selectedAdminGroup = groups.length ? groups[0].id : "";
+        const aliases = groupAliases();
+        if (aliases.some(function(alias) { return alias.id === state.selectedAdminGroup; })) return;
+        state.selectedAdminGroup = aliases.length ? aliases[0].id : "";
       }
       function selectedAdminGroup() {
         ensureSelectedAdminGroup();
-        return adminGroups().find(function(group) { return group.id === state.selectedAdminGroup; }) || null;
+        return groupAliases().find(function(alias) { return alias.id === state.selectedAdminGroup; }) || null;
       }
       function ensureSelectedAdminPresentationChannel() {
         if (rawChannelByID(state.adminPresentationChannel)) return;
@@ -2473,31 +2474,44 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function renderAdminGroupSettings() {
         const root = byId("admin-group-settings");
-        const groups = adminGroups();
+        const aliases = groupAliases();
         const selected = selectedAdminGroup();
-        const memberships = selected ? adminMemberships(selected.id) : [];
-        const query = lower(state.adminGroupQuery);
-        const availableChannels = effectiveChannels(false).filter(function(channel) {
-          if (selected && memberships.indexOf(channel.id) !== -1) return false;
-          if (!query) return true;
-          return lower(channel.name || channel.id).indexOf(query) !== -1 || lower(sourceCategoryLabel(channel)).indexOf(query) !== -1;
-        });
-        root.innerHTML = "<div class=\"settings-row\"><span>New alias folder</span><input id=\"admin-group-name\" placeholder=\"Sports | Argentina\"><button data-admin-group-action=\"create\">Create</button></div>"
-          + (groups.length ? "<div class=\"settings-row\"><span>Edit alias folder</span><select id=\"admin-group-select\">" + groups.map(function(group) { return "<option value=\"" + escapeHTML(group.id) + "\"" + (selected && selected.id === group.id ? " selected" : "") + ">" + escapeHTML(group.name) + "</option>"; }).join("") + "</select><button data-admin-group-action=\"delete\">Delete</button></div>" : "<div class=\"empty\">Create an admin virtual folder alias to place channels in another Silo folder.</div>")
-          + (selected ? "<div class=\"settings-row\"><span>Find channel</span><input id=\"admin-group-channel-search\" placeholder=\"Name or source category\" value=\"" + escapeHTML(state.adminGroupQuery) + "\"></div>"
-          + "<div class=\"settings-row\"><span>Add channel</span><select id=\"admin-group-channel\">" + availableChannels.slice(0, 100).map(function(channel) { return "<option value=\"" + escapeHTML(channel.id) + "\">" + escapeHTML(channel.name || channel.id) + "</option>"; }).join("") + "</select><button data-admin-group-action=\"add-channel\">Add</button></div>"
-          + "<div class=\"settings-note\">" + escapeHTML(availableChannels.length ? "Showing " + Math.min(availableChannels.length, 100) + " of " + availableChannels.length + " matching channels." : "No matching channels.") + "</div>"
-          + "<div class=\"settings-preview\">" + (memberships.length ? memberships.map(function(id) { const channel = channelByID(id); return "<div>" + escapeHTML((channel && channel.name) || id) + " <button data-admin-group-action=\"remove-channel\" data-channel-id=\"" + escapeHTML(id) + "\">Remove</button></div>"; }).join("") : "<div>No channels in this admin virtual folder alias yet.</div>") + "</div>" : "");
+        const sourceGroups = sourceGroupOptions();
+        root.innerHTML = "<div class=\"settings-row\"><span>Source group</span><select id=\"admin-group-source\">" + sourceGroups.map(function(group) { return "<option value=\"" + escapeHTML(group.path) + "\">" + escapeHTML(group.path) + " (" + escapeHTML(String(group.count)) + ")</option>"; }).join("") + "</select></div>"
+          + "<div class=\"settings-row\"><span>New group alias</span><input id=\"admin-group-name\" placeholder=\"Sports | Argentina\"><button data-admin-group-action=\"create\">Create</button></div>"
+          + (aliases.length ? "<div class=\"settings-row\"><span>Edit group alias</span><select id=\"admin-group-select\">" + aliases.map(function(alias) { return "<option value=\"" + escapeHTML(alias.id) + "\"" + (selected && selected.id === alias.id ? " selected" : "") + ">" + escapeHTML(groupAliasSourcePath(alias) + " -> " + groupAliasPath(alias)) + "</option>"; }).join("") + "</select><button data-admin-group-action=\"delete\">Delete</button></div>" : "<div class=\"empty\">Create an admin group alias to place a source group in another Silo group.</div>")
+          + "<div class=\"settings-preview\">" + (aliases.length ? aliases.map(function(alias) { return "<div>" + escapeHTML(groupAliasSourcePath(alias)) + " -> " + escapeHTML(groupAliasPath(alias)) + " · " + escapeHTML(String(groupAliasChannelCount(alias))) + " channels</div>"; }).join("") : "<div>No admin group aliases yet.</div>") + "</div>";
       }
-      function createAdminGroup(name) {
-        name = String(name || "").trim();
-        if (!name) return;
-        const base = "admin:" + slug(name);
+      function sourceGroupOptions() {
+        const counts = {};
+        effectiveChannels(false).forEach(function(channel) {
+          const path = sourceVirtualPathForChannel(channel);
+          if (!path) return;
+          counts[path] = counts[path] || {};
+          counts[path][channel.id] = true;
+        });
+        return Object.keys(counts).sort().map(function(path) {
+          return { path: path, count: Object.keys(counts[path]).length };
+        });
+      }
+      function groupAliasChannelCount(alias) {
+        const source = groupAliasSourcePath(alias);
+        if (!source) return 0;
+        const ids = {};
+        effectiveChannels(false).forEach(function(channel) {
+          if (sourceVirtualPathForChannel(channel) === source) ids[channel.id] = true;
+        });
+        return Object.keys(ids).length;
+      }
+      function createAdminGroup(source, aliasName) {
+        source = String(source || "").trim();
+        aliasName = String(aliasName || "").trim();
+        if (!source || !aliasName) return;
+        const base = "alias:" + slug(source + "-" + aliasName);
         let id = base;
         let index = 2;
-        while (adminGroups().some(function(group) { return group.id === id; })) id = base + "-" + index++;
-        state.adminCategorySettings.adminGroups.push({ id: id, name: name, order: adminGroups().length + 1 });
-        state.adminCategorySettings.adminGroupMemberships[id] = [];
+        while (groupAliases().some(function(alias) { return alias.id === id; })) id = base + "-" + index++;
+        state.adminCategorySettings.groupAliases.push({ id: id, source: source, alias: aliasName, order: groupAliases().length + 1 });
         state.selectedAdminGroup = id;
         saveAdminCategorySettings();
         renderAdminPage();
@@ -2505,24 +2519,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       function deleteSelectedAdminGroup() {
         const selected = selectedAdminGroup();
         if (!selected) return;
-        state.adminCategorySettings.adminGroups = adminGroups().filter(function(group) { return group.id !== selected.id; });
-        delete state.adminCategorySettings.adminGroupMemberships[selected.id];
+        state.adminCategorySettings.groupAliases = groupAliases().filter(function(alias) { return alias.id !== selected.id; });
         if (state.category === selected.id) state.category = "";
         state.selectedAdminGroup = "";
-        saveAdminCategorySettings();
-        renderAdminPage();
-      }
-      function addChannelToSelectedAdminGroup(channelID) {
-        const selected = selectedAdminGroup();
-        if (!selected || !channelID) return;
-        state.adminCategorySettings.adminGroupMemberships[selected.id] = uniqueIDs(adminMemberships(selected.id).concat([channelID]));
-        saveAdminCategorySettings();
-        renderAdminPage();
-      }
-      function removeChannelFromSelectedAdminGroup(channelID) {
-        const selected = selectedAdminGroup();
-        if (!selected || !channelID) return;
-        state.adminCategorySettings.adminGroupMemberships[selected.id] = adminMemberships(selected.id).filter(function(id) { return id !== channelID; });
         saveAdminCategorySettings();
         renderAdminPage();
       }
@@ -3072,10 +3071,8 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (adminGroupAction) {
           event.preventDefault();
           const action = adminGroupAction.getAttribute("data-admin-group-action");
-          if (action === "create") createAdminGroup((byId("admin-group-name") || {}).value || "");
+          if (action === "create") createAdminGroup((byId("admin-group-source") || {}).value || "", (byId("admin-group-name") || {}).value || "");
           if (action === "delete") deleteSelectedAdminGroup();
-          if (action === "add-channel") addChannelToSelectedAdminGroup((byId("admin-group-channel") || {}).value || "");
-          if (action === "remove-channel") removeChannelFromSelectedAdminGroup(adminGroupAction.getAttribute("data-channel-id"));
           return;
         }
         const adminPresentationAction = event.target.closest("[data-admin-presentation-action]");
@@ -3163,15 +3160,6 @@ const playerPageHTMLTemplate = `<!doctype html>
           state.customGroupQuery = event.target.value || "";
           renderSettings();
           const input = byId("custom-group-channel-search");
-          if (input) {
-            input.focus();
-            input.setSelectionRange(input.value.length, input.value.length);
-          }
-        }
-        if (event.target && event.target.id === "admin-group-channel-search") {
-          state.adminGroupQuery = event.target.value || "";
-          renderAdminPage();
-          const input = byId("admin-group-channel-search");
           if (input) {
             input.focus();
             input.setSelectionRange(input.value.length, input.value.length);
