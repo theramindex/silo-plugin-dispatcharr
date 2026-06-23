@@ -628,7 +628,7 @@ func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) s
 		body = strings.Replace(body, "__ADMIN_SETTINGS_TOKEN__", "", 1)
 	}
 	if request.GetPath() == "/dispatcharr/admin" {
-		body = removeTemplateBlock(body, "<!-- USER_NAV_START -->", "<!-- USER_NAV_END -->")
+		body = replaceTemplateBlock(body, "<!-- USER_NAV_START -->", "<!-- USER_NAV_END -->", adminSidebarNavHTML())
 		body = removeTemplateBlock(body, "<!-- USER_TOPBAR_START -->", "<!-- USER_TOPBAR_END -->")
 		body = strings.Replace(body, "__APP_TITLE__", "Live TV Admin", 2)
 		return strings.Replace(body, "__ROUTE_CLASS__", "is-admin", 1)
@@ -646,6 +646,10 @@ func newAdminToken() string {
 }
 
 func removeTemplateBlock(body string, startMarker string, endMarker string) string {
+	return replaceTemplateBlock(body, startMarker, endMarker, "")
+}
+
+func replaceTemplateBlock(body string, startMarker string, endMarker string, replacement string) string {
 	start := strings.Index(body, startMarker)
 	if start < 0 {
 		return body
@@ -655,7 +659,11 @@ func removeTemplateBlock(body string, startMarker string, endMarker string) stri
 		return body
 	}
 	end += start + len(endMarker)
-	return body[:start] + body[end:]
+	return body[:start] + replacement + body[end:]
+}
+
+func adminSidebarNavHTML() string {
+	return `<nav id="admin-tabs" class="nav admin-nav" aria-label="Live TV admin sections"></nav>`
 }
 
 func sanitizeThemeSlug(value string) string {
@@ -1075,7 +1083,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       .shell.is-player .main { padding: 0; overflow: hidden; background: #050505; }
       .topbar { display: flex; align-items: center; justify-content: flex-end; gap: 0.65rem; margin-bottom: 0.85rem; position: sticky; top: 0; z-index: 5; background: linear-gradient(180deg, var(--bg) 70%, color-mix(in srgb, var(--bg) 0%, transparent)); padding-bottom: 0.65rem; }
       .shell.is-player .topbar, .shell.is-guide .topbar { display: none; }
-      .shell.is-admin .nav, .shell.is-admin .topbar { display: none; }
+      .shell.is-admin .topbar { display: none; }
+      .admin-nav { margin-top: 0.35rem; }
       .title { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
       .title h2 { margin: 0; font-size: 1.35rem; }
       .status { color: var(--muted); font-size: 0.82rem; white-space: nowrap; }
@@ -1365,6 +1374,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           "speaker-off": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m4.5 4.5 15 15M5 14.25h2.5l4.25 3.25v-5.75M11.75 8.7V6.5L8.8 8.75M16 10.8a3 3 0 0 1 .2 2.2'/></svg>",
           "airplay": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 17.25h-1.5A2.25 2.25 0 0 1 3 15V6.75A2.25 2.25 0 0 1 5.25 4.5h13.5A2.25 2.25 0 0 1 21 6.75V15a2.25 2.25 0 0 1-2.25 2.25h-1.5M8.25 21h7.5L12 16.5 8.25 21Z'/></svg>",
           "guide": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M4.5 6.75h15M4.5 12h15M4.5 17.25h15M8.25 4.5v15M15.75 4.5v15'/></svg>",
+          "settings": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M12 8.25a3.75 3.75 0 1 1 0 7.5 3.75 3.75 0 0 1 0-7.5Z'/><path stroke-linecap='round' stroke-linejoin='round' d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.23.64.84 1 1.51 1H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z'/></svg>",
           "fullscreen": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M8.25 4.5H4.5v3.75M15.75 4.5h3.75v3.75M19.5 15.75v3.75h-3.75M4.5 15.75v3.75h3.75M9 9 4.5 4.5M15 9l4.5-4.5M15 15l4.5 4.5M9 15l-4.5 4.5'/></svg>",
           "fullscreen-exit": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M4.5 9h4.25V4.75M15.25 4.75V9h4.25M19.5 15h-4.25v4.25M8.75 19.25V15H4.5M8.75 9 4.5 4.75M15.25 9l4.25-4.25M15.25 15l4.25 4.25M8.75 15 4.5 19.25'/></svg>",
           "heart": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M21 8.25c0 6.25-9 11.25-9 11.25s-9-5-9-11.25A4.75 4.75 0 0 1 11.25 5 4.75 4.75 0 0 1 21 8.25Z'/></svg>",
@@ -2558,8 +2568,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       function renderAdminPage() {
         normalizeAdminCategorySettings();
         if (!adminECMEnabled() && state.adminTab === "manager") state.adminTab = "settings";
+        renderAdminSidebarTabs();
         byId("view").innerHTML = "<div class=\"settings-stack\">"
-          + renderAdminTabs()
           + (state.adminTab === "manager" ? renderExternalChannelManager() : renderAdminSettingsTab())
           + "</div>";
         if (state.adminTab !== "manager") {
@@ -2567,11 +2577,11 @@ const playerPageHTMLTemplate = `<!doctype html>
           renderAdminECMSettings();
         }
       }
-      function renderAdminTabs() {
-        return "<div class=\"admin-tabs\" role=\"tablist\" aria-label=\"Admin settings\">"
-          + "<button role=\"tab\" data-admin-tab=\"settings\" class=\"" + (state.adminTab === "settings" ? "active" : "") + "\">Settings</button>"
-          + (adminECMEnabled() ? "<button role=\"tab\" data-admin-tab=\"manager\" class=\"" + (state.adminTab === "manager" ? "active" : "") + "\">Channel Manager</button>" : "")
-          + "</div>";
+      function renderAdminSidebarTabs() {
+        const root = byId("admin-tabs");
+        if (!root) return;
+        root.innerHTML = "<button type=\"button\" data-admin-tab=\"settings\" class=\"" + (state.adminTab === "settings" ? "active" : "") + "\">" + icon("settings") + "<span>Settings</span></button>"
+          + (adminECMEnabled() ? "<button type=\"button\" data-admin-tab=\"manager\" class=\"" + (state.adminTab === "manager" ? "active" : "") + "\">" + icon("external") + "<span>Channel Manager</span></button>" : "");
       }
       function setAdminTab(tab) {
         state.adminTab = tab === "manager" ? "manager" : "settings";

@@ -244,12 +244,13 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`<title>Live TV Admin</title>`,
 		`<h1>Live TV Admin</h1>`,
 		`<div class="shell is-admin">`,
-		`.shell.is-admin .nav, .shell.is-admin .topbar { display: none; }`,
+		`.shell.is-admin .topbar { display: none; }`,
+		`<nav id="admin-tabs" class="nav admin-nav" aria-label="Live TV admin sections"></nav>`,
 		`const adminSettingsKey = "adminCategorySettings"`,
 		`adminTab: "settings"`,
 		`function defaultAdminCategorySettings()`,
 		`function renderAdminPage()`,
-		`function renderAdminTabs()`,
+		`function renderAdminSidebarTabs()`,
 		`function renderAdminSettingsTab()`,
 		`function renderAdminECMSettings()`,
 		`function adminECMURL()`,
@@ -282,6 +283,9 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected admin page to include category mapping marker %q", want)
 		}
+	}
+	if strings.Contains(body, `+ renderAdminTabs()`) {
+		t.Fatal("expected admin tabs to render in the sidebar, not above admin content")
 	}
 	for _, hidden := range []string{`<span>Home</span>`, `<span>Favorites</span>`, `<span>TV Guide</span>`, `<span>Preferences</span>`} {
 		if strings.Contains(body, hidden) {
