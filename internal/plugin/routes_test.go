@@ -185,6 +185,12 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 			t.Fatalf("expected app page to include virtual folder drilldown marker %q", want)
 		}
 	}
+	if !strings.Contains(body, `const recent = recentChannels(10);`) {
+		t.Fatalf("expected home guide to be based on up to 10 continue-watching channels")
+	}
+	if !strings.Contains(body, `sectionHeader("Continue watching") + rowCards(recent.length ? recent : visibleChannels(false).slice(0, 6)) + sectionHeader("TV Guide") + renderHomeGuide(recent) + sectionHeader("Categories") + categoryGrid()`) {
+		t.Fatalf("expected home page order to be continue watching, TV guide, then category sections")
+	}
 	if strings.Contains(body, "Saved on this device. Silo profile sync is unavailable here.") {
 		t.Fatalf("expected local-only profile save message to use the standard warning")
 	}
