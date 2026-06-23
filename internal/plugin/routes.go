@@ -34,6 +34,7 @@ type HTTPRoutesServer struct {
 	store            *cache.Store
 	settingsProvider func() config.Settings
 	adminPersister   func(context.Context, map[string]any) error
+	adminStorage     adminSettingsStorage
 	adminToken       string
 	syncer           catalogSyncer
 	hydrateMu        sync.Mutex
@@ -53,6 +54,12 @@ func NewHTTPRoutesServerWithSettings(store *cache.Store, settingsProvider func()
 
 func NewHTTPRoutesServerWithSyncer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
 	return newHTTPRoutesServer(store, settingsProvider, syncer)
+}
+
+func NewHTTPRoutesServerWithSyncerAndAdminSettingsFile(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer, path string) *HTTPRoutesServer {
+	server := newHTTPRoutesServer(store, settingsProvider, syncer)
+	server.adminStorage = NewFileAdminSettingsStorage(path)
+	return server
 }
 
 func newHTTPRoutesServer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
@@ -405,6 +412,17 @@ func (s *HTTPRoutesServer) handleAdminSettings(ctx context.Context, request *plu
 		return textResponse(http.StatusForbidden, "admin settings token is required"), nil
 	}
 	if request.GetMethod() != http.MethodPost {
+		if s.adminStorage != nil {
+			saved, ok, err := s.adminStorage.Load()
+			if err != nil {
+				log.Printf("dispatcharr: load admin settings file failed: %v", err)
+				return textResponse(http.StatusInternalServerError, "could not load admin settings"), nil
+			}
+			if ok {
+				s.store.SetAdminSettings(saved)
+				return s.respondJSON(http.StatusOK, json.RawMessage(saved))
+			}
+		}
 		if s.store.HasAdminSettings() {
 			return s.respondJSON(http.StatusOK, json.RawMessage(s.store.AdminSettings()))
 		}
@@ -419,12 +437,19 @@ func (s *HTTPRoutesServer) handleAdminSettings(ctx context.Context, request *plu
 	if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
 		return textResponse(http.StatusBadRequest, "invalid admin settings payload"), nil
 	}
-	encoded, err := json.Marshal(payload)
+	normalized := normalizeAdminSettingsPayload(payload)
+	encoded, err := json.Marshal(normalized)
 	if err != nil {
 		return textResponse(http.StatusBadRequest, "invalid admin settings payload"), nil
 	}
+	if s.adminStorage != nil {
+		if err := s.adminStorage.Save(encoded); err != nil {
+			log.Printf("dispatcharr: save admin settings file failed: %v", err)
+			return textResponse(http.StatusInternalServerError, "could not save admin settings"), nil
+		}
+	}
 	saved := s.store.SetAdminSettings(encoded)
-	s.persistAdminSettingsAsync(payload)
+	s.persistAdminSettingsAsync(normalized)
 	return s.respondJSON(http.StatusOK, json.RawMessage(saved))
 }
 
@@ -1513,8 +1538,6 @@ const playerPageHTMLTemplate = `<!doctype html>
         postJSON(adminSettingsURL(), state.adminCategorySettings).then(function(saved) {
           state.adminCategorySettings = readAdminSettingsValue(saved);
           normalizeAdminCategorySettings();
-          if (!pluginInstallationID) return null;
-          return savePluginSettingValue(adminSettingsKey, JSON.stringify(state.adminCategorySettings));
         }).then(function() {
           state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
           state.adminSaveStatus = "saved";
@@ -1522,7 +1545,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           if (state.view === "admin") renderAdminPage();
         }).catch(function(error) {
           state.adminSaveStatus = "error";
-          state.adminSaveMessage = "Could not save category mode.";
+          state.adminSaveMessage = "Could not save category mode: " + readableError(error);
           if (state.view === "admin") renderAdminPage();
           try { console.warn("Dispatcharr admin category save failed", error); } catch (_) {}
         });
@@ -1536,22 +1559,30 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       async function getJSON(url) {
         const response = await fetch(route(url), { credentials: "include", headers: routeHeaders() });
-        if (!response.ok) throw new Error("request failed");
+        if (!response.ok) throw await requestError(response);
         return response.json();
       }
       async function postJSON(url, body) {
         const response = await fetch(route(url), { method: "POST", credentials: "include", headers: routeHeaders({ "content-type": "application/json" }), body: JSON.stringify(body) });
-        if (!response.ok) throw new Error("request failed");
+        if (!response.ok) throw await requestError(response);
         return response.json();
       }
       async function coreGetJSON(url) {
         const response = await fetch(url, { credentials: "include" });
-        if (!response.ok) throw new Error("request failed");
+        if (!response.ok) throw await requestError(response);
         return response.json();
       }
       async function corePutNoContent(url, body) {
         const response = await fetch(url, { method: "PUT", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-        if (!response.ok) throw new Error("request failed");
+        if (!response.ok) throw await requestError(response);
+      }
+      async function requestError(response) {
+        const text = await response.text().catch(function() { return ""; });
+        const detail = text ? ": " + text.slice(0, 240) : "";
+        return new Error("request failed (" + response.status + ")" + detail);
+      }
+      function readableError(error) {
+        return String(error && error.message ? error.message : error || "unknown error");
       }
       function channelByID(id) {
         const channel = rawChannelByID(id);
@@ -1795,8 +1826,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         const localPrefs = readLocalPrefs();
         state.app.preferences = siloPrefs ? mergePrefs(siloPrefs, {}) : mergePrefs(state.app.preferences, localPrefs);
         const savedAdminSettings = readAdminSettingsValue(values && values[adminSettingsKey] ? values[adminSettingsKey] : "");
-        const hasSavedAdminSettings = !!(values && values[adminSettingsKey]);
-        state.adminCategorySettings = hasSavedAdminSettings ? savedAdminSettings : await loadAdminCategorySettings().catch(function() {
+        state.adminCategorySettings = await loadAdminCategorySettings().catch(function() {
           return savedAdminSettings;
         });
         state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);

@@ -146,7 +146,7 @@ func main() {
 		Servers: sdkruntime.CapabilityServers{
 			Runtime:       &runtimeServer{manifest: manifest, settings: settings},
 			ScheduledTask: pluginimpl.NewScheduledTaskServerWithProvider(service, settings.Get),
-			HttpRoutes:    pluginimpl.NewHTTPRoutesServerWithSyncer(store, settings.Get, service),
+			HttpRoutes:    pluginimpl.NewHTTPRoutesServerWithSyncerAndAdminSettingsFile(store, settings.Get, service, ""),
 		},
 	})
 }
