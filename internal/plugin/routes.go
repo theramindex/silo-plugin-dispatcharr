@@ -1131,6 +1131,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       .epg-cell .epg-schedule svg { width: 1rem; height: 1rem; }
       .epg-cell:hover .epg-schedule, .epg-cell .epg-schedule:focus-visible { opacity: 1; }
       .epg-cell .epg-schedule:hover { background: rgba(255,47,125,0.86); }
+      .epg-tooltip { position: fixed; z-index: 50; max-width: min(42rem, calc(100vw - 1.5rem)); border: 1px solid rgba(255,255,255,0.18); border-radius: 0.65rem; background: rgba(20,20,23,0.98); box-shadow: 0 1rem 2.5rem rgba(0,0,0,0.45); color: var(--text); padding: 0.62rem 0.75rem; font-size: 0.9rem; font-weight: 850; line-height: 1.25; pointer-events: none; opacity: 0; transform: translateY(0.25rem); transition: opacity 120ms ease, transform 120ms ease; }
+      .epg-tooltip.visible { opacity: 1; transform: translateY(0); }
       .player-view { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 1rem; align-items: start; }
       video { width: 100%; aspect-ratio: 16 / 9; background: #050505; border: 1px solid var(--line); border-radius: 0.75rem; }
       .playback-shell { position: relative; min-height: 100vh; overflow: hidden; background: #050505; display: grid; place-items: center; }
@@ -2327,6 +2329,46 @@ const playerPageHTMLTemplate = `<!doctype html>
           + "<button data-player-action=\"copy-stream\">" + menuIcon("copy") + "<span>Copy stream URL<small>For an external player</small></span></button>"
           + "<button data-player-action=\"open-stream\">" + menuIcon("external") + "<span>Use external video player<small>Open the stream route in a new tab</small></span></button>";
       }
+      function guideTooltip() {
+        let tooltip = byId("epg-tooltip");
+        if (tooltip) return tooltip;
+        tooltip = document.createElement("div");
+        tooltip.id = "epg-tooltip";
+        tooltip.className = "epg-tooltip";
+        tooltip.setAttribute("role", "tooltip");
+        document.body.appendChild(tooltip);
+        return tooltip;
+      }
+      function guideTooltipTarget(event) {
+        if (!event.target || !event.target.closest) return null;
+        return event.target.closest(".epg-cell[data-title]");
+      }
+      function positionGuideTooltip(tooltip, target, event) {
+        const padding = 12;
+        const gap = 8;
+        const rect = target.getBoundingClientRect();
+        const anchorX = event && typeof event.clientX === "number" ? event.clientX : rect.left + rect.width / 2;
+        const width = tooltip.offsetWidth;
+        const height = tooltip.offsetHeight;
+        const maxLeft = Math.max(padding, window.innerWidth - width - padding);
+        const left = Math.min(Math.max(anchorX - width / 2, padding), maxLeft);
+        let top = rect.top - height - gap;
+        if (top < padding) top = rect.bottom + gap;
+        tooltip.style.left = left + "px";
+        tooltip.style.top = Math.min(top, Math.max(padding, window.innerHeight - height - padding)) + "px";
+      }
+      function showGuideTooltip(target, event) {
+        const title = target ? target.getAttribute("data-title") : "";
+        if (!title) return;
+        const tooltip = guideTooltip();
+        tooltip.textContent = title;
+        tooltip.classList.add("visible");
+        positionGuideTooltip(tooltip, target, event);
+      }
+      function hideGuideTooltip() {
+        const tooltip = byId("epg-tooltip");
+        if (tooltip) tooltip.classList.remove("visible");
+      }
       function renderGuidePage() {
         const categories = allFilterCategories();
         const slots = guideSlots();
@@ -2355,11 +2397,15 @@ const playerPageHTMLTemplate = `<!doctype html>
           return matchesQuery && end > windowStart && start < windowEnd;
         });
         if (!programs.length) {
-          return "<button class=\"epg-cell program gray\" data-channel=\"" + escapeHTML(channel.id) + "\" style=\"left: 0; width: calc(100% - 0.25rem);\"><time>" + escapeHTML(timeLabel(windowStart)) + "</time><strong>Data not available</strong></button>";
+          const emptyTitle = "Data not available";
+          const emptyTime = timeLabel(windowStart);
+          return "<button class=\"epg-cell program gray\" data-channel=\"" + escapeHTML(channel.id) + "\" data-title=\"" + escapeHTML(emptyTitle) + "\" aria-label=\"" + escapeHTML(emptyTime + " " + emptyTitle) + "\" style=\"left: 0; width: calc(100% - 0.25rem);\"><time>" + escapeHTML(emptyTime) + "</time><strong>" + escapeHTML(emptyTitle) + "</strong></button>";
         }
         return programs.map(function(program, index) {
           const canSchedule = dvrEnabled() && (program.endUnix || 0) > now;
-          return "<div class=\"epg-cell program " + colorClass(index + channelIndex) + "\" style=\"" + epgCellStyle(program.startUnix, program.endUnix, windowInfo) + "\"><button class=\"epg-play\" data-channel=\"" + escapeHTML(channel.id) + "\"><time>" + escapeHTML(timeLabel(program.startUnix)) + "</time><strong>" + escapeHTML(program.title || "Data not available") + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>";
+          const programTitle = program.title || "Data not available";
+          const programTime = timeLabel(program.startUnix);
+          return "<div class=\"epg-cell program " + colorClass(index + channelIndex) + "\" data-title=\"" + escapeHTML(programTitle) + "\" style=\"" + epgCellStyle(program.startUnix, program.endUnix, windowInfo) + "\"><button class=\"epg-play\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(programTime + " " + programTitle) + "\"><time>" + escapeHTML(programTime) + "</time><strong>" + escapeHTML(programTitle) + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>";
         }).join("");
       }
       function renderEPGRow(channel, channelIndex) {
@@ -3023,6 +3069,28 @@ const playerPageHTMLTemplate = `<!doctype html>
         }
         const categoryTarget = event.target.closest("[data-category]");
         if (categoryTarget) setCategory(categoryTarget.getAttribute("data-category"));
+      });
+      document.addEventListener("mouseover", function(event) {
+        const target = guideTooltipTarget(event);
+        if (!target || (event.relatedTarget && target.contains(event.relatedTarget))) return;
+        showGuideTooltip(target, event);
+      });
+      document.addEventListener("mousemove", function(event) {
+        const target = guideTooltipTarget(event);
+        if (target) showGuideTooltip(target, event);
+      }, { passive: true });
+      document.addEventListener("mouseout", function(event) {
+        const target = guideTooltipTarget(event);
+        if (!target || (event.relatedTarget && target.contains(event.relatedTarget))) return;
+        hideGuideTooltip();
+      });
+      document.addEventListener("focusin", function(event) {
+        const target = guideTooltipTarget(event);
+        if (target) showGuideTooltip(target, event);
+      });
+      document.addEventListener("focusout", function(event) {
+        const target = guideTooltipTarget(event);
+        if (target) hideGuideTooltip();
       });
       document.addEventListener("fullscreenchange", updateFullscreenButton);
       document.addEventListener("webkitfullscreenchange", updateFullscreenButton);

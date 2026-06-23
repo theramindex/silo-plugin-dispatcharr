@@ -180,6 +180,11 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`data-silo-theme="midnight-cinema"`,
 		`function applySiloTheme()`,
 		`--silo-bg`,
+		`.epg-tooltip`,
+		`function showGuideTooltip(target, event)`,
+		`document.addEventListener("focusin", function(event)`,
+		`data-title=\"" + escapeHTML(programTitle) + "\"`,
+		`aria-label=\"" + escapeHTML(programTime + " " + programTitle) + "\"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected app page to include virtual folder drilldown marker %q", want)
