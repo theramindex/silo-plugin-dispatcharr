@@ -319,9 +319,13 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 		"state": map[string]any{
 			"app": map[string]any{
 				"channels": []map[string]any{
+					{"id": "channel:world-cup", "name": "World Cup Feed", "categoryId": "cat:world-cup", "categoryName": "* World Cup"},
+					{"id": "channel:admin-favorites", "name": "Admin Favorite", "categoryId": "cat:admin-favorites", "categoryName": "* Admin Favorites"},
 					{"id": "channel:argentina-sports", "name": "Argentina Sports", "categoryId": "cat:argentina-sports", "categoryName": "* International | Argentina | Sports"},
 				},
 				"categories": []map[string]any{
+					{"id": "cat:world-cup", "name": "* World Cup"},
+					{"id": "cat:admin-favorites", "name": "* Admin Favorites"},
 					{"id": "cat:argentina-sports", "name": "* International | Argentina | Sports"},
 				},
 			},
@@ -350,6 +354,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	}
 	if !result.FeaturedSection || !result.FeaturedCategory {
 		t.Fatalf("expected starred source category to render in featured section: %+v", result)
+	}
+	if !result.FeaturedAlphabetical {
+		t.Fatalf("expected featured categories to render alphabetically by display name: %+v", result)
 	}
 	if result.FeaturedMarkerVisible {
 		t.Fatalf("expected starred source category marker to be hidden: %+v", result)
@@ -407,6 +414,7 @@ type virtualAliasResult struct {
 	StringParsedMode        string `json:"stringParsedMode"`
 	FeaturedSection         bool   `json:"featuredSection"`
 	FeaturedCategory        bool   `json:"featuredCategory"`
+	FeaturedAlphabetical    bool   `json:"featuredAlphabetical"`
 	FeaturedVirtualCategory bool   `json:"featuredVirtualCategory"`
 	FeaturedSourceCategory  bool   `json:"featuredSourceCategory"`
 	FeaturedMarkerVisible   bool   `json:"featuredMarkerVisible"`
@@ -499,6 +507,7 @@ JSON.stringify((function() {
     stringParsedMode: readAdminSettingsValue(JSON.stringify({ mode: "delimiter", delimiter: "pipe" })).mode,
     featuredSection: grid.indexOf(">Featured<") !== -1,
     featuredCategory: grid.indexOf("International | Argentina | Sports") !== -1,
+    featuredAlphabetical: grid.indexOf(">Admin Favorites</strong>") !== -1 && grid.indexOf(">World Cup</strong>") !== -1 && grid.indexOf(">Admin Favorites</strong>") < grid.indexOf(">World Cup</strong>"),
     featuredVirtualCategory: grid.indexOf('data-category="featured:International / Argentina / Sports"') !== -1,
     featuredSourceCategory: grid.indexOf('data-category="source:cat:argentina-sports"') !== -1,
     featuredMarkerVisible: grid.indexOf("* International") !== -1,

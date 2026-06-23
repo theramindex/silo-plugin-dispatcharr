@@ -2000,6 +2000,11 @@ const playerPageHTMLTemplate = `<!doctype html>
           return "<div class=\"continue-card\"><button class=\"continue-card\" data-channel=\"" + escapeHTML(channel.id) + "\"><div class=\"poster-box\">" + (channel.logoUrl ? "<img src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">" : "<span>" + escapeHTML((channel.name || "TV").slice(0, 5)) + "</span>") + "</div><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><div class=\"muted\">" + escapeHTML(channel.categoryName || "Live TV") + "</div></button>" + controls + "</div>";
         }).join("") + "</div>";
       }
+      function compareCategoryDisplayName(left, right) {
+        const leftName = String((left && (left.name || left.id)) || "");
+        const rightName = String((right && (right.name || right.id)) || "");
+        return leftName.localeCompare(rightName, undefined, { numeric: true, sensitivity: "base" }) || leftName.localeCompare(rightName) || String((left && left.id) || "").localeCompare(String((right && right.id) || ""));
+      }
       function categoryGrid() {
         const hidden = hiddenMap();
         const sourceCategories = sourceCategoriesWithChannels(function(channel) {
@@ -2007,7 +2012,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         });
         const custom = customGroupCategories();
         const listing = adminListingCategories("");
-        const featured = sourceCategories.filter(function(category) { return !!category.featured; });
+        const featured = sourceCategories.filter(function(category) { return !!category.featured; }).sort(compareCategoryDisplayName);
         const featuredSourceIDs = {};
         featured.forEach(function(category) { featuredSourceIDs[category.sourceID] = true; });
         const regularListing = listing.filter(function(category) {
