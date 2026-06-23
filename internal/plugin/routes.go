@@ -2374,7 +2374,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         byId("view").innerHTML = "<div class=\"settings-stack\">"
           + "<div class=\"settings-card\"><h2>Category method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
           + "<div class=\"settings-card\"><h2>Presentation overrides</h2><div id=\"admin-presentation-settings\" class=\"settings-list\"></div></div>"
-          + (settings.mode === "admin_delimiter" ? "<div class=\"settings-card\"><h2>Admin virtual folders</h2><div id=\"admin-group-settings\" class=\"settings-list\"></div></div>" : "")
+          + (settings.mode === "admin_delimiter" ? "<div class=\"settings-card\"><h2>Admin virtual folder aliases</h2><div id=\"admin-group-settings\" class=\"settings-list\"></div></div>" : "")
           + "<div class=\"settings-card\"><h2>Preview</h2><div class=\"settings-preview\">" + adminCategoryPreview() + "</div></div>"
           + "</div>";
         renderAdminCategorySettings();
@@ -2389,7 +2389,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           + (settings.mode !== "normal" ? "<div class=\"settings-row\"><span>Delimiter</span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Sports - NHL Teams</option></select></div>" : "")
           + (settings.mode === "normal" ? "<div class=\"settings-note\">Source categories are shown as provided, without remapping or resorting.</div>" : "")
           + (settings.mode === "delimiter" ? "<div class=\"settings-note\">Source category names are split into virtual folders using the selected delimiter.</div>" : "")
-          + (settings.mode === "admin_delimiter" ? "<div class=\"settings-note\">Source category names and admin virtual folder names are split using the selected delimiter. A channel can live in multiple admin virtual folders.</div>" : "");
+          + (settings.mode === "admin_delimiter" ? "<div class=\"settings-note\">Source category names and admin alias folder names are split using the selected delimiter. A channel can live in multiple admin virtual folder aliases.</div>" : "");
       }
       function adminCategoryPreview() {
         const categories = adminListingCategories("").slice(0, 8);
@@ -2475,12 +2475,12 @@ const playerPageHTMLTemplate = `<!doctype html>
           if (!query) return true;
           return lower(channel.name || channel.id).indexOf(query) !== -1 || lower(sourceCategoryLabel(channel)).indexOf(query) !== -1;
         });
-        root.innerHTML = "<div class=\"settings-row\"><span>New virtual folder</span><input id=\"admin-group-name\" placeholder=\"Sports | Argentina\"><button data-admin-group-action=\"create\">Create</button></div>"
-          + (groups.length ? "<div class=\"settings-row\"><span>Edit virtual folder</span><select id=\"admin-group-select\">" + groups.map(function(group) { return "<option value=\"" + escapeHTML(group.id) + "\"" + (selected && selected.id === group.id ? " selected" : "") + ">" + escapeHTML(group.name) + "</option>"; }).join("") + "</select><button data-admin-group-action=\"delete\">Delete</button></div>" : "<div class=\"empty\">Create an admin virtual folder to remap channels.</div>")
+        root.innerHTML = "<div class=\"settings-row\"><span>New alias folder</span><input id=\"admin-group-name\" placeholder=\"Sports | Argentina\"><button data-admin-group-action=\"create\">Create</button></div>"
+          + (groups.length ? "<div class=\"settings-row\"><span>Edit alias folder</span><select id=\"admin-group-select\">" + groups.map(function(group) { return "<option value=\"" + escapeHTML(group.id) + "\"" + (selected && selected.id === group.id ? " selected" : "") + ">" + escapeHTML(group.name) + "</option>"; }).join("") + "</select><button data-admin-group-action=\"delete\">Delete</button></div>" : "<div class=\"empty\">Create an admin virtual folder alias to place channels in another Silo folder.</div>")
           + (selected ? "<div class=\"settings-row\"><span>Find channel</span><input id=\"admin-group-channel-search\" placeholder=\"Name or source category\" value=\"" + escapeHTML(state.adminGroupQuery) + "\"></div>"
           + "<div class=\"settings-row\"><span>Add channel</span><select id=\"admin-group-channel\">" + availableChannels.slice(0, 100).map(function(channel) { return "<option value=\"" + escapeHTML(channel.id) + "\">" + escapeHTML(channel.name || channel.id) + "</option>"; }).join("") + "</select><button data-admin-group-action=\"add-channel\">Add</button></div>"
           + "<div class=\"settings-note\">" + escapeHTML(availableChannels.length ? "Showing " + Math.min(availableChannels.length, 100) + " of " + availableChannels.length + " matching channels." : "No matching channels.") + "</div>"
-          + "<div class=\"settings-preview\">" + (memberships.length ? memberships.map(function(id) { const channel = channelByID(id); return "<div>" + escapeHTML((channel && channel.name) || id) + " <button data-admin-group-action=\"remove-channel\" data-channel-id=\"" + escapeHTML(id) + "\">Remove</button></div>"; }).join("") : "<div>No channels in this admin virtual folder yet.</div>") + "</div>" : "");
+          + "<div class=\"settings-preview\">" + (memberships.length ? memberships.map(function(id) { const channel = channelByID(id); return "<div>" + escapeHTML((channel && channel.name) || id) + " <button data-admin-group-action=\"remove-channel\" data-channel-id=\"" + escapeHTML(id) + "\">Remove</button></div>"; }).join("") : "<div>No channels in this admin virtual folder alias yet.</div>") + "</div>" : "");
       }
       function createAdminGroup(name) {
         name = String(name || "").trim();
