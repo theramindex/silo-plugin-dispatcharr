@@ -262,12 +262,15 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`function renderAdminPage()`,
 		`function renderAdminTopbarTabs()`,
 		`function renderAdminSettingsTab()`,
+		`function renderAdminCategoryAliasSettings()`,
 		`function renderAdminECMSettings()`,
 		`function adminECMURL()`,
 		`ecmEnabled: false`,
 		`state.adminCategorySettings.ecmEnabled = state.adminCategorySettings.ecmEnabled === true`,
 		`return adminSettings().ecmEnabled === true && !!adminECMURL();`,
 		`Category method`,
+		`Alternative Group Names`,
+		`Alternative group name`,
 		`Normal`,
 		`By delimiter`,
 		`Enable ECM`,
@@ -278,6 +281,8 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`data-admin-ecm-field=\"url\"`,
 		`byId("view").innerHTML = state.adminTab === "manager" ? renderExternalChannelManager()`,
 		`data-admin-category-field=\"mode\"`,
+		`data-admin-alias-action=\"add\"`,
+		`data-admin-alias-action=\"remove\"`,
 		`data-admin-settings-action=\"save\"`,
 		`data-admin-settings-action=\"discard\"`,
 		`function renderExternalChannelManager()`,
@@ -337,6 +342,10 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 			"adminCategorySettings": map[string]any{
 				"mode":      "delimiter",
 				"delimiter": "pipe",
+				"categoryAliases": []map[string]any{
+					{"sourcePath": "International | Argentina | Sports", "aliasPath": "Sports | Argentina"},
+					{"sourcePath": "International | Argentina | Sports", "aliasPath": "World Cup | Argentina"},
+				},
 			},
 		},
 	}
@@ -345,11 +354,11 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.SourcePath {
 		t.Fatalf("expected source path to remain visible: %+v", result)
 	}
-	if result.AliasPath {
-		t.Fatalf("expected Silo admin alias path to be absent: %+v", result)
+	if !result.AliasPath || !result.SecondAliasPath {
+		t.Fatalf("expected Silo admin alias paths to be present: %+v", result)
 	}
-	if result.SourceCount != 1 || result.AliasCount != 0 {
-		t.Fatalf("expected source count to be one channel and alias count to be zero: %+v", result)
+	if result.SourceCount != 1 || result.AliasCount != 1 || result.SecondAliasCount != 1 {
+		t.Fatalf("expected source and alias counts to point at the same channel: %+v", result)
 	}
 	if result.ObjectParsedMode != "delimiter" {
 		t.Fatalf("expected admin settings JSON object to preserve mode: %+v", result)
@@ -413,8 +422,10 @@ func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
 type virtualAliasResult struct {
 	SourcePath              bool   `json:"sourcePath"`
 	AliasPath               bool   `json:"aliasPath"`
+	SecondAliasPath         bool   `json:"secondAliasPath"`
 	SourceCount             int    `json:"sourceCount"`
 	AliasCount              int    `json:"aliasCount"`
+	SecondAliasCount        int    `json:"secondAliasCount"`
 	ObjectParsedMode        string `json:"objectParsedMode"`
 	StringParsedMode        string `json:"stringParsedMode"`
 	FeaturedSection         bool   `json:"featuredSection"`
@@ -485,11 +496,15 @@ JSON.stringify((function() {
   const all = virtualCategoriesFromPaths("", function() { return true; }, true);
   const source = all.find(function(item) { return item.name === "International / Argentina / Sports"; });
   const alias = all.find(function(item) { return item.name === "Sports / Argentina"; });
+  const secondAlias = all.find(function(item) { return item.name === "World Cup / Argentina"; });
   const channelsInSource = effectiveChannels(false).filter(function(channel) {
     return virtualPathsForChannel(channel).indexOf("International / Argentina / Sports") !== -1;
   });
   const channelsInAlias = effectiveChannels(false).filter(function(channel) {
     return virtualPathsForChannel(channel).indexOf("Sports / Argentina") !== -1;
+  });
+  const channelsInSecondAlias = effectiveChannels(false).filter(function(channel) {
+    return virtualPathsForChannel(channel).indexOf("World Cup / Argentina") !== -1;
   });
   const grid = categoryGrid();
   const channel = channelByID("channel:argentina-sports");
@@ -506,8 +521,10 @@ JSON.stringify((function() {
   return {
     sourcePath: !!source,
     aliasPath: !!alias,
+    secondAliasPath: !!secondAlias,
     sourceCount: channelsInSource.length,
     aliasCount: channelsInAlias.length,
+    secondAliasCount: channelsInSecondAlias.length,
     objectParsedMode: readAdminSettingsValue({ mode: "delimiter", delimiter: "pipe" }).mode,
     stringParsedMode: readAdminSettingsValue(JSON.stringify({ mode: "delimiter", delimiter: "pipe" })).mode,
     featuredSection: grid.indexOf(">Featured<") !== -1,
@@ -769,7 +786,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 		Method:  "POST",
 		Path:    "/dispatcharr/api/admin-settings",
 		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
-		Body:    []byte(`{"mode":"delimiter","delimiter":"pipe"}`),
+		Body:    []byte(`{"mode":"delimiter","delimiter":"pipe","categoryAliases":[{"sourcePath":" International | Arabic | Sports ","aliasPath":" Sports | Arabic "},{"sourcePath":"International | Arabic | Sports","aliasPath":"Sports | Arabic"},{"sourcePath":"International | Arabic | Sports","aliasPath":"World Cup | Arabic"},{"sourcePath":"","aliasPath":"Nowhere"},{"sourcePath":"International | Arabic | Sports","aliasPath":""}]}`),
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
@@ -793,8 +810,24 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	if payload["mode"] != "delimiter" || payload["delimiter"] != "pipe" {
 		t.Fatalf("expected admin settings to persist: %+v", payload)
 	}
+	aliases, ok := payload["categoryAliases"].([]any)
+	if !ok || len(aliases) != 2 {
+		t.Fatalf("expected two normalized category aliases, got %+v", payload["categoryAliases"])
+	}
+	firstAlias, _ := aliases[0].(map[string]any)
+	secondAlias, _ := aliases[1].(map[string]any)
+	if firstAlias["sourcePath"] != "International | Arabic | Sports" || firstAlias["aliasPath"] != "Sports | Arabic" {
+		t.Fatalf("expected first category alias to be trimmed and preserved, got %+v", firstAlias)
+	}
+	if secondAlias["sourcePath"] != "International | Arabic | Sports" || secondAlias["aliasPath"] != "World Cup | Arabic" {
+		t.Fatalf("expected second category alias to preserve another display path, got %+v", secondAlias)
+	}
 	if persisted["mode"] != "delimiter" || persisted["delimiter"] != "pipe" {
 		t.Fatalf("expected admin settings to write through to host config: %+v", persisted)
+	}
+	persistedAliases, ok := persisted["categoryAliases"].([]map[string]string)
+	if !ok || len(persistedAliases) != 2 {
+		t.Fatalf("expected category aliases to write through to host config: %+v", persisted)
 	}
 }
 
@@ -834,7 +867,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayloadToFile(t *testing.T) {
 		Method:  "POST",
 		Path:    "/dispatcharr/api/admin-settings",
 		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
-		Body:    []byte(`{"mode":"admin_delimiter","delimiter":"dash","ecmEnabled":false,"ecmURL":" https://ecm.example.test/manage ","groupAliases":[{"from":"International | Argentina | Sports"}]}`),
+		Body:    []byte(`{"mode":"admin_delimiter","delimiter":"dash","ecmEnabled":false,"ecmURL":" https://ecm.example.test/manage ","categoryAliases":[{"sourcePath":"International | Argentina | Sports","aliasPath":"Sports | Argentina"}],"groupAliases":[{"from":"International | Argentina | Sports"}]}`),
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
@@ -855,6 +888,9 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayloadToFile(t *testing.T) {
 	}
 	if saved["ecmEnabled"] != false || saved["ecmURL"] != "https://ecm.example.test/manage" {
 		t.Fatalf("expected normalized ECM settings file, got %+v", saved)
+	}
+	if aliases, ok := saved["categoryAliases"].([]any); !ok || len(aliases) != 1 {
+		t.Fatalf("expected normalized category aliases in settings file, got %+v", saved["categoryAliases"])
 	}
 	if _, ok := saved["groupAliases"]; ok {
 		t.Fatalf("expected stale remapping keys to be stripped: %+v", saved)
@@ -878,6 +914,9 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayloadToFile(t *testing.T) {
 	}
 	if loaded["ecmEnabled"] != false || loaded["ecmURL"] != "https://ecm.example.test/manage" {
 		t.Fatalf("expected ECM settings to load from file: %+v", loaded)
+	}
+	if aliases, ok := loaded["categoryAliases"].([]any); !ok || len(aliases) != 1 {
+		t.Fatalf("expected category aliases to load from file: %+v", loaded["categoryAliases"])
 	}
 }
 

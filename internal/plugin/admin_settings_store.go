@@ -106,12 +106,14 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	}
 	ecmURL, _ := payload["ecmURL"].(string)
 	ecmURL = normalizeAdminECMURL(ecmURL)
+	categoryAliases := normalizeCategoryAliases(payload["categoryAliases"])
 
 	return map[string]any{
-		"mode":       mode,
-		"delimiter":  delimiter,
-		"ecmEnabled": ecmEnabled,
-		"ecmURL":     ecmURL,
+		"mode":            mode,
+		"delimiter":       delimiter,
+		"ecmEnabled":      ecmEnabled,
+		"ecmURL":          ecmURL,
+		"categoryAliases": categoryAliases,
 	}
 }
 
@@ -122,4 +124,39 @@ func normalizeAdminECMURL(value string) string {
 		return trimmed
 	}
 	return defaultAdminECMURL
+}
+
+func normalizeCategoryAliases(value any) []map[string]string {
+	items, ok := value.([]any)
+	if !ok {
+		return []map[string]string{}
+	}
+	seen := map[string]bool{}
+	aliases := make([]map[string]string, 0, len(items))
+	for _, item := range items {
+		row, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		sourcePath := strings.TrimSpace(asStringValue(row["sourcePath"]))
+		aliasPath := strings.TrimSpace(asStringValue(row["aliasPath"]))
+		if sourcePath == "" || aliasPath == "" {
+			continue
+		}
+		key := sourcePath + "\x00" + aliasPath
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		aliases = append(aliases, map[string]string{
+			"sourcePath": sourcePath,
+			"aliasPath":  aliasPath,
+		})
+	}
+	return aliases
+}
+
+func asStringValue(value any) string {
+	text, _ := value.(string)
+	return text
 }

@@ -116,6 +116,33 @@ const categorySettingsJSONSchema = `{
       "type": "string",
       "enum": ["pipe", "dash"],
       "default": "pipe"
+    },
+    "ecmEnabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "ecmURL": {
+      "type": "string",
+      "default": ""
+    },
+    "categoryAliases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sourcePath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "aliasPath": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["sourcePath", "aliasPath"],
+        "additionalProperties": false
+      },
+      "default": []
     }
   },
   "additionalProperties": false

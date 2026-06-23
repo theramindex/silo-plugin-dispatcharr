@@ -1274,6 +1274,17 @@ const playerPageHTMLTemplate = `<!doctype html>
       .settings-row button:disabled, .settings-actions button:disabled { cursor: default; opacity: 0.48; }
       .settings-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.65rem; }
       .settings-preview { margin-top: 0.65rem; display: grid; gap: 0.35rem; color: var(--muted); font-size: 0.82rem; }
+      .alias-add-row { display: grid; grid-template-columns: 8rem minmax(13rem, 1.3fr) minmax(12rem, 1fr) auto; }
+      .alias-add-row input, .alias-add-row select { width: 100%; min-width: 0; }
+      .alias-table { display: grid; gap: 0.35rem; }
+      .alias-table-head, .alias-table-row { display: grid; grid-template-columns: minmax(13rem, 1.4fr) 5rem minmax(12rem, 1fr) auto; gap: 0.55rem; align-items: center; }
+      .alias-table-head { color: var(--muted); font-size: 0.76rem; font-weight: 850; padding: 0 0.2rem; }
+      .alias-table-row { border-radius: 0.65rem; background: var(--panel); padding: 0.55rem; }
+      .alias-table-row strong, .alias-table-row small { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .alias-table-row small { margin-top: 0.12rem; color: var(--warn); font-size: 0.72rem; }
+      .alias-table-row input { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 0.55rem; background: var(--rail-2); color: var(--text); padding: 0.45rem 0.55rem; }
+      .alias-table-row button { border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); padding: 0.45rem 0.7rem; font-weight: 820; }
+      .alias-table-row button:hover { background: var(--panel-2); }
       .settings-note { color: var(--muted); font-size: 0.82rem; line-height: 1.35; }
       .settings-warning { color: #ffd37a; }
       .settings-link { border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); display: inline-flex; align-items: center; justify-content: center; padding: 0.45rem 0.7rem; font-size: 0.86rem; font-weight: 820; text-decoration: none; }
@@ -1299,6 +1310,8 @@ const playerPageHTMLTemplate = `<!doctype html>
         .topbar { position: static; }
         .admin-topbar { position: sticky; flex-wrap: wrap; padding: 0.75rem 1rem; }
         .admin-tabs { width: 100%; overflow-x: auto; justify-content: flex-start; }
+        .alias-add-row, .alias-table-row { grid-template-columns: 1fr; align-items: stretch; }
+        .alias-table-head { display: none; }
         .search { min-width: 0; width: 100%; }
         .guide-tools { flex-wrap: wrap; }
         .guide-tools .select, .guide-tools .search { flex: 1 1 100%; min-width: 0; margin-left: 0; }
@@ -1417,7 +1430,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
       function defaultAdminCategorySettings() {
-        return { mode: "normal", delimiter: "pipe", ecmEnabled: false, ecmURL: "" };
+        return { mode: "normal", delimiter: "pipe", ecmEnabled: false, ecmURL: "", categoryAliases: [] };
       }
       function cloneAdminCategorySettings(settings) {
         try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -1495,10 +1508,29 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (state.adminCategorySettings.delimiter !== "pipe" && state.adminCategorySettings.delimiter !== "dash") state.adminCategorySettings.delimiter = "pipe";
         state.adminCategorySettings.ecmEnabled = state.adminCategorySettings.ecmEnabled === true;
         state.adminCategorySettings.ecmURL = normalizeAdminECMURL(state.adminCategorySettings.ecmURL);
+        state.adminCategorySettings.categoryAliases = normalizeCategoryAliases(state.adminCategorySettings.categoryAliases);
         delete state.adminCategorySettings.groupAliases;
         delete state.adminCategorySettings.adminGroups;
         delete state.adminCategorySettings.adminGroupMemberships;
         delete state.adminCategorySettings.presentationOverrides;
+      }
+      function normalizeCategoryAliases(value) {
+        const seen = {};
+        return items(value).map(function(alias) {
+          return {
+            sourcePath: String((alias && alias.sourcePath) || "").trim(),
+            aliasPath: String((alias && alias.aliasPath) || "").trim()
+          };
+        }).filter(function(alias) {
+          if (!alias.sourcePath || !alias.aliasPath) return false;
+          const key = alias.sourcePath + "\u0000" + alias.aliasPath;
+          if (seen[key]) return false;
+          seen[key] = true;
+          return true;
+        });
+      }
+      function categoryAliases() {
+        return normalizeCategoryAliases(adminSettings().categoryAliases);
       }
       function normalizeAdminECMURL(value) {
         const fallback = "";
@@ -1611,11 +1643,11 @@ const playerPageHTMLTemplate = `<!doctype html>
         }).then(function() {
           state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
           state.adminSaveStatus = "saved";
-          state.adminSaveMessage = "Saved category mode.";
+          state.adminSaveMessage = "Saved category settings.";
           if (state.view === "admin") renderAdminPage();
         }).catch(function(error) {
           state.adminSaveStatus = "error";
-          state.adminSaveMessage = "Could not save category mode: " + readableError(error);
+          state.adminSaveMessage = "Could not save category settings: " + readableError(error);
           if (state.view === "admin") renderAdminPage();
           try { console.warn("Dispatcharr admin category save failed", error); } catch (_) {}
         });
@@ -1754,10 +1786,25 @@ const playerPageHTMLTemplate = `<!doctype html>
       function sourceVirtualPathForChannel(channel) {
         return parsedCategoryPath(sourceCategoryLabel(channel)).join(" / ");
       }
+      function configuredCategoryPath(value) {
+        const display = categoryDisplayName(value);
+        const parts = parsedCategoryPath(display);
+        if (parts.length > 1) return parts.join(" / ");
+        const slashParts = String(display || "").split(/\s*\/\s*/).map(function(part) { return String(part || "").trim(); }).filter(Boolean);
+        return slashParts.length > 1 ? slashParts.join(" / ") : "";
+      }
+      function aliasVirtualPathsForSourcePath(sourcePath) {
+        return categoryAliases().filter(function(alias) {
+          return configuredCategoryPath(alias.sourcePath) === sourcePath;
+        }).map(function(alias) {
+          return configuredCategoryPath(alias.aliasPath);
+        }).filter(Boolean);
+      }
       function virtualPathsForChannel(channel) {
         const paths = [];
         const sourcePath = sourceVirtualPathForChannel(channel);
         if (sourcePath) paths.push(sourcePath);
+        aliasVirtualPathsForSourcePath(sourcePath).forEach(function(path) { paths.push(path); });
         return uniqueIDs(paths);
       }
       function channelInSelectedCategory(channel, id) {
@@ -2107,20 +2154,27 @@ const playerPageHTMLTemplate = `<!doctype html>
         const children = {};
         effectiveChannels(false).forEach(function(channel) {
           if (includeChannel && !includeChannel(channel)) return;
-          const parts = parsedCategoryPath(sourceCategoryLabel(channel));
-          for (let index = 0; index < parts.length; index++) {
-            const path = parts.slice(0, index + 1).join(" / ");
-            const parentParts = parentPath ? parentPath.split(" / ").filter(Boolean) : [];
-            if (parts.length <= parentParts.length) return;
-            for (let parentIndex = 0; parentIndex < parentParts.length; parentIndex++) {
-              if (parts[parentIndex] !== parentParts[parentIndex]) return;
+          virtualPathsForChannel(channel).forEach(function(virtualPath) {
+            const parts = virtualPath.split(" / ").filter(Boolean);
+            for (let index = 0; index < parts.length; index++) {
+              const path = parts.slice(0, index + 1).join(" / ");
+              const parentParts = parentPath ? parentPath.split(" / ").filter(Boolean) : [];
+              if (parts.length <= parentParts.length) return;
+              for (let parentIndex = 0; parentIndex < parentParts.length; parentIndex++) {
+                if (parts[parentIndex] !== parentParts[parentIndex]) return;
+              }
+              if (index !== parentParts.length) continue;
+              children[path] = children[path] || { id: virtualCategoryID(path), name: parts[parentParts.length], kind: "virtual", count: 0, channelIDs: {} };
+              children[path].channelIDs[channel.id] = true;
             }
-            if (index !== parentParts.length) continue;
-            children[path] = children[path] || { id: virtualCategoryID(path), name: parts[parentParts.length], kind: "virtual", count: 0 };
-            children[path].count++;
-          }
+          });
         });
-        return Object.keys(children).sort().map(function(path) { return children[path]; });
+        return Object.keys(children).sort().map(function(path) {
+          const child = children[path];
+          child.count = Object.keys(child.channelIDs || {}).length;
+          delete child.channelIDs;
+          return child;
+        });
       }
       function virtualChildCategories(parentPath, includeChannel) {
         return sourceVirtualChildCategories(parentPath, includeChannel);
@@ -2625,6 +2679,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         byId("view").innerHTML = state.adminTab === "manager" ? renderExternalChannelManager() : "<div class=\"settings-stack\">" + renderAdminSettingsTab() + "</div>";
         if (state.adminTab !== "manager") {
           renderAdminCategorySettings();
+          renderAdminCategoryAliasSettings();
           renderAdminECMSettings();
         }
       }
@@ -2641,6 +2696,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       function renderAdminSettingsTab() {
         return ""
           + "<div class=\"settings-card\"><h2>Category method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
+          + "<div class=\"settings-card\"><h2>Alternative Group Names</h2><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>"
           + "<div class=\"settings-card\"><h2>ECM</h2><div id=\"admin-ecm-settings\" class=\"settings-list\"></div></div>"
           + "<div class=\"settings-card\"><h2>Preview</h2><div class=\"settings-preview\">" + adminCategoryPreview() + "</div></div>"
           + "";
@@ -2668,6 +2724,70 @@ const playerPageHTMLTemplate = `<!doctype html>
           + (settings.mode === "normal" ? "<div class=\"settings-note\">Source categories are shown as provided, without remapping or resorting.</div>" : "")
           + (settings.mode === "delimiter" ? "<div class=\"settings-note\">Source category names are split into virtual folders using the selected delimiter.</div>" : "")
           + "<div class=\"settings-actions\"><button data-admin-settings-action=\"save\"" + ((!dirty || saving) ? " disabled" : "") + ">Save</button><button data-admin-settings-action=\"discard\"" + ((!dirty || saving) ? " disabled" : "") + ">Discard</button></div>";
+      }
+      function adminSourceGroups() {
+        const groups = {};
+        effectiveChannels(false).forEach(function(channel) {
+          const sourcePath = sourceCategoryLabel(channel);
+          if (!sourcePath) return;
+          groups[sourcePath] = groups[sourcePath] || { sourcePath: sourcePath, count: 0 };
+          groups[sourcePath].count++;
+        });
+        return Object.keys(groups).sort().map(function(sourcePath) { return groups[sourcePath]; });
+      }
+      function adminSourceGroupCount(sourcePath) {
+        const path = configuredCategoryPath(sourcePath);
+        const group = adminSourceGroups().find(function(item) {
+          return item.sourcePath === sourcePath || configuredCategoryPath(item.sourcePath) === path;
+        });
+        return group ? group.count : 0;
+      }
+      function addAdminCategoryAlias() {
+        const source = byId("admin-alias-source");
+        const alias = byId("admin-alias-path");
+        const sourcePath = source ? String(source.value || "").trim() : "";
+        const aliasPath = alias ? String(alias.value || "").trim() : "";
+        if (!sourcePath || !aliasPath) return;
+        const settings = state.adminCategorySettings || defaultAdminCategorySettings();
+        settings.categoryAliases = normalizeCategoryAliases(items(settings.categoryAliases).concat([{ sourcePath: sourcePath, aliasPath: aliasPath }]));
+        state.adminCategorySettings = settings;
+        markAdminSettingsDraft();
+        renderAdminPage();
+      }
+      function removeAdminCategoryAlias(index) {
+        const settings = state.adminCategorySettings || defaultAdminCategorySettings();
+        settings.categoryAliases = items(settings.categoryAliases).filter(function(_, rowIndex) { return rowIndex !== index; });
+        state.adminCategorySettings = settings;
+        normalizeAdminCategorySettings();
+        markAdminSettingsDraft();
+        renderAdminPage();
+      }
+      function updateAdminCategoryAlias(index, field, value) {
+        const settings = state.adminCategorySettings || defaultAdminCategorySettings();
+        const aliases = items(settings.categoryAliases).slice();
+        aliases[index] = Object.assign({}, aliases[index] || {});
+        aliases[index][field] = value;
+        settings.categoryAliases = aliases;
+        state.adminCategorySettings = settings;
+        markAdminSettingsDraft();
+      }
+      function renderAdminCategoryAliasSettings() {
+        const root = byId("admin-category-alias-settings");
+        if (!root) return;
+        const settings = adminSettings();
+        const sourceGroups = adminSourceGroups();
+        const aliases = categoryAliases();
+        const sourceOptions = sourceGroups.map(function(group) {
+          return "<option value=\"" + escapeHTML(group.sourcePath) + "\">" + escapeHTML(group.sourcePath) + " (" + escapeHTML(String(group.count)) + ")</option>";
+        }).join("");
+        const addRow = "<div class=\"settings-row alias-add-row\"><span>Source group</span><select id=\"admin-alias-source\"" + (!sourceGroups.length ? " disabled" : "") + ">" + sourceOptions + "</select><input id=\"admin-alias-path\" placeholder=\"Sports | Arabic\"" + (!sourceGroups.length ? " disabled" : "") + "><button data-admin-alias-action=\"add\"" + (!sourceGroups.length ? " disabled" : "") + ">Add</button></div>";
+        const rows = aliases.map(function(alias, index) {
+          const count = adminSourceGroupCount(alias.sourcePath);
+          return "<div class=\"alias-table-row" + (!count ? " stale" : "") + "\"><div><strong>" + escapeHTML(alias.sourcePath) + "</strong>" + (!count ? "<small>Source not found</small>" : "") + "</div><span>" + escapeHTML(String(count)) + "</span><input data-admin-alias-index=\"" + index + "\" data-admin-alias-field=\"aliasPath\" value=\"" + escapeHTML(alias.aliasPath) + "\" aria-label=\"Alternative group name\"><button data-admin-alias-action=\"remove\" data-admin-alias-index=\"" + index + "\">Remove</button></div>";
+        }).join("");
+        root.innerHTML = (settings.mode !== "delimiter" ? "<div class=\"settings-note settings-warning\">Alternative group names apply when category mode is By delimiter.</div>" : "")
+          + addRow
+          + "<div class=\"alias-table\"><div class=\"alias-table-head\"><span>Source group</span><span>Channels</span><span>Alternative group name</span><span>Actions</span></div>" + (rows || "<div class=\"empty\">No alternative group names yet.</div>") + "</div>";
       }
       function adminCategoryPreview() {
         const categories = adminListingCategories("").slice(0, 8);
@@ -3228,6 +3348,14 @@ const playerPageHTMLTemplate = `<!doctype html>
           selectCustomGroupChannel(customGroupChannelOption.getAttribute("data-custom-group-channel-option"));
           return;
         }
+        const adminAliasAction = event.target.closest("[data-admin-alias-action]");
+        if (adminAliasAction) {
+          event.preventDefault();
+          const action = adminAliasAction.getAttribute("data-admin-alias-action");
+          if (action === "add") addAdminCategoryAlias();
+          if (action === "remove") removeAdminCategoryAlias(Number(adminAliasAction.getAttribute("data-admin-alias-index")));
+          return;
+        }
         const adminSettingsAction = event.target.closest("[data-admin-settings-action]");
         if (adminSettingsAction) {
           event.preventDefault();
@@ -3315,6 +3443,11 @@ const playerPageHTMLTemplate = `<!doctype html>
         const adminECMField = event.target.getAttribute("data-admin-ecm-field");
         if (adminECMField) {
           updateAdminECMField(adminECMField, event.target);
+          return;
+        }
+        const adminAliasField = event.target.getAttribute("data-admin-alias-field");
+        if (adminAliasField) {
+          updateAdminCategoryAlias(Number(event.target.getAttribute("data-admin-alias-index")), adminAliasField, event.target.value || "");
           return;
         }
         if (event.target && event.target.id === "custom-group-select") {
