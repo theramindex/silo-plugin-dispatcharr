@@ -174,7 +174,13 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`delimiter: "pipe"`,
 		`if (!settings.delimiter) settings.delimiter = "pipe"`,
 		`function renderVirtualCategoryGuide(channels)`,
+		`function renderVirtualCategoryViewToggle()`,
+		`function renderVirtualCategoryChannelList(channels)`,
+		`function renderVirtualCategoryContent(channels)`,
+		`function setVirtualCategoryView(view)`,
 		`renderVirtualCategoryGuide(channels)`,
+		`data-virtual-category-view=\"guide\"`,
+		`data-virtual-category-view=\"list\"`,
 		`No channels in this virtual category yet.`,
 		`sectionHeader("Virtual Categories")`,
 		`data-silo-theme="midnight-cinema"`,
@@ -214,12 +220,12 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	}
 	virtualHeaderIndex := strings.Index(body, `byId("view").innerHTML = virtualFolderHeader(path, featured)`)
 	virtualChildrenIndex := strings.Index(body, `+ (children.length ? sectionHeader("Virtual Categories")`)
-	virtualGuideIndex := strings.Index(body, `+ renderVirtualCategoryGuide(channels)`)
-	if virtualHeaderIndex < 0 || virtualChildrenIndex < 0 || virtualGuideIndex < 0 {
-		t.Fatalf("expected virtual category drilldown to render breadcrumbs, subfolders, and channel guide")
+	virtualContentIndex := strings.Index(body, `+ renderVirtualCategoryContent(channels)`)
+	if virtualHeaderIndex < 0 || virtualChildrenIndex < 0 || virtualContentIndex < 0 {
+		t.Fatalf("expected virtual category drilldown to render breadcrumbs, subfolders, and switchable channel content")
 	}
-	if !(virtualHeaderIndex < virtualChildrenIndex && virtualChildrenIndex < virtualGuideIndex) {
-		t.Fatalf("expected virtual category drilldown order to be breadcrumbs, subfolders, then channel guide")
+	if !(virtualHeaderIndex < virtualChildrenIndex && virtualChildrenIndex < virtualContentIndex) {
+		t.Fatalf("expected virtual category drilldown order to be breadcrumbs, subfolders, then channel content")
 	}
 	if strings.Contains(body, "Saved on this device. Silo profile sync is unavailable here.") {
 		t.Fatalf("expected local-only profile save message to use the standard warning")
@@ -244,14 +250,16 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`<title>Live TV Admin</title>`,
 		`<h1>Live TV Admin</h1>`,
 		`<div class="shell is-admin">`,
-		`.shell.is-admin .topbar { display: none; }`,
-		`.shell.is-admin.is-admin-manager .main { padding: 0; }`,
-		`<nav id="admin-tabs" class="nav admin-nav" aria-label="Live TV admin sections"></nav>`,
+		`.shell.is-admin .rail { display: none; }`,
+		`.shell.is-admin .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; padding: 0; }`,
+		`.admin-topbar`,
+		`<div class="admin-topbar">`,
+		`<nav id="admin-tabs" class="admin-tabs" aria-label="Live TV admin sections"></nav>`,
 		`const adminSettingsKey = "adminCategorySettings"`,
 		`adminTab: "settings"`,
 		`function defaultAdminCategorySettings()`,
 		`function renderAdminPage()`,
-		`function renderAdminSidebarTabs()`,
+		`function renderAdminTopbarTabs()`,
 		`function renderAdminSettingsTab()`,
 		`function renderAdminECMSettings()`,
 		`function adminECMURL()`,
@@ -286,8 +294,8 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 			t.Fatalf("expected admin page to include category mapping marker %q", want)
 		}
 	}
-	if strings.Contains(body, `+ renderAdminTabs()`) {
-		t.Fatal("expected admin tabs to render in the sidebar, not above admin content")
+	if strings.Contains(body, `class="nav admin-nav"`) || strings.Contains(body, `function renderAdminSidebarTabs()`) {
+		t.Fatal("expected admin tabs to render in the topbar, not the sidebar")
 	}
 	if strings.Contains(body, `<div class=\"settings-card\"><div class=\"external-manager-head\"`) {
 		t.Fatal("expected ECM iframe to render as a full action-area surface, not inside a settings card")
@@ -354,6 +362,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.FeaturedBreadcrumbRoot || !result.FeaturedBreadcrumbPath || !result.FeaturedGuide {
 		t.Fatalf("expected starred delimiter category to render featured breadcrumbs and guide: %+v", result)
 	}
+	if !result.FeaturedViewToggle || !result.FeaturedListView {
+		t.Fatalf("expected featured virtual category to toggle between guide and channel list views: %+v", result)
+	}
 	if !result.VirtualBreadcrumbRoot {
 		t.Fatalf("expected normal virtual category breadcrumb root to remain virtual categories: %+v", result)
 	}
@@ -401,6 +412,8 @@ type virtualAliasResult struct {
 	FeaturedBreadcrumbRoot  bool   `json:"featuredBreadcrumbRoot"`
 	FeaturedBreadcrumbPath  bool   `json:"featuredBreadcrumbPath"`
 	FeaturedGuide           bool   `json:"featuredGuide"`
+	FeaturedViewToggle      bool   `json:"featuredViewToggle"`
+	FeaturedListView        bool   `json:"featuredListView"`
 	VirtualBreadcrumbRoot   bool   `json:"virtualBreadcrumbRoot"`
 	ChannelCategoryName     string `json:"channelCategoryName"`
 }
@@ -469,6 +482,10 @@ JSON.stringify((function() {
   state.category = "featured:International / Argentina / Sports";
   renderLivePage();
   const featuredView = document.elements.view ? document.elements.view.innerHTML : "";
+  state.virtualCategoryView = "list";
+  renderLivePage();
+  const featuredListView = document.elements.view ? document.elements.view.innerHTML : "";
+  state.virtualCategoryView = "guide";
   state.category = "virtual:International / Argentina / Sports";
   renderLivePage();
   const virtualView = document.elements.view ? document.elements.view.innerHTML : "";
@@ -487,6 +504,8 @@ JSON.stringify((function() {
     featuredBreadcrumbRoot: featuredView.indexOf(">Featured Channels</button>") !== -1,
     featuredBreadcrumbPath: featuredView.indexOf(">International</button>") !== -1 && featuredView.indexOf(">Argentina</button>") !== -1 && featuredView.indexOf(">Sports</button>") !== -1,
     featuredGuide: featuredView.indexOf(">TV Guide<") !== -1 && featuredView.indexOf('data-channel="channel:argentina-sports"') !== -1,
+    featuredViewToggle: featuredView.indexOf('data-virtual-category-view="guide"') !== -1 && featuredView.indexOf('data-virtual-category-view="list"') !== -1,
+    featuredListView: featuredListView.indexOf(">Channels<") !== -1 && featuredListView.indexOf('class="virtual-channel-button" data-channel="channel:argentina-sports"') !== -1 && featuredListView.indexOf(">TV Guide<") === -1,
     virtualBreadcrumbRoot: virtualView.indexOf(">Virtual Categories</button>") !== -1,
     channelCategoryName: channel ? channel.categoryName : ""
   };
