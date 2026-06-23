@@ -1380,8 +1380,11 @@ const playerPageHTMLTemplate = `<!doctype html>
       const prefsKey = "silo.ramindex.dispatcharr.preferences.v1";
       const adminSettingsKey = "adminCategorySettings";
       const pluginInstallationID = (base.match(/\/api\/v1\/plugins\/(\d+)/) || [])[1] || "";
+      const localCacheSuffix = pluginInstallationID || "default";
+      const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuffix;
+      const adminSettingsLocalKey = "silo.ramindex.dispatcharr.adminSettings.v1." + localCacheSuffix;
       const adminSettingsToken = "__ADMIN_SETTINGS_TOKEN__";
-      const state = { app: null, view: isAdminRoute ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
+      const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
 
       function applySiloTheme() {
         const params = new URLSearchParams(window.location.search);
@@ -1589,6 +1592,82 @@ const playerPageHTMLTemplate = `<!doctype html>
         try { return Object.assign(defaultPrefs(), JSON.parse(localStorage.getItem(prefsKey) || "{}")); }
         catch (_) { return defaultPrefs(); }
       }
+      function cacheProgramWindow() {
+        const now = Math.floor(Date.now() / 1000);
+        return { start: now - (2 * 3600), end: now + (30 * 3600) };
+      }
+      function compactProgramsForCache(programs, stripSummary) {
+        const windowInfo = cacheProgramWindow();
+        return items(programs).filter(function(program) {
+          const start = Number(program.startUnix || 0);
+          const end = Number(program.endUnix || 0);
+          return (!end || end >= windowInfo.start) && (!start || start <= windowInfo.end);
+        }).map(function(program) {
+          const compact = {
+            id: program.id,
+            channelId: program.channelId,
+            title: program.title,
+            startUnix: program.startUnix,
+            endUnix: program.endUnix
+          };
+          if (!stripSummary && program.summary) compact.summary = program.summary;
+          return compact;
+        });
+      }
+      function compactAppPayloadForCache(payload, stripSummary, channelsOnly) {
+        if (!payload || !items(payload.channels).length) return null;
+        return {
+          cachedAtUnix: Math.floor(Date.now() / 1000),
+          status: payload.status || {},
+          source: payload.source || {},
+          channels: items(payload.channels),
+          categories: items(payload.categories),
+          programs: channelsOnly ? [] : compactProgramsForCache(payload.programs, stripSummary),
+          vod: { available: !!(payload.vod && payload.vod.available), categories: [], items: [] },
+          series: { available: !!(payload.series && payload.series.available), categories: [], items: [] },
+          preferences: defaultPrefs(),
+          sessions: [],
+          capabilities: payload.capabilities || {}
+        };
+      }
+      function writeLocalAppCache(payload) {
+        const variants = [
+          compactAppPayloadForCache(payload, false, false),
+          compactAppPayloadForCache(payload, true, false),
+          compactAppPayloadForCache(payload, true, true)
+        ].filter(Boolean);
+        for (let index = 0; index < variants.length; index++) {
+          try {
+            localStorage.removeItem(appCacheKey);
+            localStorage.setItem(appCacheKey, JSON.stringify(variants[index]));
+            return;
+          } catch (_) {}
+        }
+      }
+      function readLocalAppCache() {
+        try {
+          const cached = JSON.parse(localStorage.getItem(appCacheKey) || "null");
+          if (!cached || !items(cached.channels).length) return null;
+          const age = Math.floor(Date.now() / 1000) - Number(cached.cachedAtUnix || 0);
+          if (age < 0 || age > 72 * 3600) return null;
+          cached.preferences = defaultPrefs();
+          cached.sessions = [];
+          cached.programs = items(cached.programs);
+          cached.categories = items(cached.categories);
+          cached.channels = items(cached.channels);
+          cached.capabilities = cached.capabilities || {};
+          return cached;
+        } catch (_) {
+          return null;
+        }
+      }
+      function readLocalAdminSettings() {
+        try { return readAdminSettingsValue(JSON.parse(localStorage.getItem(adminSettingsLocalKey) || "null")); }
+        catch (_) { return defaultAdminCategorySettings(); }
+      }
+      function writeLocalAdminSettings(settings) {
+        try { localStorage.setItem(adminSettingsLocalKey, JSON.stringify(cloneAdminCategorySettings(settings))); } catch (_) {}
+      }
       function readSiloPrefsValue(value) {
         if (!value) return null;
         try { return Object.assign(defaultPrefs(), JSON.parse(value)); }
@@ -1663,6 +1742,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           normalizeAdminCategorySettings();
         }).then(function() {
           state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
+          writeLocalAdminSettings(state.adminCategorySettings);
           state.adminSaveStatus = "saved";
           state.adminSaveMessage = "Saved group settings.";
           if (state.view === "admin") renderAdminPage();
@@ -1900,11 +1980,26 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (!state.query || channelMatchesQuery(channel)) return true;
         return programsFor(channel.id).some(programMatchesQuery);
       }
+      function rebuildProgramIndex() {
+        const sorted = items(state.app && state.app.programs).slice().sort(function(a, b) {
+          return (a.startUnix || 0) - (b.startUnix || 0);
+        });
+        const byChannel = {};
+        sorted.forEach(function(program) {
+          const id = String(program.channelId || "");
+          if (!id) return;
+          if (!byChannel[id]) byChannel[id] = [];
+          byChannel[id].push(program);
+        });
+        state.sortedPrograms = sorted;
+        state.programsByChannel = byChannel;
+      }
       function programsFor(channelID) {
         const now = Math.floor(Date.now() / 1000);
-        return items(state.app.programs).filter(function(program) {
+        const source = channelID ? items(state.programsByChannel[channelID]) : items(state.sortedPrograms);
+        return source.filter(function(program) {
           return (!channelID || program.channelId === channelID) && (!program.endUnix || program.endUnix >= now - 3600);
-        }).sort(function(a, b) { return (a.startUnix || 0) - (b.startUnix || 0); });
+        });
       }
       function timeLabel(unix) {
         if (!unix) return "";
@@ -1973,26 +2068,51 @@ const playerPageHTMLTemplate = `<!doctype html>
         state.view = id ? "live" : "home";
         render();
       }
-      async function hydrateApp(payload) {
+      async function hydrateApp(payload, options) {
+        options = options || {};
         state.app = payload;
-        const values = await loadPluginSettingsValues().catch(function() { return null; });
-        const siloPrefs = readSiloPrefsValue(values && values.preferences ? values.preferences : "");
         const localPrefs = readLocalPrefs();
-        state.app.preferences = siloPrefs ? mergePrefs(siloPrefs, {}) : mergePrefs(state.app.preferences, localPrefs);
-        const savedAdminSettings = readAdminSettingsValue(values && values[adminSettingsKey] ? values[adminSettingsKey] : "");
-        state.adminCategorySettings = await loadAdminCategorySettings().catch(function() {
-          return savedAdminSettings;
-        });
+        if (options.localCache) {
+          state.app.preferences = mergePrefs(state.app.preferences, localPrefs);
+          state.adminCategorySettings = readLocalAdminSettings();
+        } else {
+          const values = await loadPluginSettingsValues().catch(function() { return null; });
+          const siloPrefs = readSiloPrefsValue(values && values.preferences ? values.preferences : "");
+          state.app.preferences = siloPrefs ? mergePrefs(siloPrefs, {}) : mergePrefs(state.app.preferences, localPrefs);
+          const savedAdminSettings = values && values[adminSettingsKey] ? readAdminSettingsValue(values[adminSettingsKey]) : null;
+          const localAdminSettings = readLocalAdminSettings();
+          state.adminCategorySettings = await loadAdminCategorySettings().catch(function() {
+            return savedAdminSettings || localAdminSettings;
+          });
+        }
         state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
         state.app.programs = items(state.app.programs);
+        rebuildProgramIndex();
         normalizePreferences();
         normalizeAdminCategorySettings();
         state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
-        if (!isAdminRoute) savePrefs({ quiet: true });
+        writeLocalAdminSettings(state.adminCategorySettings);
+        if (!options.localCache) writeLocalAppCache(state.app);
+        if (!isAdminRoute && !options.localCache) savePrefs({ quiet: true });
       }
       async function loadApp() {
-        await hydrateApp(await getJSON("/dispatcharr/api/app"));
-        render();
+        const cached = readLocalAppCache();
+        let renderedCachedApp = false;
+        if (cached) {
+          await hydrateApp(cached, { localCache: true });
+          state.appLoadedFromCache = true;
+          renderedCachedApp = true;
+          render();
+        }
+        try {
+          await hydrateApp(await getJSON("/dispatcharr/api/app"));
+          state.appLoadedFromCache = false;
+          render();
+        } catch (error) {
+          if (!renderedCachedApp) throw error;
+          showAppToast("Showing saved guide. Refresh failed.");
+          try { console.warn("Dispatcharr app refresh failed", error); } catch (_) {}
+        }
       }
       async function refreshAppData() {
         if (state.refreshing) return;
