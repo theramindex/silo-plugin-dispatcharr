@@ -408,7 +408,7 @@ func (s *HTTPRoutesServer) handlePreferences(request *pluginv1.HandleHTTPRequest
 }
 
 func (s *HTTPRoutesServer) handleAdminSettings(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
-	if !s.adminSettingsAuthorized(request) {
+	if request.GetMethod() == http.MethodPost && !s.adminSettingsAuthorized(request) {
 		return textResponse(http.StatusForbidden, "admin settings token is required"), nil
 	}
 	if request.GetMethod() != http.MethodPost {
