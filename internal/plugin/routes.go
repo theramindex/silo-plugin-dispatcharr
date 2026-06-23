@@ -1287,13 +1287,18 @@ const playerPageHTMLTemplate = `<!doctype html>
       .settings-preview { margin-top: 0.65rem; display: grid; gap: 0.35rem; color: var(--muted); font-size: 0.82rem; }
       .alias-add-row { display: grid; grid-template-columns: 8rem minmax(13rem, 1.3fr) minmax(12rem, 1fr) auto; }
       .alias-add-row input, .alias-add-row select { width: 100%; min-width: 0; }
-      .alias-table { display: grid; gap: 0.35rem; }
-      .alias-table-head, .alias-table-row { display: grid; grid-template-columns: minmax(13rem, 1.4fr) 5rem minmax(12rem, 1fr) auto; gap: 0.55rem; align-items: center; }
-      .alias-table-head { color: var(--muted); font-size: 0.76rem; font-weight: 850; padding: 0 0.2rem; }
-      .alias-table-row { border-radius: 0.65rem; background: var(--panel); padding: 0.55rem; }
+      .alias-table { display: grid; overflow: hidden; border: 1px solid var(--line); border-radius: 0.75rem; background: rgba(255,255,255,0.025); }
+      .alias-table-head, .alias-table-row { display: grid; grid-template-columns: minmax(15rem, 1.6fr) minmax(4rem, 0.35fr) minmax(18rem, 1.35fr) minmax(6rem, 0.4fr); gap: 1rem; align-items: center; }
+      .alias-table-head { min-height: 2rem; padding: 0.4rem 0.8rem 0.35rem; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 0.74rem; font-weight: 850; }
+      .alias-table-head span:nth-child(2), .alias-table-head span:nth-child(4) { justify-self: end; }
+      .alias-table-row { min-height: 3.9rem; border-top: 1px solid rgba(255,255,255,0.055); background: var(--panel); padding: 0.65rem 0.8rem; }
+      .alias-table-head + .alias-table-row { border-top: 0; }
+      .alias-table-source { min-width: 0; }
       .alias-table-row strong, .alias-table-row small { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .alias-table-row small { margin-top: 0.12rem; color: var(--warn); font-size: 0.72rem; }
-      .alias-table-row input { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 0.55rem; background: var(--rail-2); color: var(--text); padding: 0.45rem 0.55rem; }
+      .alias-table-row small { margin-top: 0.16rem; color: var(--warn); font-size: 0.72rem; }
+      .alias-table-count { justify-self: end; color: var(--text); font-variant-numeric: tabular-nums; font-weight: 850; }
+      .alias-table-row input { width: 100%; min-width: 0; min-height: 2.35rem; border: 1px solid var(--line); border-radius: 0.55rem; background: var(--rail-2); color: var(--text); padding: 0.45rem 0.6rem; }
+      .alias-table-actions { justify-self: end; }
       .alias-table-row button { border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); padding: 0.45rem 0.7rem; font-weight: 820; }
       .alias-table-row button:hover { background: var(--panel-2); }
       .settings-note { color: var(--muted); font-size: 0.82rem; line-height: 1.35; }
@@ -1324,6 +1329,10 @@ const playerPageHTMLTemplate = `<!doctype html>
         .admin-actions { margin-left: auto; }
         .alias-add-row, .alias-table-row { grid-template-columns: 1fr; align-items: stretch; }
         .alias-table-head { display: none; }
+        .alias-table-row { gap: 0.5rem; }
+        .alias-table-count, .alias-table-actions { justify-self: stretch; }
+        .alias-table-count::before { content: "Channels: "; color: var(--muted); font-weight: 750; }
+        .alias-table-actions button { width: 100%; }
         .search { min-width: 0; width: 100%; }
         .guide-tools { flex-wrap: wrap; }
         .guide-tools .select, .guide-tools .search { flex: 1 1 100%; min-width: 0; margin-left: 0; }
@@ -2835,7 +2844,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         const addRow = "<div class=\"settings-row alias-add-row\"><span>Source group</span><select id=\"admin-alias-source\"" + (!sourceGroups.length ? " disabled" : "") + ">" + sourceOptions + "</select><input id=\"admin-alias-path\" placeholder=\"Sports | Arabic\"" + (!sourceGroups.length ? " disabled" : "") + "><button data-admin-alias-action=\"add\"" + (!sourceGroups.length ? " disabled" : "") + ">Add</button></div>";
         const rows = aliases.map(function(alias, index) {
           const count = adminSourceGroupCount(alias.sourcePath);
-          return "<div class=\"alias-table-row" + (!count ? " stale" : "") + "\"><div><strong>" + escapeHTML(alias.sourcePath) + "</strong>" + (!count ? "<small>Source not found</small>" : "") + "</div><span>" + escapeHTML(String(count)) + "</span><input data-admin-alias-index=\"" + index + "\" data-admin-alias-field=\"aliasPath\" value=\"" + escapeHTML(alias.aliasPath) + "\" aria-label=\"Alternative group name\"><button data-admin-alias-action=\"remove\" data-admin-alias-index=\"" + index + "\">Remove</button></div>";
+          return "<div class=\"alias-table-row" + (!count ? " stale" : "") + "\"><div class=\"alias-table-source\" title=\"" + escapeHTML(alias.sourcePath) + "\"><strong>" + escapeHTML(alias.sourcePath) + "</strong>" + (!count ? "<small>Source not found</small>" : "") + "</div><span class=\"alias-table-count\">" + escapeHTML(String(count)) + "</span><input data-admin-alias-index=\"" + index + "\" data-admin-alias-field=\"aliasPath\" value=\"" + escapeHTML(alias.aliasPath) + "\" title=\"" + escapeHTML(alias.aliasPath) + "\" aria-label=\"Alternative group name\"><div class=\"alias-table-actions\"><button data-admin-alias-action=\"remove\" data-admin-alias-index=\"" + index + "\">Remove</button></div></div>";
         }).join("");
         root.innerHTML = (settings.mode !== "delimiter" ? "<div class=\"settings-note settings-warning\">Alternative group names apply when category mode is By delimiter.</div>" : "")
           + addRow
