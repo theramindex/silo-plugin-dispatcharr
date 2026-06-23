@@ -143,10 +143,14 @@ func TestManifestGlobalConfigSchemasValidateExpectedObjects(t *testing.T) {
 	if err := configsdk.ValidateManifestGlobalValue(manifest, "category_settings", map[string]any{
 		"mode":      "admin_delimiter",
 		"delimiter": "pipe",
-		"adminGroups": []any{
-			map[string]any{"id": "admin:sports", "name": "Sports | Argentina", "order": 1},
+		"groupAliases": []any{
+			map[string]any{
+				"id":     "alias:sports-argentina",
+				"source": "International | Argentina | Sports",
+				"alias":  "Sports | Argentina",
+				"order":  1,
+			},
 		},
-		"adminGroupMemberships": map[string]any{"admin:sports": []any{"channel:1"}},
 	}); err != nil {
 		t.Fatalf("validate category settings schema: %v", err)
 	}

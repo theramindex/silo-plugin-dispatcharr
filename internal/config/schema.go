@@ -117,24 +117,18 @@ const categorySettingsJSONSchema = `{
       "enum": ["pipe", "dash"],
       "default": "pipe"
     },
-    "adminGroups": {
+    "groupAliases": {
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
           "id": {"type": "string"},
-          "name": {"type": "string"},
+          "source": {"type": "string"},
+          "alias": {"type": "string"},
           "order": {"type": "integer"}
         },
-        "required": ["id", "name"],
+        "required": ["id", "source", "alias"],
         "additionalProperties": false
-      }
-    },
-    "adminGroupMemberships": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "array",
-        "items": {"type": "string"}
       }
     },
     "presentationOverrides": {
