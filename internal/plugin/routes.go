@@ -161,6 +161,8 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return s.handleRecordings(ctx)
 	case "/dispatcharr/api/preferences":
 		return s.handlePreferences(request)
+	case "/dispatcharr/api/admin-settings":
+		return s.handleAdminSettings(request)
 	case "/dispatcharr/api/favorites":
 		return s.handleFavorite(request)
 	case "/dispatcharr/api/hidden-categories":
@@ -386,6 +388,21 @@ func (s *HTTPRoutesServer) handlePreferences(request *pluginv1.HandleHTTPRequest
 		return textResponse(http.StatusBadRequest, "invalid preferences payload"), nil
 	}
 	return s.respondJSON(http.StatusOK, s.store.SetPreferences(preferences))
+}
+
+func (s *HTTPRoutesServer) handleAdminSettings(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if request.GetMethod() != http.MethodPost {
+		return s.respondJSON(http.StatusOK, json.RawMessage(s.store.AdminSettings()))
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
+		return textResponse(http.StatusBadRequest, "invalid admin settings payload"), nil
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return textResponse(http.StatusBadRequest, "invalid admin settings payload"), nil
+	}
+	return s.respondJSON(http.StatusOK, json.RawMessage(s.store.SetAdminSettings(encoded)))
 }
 
 func (s *HTTPRoutesServer) handleFavorite(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
@@ -1153,7 +1170,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           </button>
           <input id="global-search" class="search" placeholder="Search by program or channel">
         </div><!-- USER_TOPBAR_END -->
-        <div id="view"></div>
+        <div id="view"><div class="empty">Loading Live TV...</div></div>
       </main>
     </div>
     <script>
@@ -1347,8 +1364,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         return readSiloPrefsValue(values ? values.preferences : "");
       }
       async function loadAdminCategorySettings() {
-        const values = await loadPluginSettingsValues();
-        return readAdminSettingsValue(values ? values[adminSettingsKey] : "");
+        return readAdminSettingsValue(await getJSON("/dispatcharr/api/admin-settings"));
       }
       async function savePluginSettingValue(key, value) {
         if (!pluginInstallationID) throw new Error("plugin installation settings unavailable");
@@ -1385,23 +1401,19 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function saveAdminCategorySettings() {
         state.adminCategorySettings = Object.assign(defaultAdminCategorySettings(), state.adminCategorySettings || {});
-        if (pluginInstallationID) {
-          state.adminSaveStatus = "saving";
-          state.adminSaveMessage = "";
-          savePluginSettingValue(adminSettingsKey, JSON.stringify(state.adminCategorySettings)).then(function() {
-            state.adminSaveStatus = "saved";
-            state.adminSaveMessage = "Saved admin category mapping.";
-            if (state.view === "admin") renderAdminPage();
-          }).catch(function(error) {
-            state.adminSaveStatus = "error";
-            state.adminSaveMessage = "Could not save admin category mapping.";
-            if (state.view === "admin") renderAdminPage();
-            try { console.warn("Dispatcharr admin category save failed", error); } catch (_) {}
-          });
-        } else {
+        state.adminSaveStatus = "saving";
+        state.adminSaveMessage = "";
+        postJSON("/dispatcharr/api/admin-settings", state.adminCategorySettings).then(function(saved) {
+          state.adminCategorySettings = readAdminSettingsValue(saved);
+          state.adminSaveStatus = "saved";
+          state.adminSaveMessage = "Saved admin category mapping.";
+          if (state.view === "admin") renderAdminPage();
+        }).catch(function(error) {
           state.adminSaveStatus = "error";
           state.adminSaveMessage = "Could not save admin category mapping.";
-        }
+          if (state.view === "admin") renderAdminPage();
+          try { console.warn("Dispatcharr admin category save failed", error); } catch (_) {}
+        });
       }
       async function getJSON(url) {
         const response = await fetch(route(url), { credentials: "include" });
@@ -1653,11 +1665,13 @@ const playerPageHTMLTemplate = `<!doctype html>
         const siloPrefs = readSiloPrefsValue(values && values.preferences ? values.preferences : "");
         const localPrefs = readLocalPrefs();
         state.app.preferences = siloPrefs ? mergePrefs(siloPrefs, {}) : mergePrefs(state.app.preferences, localPrefs);
-        state.adminCategorySettings = readAdminSettingsValue(values && values[adminSettingsKey] ? values[adminSettingsKey] : "");
+        state.adminCategorySettings = await loadAdminCategorySettings().catch(function() {
+          return readAdminSettingsValue(values && values[adminSettingsKey] ? values[adminSettingsKey] : "");
+        });
         state.app.programs = items(state.app.programs);
         normalizePreferences();
         normalizeAdminCategorySettings();
-        savePrefs({ quiet: true });
+        if (!isAdminRoute) savePrefs({ quiet: true });
       }
       async function loadApp() {
         await hydrateApp(await getJSON("/dispatcharr/api/app"));

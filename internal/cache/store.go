@@ -3,6 +3,7 @@ package cache
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -16,10 +17,11 @@ type Snapshot struct {
 }
 
 type Store struct {
-	mu          sync.RWMutex
-	snapshot    Snapshot
-	preferences Preferences
-	sessions    map[string]WatchSession
+	mu            sync.RWMutex
+	snapshot      Snapshot
+	preferences   Preferences
+	adminSettings json.RawMessage
+	sessions      map[string]WatchSession
 }
 
 type WatchSession struct {
@@ -106,6 +108,24 @@ func (s *Store) Preferences() Preferences {
 	preferences.CustomGroups = cloneCustomGroups(s.preferences.CustomGroups)
 	preferences.CustomGroupMemberships = cloneStringSliceMap(s.preferences.CustomGroupMemberships)
 	return preferences
+}
+
+func (s *Store) AdminSettings() json.RawMessage {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if len(s.adminSettings) == 0 {
+		return json.RawMessage(`{}`)
+	}
+	return append(json.RawMessage(nil), s.adminSettings...)
+}
+
+func (s *Store) SetAdminSettings(settings json.RawMessage) json.RawMessage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.adminSettings = append(json.RawMessage(nil), settings...)
+	return append(json.RawMessage(nil), s.adminSettings...)
 }
 
 func (s *Store) StartWatch(kind, id, name string) (WatchSession, Preferences) {

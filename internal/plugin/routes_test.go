@@ -467,6 +467,38 @@ func TestHTTPRoutesServerPreferencesRoutePersistsFullPayload(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
+	t.Parallel()
+
+	server := NewHTTPRoutesServer(cache.NewStore())
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method: "POST",
+		Path:   "/dispatcharr/api/admin-settings",
+		Body:   []byte(`{"mode":"custom","delimiter":"pipe","adminGroups":[{"id":"admin:sports","name":"Sports","order":1}],"adminGroupMemberships":{"admin:sports":["channel:1"]},"presentationOverrides":{"channel:1":{"name":"Sports Alt","order":2}}}`),
+	})
+	if err != nil {
+		t.Fatalf("admin settings route: %v", err)
+	}
+	if response.GetStatusCode() != 200 {
+		t.Fatalf("expected 200, got %d", response.GetStatusCode())
+	}
+
+	response, err = server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method: "GET",
+		Path:   "/dispatcharr/api/admin-settings",
+	})
+	if err != nil {
+		t.Fatalf("admin settings route: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+		t.Fatalf("unmarshal admin settings: %v", err)
+	}
+	if payload["mode"] != "custom" || payload["delimiter"] != "pipe" {
+		t.Fatalf("expected admin settings to persist: %+v", payload)
+	}
+}
+
 func TestHTTPRoutesServerWatchLifecycleUpdatesSessionState(t *testing.T) {
 	t.Parallel()
 
