@@ -2034,7 +2034,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       function renderHome() {
         const root = byId("view");
         const recent = recentChannels(10);
-        root.innerHTML = sectionHeader("Continue watching") + rowCards(recent.length ? recent : visibleChannels(false).slice(0, 6)) + sectionHeader("TV Guide") + renderHomeGuide(recent) + sectionHeader("Categories") + categoryGrid();
+        root.innerHTML = sectionHeader("Continue watching") + rowCards(recent.length ? recent : visibleChannels(false).slice(0, 6)) + sectionHeader("TV Guide") + renderHomeGuide(recent) + categoryGrid();
       }
       function sectionHeader(title) {
         return "<div class=\"section-title\"><span>" + escapeHTML(title) + "</span></div>";
