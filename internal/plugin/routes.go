@@ -1234,6 +1234,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       .recording-badge.interrupted, .recording-badge.failed { background: rgba(99,40,35,0.5); color: #ffe0dc; }
       .settings-stack { display: grid; gap: 0.85rem; }
       .settings-card h2 { margin: 0 0 0.7rem; font-size: 1.05rem; }
+      .admin-tabs { display: inline-flex; flex-wrap: wrap; gap: 0.35rem; border: 1px solid var(--line); border-radius: 999px; background: var(--rail-2); padding: 0.25rem; width: fit-content; max-width: 100%; }
+      .admin-tabs button { border: 0; border-radius: 999px; background: transparent; color: var(--muted); padding: 0.48rem 0.78rem; font-weight: 850; }
+      .admin-tabs button.active, .admin-tabs button:hover { background: var(--panel-2); color: var(--text); }
       .settings-list { display: grid; gap: 0.55rem; }
       .settings-list label, .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--panel); border-radius: 0.65rem; padding: 0.7rem; }
       .settings-row input, .settings-row select { min-width: 12rem; border: 1px solid var(--line); border-radius: 0.55rem; background: var(--rail-2); color: var(--text); padding: 0.45rem 0.55rem; }
@@ -1313,7 +1316,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       const adminSettingsKey = "adminCategorySettings";
       const pluginInstallationID = (base.match(/\/api\/v1\/plugins\/(\d+)/) || [])[1] || "";
       const adminSettingsToken = "__ADMIN_SETTINGS_TOKEN__";
-      const state = { app: null, view: isAdminRoute ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
+      const state = { app: null, view: isAdminRoute ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
 
       function applySiloTheme() {
         const params = new URLSearchParams(window.location.search);
@@ -2528,13 +2531,27 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function renderAdminPage() {
         normalizeAdminCategorySettings();
-        const settings = adminSettings();
         byId("view").innerHTML = "<div class=\"settings-stack\">"
+          + renderAdminTabs()
+          + (state.adminTab === "manager" ? renderExternalChannelManager() : renderAdminSettingsTab())
+          + "</div>";
+        if (state.adminTab !== "manager") renderAdminCategorySettings();
+      }
+      function renderAdminTabs() {
+        return "<div class=\"admin-tabs\" role=\"tablist\" aria-label=\"Admin settings\">"
+          + "<button role=\"tab\" data-admin-tab=\"settings\" class=\"" + (state.adminTab === "settings" ? "active" : "") + "\">Settings</button>"
+          + "<button role=\"tab\" data-admin-tab=\"manager\" class=\"" + (state.adminTab === "manager" ? "active" : "") + "\">Channel Manager</button>"
+          + "</div>";
+      }
+      function setAdminTab(tab) {
+        state.adminTab = tab === "manager" ? "manager" : "settings";
+        renderAdminPage();
+      }
+      function renderAdminSettingsTab() {
+        return ""
           + "<div class=\"settings-card\"><h2>Category method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
           + "<div class=\"settings-card\"><h2>Preview</h2><div class=\"settings-preview\">" + adminCategoryPreview() + "</div></div>"
-          + renderExternalChannelManager()
-          + "</div>";
-        renderAdminCategorySettings();
+          + "";
       }
       function renderExternalChannelManager() {
         const managerURL = "";
@@ -3117,6 +3134,12 @@ const playerPageHTMLTemplate = `<!doctype html>
           const action = adminSettingsAction.getAttribute("data-admin-settings-action");
           if (action === "save") saveAdminCategorySettings();
           if (action === "discard") discardAdminCategorySettings();
+          return;
+        }
+        const adminTab = event.target.closest("[data-admin-tab]");
+        if (adminTab) {
+          event.preventDefault();
+          setAdminTab(adminTab.getAttribute("data-admin-tab"));
           return;
         }
         const favoriteMove = event.target.closest("[data-favorite-move]");
