@@ -1260,8 +1260,6 @@ const playerPageHTMLTemplate = `<!doctype html>
       .settings-link { border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); display: inline-flex; align-items: center; justify-content: center; padding: 0.45rem 0.7rem; font-size: 0.86rem; font-weight: 820; text-decoration: none; }
       .settings-link:hover { background: var(--panel-2); }
       .external-manager-surface { position: relative; height: 100%; min-height: 0; background: var(--bg); }
-      .external-manager-toolbar { position: absolute; top: 0.8rem; right: 0.8rem; z-index: 2; display: flex; justify-content: flex-end; pointer-events: none; }
-      .external-manager-toolbar .settings-link { pointer-events: auto; background: color-mix(in srgb, var(--panel) 88%, transparent); backdrop-filter: blur(16px); }
       .external-manager-frame { width: 100%; height: 100%; border: 0; border-radius: 0; background: var(--bg); display: block; }
       .custom-channel-picker { align-items: flex-start; }
       .custom-channel-combobox { flex: 1 1 30rem; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; min-width: 0; }
@@ -2597,7 +2595,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function renderExternalChannelManager() {
         const managerURL = adminECMURL();
-        return "<div class=\"external-manager-surface\"><div class=\"external-manager-toolbar\"><a class=\"settings-link\" href=\"" + escapeHTML(managerURL) + "\" target=\"_blank\" rel=\"noopener noreferrer\">Open in new window</a></div><iframe class=\"external-manager-frame\" src=\"" + escapeHTML(managerURL) + "\" title=\"Channel Manager\"></iframe></div>";
+        return "<div class=\"external-manager-surface\"><iframe class=\"external-manager-frame\" src=\"" + escapeHTML(managerURL) + "\" title=\"Channel Manager\"></iframe></div>";
       }
       function renderAdminECMSettings() {
         const settings = adminSettings();
