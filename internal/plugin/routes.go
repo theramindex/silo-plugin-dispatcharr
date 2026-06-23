@@ -628,8 +628,8 @@ func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) s
 		body = strings.Replace(body, "__ADMIN_SETTINGS_TOKEN__", "", 1)
 	}
 	if request.GetPath() == "/dispatcharr/admin" {
-		body = replaceTemplateBlock(body, "<!-- USER_NAV_START -->", "<!-- USER_NAV_END -->", adminSidebarNavHTML())
-		body = removeTemplateBlock(body, "<!-- USER_TOPBAR_START -->", "<!-- USER_TOPBAR_END -->")
+		body = removeTemplateBlock(body, "<!-- USER_NAV_START -->", "<!-- USER_NAV_END -->")
+		body = replaceTemplateBlock(body, "<!-- USER_TOPBAR_START -->", "<!-- USER_TOPBAR_END -->", adminTopbarHTML())
 		body = strings.Replace(body, "__APP_TITLE__", "Live TV Admin", 2)
 		return strings.Replace(body, "__ROUTE_CLASS__", "is-admin", 1)
 	}
@@ -662,8 +662,8 @@ func replaceTemplateBlock(body string, startMarker string, endMarker string, rep
 	return body[:start] + replacement + body[end:]
 }
 
-func adminSidebarNavHTML() string {
-	return `<nav id="admin-tabs" class="nav admin-nav" aria-label="Live TV admin sections"></nav>`
+func adminTopbarHTML() string {
+	return `<div class="admin-topbar"><div class="admin-title"><a class="back" href="/" aria-label="Back to Silo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg></a><h1>Live TV Admin</h1></div><nav id="admin-tabs" class="admin-tabs" aria-label="Live TV admin sections"></nav></div>`
 }
 
 func sanitizeThemeSlug(value string) string {
@@ -1083,11 +1083,19 @@ const playerPageHTMLTemplate = `<!doctype html>
       .shell.is-player .main { padding: 0; overflow: hidden; background: #050505; }
       .topbar { display: flex; align-items: center; justify-content: flex-end; gap: 0.65rem; margin-bottom: 0.85rem; position: sticky; top: 0; z-index: 5; background: linear-gradient(180deg, var(--bg) 70%, color-mix(in srgb, var(--bg) 0%, transparent)); padding-bottom: 0.65rem; }
       .shell.is-player .topbar, .shell.is-guide .topbar { display: none; }
-      .shell.is-admin .topbar { display: none; }
-      .shell.is-admin.is-admin-manager .main { padding: 0; }
+      .shell.is-admin { grid-template-columns: minmax(0, 1fr); }
+      .shell.is-admin .rail { display: none; }
+      .shell.is-admin .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; padding: 0; }
       .shell.is-admin.is-admin-manager .main { overflow: hidden; }
-      .shell.is-admin.is-admin-manager #view { height: 100%; }
-      .admin-nav { margin-top: 0.35rem; }
+      .shell.is-admin #view { min-height: 0; padding: 1rem 1.25rem 2rem; }
+      .shell.is-admin.is-admin-manager #view { height: 100%; padding: 0; }
+      .admin-topbar { position: sticky; top: 0; z-index: 7; display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 4.15rem; padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, var(--bg) 86%, color-mix(in srgb, var(--bg) 0%, transparent)); }
+      .admin-title { display: flex; align-items: center; gap: 0.65rem; min-width: 0; }
+      .admin-title h1 { margin: 0; font-size: 1.45rem; font-weight: 900; letter-spacing: 0; white-space: nowrap; }
+      .admin-tabs { display: inline-flex; align-items: center; gap: 0.25rem; max-width: 100%; padding: 0.22rem; border: 1px solid var(--line); border-radius: 999px; background: var(--rail-2); }
+      .admin-tabs button { border: 0; border-radius: 999px; background: transparent; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; min-height: 2.35rem; padding: 0 0.8rem; font-weight: 850; white-space: nowrap; }
+      .admin-tabs button.active, .admin-tabs button:hover { background: var(--panel-2); color: var(--text); }
+      .admin-tabs svg { width: 1.05rem; height: 1.05rem; display: block; stroke-width: 1.9; }
       .title { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
       .title h2 { margin: 0; font-size: 1.35rem; }
       .status { color: var(--muted); font-size: 0.82rem; white-space: nowrap; }
@@ -1105,6 +1113,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       .breadcrumbs .sep { color: var(--muted); }
       .chip { border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); padding: 0.42rem 0.72rem; font-size: 0.82rem; font-weight: 820; }
       .chip:hover { background: var(--panel-2); }
+      .view-toggle { display: inline-flex; align-items: center; gap: 0.2rem; padding: 0.18rem; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); }
+      .view-toggle button { border: 0; border-radius: 999px; background: transparent; color: var(--muted); min-height: 1.95rem; padding: 0 0.62rem; font-size: 0.8rem; font-weight: 850; }
+      .view-toggle button.active, .view-toggle button:hover { background: var(--panel-2); color: var(--text); }
       .row-scroll { display: flex; gap: 0.6rem; overflow-x: auto; padding-bottom: 0.3rem; }
       .continue-card { flex: 0 0 15.5rem; border: 0; border-radius: 0.7rem; background: transparent; color: var(--text); text-align: left; }
       .poster-box { height: 8.7rem; border-radius: 0.65rem; background: #b19398; display: grid; place-items: center; overflow: hidden; margin-bottom: 0.45rem; }
@@ -1124,6 +1135,14 @@ const playerPageHTMLTemplate = `<!doctype html>
       .tile { border: 0; border-radius: 0.65rem; background: var(--panel); color: var(--text); min-height: 3.85rem; text-align: left; padding: 0.75rem 0.85rem; font-weight: 850; }
       .tile:hover, .tile.active { background: var(--panel-2); }
       .tile span { display: block; margin-top: 0.25rem; color: var(--muted); font-size: 0.76rem; font-weight: 760; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .channel-button-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.5rem; }
+      .virtual-channel-button { border: 0; border-radius: 0.65rem; background: var(--panel); color: var(--text); display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); align-items: center; gap: 0.7rem; min-height: 4rem; padding: 0.55rem 0.65rem; text-align: left; }
+      .virtual-channel-button:hover { background: var(--panel-2); }
+      .virtual-channel-button .logo { width: 3rem; height: 2.05rem; }
+      .virtual-channel-button > span { min-width: 0; }
+      .virtual-channel-button strong, .virtual-channel-button > span > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .virtual-channel-button strong { color: var(--text); font-weight: 900; }
+      .virtual-channel-button > span > span { margin-top: 0.12rem; color: var(--muted); font-size: 0.76rem; font-weight: 760; }
       .guide-page { min-width: 0; }
       .guide-tools { display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.7rem; }
       .guide-tools .select { flex: 0 1 26rem; min-width: min(24rem, 45vw); }
@@ -1275,8 +1294,11 @@ const playerPageHTMLTemplate = `<!doctype html>
       @media (max-width: 900px) {
         body { overflow: auto; }
         .shell { display: block; height: auto; }
+        .shell.is-admin { display: grid; height: 100vh; }
         .rail { min-height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
         .topbar { position: static; }
+        .admin-topbar { position: sticky; flex-wrap: wrap; padding: 0.75rem 1rem; }
+        .admin-tabs { width: 100%; overflow-x: auto; justify-content: flex-start; }
         .search { min-width: 0; width: 100%; }
         .guide-tools { flex-wrap: wrap; }
         .guide-tools .select, .guide-tools .search { flex: 1 1 100%; min-width: 0; margin-left: 0; }
@@ -1325,7 +1347,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       const adminSettingsKey = "adminCategorySettings";
       const pluginInstallationID = (base.match(/\/api\/v1\/plugins\/(\d+)/) || [])[1] || "";
       const adminSettingsToken = "__ADMIN_SETTINGS_TOKEN__";
-      const state = { app: null, view: isAdminRoute ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
+      const state = { app: null, view: isAdminRoute ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
 
       function applySiloTheme() {
         const params = new URLSearchParams(window.location.search);
@@ -1962,6 +1984,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       function sectionHeader(title) {
         return "<div class=\"section-title\"><span>" + escapeHTML(title) + "</span></div>";
       }
+      function sectionHeaderWithActions(title, actions) {
+        return "<div class=\"section-title\"><span>" + escapeHTML(title) + "</span>" + (actions || "") + "</div>";
+      }
       function rowCards(channels) {
         if (!channels.length) return "<div class=\"empty\">No channels yet.</div>";
         return "<div class=\"row-scroll\">" + channels.map(function(channel) {
@@ -2135,7 +2160,29 @@ const playerPageHTMLTemplate = `<!doctype html>
         }).join("") + "</div></div>";
       }
       function renderVirtualCategoryGuide(channels) {
-        return sectionHeader("TV Guide") + renderHomeGuide(channels, "No channels in this virtual category yet.");
+        return sectionHeaderWithActions("TV Guide", renderVirtualCategoryViewToggle()) + renderHomeGuide(channels, "No channels in this virtual category yet.");
+      }
+      function virtualCategoryView() {
+        return state.virtualCategoryView === "list" ? "list" : "guide";
+      }
+      function renderVirtualCategoryViewToggle() {
+        const active = virtualCategoryView();
+        return "<div class=\"view-toggle\" aria-label=\"Virtual category view\"><button type=\"button\" data-virtual-category-view=\"guide\" class=\"" + (active === "guide" ? "active" : "") + "\" aria-pressed=\"" + (active === "guide" ? "true" : "false") + "\">Guide</button><button type=\"button\" data-virtual-category-view=\"list\" class=\"" + (active === "list" ? "active" : "") + "\" aria-pressed=\"" + (active === "list" ? "true" : "false") + "\">List</button></div>";
+      }
+      function renderVirtualCategoryChannelList(channels) {
+        if (!channels.length) return sectionHeaderWithActions("Channels", renderVirtualCategoryViewToggle()) + "<div class=\"empty\">No channels in this virtual category yet.</div>";
+        return sectionHeaderWithActions("Channels", renderVirtualCategoryViewToggle()) + "<div class=\"channel-button-list\">" + channels.map(function(channel) {
+          const program = currentProgram(channel) || {};
+          const subtitle = program.title || channel.categoryName || "Live TV";
+          return "<button class=\"virtual-channel-button\" data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<span><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><span>" + escapeHTML(subtitle) + "</span></span></button>";
+        }).join("") + "</div>";
+      }
+      function renderVirtualCategoryContent(channels) {
+        return virtualCategoryView() === "list" ? renderVirtualCategoryChannelList(channels) : renderVirtualCategoryGuide(channels);
+      }
+      function setVirtualCategoryView(view) {
+        state.virtualCategoryView = view === "list" ? "list" : "guide";
+        renderLivePage();
       }
       function renderLivePage() {
         const channels = visibleChannels(false);
@@ -2155,7 +2202,7 @@ const playerPageHTMLTemplate = `<!doctype html>
               const childID = featured ? featuredCategoryID(virtualCategoryPath(category.id)) : category.id;
               return "<button class=\"tile\" data-category=\"" + escapeHTML(childID) + "\"><strong>" + escapeHTML(category.name || category.id) + "</strong><span>" + escapeHTML(category.count ? category.count + " channels" : category.kind || "") + "</span></button>";
             }).join("") + "</div>" : "")
-            + renderVirtualCategoryGuide(channels);
+            + renderVirtualCategoryContent(channels);
           return;
         }
         byId("view").innerHTML = categoryGrid() + sectionHeader(categoryName(state.category) || "Channels") + rowCards(channels.slice(0, 24));
@@ -2567,7 +2614,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       function renderAdminPage() {
         normalizeAdminCategorySettings();
         if (!adminECMEnabled() && state.adminTab === "manager") state.adminTab = "settings";
-        renderAdminSidebarTabs();
+        renderAdminTopbarTabs();
         const shell = document.querySelector(".shell");
         if (shell) shell.classList.toggle("is-admin-manager", state.adminTab === "manager");
         byId("view").innerHTML = state.adminTab === "manager" ? renderExternalChannelManager() : "<div class=\"settings-stack\">" + renderAdminSettingsTab() + "</div>";
@@ -2576,7 +2623,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           renderAdminECMSettings();
         }
       }
-      function renderAdminSidebarTabs() {
+      function renderAdminTopbarTabs() {
         const root = byId("admin-tabs");
         if (!root) return;
         root.innerHTML = "<button type=\"button\" data-admin-tab=\"settings\" class=\"" + (state.adminTab === "settings" ? "active" : "") + "\">" + icon("settings") + "<span>Settings</span></button>"
@@ -3188,6 +3235,12 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (adminTab) {
           event.preventDefault();
           setAdminTab(adminTab.getAttribute("data-admin-tab"));
+          return;
+        }
+        const virtualCategoryViewTarget = event.target.closest("[data-virtual-category-view]");
+        if (virtualCategoryViewTarget) {
+          event.preventDefault();
+          setVirtualCategoryView(virtualCategoryViewTarget.getAttribute("data-virtual-category-view"));
           return;
         }
         const favoriteMove = event.target.closest("[data-favorite-move]");
