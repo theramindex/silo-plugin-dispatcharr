@@ -207,11 +207,12 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`Category method`,
 		`Normal`,
 		`By delimiter`,
-		`Admin + delimiter`,
+		`Admin virtual folders + delimiter`,
 		`data-admin-category-field=\"mode\"`,
 		`data-admin-group-action=\"create\"`,
 		`adminGroupMemberships`,
 		`presentationOverrides`,
+		`Admin virtual folders`,
 		`function effectiveChannel(channel)`,
 		`function renderAdminPresentationSettings()`,
 		`Presentation overrides`,
@@ -220,6 +221,8 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`data-admin-presentation-field=\"hidden\"`,
 		`data-admin-presentation-field=\"order\"`,
 		`/dispatcharr/api/admin-settings`,
+		`const adminSettingsToken = "`,
+		`x-dispatcharr-admin-token`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected admin page to include category mapping marker %q", want)
@@ -479,9 +482,10 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 		return nil
 	}
 	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
-		Method: "POST",
-		Path:   "/dispatcharr/api/admin-settings",
-		Body:   []byte(`{"mode":"admin_delimiter","delimiter":"pipe","adminGroups":[{"id":"admin:sports","name":"Sports | Argentina","order":1}],"adminGroupMemberships":{"admin:sports":["channel:1"]},"presentationOverrides":{"channel:1":{"name":"Sports Alt","order":2}}}`),
+		Method:  "POST",
+		Path:    "/dispatcharr/api/admin-settings",
+		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
+		Body:    []byte(`{"mode":"admin_delimiter","delimiter":"pipe","adminGroups":[{"id":"admin:sports","name":"Sports | Argentina","order":1}],"adminGroupMemberships":{"admin:sports":["channel:1"]},"presentationOverrides":{"channel:1":{"name":"Sports Alt","order":2}}}`),
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
@@ -491,8 +495,9 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	}
 
 	response, err = server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
-		Method: "GET",
-		Path:   "/dispatcharr/api/admin-settings",
+		Method:  "GET",
+		Path:    "/dispatcharr/api/admin-settings",
+		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
@@ -516,8 +521,9 @@ func TestHTTPRoutesServerAdminSettingsRouteReadsConfiguredPayload(t *testing.T) 
 		return config.Settings{AdminSettings: json.RawMessage(`{"mode":"delimiter","delimiter":"pipe"}`)}
 	})
 	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
-		Method: "GET",
-		Path:   "/dispatcharr/api/admin-settings",
+		Method:  "GET",
+		Path:    "/dispatcharr/api/admin-settings",
+		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
@@ -528,6 +534,21 @@ func TestHTTPRoutesServerAdminSettingsRouteReadsConfiguredPayload(t *testing.T) 
 	}
 	if payload["mode"] != "delimiter" || payload["delimiter"] != "pipe" {
 		t.Fatalf("expected configured admin settings: %+v", payload)
+	}
+}
+
+func TestHTTPRoutesServerAdminSettingsRouteRequiresAdminPageToken(t *testing.T) {
+	t.Parallel()
+
+	response, err := NewHTTPRoutesServer(cache.NewStore()).Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method: "GET",
+		Path:   "/dispatcharr/api/admin-settings",
+	})
+	if err != nil {
+		t.Fatalf("admin settings route: %v", err)
+	}
+	if response.GetStatusCode() != 403 {
+		t.Fatalf("expected 403 without admin settings token, got %d", response.GetStatusCode())
 	}
 }
 

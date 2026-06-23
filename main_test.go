@@ -185,7 +185,7 @@ func TestManifestExposesAdminSettingsAPIRoutes(t *testing.T) {
 		if route.GetPath() != "/dispatcharr/api/admin-settings" {
 			continue
 		}
-		if route.GetAccess() != "admin" || route.GetNavigable() {
+		if route.GetAccess() != "authenticated" || route.GetNavigable() {
 			t.Fatalf("unexpected admin settings route metadata: %+v", route)
 		}
 		found[route.GetMethod()] = true

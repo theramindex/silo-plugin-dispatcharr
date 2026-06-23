@@ -2,7 +2,9 @@ package plugin
 
 import (
 	"context"
+	"crypto/rand"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -31,6 +33,7 @@ type HTTPRoutesServer struct {
 	store            *cache.Store
 	settingsProvider func() config.Settings
 	adminPersister   func(context.Context, map[string]any) error
+	adminToken       string
 	syncer           catalogSyncer
 	hydrateMu        sync.Mutex
 }
@@ -40,15 +43,19 @@ type catalogSyncer interface {
 }
 
 func NewHTTPRoutesServer(store *cache.Store) *HTTPRoutesServer {
-	return &HTTPRoutesServer{store: store}
+	return newHTTPRoutesServer(store, nil, nil)
 }
 
 func NewHTTPRoutesServerWithSettings(store *cache.Store, settingsProvider func() config.Settings) *HTTPRoutesServer {
-	return &HTTPRoutesServer{store: store, settingsProvider: settingsProvider}
+	return newHTTPRoutesServer(store, settingsProvider, nil)
 }
 
 func NewHTTPRoutesServerWithSyncer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
-	return &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, syncer: syncer}
+	return newHTTPRoutesServer(store, settingsProvider, syncer)
+}
+
+func newHTTPRoutesServer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
+	return &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, syncer: syncer, adminToken: newAdminToken()}
 }
 
 type ChannelsPayload struct {
@@ -126,7 +133,7 @@ type watchRequest struct {
 func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
 	switch request.GetPath() {
 	case "/dispatcharr", "/dispatcharr/player", "/dispatcharr/admin":
-		return htmlResponse(http.StatusOK, playerPageHTML(request)), nil
+		return htmlResponse(http.StatusOK, s.playerPageHTML(request)), nil
 	case "/dispatcharr/assets/hls.min.js", "/assets/hls.min.js":
 		return assetResponse("assets/hls.min.js")
 	case "/dispatcharr/assets/mpegts.min.js", "/assets/mpegts.min.js":
@@ -393,6 +400,9 @@ func (s *HTTPRoutesServer) handlePreferences(request *pluginv1.HandleHTTPRequest
 }
 
 func (s *HTTPRoutesServer) handleAdminSettings(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if !s.adminSettingsAuthorized(request) {
+		return textResponse(http.StatusForbidden, "admin settings token is required"), nil
+	}
 	if request.GetMethod() != http.MethodPost {
 		if s.store.HasAdminSettings() {
 			return s.respondJSON(http.StatusOK, json.RawMessage(s.store.AdminSettings()))
@@ -416,6 +426,22 @@ func (s *HTTPRoutesServer) handleAdminSettings(ctx context.Context, request *plu
 		return textResponse(http.StatusBadRequest, "invalid admin settings payload"), nil
 	}
 	return s.respondJSON(http.StatusOK, json.RawMessage(s.store.SetAdminSettings(encoded)))
+}
+
+func (s *HTTPRoutesServer) adminSettingsAuthorized(request *pluginv1.HandleHTTPRequest) bool {
+	if s.adminToken == "" {
+		return false
+	}
+	return headerValue(request.GetHeaders(), "x-dispatcharr-admin-token") == s.adminToken
+}
+
+func headerValue(headers map[string]string, key string) string {
+	for name, value := range headers {
+		if strings.EqualFold(name, key) {
+			return value
+		}
+	}
+	return ""
 }
 
 func (s *HTTPRoutesServer) persistAdminSettings(ctx context.Context, payload map[string]any) error {
@@ -545,9 +571,14 @@ func assetResponse(path string) (*pluginv1.HandleHTTPResponse, error) {
 	}, nil
 }
 
-func playerPageHTML(request *pluginv1.HandleHTTPRequest) string {
+func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) string {
 	body := strings.Replace(playerPageHTMLTemplate, "__PLAYER_LIBRARIES__", playerLibrariesHTML(), 1)
 	body = strings.Replace(body, "__SILO_THEME__", html.EscapeString(sanitizeThemeSlug(queryValue(request, "theme"))), 1)
+	if request.GetPath() == "/dispatcharr/admin" {
+		body = strings.Replace(body, "__ADMIN_SETTINGS_TOKEN__", html.EscapeString(s.adminToken), 1)
+	} else {
+		body = strings.Replace(body, "__ADMIN_SETTINGS_TOKEN__", "", 1)
+	}
 	if request.GetPath() == "/dispatcharr/admin" {
 		body = removeTemplateBlock(body, "<!-- USER_NAV_START -->", "<!-- USER_NAV_END -->")
 		body = removeTemplateBlock(body, "<!-- USER_TOPBAR_START -->", "<!-- USER_TOPBAR_END -->")
@@ -556,6 +587,14 @@ func playerPageHTML(request *pluginv1.HandleHTTPRequest) string {
 	}
 	body = strings.Replace(body, "__APP_TITLE__", "Live TV", 2)
 	return strings.Replace(body, "__ROUTE_CLASS__", "", 1)
+}
+
+func newAdminToken() string {
+	var token [16]byte
+	if _, err := rand.Read(token[:]); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(token[:])
 }
 
 func removeTemplateBlock(body string, startMarker string, endMarker string) string {
@@ -1204,6 +1243,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       const prefsKey = "silo.ramindex.dispatcharr.preferences.v1";
       const adminSettingsKey = "adminCategorySettings";
       const pluginInstallationID = (base.match(/\/api\/v1\/plugins\/(\d+)/) || [])[1] || "";
+      const adminSettingsToken = "__ADMIN_SETTINGS_TOKEN__";
       const state = { app: null, view: isAdminRoute ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, selectedCustomGroup: "", customGroupQuery: "", adminCategorySettings: null, selectedAdminGroup: "", adminGroupQuery: "", adminPresentationChannel: "", adminPresentationQuery: "", profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
 
       function applySiloTheme() {
@@ -1215,6 +1255,11 @@ const playerPageHTMLTemplate = `<!doctype html>
       applySiloTheme();
 
       function route(url) { return base + url; }
+      function routeHeaders(extra) {
+        const headers = Object.assign({}, extra || {});
+        if (isAdminRoute && adminSettingsToken) headers["x-dispatcharr-admin-token"] = adminSettingsToken;
+        return headers;
+      }
       function byId(id) { return document.getElementById(id); }
       function items(value) { return Array.isArray(value) ? value : []; }
       function lower(value) { return String(value || "").toLowerCase(); }
@@ -1431,22 +1476,22 @@ const playerPageHTMLTemplate = `<!doctype html>
         postJSON("/dispatcharr/api/admin-settings", state.adminCategorySettings).then(function(saved) {
           state.adminCategorySettings = readAdminSettingsValue(saved);
           state.adminSaveStatus = "saved";
-          state.adminSaveMessage = "Saved admin category mapping.";
+          state.adminSaveMessage = "Saved admin virtual folders.";
           if (state.view === "admin") renderAdminPage();
         }).catch(function(error) {
           state.adminSaveStatus = "error";
-          state.adminSaveMessage = "Could not save admin category mapping.";
+          state.adminSaveMessage = "Could not save admin virtual folders.";
           if (state.view === "admin") renderAdminPage();
           try { console.warn("Dispatcharr admin category save failed", error); } catch (_) {}
         });
       }
       async function getJSON(url) {
-        const response = await fetch(route(url), { credentials: "include" });
+        const response = await fetch(route(url), { credentials: "include", headers: routeHeaders() });
         if (!response.ok) throw new Error("request failed");
         return response.json();
       }
       async function postJSON(url, body) {
-        const response = await fetch(route(url), { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+        const response = await fetch(route(url), { method: "POST", credentials: "include", headers: routeHeaders({ "content-type": "application/json" }), body: JSON.stringify(body) });
         if (!response.ok) throw new Error("request failed");
         return response.json();
       }
@@ -2329,7 +2374,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         byId("view").innerHTML = "<div class=\"settings-stack\">"
           + "<div class=\"settings-card\"><h2>Category method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
           + "<div class=\"settings-card\"><h2>Presentation overrides</h2><div id=\"admin-presentation-settings\" class=\"settings-list\"></div></div>"
-          + (settings.mode === "admin_delimiter" ? "<div class=\"settings-card\"><h2>Admin channel groups</h2><div id=\"admin-group-settings\" class=\"settings-list\"></div></div>" : "")
+          + (settings.mode === "admin_delimiter" ? "<div class=\"settings-card\"><h2>Admin virtual folders</h2><div id=\"admin-group-settings\" class=\"settings-list\"></div></div>" : "")
           + "<div class=\"settings-card\"><h2>Preview</h2><div class=\"settings-preview\">" + adminCategoryPreview() + "</div></div>"
           + "</div>";
         renderAdminCategorySettings();
@@ -2340,11 +2385,11 @@ const playerPageHTMLTemplate = `<!doctype html>
         const settings = adminSettings();
         const root = byId("admin-category-settings");
         root.innerHTML = adminSaveStatusHTML()
-          + "<div class=\"settings-row\"><span>Mode</span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Normal</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">By delimiter</option><option value=\"admin_delimiter\"" + (settings.mode === "admin_delimiter" ? " selected" : "") + ">Admin + delimiter</option></select></div>"
+          + "<div class=\"settings-row\"><span>Mode</span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Normal</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">By delimiter</option><option value=\"admin_delimiter\"" + (settings.mode === "admin_delimiter" ? " selected" : "") + ">Admin virtual folders + delimiter</option></select></div>"
           + (settings.mode !== "normal" ? "<div class=\"settings-row\"><span>Delimiter</span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Sports - NHL Teams</option></select></div>" : "")
           + (settings.mode === "normal" ? "<div class=\"settings-note\">Source categories are shown as provided, without remapping or resorting.</div>" : "")
           + (settings.mode === "delimiter" ? "<div class=\"settings-note\">Source category names are split into virtual folders using the selected delimiter.</div>" : "")
-          + (settings.mode === "admin_delimiter" ? "<div class=\"settings-note\">Source category names and admin channel groups are split into virtual folders using the selected delimiter. A channel can live in multiple admin groups.</div>" : "");
+          + (settings.mode === "admin_delimiter" ? "<div class=\"settings-note\">Source category names and admin virtual folder names are split using the selected delimiter. A channel can live in multiple admin virtual folders.</div>" : "");
       }
       function adminCategoryPreview() {
         const categories = adminListingCategories("").slice(0, 8);
@@ -2430,12 +2475,12 @@ const playerPageHTMLTemplate = `<!doctype html>
           if (!query) return true;
           return lower(channel.name || channel.id).indexOf(query) !== -1 || lower(sourceCategoryLabel(channel)).indexOf(query) !== -1;
         });
-        root.innerHTML = "<div class=\"settings-row\"><span>New admin group</span><input id=\"admin-group-name\" placeholder=\"Sports | Argentina\"><button data-admin-group-action=\"create\">Create</button></div>"
-          + (groups.length ? "<div class=\"settings-row\"><span>Edit admin group</span><select id=\"admin-group-select\">" + groups.map(function(group) { return "<option value=\"" + escapeHTML(group.id) + "\"" + (selected && selected.id === group.id ? " selected" : "") + ">" + escapeHTML(group.name) + "</option>"; }).join("") + "</select><button data-admin-group-action=\"delete\">Delete</button></div>" : "<div class=\"empty\">Create an admin group to remap channels.</div>")
+        root.innerHTML = "<div class=\"settings-row\"><span>New virtual folder</span><input id=\"admin-group-name\" placeholder=\"Sports | Argentina\"><button data-admin-group-action=\"create\">Create</button></div>"
+          + (groups.length ? "<div class=\"settings-row\"><span>Edit virtual folder</span><select id=\"admin-group-select\">" + groups.map(function(group) { return "<option value=\"" + escapeHTML(group.id) + "\"" + (selected && selected.id === group.id ? " selected" : "") + ">" + escapeHTML(group.name) + "</option>"; }).join("") + "</select><button data-admin-group-action=\"delete\">Delete</button></div>" : "<div class=\"empty\">Create an admin virtual folder to remap channels.</div>")
           + (selected ? "<div class=\"settings-row\"><span>Find channel</span><input id=\"admin-group-channel-search\" placeholder=\"Name or source category\" value=\"" + escapeHTML(state.adminGroupQuery) + "\"></div>"
           + "<div class=\"settings-row\"><span>Add channel</span><select id=\"admin-group-channel\">" + availableChannels.slice(0, 100).map(function(channel) { return "<option value=\"" + escapeHTML(channel.id) + "\">" + escapeHTML(channel.name || channel.id) + "</option>"; }).join("") + "</select><button data-admin-group-action=\"add-channel\">Add</button></div>"
           + "<div class=\"settings-note\">" + escapeHTML(availableChannels.length ? "Showing " + Math.min(availableChannels.length, 100) + " of " + availableChannels.length + " matching channels." : "No matching channels.") + "</div>"
-          + "<div class=\"settings-preview\">" + (memberships.length ? memberships.map(function(id) { const channel = channelByID(id); return "<div>" + escapeHTML((channel && channel.name) || id) + " <button data-admin-group-action=\"remove-channel\" data-channel-id=\"" + escapeHTML(id) + "\">Remove</button></div>"; }).join("") : "<div>No channels in this admin group yet.</div>") + "</div>" : "");
+          + "<div class=\"settings-preview\">" + (memberships.length ? memberships.map(function(id) { const channel = channelByID(id); return "<div>" + escapeHTML((channel && channel.name) || id) + " <button data-admin-group-action=\"remove-channel\" data-channel-id=\"" + escapeHTML(id) + "\">Remove</button></div>"; }).join("") : "<div>No channels in this admin virtual folder yet.</div>") + "</div>" : "");
       }
       function createAdminGroup(name) {
         name = String(name || "").trim();
