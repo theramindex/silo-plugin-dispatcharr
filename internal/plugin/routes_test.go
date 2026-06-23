@@ -253,6 +253,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`.shell.is-admin .rail { display: none; }`,
 		`.shell.is-admin .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; padding: 0; }`,
 		`.admin-topbar`,
+		`justify-content: flex-start`,
 		`<div class="admin-topbar">`,
 		`<nav id="admin-tabs" class="admin-tabs" aria-label="Live TV admin sections"></nav>`,
 		`const adminSettingsKey = "adminCategorySettings"`,
