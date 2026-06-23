@@ -663,7 +663,7 @@ func replaceTemplateBlock(body string, startMarker string, endMarker string, rep
 }
 
 func adminTopbarHTML() string {
-	return `<div class="admin-topbar"><div class="admin-title"><a class="back" href="/" aria-label="Back to Silo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg></a><h1>Live TV Admin</h1></div><nav id="admin-tabs" class="admin-tabs" aria-label="Live TV admin sections"></nav></div>`
+	return `<div class="admin-topbar"><div class="admin-title"><a class="back" href="/" aria-label="Back to Silo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg></a><h1>Live TV Admin</h1></div><nav id="admin-tabs" class="admin-tabs" aria-label="Live TV admin sections"></nav><div id="admin-actions" class="admin-actions"></div></div>`
 }
 
 func sanitizeThemeSlug(value string) string {
@@ -1096,6 +1096,11 @@ const playerPageHTMLTemplate = `<!doctype html>
       .admin-tabs button { border: 0; border-radius: 999px; background: transparent; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; min-height: 2.35rem; padding: 0 0.8rem; font-weight: 850; white-space: nowrap; }
       .admin-tabs button.active, .admin-tabs button:hover { background: var(--panel-2); color: var(--text); }
       .admin-tabs svg { width: 1.05rem; height: 1.05rem; display: block; stroke-width: 1.9; }
+      .admin-actions { margin-left: auto; display: inline-flex; align-items: center; justify-content: flex-end; gap: 0.5rem; min-width: max-content; }
+      .admin-actions:empty { display: none; }
+      .admin-actions button { border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); min-height: 2.35rem; padding: 0 0.82rem; font-weight: 850; }
+      .admin-actions button:hover { background: var(--panel-2); }
+      .admin-actions button:disabled { cursor: default; opacity: 0.48; }
       .title { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
       .title h2 { margin: 0; font-size: 1.35rem; }
       .status { color: var(--muted); font-size: 0.82rem; white-space: nowrap; }
@@ -1310,6 +1315,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         .topbar { position: static; }
         .admin-topbar { position: sticky; flex-wrap: wrap; padding: 0.75rem 1rem; }
         .admin-tabs { width: 100%; overflow-x: auto; justify-content: flex-start; }
+        .admin-actions { margin-left: auto; }
         .alias-add-row, .alias-table-row { grid-template-columns: 1fr; align-items: stretch; }
         .alias-table-head { display: none; }
         .search { min-width: 0; width: 100%; }
@@ -2674,6 +2680,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         normalizeAdminCategorySettings();
         if (!adminECMEnabled() && state.adminTab === "manager") state.adminTab = "settings";
         renderAdminTopbarTabs();
+        renderAdminTopbarActions();
         const shell = document.querySelector(".shell");
         if (shell) shell.classList.toggle("is-admin-manager", state.adminTab === "manager");
         byId("view").innerHTML = state.adminTab === "manager" ? renderExternalChannelManager() : "<div class=\"settings-stack\">" + renderAdminSettingsTab() + "</div>";
@@ -2688,6 +2695,17 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (!root) return;
         root.innerHTML = "<button type=\"button\" data-admin-tab=\"settings\" class=\"" + (state.adminTab === "settings" ? "active" : "") + "\">" + icon("settings") + "<span>Settings</span></button>"
           + (adminECMEnabled() ? "<button type=\"button\" data-admin-tab=\"manager\" class=\"" + (state.adminTab === "manager" ? "active" : "") + "\">" + icon("external") + "<span>Channel Manager</span></button>" : "");
+      }
+      function renderAdminTopbarActions() {
+        const root = byId("admin-actions");
+        if (!root) return;
+        if (state.adminTab !== "settings") {
+          root.innerHTML = "";
+          return;
+        }
+        const dirty = adminSettingsDirty();
+        const saving = state.adminSaveStatus === "saving";
+        root.innerHTML = "<button data-admin-settings-action=\"save\"" + ((!dirty || saving) ? " disabled" : "") + ">Save</button><button data-admin-settings-action=\"discard\"" + ((!dirty || saving) ? " disabled" : "") + ">Discard</button>";
       }
       function setAdminTab(tab) {
         state.adminTab = tab === "manager" ? "manager" : "settings";
@@ -2716,14 +2734,11 @@ const playerPageHTMLTemplate = `<!doctype html>
       function renderAdminCategorySettings() {
         const settings = adminSettings();
         const root = byId("admin-category-settings");
-        const dirty = adminSettingsDirty();
-        const saving = state.adminSaveStatus === "saving";
         root.innerHTML = adminSaveStatusHTML()
           + "<div class=\"settings-row\"><span>Mode</span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Normal</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">By delimiter</option></select></div>"
           + (settings.mode !== "normal" ? "<div class=\"settings-row\"><span>Delimiter</span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Sports - NHL Teams</option></select></div>" : "")
           + (settings.mode === "normal" ? "<div class=\"settings-note\">Source categories are shown as provided, without remapping or resorting.</div>" : "")
-          + (settings.mode === "delimiter" ? "<div class=\"settings-note\">Source category names are split into virtual folders using the selected delimiter.</div>" : "")
-          + "<div class=\"settings-actions\"><button data-admin-settings-action=\"save\"" + ((!dirty || saving) ? " disabled" : "") + ">Save</button><button data-admin-settings-action=\"discard\"" + ((!dirty || saving) ? " disabled" : "") + ">Discard</button></div>";
+          + (settings.mode === "delimiter" ? "<div class=\"settings-note\">Source category names are split into virtual folders using the selected delimiter.</div>" : "");
       }
       function adminSourceGroups() {
         const groups = {};
