@@ -1244,6 +1244,11 @@ const playerPageHTMLTemplate = `<!doctype html>
       .settings-preview { margin-top: 0.65rem; display: grid; gap: 0.35rem; color: var(--muted); font-size: 0.82rem; }
       .settings-note { color: var(--muted); font-size: 0.82rem; line-height: 1.35; }
       .settings-warning { color: #ffd37a; }
+      .settings-link { border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); display: inline-flex; align-items: center; justify-content: center; padding: 0.45rem 0.7rem; font-size: 0.86rem; font-weight: 820; text-decoration: none; }
+      .settings-link:hover { background: var(--panel-2); }
+      .external-manager-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.7rem; }
+      .external-manager-head h2 { margin: 0; }
+      .external-manager-frame { width: 100%; min-height: min(44rem, calc(100vh - 13rem)); border: 1px solid var(--line); border-radius: 0.7rem; background: var(--bg); }
       .custom-channel-picker { align-items: flex-start; }
       .custom-channel-combobox { flex: 1 1 30rem; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; min-width: 0; }
       .custom-channel-combobox input { grid-column: 1 / -1; width: 100%; min-width: 0; }
@@ -2519,8 +2524,13 @@ const playerPageHTMLTemplate = `<!doctype html>
         byId("view").innerHTML = "<div class=\"settings-stack\">"
           + "<div class=\"settings-card\"><h2>Category method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
           + "<div class=\"settings-card\"><h2>Preview</h2><div class=\"settings-preview\">" + adminCategoryPreview() + "</div></div>"
+          + renderExternalChannelManager()
           + "</div>";
         renderAdminCategorySettings();
+      }
+      function renderExternalChannelManager() {
+        const managerURL = "";
+        return "<div class=\"settings-card\"><div class=\"external-manager-head\"><h2>Channel Manager</h2><a class=\"settings-link\" href=\"" + escapeHTML(managerURL) + "\" target=\"_blank\" rel=\"noopener noreferrer\">Open in new window</a></div><iframe class=\"external-manager-frame\" src=\"" + escapeHTML(managerURL) + "\" title=\"Channel Manager\"></iframe></div>";
       }
       function renderAdminCategorySettings() {
         const settings = adminSettings();
