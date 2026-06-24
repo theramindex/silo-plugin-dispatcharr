@@ -442,6 +442,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.ReplayPlayerClass || !result.ReplayPlayerControls || !result.ReplayPlayerTag {
 		t.Fatalf("expected World Cup Replays player to expose replay controls: %+v", result)
 	}
+	if !result.EPGOverlapResolved {
+		t.Fatalf("expected overlapping EPG programs to render without overlapping cells: %+v", result)
+	}
 }
 
 func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
@@ -461,9 +464,12 @@ func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
 		`function moveFavorite(channelID, direction)`,
 		`data-favorite-move=\"up\"`,
 		`data-favorite-move=\"down\"`,
+		`clip-path: inset(0 round 0.55rem);`,
+		`.epg-cell .epg-play { position: absolute; inset: 0;`,
+		`max-width: 100%; overflow: hidden; white-space: nowrap;`,
 	} {
 		if !strings.Contains(body, want) {
-			t.Fatalf("expected app page to include ordered favorites marker %q", want)
+			t.Fatalf("expected app page to include UI marker %q", want)
 		}
 	}
 }
@@ -503,6 +509,7 @@ type virtualAliasResult struct {
 	ReplayPlayerClass        bool   `json:"replayPlayerClass"`
 	ReplayPlayerControls     bool   `json:"replayPlayerControls"`
 	ReplayPlayerTag          bool   `json:"replayPlayerTag"`
+	EPGOverlapResolved       bool   `json:"epgOverlapResolved"`
 }
 
 func extractPlayerScript(t *testing.T) string {
@@ -573,6 +580,12 @@ vm.createContext(sandbox);
 vm.runInContext(script, sandbox);
 const result = vm.runInContext(`+"`"+`
 Object.assign(state, input.state);
+const epgWindow = guideWindow();
+state.app.programs = [
+  { id: "overlap-a", channelId: "channel:argentina-sports", title: "First overlapping program with a very long title", startUnix: epgWindow.start, endUnix: epgWindow.start + 3600 },
+  { id: "overlap-b", channelId: "channel:argentina-sports", title: "Second overlapping program", startUnix: epgWindow.start + 1800, endUnix: epgWindow.start + 5400 }
+];
+rebuildProgramIndex();
 JSON.stringify((function() {
   const all = virtualCategoriesFromPaths("", function() { return true; }, true);
   const source = all.find(function(item) { return item.name === "International / Argentina / Sports"; });
@@ -606,8 +619,16 @@ JSON.stringify((function() {
   const replayChannel = channelByID("channel:world-cup-replay");
   state.currentChannel = replayChannel;
   renderPlayerPage();
-  const replayPlayerView = document.elements.view ? document.elements.view.innerHTML : "";
-  return {
+	const replayPlayerView = document.elements.view ? document.elements.view.innerHTML : "";
+	const epgHTML = renderEPGCells(channel, 0);
+	const pct = String.fromCharCode(37);
+	const epgProgramCells = epgHTML.split('style="left: ').slice(1).map(function(part) {
+		const pieces = part.split(pct + '; width: calc(');
+		const widthPart = pieces[1] ? pieces[1].split(pct + ' - 0.25rem);')[0] : "";
+		return { left: Number(pieces[0]), width: Number(widthPart) };
+	});
+	const epgOverlapResolved = epgProgramCells.length >= 2 && epgProgramCells[1].left + 0.001 >= epgProgramCells[0].left + epgProgramCells[0].width;
+	return {
     sourcePath: !!source,
     aliasPath: !!alias,
     secondAliasPath: !!secondAlias,
@@ -640,9 +661,10 @@ JSON.stringify((function() {
     replayRewindable: isRewindableChannel(replayChannel),
     normalRewindable: isRewindableChannel(channel),
     replayPlayerClass: replayPlayerView.indexOf('class="playback-shell is-replay"') !== -1,
-    replayPlayerControls: replayPlayerView.indexOf('controls></video>') !== -1,
-    replayPlayerTag: replayPlayerView.indexOf(">Replay</span>") !== -1
-  };
+		replayPlayerControls: replayPlayerView.indexOf('controls></video>') !== -1,
+		replayPlayerTag: replayPlayerView.indexOf(">Replay</span>") !== -1,
+		epgOverlapResolved: epgOverlapResolved
+	};
 })())
 `+"`"+`, sandbox);
 process.stdout.write(result);
