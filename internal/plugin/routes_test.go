@@ -197,6 +197,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`function rebuildProgramIndex()`,
 		`.overflow-tooltip`,
 		`data-overflow-description=\"true\"`,
+		`data-overflow-tooltip=\"`,
 		`function descriptionOverflows(target)`,
 		`function showOverflowTooltip(target, event)`,
 		`if (!descriptionOverflows(target)) return;`,

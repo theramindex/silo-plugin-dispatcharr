@@ -2732,7 +2732,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function overflowTooltipTarget(event) {
         if (!event.target || !event.target.closest) return null;
-        return event.target.closest("[data-overflow-description]");
+        return event.target.closest("[data-overflow-tooltip], [data-overflow-description]");
       }
       function descriptionOverflows(target) {
         if (!target) return false;
@@ -2754,7 +2754,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function showOverflowTooltip(target, event) {
         if (!descriptionOverflows(target)) return;
-        const description = target ? String(target.textContent || "").trim() : "";
+        const description = target ? String(target.getAttribute("data-overflow-tooltip") || target.textContent || "").trim() : "";
         if (!description) return;
         const tooltip = overflowTooltip();
         tooltip.textContent = description;
@@ -2804,7 +2804,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           const canSchedule = dvrEnabled() && (program.endUnix || 0) > now;
           const programTitle = program.title || "Data not available";
           const programTime = epgVisibleTime(program.startUnix, windowStart);
-          cells.push("<div class=\"epg-cell program " + colorClass(index + channelIndex) + "\" style=\"" + epgCellStyle(program.startUnix, program.endUnix, windowInfo) + "\"><button class=\"epg-play\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(programTime + " " + programTitle) + "\"><time>" + escapeHTML(programTime) + "</time><strong>" + escapeHTML(programTitle) + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>");
+          cells.push("<div class=\"epg-cell program " + colorClass(index + channelIndex) + "\" style=\"" + epgCellStyle(program.startUnix, program.endUnix, windowInfo) + "\"><button class=\"epg-play\" data-channel=\"" + escapeHTML(channel.id) + "\" data-overflow-tooltip=\"" + escapeHTML(programTime + " " + programTitle) + "\" aria-label=\"" + escapeHTML(programTime + " " + programTitle) + "\"><time>" + escapeHTML(programTime) + "</time><strong>" + escapeHTML(programTitle) + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>");
           cursor = Math.max(cursor, end);
         });
         if (cursor < windowEnd) cells.push(renderEPGGapCell(channel, cursor, windowEnd, windowInfo));
