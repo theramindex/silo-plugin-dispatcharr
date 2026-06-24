@@ -1196,9 +1196,11 @@ const playerPageHTMLTemplate = `<!doctype html>
       .epg-channel:hover::after, .epg-channel:focus-visible::after { opacity: 1; transform: translate(0, -50%); }
       .epg-programs { position: relative; height: var(--epg-row-h); min-width: 0; overflow: hidden; }
       .epg-cell { position: absolute; top: 0; height: var(--epg-row-h); min-height: 0; border: 0; border-radius: 0.55rem; text-align: left; color: var(--text); background: var(--panel); padding: 0.48rem 0.7rem; min-width: 0; overflow: hidden; white-space: nowrap; }
-      .epg-cell time, .epg-cell strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .epg-cell time, .epg-cell strong { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .epg-cell time { color: var(--muted); font-size: 0.72rem; font-weight: 780; line-height: 1; }
+      .epg-cell strong { line-height: 1.08; }
       .epg-cell.epg-gap { background: color-mix(in srgb, var(--panel) 78%, var(--bg)); color: var(--muted); }
-      .epg-cell .epg-play { position: absolute; inset: 0; z-index: 1; border: 0; border-radius: inherit; background: transparent; color: inherit; text-align: left; padding: 0.48rem 0.7rem; display: grid; align-content: center; min-width: 0; }
+      .epg-cell .epg-play { position: absolute; inset: 0; z-index: 1; border: 0; border-radius: inherit; background: transparent; color: inherit; text-align: left; padding: 0.48rem 0.7rem; display: grid; grid-template-rows: auto auto; align-content: center; gap: 0.08rem; min-width: 0; }
       .epg-cell .epg-schedule { position: absolute; right: 0.4rem; top: 50%; z-index: 2; transform: translateY(-50%); width: 1.8rem; height: 1.8rem; border: 1px solid rgba(255,255,255,0.22); border-radius: 999px; color: white; background: rgba(0,0,0,0.34); display: inline-grid; place-items: center; opacity: 0; transition: opacity 140ms ease, background 140ms ease; }
       .epg-cell .epg-schedule svg { width: 1rem; height: 1rem; }
       .epg-cell:hover .epg-schedule, .epg-cell .epg-schedule:focus-visible { opacity: 1; }
@@ -2801,12 +2803,16 @@ const playerPageHTMLTemplate = `<!doctype html>
           if (start > cursor) cells.push(renderEPGGapCell(channel, cursor, start, windowInfo));
           const canSchedule = dvrEnabled() && (program.endUnix || 0) > now;
           const programTitle = program.title || "Data not available";
-          const programTime = timeLabel(program.startUnix);
-          cells.push("<div class=\"epg-cell program " + colorClass(index + channelIndex) + "\" style=\"" + epgCellStyle(program.startUnix, program.endUnix, windowInfo) + "\"><button class=\"epg-play\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(programTime + " " + programTitle) + "\"><time>" + escapeHTML(programTime) + "</time><strong>" + escapeHTML(programTitle) + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>");
+          const programTime = epgVisibleTime(program.startUnix, windowStart);
+          const programAriaTime = timeLabel(program.startUnix) || programTime;
+          cells.push("<div class=\"epg-cell program " + colorClass(index + channelIndex) + "\" style=\"" + epgCellStyle(program.startUnix, program.endUnix, windowInfo) + "\"><button class=\"epg-play\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(programAriaTime + " " + programTitle) + "\"><time>" + escapeHTML(programTime) + "</time><strong>" + escapeHTML(programTitle) + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>");
           cursor = Math.max(cursor, end);
         });
         if (cursor < windowEnd) cells.push(renderEPGGapCell(channel, cursor, windowEnd, windowInfo));
         return cells.join("");
+      }
+      function epgVisibleTime(startUnix, windowStart) {
+        return timeLabel(Math.max(startUnix || windowStart, windowStart));
       }
       function renderEPGGapCell(channel, startUnix, endUnix, windowInfo) {
         if (endUnix <= startUnix) return "";
