@@ -1105,7 +1105,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       .logo { width: 3rem; height: 2.05rem; object-fit: contain; border-radius: 0.5rem; background: var(--rail); }
       .logo-fallback { display: inline-grid; place-items: center; padding: 0 0.35rem; color: var(--text); font-size: 0.78rem; font-weight: 950; letter-spacing: 0; text-align: center; text-transform: uppercase; }
       .logo[hidden] { display: none; }
-      .channel-row strong, .tile strong, .program strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .channel-row strong, .program strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .muted { color: var(--muted); }
       .star { color: var(--warn); font-size: 1rem; }
       .main { min-width: 0; overflow: auto; padding: 1rem 1.25rem 2rem; }
@@ -1166,10 +1166,11 @@ const playerPageHTMLTemplate = `<!doctype html>
       .program.blue { background: var(--blue); }
       .program.gray { background: var(--panel); }
       .program time { color: var(--muted); font-size: 0.78rem; display: block; }
-      .category-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.7rem, 1fr)); gap: 0.5rem; }
-      .tile { border: 0; border-radius: 0.65rem; background: var(--panel); color: var(--text); min-height: 3.85rem; text-align: left; padding: 0.75rem 0.85rem; font-weight: 850; }
+      .category-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.75rem, 1fr)); gap: 0.5rem; }
+      .tile { border: 0; border-radius: 0.65rem; background: var(--panel); color: var(--text); min-height: 4.35rem; text-align: left; padding: 0.72rem 0.85rem; font-weight: 850; display: grid; align-content: center; gap: 0.2rem; }
       .tile:hover, .tile.active { background: var(--panel-2); }
-      .tile span { display: block; margin-top: 0.25rem; color: var(--muted); font-size: 0.76rem; font-weight: 760; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .tile strong { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.08; text-wrap: balance; }
+      .tile span { display: block; color: var(--muted); font-size: 0.76rem; font-weight: 760; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .channel-button-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.5rem; }
       .virtual-channel-button { border: 0; border-radius: 0.65rem; background: var(--panel); color: var(--text); display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); align-items: center; gap: 0.7rem; min-height: 4rem; padding: 0.55rem 0.65rem; text-align: left; }
       .virtual-channel-button:hover { background: var(--panel-2); }
@@ -1316,6 +1317,16 @@ const playerPageHTMLTemplate = `<!doctype html>
       .settings-row button:disabled, .settings-actions button:disabled { cursor: default; opacity: 0.48; }
       .settings-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.65rem; }
       .settings-preview { margin-top: 0.65rem; display: grid; gap: 0.35rem; color: var(--muted); font-size: 0.82rem; }
+      .admin-status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.55rem; }
+      .admin-status-item { min-width: 0; border-radius: 0.65rem; background: var(--panel); padding: 0.72rem 0.8rem; }
+      .admin-status-item span, .admin-status-item strong, .admin-status-item small { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .admin-status-item span { color: var(--muted); font-size: 0.72rem; font-weight: 820; }
+      .admin-status-item strong { margin-top: 0.16rem; color: var(--text); font-size: 0.94rem; font-weight: 900; }
+      .admin-status-item small { margin-top: 0.18rem; color: var(--muted); font-size: 0.72rem; font-weight: 720; }
+      .admin-status-pill { display: inline-flex; align-items: center; width: max-content; max-width: 100%; border: 1px solid rgba(255,255,255,0.12); border-radius: 999px; padding: 0.25rem 0.48rem; background: rgba(35,101,74,0.34); color: #d4ffe9; font-size: 0.76rem; font-weight: 900; }
+      .admin-status-pill.error { background: rgba(99,40,35,0.5); color: #ffe0dc; }
+      .admin-status-pill.loading { background: rgba(74,54,110,0.48); color: #eee4ff; }
+      .admin-status-note { margin-top: 0.65rem; }
       .alias-add-row { display: grid; grid-template-columns: 8rem minmax(13rem, 1.3fr) minmax(12rem, 1fr) auto; }
       .alias-add-row input, .alias-add-row select { width: 100%; min-width: 0; }
       .alias-table { display: grid; overflow: hidden; border: 1px solid var(--line); border-radius: 0.75rem; background: rgba(255,255,255,0.025); }
@@ -2055,6 +2066,18 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (!unix) return "";
         return new Date(unix * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       }
+      function dateTimeLabel(unix) {
+        if (!unix) return "Never";
+        return new Date(unix * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      }
+      function sourceModeLabel(mode) {
+        mode = String(mode || sourceMode() || "");
+        if (mode === "direct_login") return "Dispatcharr Direct";
+        if (mode === "api_key") return "Dispatcharr API Key";
+        if (mode === "xtream") return "Xtream Codes";
+        if (mode === "m3u_xmltv") return "M3U + XMLTV";
+        return mode || "Not configured";
+      }
       function guideSlotStart() {
         const now = Math.floor(Date.now() / 1000);
         return Math.floor((now - 3600) / 1800) * 1800;
@@ -2281,9 +2304,12 @@ const playerPageHTMLTemplate = `<!doctype html>
         return sections.length ? sections.join("") : "<div class=\"empty\">No groups yet.</div>";
       }
       function categoryGridSection(title, categories) {
-        return sectionHeader(title) + "<div class=\"category-grid\">" + categories.map(function(category) {
-          return "<button class=\"tile" + (state.category === category.id ? " active" : "") + "\" data-category=\"" + escapeHTML(category.id) + "\"><strong>" + escapeHTML(category.name || category.id) + "</strong><span>" + escapeHTML(category.count ? category.count + " channels" : category.kind || "") + "</span></button>";
-        }).join("") + "</div>";
+        return sectionHeader(title) + "<div class=\"category-grid\">" + categories.map(categoryTileHTML).join("") + "</div>";
+      }
+      function categoryTileHTML(category) {
+        const name = String((category && (category.name || category.id)) || "");
+        const meta = String((category && category.count ? category.count + " channels" : (category && category.kind) || "") || "");
+        return "<button class=\"tile" + (state.category === category.id ? " active" : "") + "\" data-category=\"" + escapeHTML(category.id) + "\" aria-label=\"" + escapeHTML(meta ? name + ", " + meta : name) + "\"><strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(name) + "</strong><span>" + escapeHTML(meta) + "</span></button>";
       }
       function activeVirtualCategoryID(path, featured) {
         return featured ? featuredCategoryID(path) : virtualCategoryID(path);
@@ -2468,9 +2494,7 @@ const playerPageHTMLTemplate = `<!doctype html>
             return !(channel.categoryId && hidden[channel.categoryId]);
           });
           byId("view").innerHTML = virtualFolderHeader(path, featured)
-            + (children.length ? "<div class=\"category-grid\">" + children.map(function(category) {
-              return "<button class=\"tile\" data-category=\"" + escapeHTML(category.id) + "\"><strong>" + escapeHTML(category.name || category.id) + "</strong><span>" + escapeHTML(category.count ? category.count + " channels" : category.kind || "") + "</span></button>";
-            }).join("") + "</div>" : "")
+            + (children.length ? "<div class=\"category-grid\">" + children.map(categoryTileHTML).join("") + "</div>" : "")
             + renderVirtualCategoryContent(channels);
           return;
         }
@@ -2937,11 +2961,35 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function renderAdminSettingsTab() {
         return ""
+          + "<div class=\"settings-card\"><h2>Connection Status</h2>" + adminStatusPanel() + "</div>"
           + "<div class=\"settings-card\"><h2>Group method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
-          + "<div class=\"settings-card\"><h2>Alternative Group Names</h2><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>"
+          + "<div class=\"settings-card\"><h2>Presentation Overrides</h2><div class=\"settings-note admin-status-note\">Alternative Group Names add alternate virtual group paths without changing the original Dispatcharr groups. The original group remains visible.</div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>"
           + "<div class=\"settings-card\"><h2>ECM</h2><div id=\"admin-ecm-settings\" class=\"settings-list\"></div></div>"
           + "<div class=\"settings-card\"><h2>Preview</h2><div class=\"settings-preview\">" + adminCategoryPreview() + "</div></div>"
           + "";
+      }
+      function adminStatusPill(status) {
+        status = String(status || "ok").toLowerCase();
+        const label = status === "failed" ? "Error" : (status === "loading" ? "Updating" : (status === "error" ? "Error" : "Healthy"));
+        const cls = status === "loading" ? " loading" : ((status === "error" || status === "failed") ? " error" : "");
+        return "<span class=\"admin-status-pill" + cls + "\">" + escapeHTML(label) + "</span>";
+      }
+      function adminStatusItem(label, value, detail) {
+        return "<div class=\"admin-status-item\"><span>" + escapeHTML(label) + "</span><strong title=\"" + escapeHTML(value) + "\">" + value + "</strong>" + (detail ? "<small title=\"" + escapeHTML(detail) + "\">" + escapeHTML(detail) + "</small>" : "") + "</div>";
+      }
+      function adminStatusPanel() {
+        const status = state.app && state.app.status ? state.app.status : {};
+        const source = state.app && state.app.source ? state.app.source : {};
+        const guideStatus = String(status.epgStatus || (status.epgProgramCount ? "ok" : "unknown"));
+        const sourceLabel = source.name || source.sourceName || "Dispatcharr";
+        const error = status.lastError || status.epgLastError || "";
+        return "<div class=\"admin-status-grid\">"
+          + adminStatusItem("Connection", adminStatusPill(status.status || "ok"), sourceModeLabel(source.mode))
+          + adminStatusItem("Source", escapeHTML(sourceLabel), "Credentials are stored in Silo settings and hidden here.")
+          + adminStatusItem("Channels", escapeHTML(String(status.channelCount || items(state.app.channels).length || 0)), "Last catalog sync: " + dateTimeLabel(status.lastSuccessUnix))
+          + adminStatusItem("Guide", adminStatusPill(guideStatus), String(status.epgProgramCount || items(state.app.programs).length || 0) + " programs · " + dateTimeLabel(status.epgLastSuccessUnix))
+          + "</div>"
+          + (error ? "<div class=\"settings-note settings-warning admin-status-note\">" + escapeHTML(error) + "</div>" : "<div class=\"settings-note admin-status-note\">Admin-only status panel. No usernames, passwords, or API keys are shown.</div>");
       }
       function renderExternalChannelManager() {
         const managerURL = adminECMURL();
