@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
@@ -57,7 +58,11 @@ func main() {
 	manifest.PluginId = *pluginID
 	manifest.Version = *version
 	manifest.Checksum = checksum
-	manifest.SupportedPlatforms = []*pluginv1.SupportedPlatform{{Os: *goos, Arch: *goarch}}
+	if len(manifest.GetSupportedPlatforms()) == 0 {
+		osValue := firstNonEmpty(*goos, runtime.GOOS)
+		archValue := firstNonEmpty(*goarch, runtime.GOARCH)
+		manifest.SupportedPlatforms = []*pluginv1.SupportedPlatform{{Os: osValue, Arch: archValue}}
+	}
 	manifest.GlobalConfigSchema = config.GlobalConfigSchema()
 	manifest.UserConfigSchema = config.UserConfigSchema()
 
@@ -124,4 +129,14 @@ func fail(message string) {
 
 func failf(format string, args ...any) {
 	fail(fmt.Sprintf(format, args...))
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
