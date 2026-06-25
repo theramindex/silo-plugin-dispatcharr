@@ -104,6 +104,7 @@ func (s *Store) Preferences() Preferences {
 	preferences.Favorites = cloneBoolMap(s.preferences.Favorites)
 	preferences.AutoFavorites = cloneBoolMap(s.preferences.AutoFavorites)
 	preferences.HiddenCategories = cloneBoolMap(s.preferences.HiddenCategories)
+	preferences.SportsFavoriteTeams = cloneBoolMap(s.preferences.SportsFavoriteTeams)
 	preferences.RecentChannels = append([]string(nil), s.preferences.RecentChannels...)
 	preferences.ContinueWatching = cloneAnyMap(s.preferences.ContinueWatching)
 	preferences.CustomGroups = cloneCustomGroups(s.preferences.CustomGroups)
@@ -273,6 +274,19 @@ func (s *Store) SetPreferences(preferences Preferences) Preferences {
 	return s.preferencesSnapshotLocked()
 }
 
+func (s *Store) SetSportsFavoriteTeam(teamID string, enabled bool) Preferences {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.ensurePreferences()
+	if enabled {
+		s.preferences.SportsFavoriteTeams[teamID] = true
+	} else {
+		delete(s.preferences.SportsFavoriteTeams, teamID)
+	}
+	return s.preferencesSnapshotLocked()
+}
+
 func (s *Store) RecordFailure(atUnix int64, message string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -329,6 +343,9 @@ func (s *Store) ensurePreferences() {
 	if s.preferences.HiddenCategories == nil {
 		s.preferences.HiddenCategories = map[string]bool{}
 	}
+	if s.preferences.SportsFavoriteTeams == nil {
+		s.preferences.SportsFavoriteTeams = map[string]bool{}
+	}
 	if s.preferences.RecentChannels == nil {
 		s.preferences.RecentChannels = []string{}
 	}
@@ -366,6 +383,7 @@ func (s *Store) preferencesSnapshotLocked() Preferences {
 	preferences.Favorites = cloneBoolMap(s.preferences.Favorites)
 	preferences.AutoFavorites = cloneBoolMap(s.preferences.AutoFavorites)
 	preferences.HiddenCategories = cloneBoolMap(s.preferences.HiddenCategories)
+	preferences.SportsFavoriteTeams = cloneBoolMap(s.preferences.SportsFavoriteTeams)
 	preferences.RecentChannels = append([]string(nil), s.preferences.RecentChannels...)
 	preferences.ContinueWatching = cloneAnyMap(s.preferences.ContinueWatching)
 	preferences.CustomGroups = cloneCustomGroups(s.preferences.CustomGroups)

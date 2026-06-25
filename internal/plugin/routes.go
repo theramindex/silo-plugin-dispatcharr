@@ -38,6 +38,9 @@ type HTTPRoutesServer struct {
 	adminToken       string
 	syncer           catalogSyncer
 	hydrateMu        sync.Mutex
+	sportsProvider   sportsProvider
+	sportsCache      sportsEventCache
+	sportsMu         sync.Mutex
 }
 
 type catalogSyncer interface {
@@ -63,7 +66,7 @@ func NewHTTPRoutesServerWithSyncerAndAdminSettingsFile(store *cache.Store, setti
 }
 
 func newHTTPRoutesServer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
-	return &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, syncer: syncer, adminToken: newAdminToken()}
+	return &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, syncer: syncer, adminToken: newAdminToken(), sportsProvider: newESPNSportsProvider(&http.Client{Timeout: 8 * time.Second})}
 }
 
 type ChannelsPayload struct {
@@ -176,6 +179,11 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 			return s.handleScheduleRecording(ctx, request)
 		}
 		return s.handleRecordings(ctx)
+	case "/dispatcharr/api/sports":
+		s.ensureCatalogHydrated(ctx)
+		return s.handleSports(ctx, request)
+	case "/dispatcharr/api/sports/favorites":
+		return s.handleSportsFavorite(request)
 	case "/dispatcharr/api/preferences":
 		return s.handlePreferences(request)
 	case "/dispatcharr/api/admin-settings":
@@ -1171,6 +1179,31 @@ const playerPageHTMLTemplate = `<!doctype html>
       .tile:hover, .tile.active { background: var(--panel-2); }
       .tile strong { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.08; text-wrap: balance; }
       .tile span { display: block; color: var(--muted); font-size: 0.76rem; font-weight: 760; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .sports-page { display: grid; gap: 0.8rem; }
+      .sports-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
+      .sports-filters { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+      .sports-leagues { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+      .sports-leagues .chip.active { background: var(--panel-2); color: var(--text); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+      .sports-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(25rem, 100%), 1fr)); gap: 0.75rem; }
+      .sports-card { border: 1px solid var(--line); border-radius: 0.8rem; background: var(--rail-2); padding: 0.85rem; display: grid; gap: 0.75rem; min-width: 0; }
+      .sports-card.live { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+      .sports-card-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-width: 0; }
+      .sports-card-head strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.96rem; }
+      .sports-card-head span, .sports-status, .sports-channel small { color: var(--muted); font-size: 0.76rem; font-weight: 760; }
+      .sports-scoreboard { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.7rem; align-items: center; }
+      .sports-teams { display: grid; gap: 0.45rem; min-width: 0; }
+      .sports-team { display: grid; grid-template-columns: 2.2rem minmax(0, 1fr) auto; align-items: center; gap: 0.55rem; min-width: 0; }
+      .sports-team-logo { width: 2.1rem; height: 2.1rem; object-fit: contain; border-radius: 999px; background: var(--panel); }
+      .sports-team strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .sports-team-favorite { width: 2rem; height: 2rem; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--muted); display: inline-grid; place-items: center; font-weight: 900; }
+      .sports-team-favorite.active, .sports-team-favorite:hover { background: var(--panel-2); color: var(--warn); }
+      .sports-score { display: grid; gap: 0.25rem; min-width: 4.6rem; text-align: right; font-size: 1.45rem; font-weight: 950; }
+      .sports-score span { color: var(--muted); font-size: 0.74rem; font-weight: 850; text-transform: uppercase; }
+      .sports-channels { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+      .sports-channel { border: 1px solid var(--line); border-radius: 0.65rem; background: var(--panel); color: var(--text); padding: 0.48rem 0.62rem; display: grid; gap: 0.12rem; max-width: min(14rem, 100%); text-align: left; }
+      .sports-channel:hover { background: var(--panel-2); }
+      .sports-channel strong, .sports-channel small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .sports-error { color: var(--warn); font-size: 0.85rem; font-weight: 780; }
       .channel-button-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.5rem; }
       .virtual-channel-button { border: 0; border-radius: 0.65rem; background: var(--panel); color: var(--text); display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); align-items: center; gap: 0.7rem; min-height: 4rem; padding: 0.55rem 0.65rem; text-align: left; }
       .virtual-channel-button:hover { background: var(--panel-2); }
@@ -1401,6 +1434,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           <button class="active" data-view="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 10.75 12 4l8.25 6.75M6.25 9.25v9.5h11.5v-9.5M9.75 18.75v-5h4.5v5"/></svg><span>Home</span></button>
           <button data-view="favorites"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0 6.25-9 11.25-9 11.25s-9-5-9-11.25A4.75 4.75 0 0 1 11.25 5 4.75 4.75 0 0 1 21 8.25Z"/></svg><span>Favorites</span> <small id="favorite-count">0</small></button>
           <button data-view="guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75h15M4.5 12h15M4.5 17.25h15M8.25 4.5v15M15.75 4.5v15"/></svg><span>TV Guide</span></button>
+          <button data-view="sports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 4.75h9l2.75 5.25-7.25 9.25L4.75 10l2.75-5.25Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 4.75 12 10l4.5-5.25M4.75 10H19.25M12 10v9.25"/></svg><span>Sports</span></button>
           <button data-view="recordings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20.25a8.25 8.25 0 1 0 0-16.5 8.25 8.25 0 0 0 0 16.5Zm0-4a4.25 4.25 0 1 1 0-8.5 4.25 4.25 0 0 1 0 8.5Z"/></svg><span>Recordings</span></button>
           <button data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8.25a3.75 3.75 0 1 1 0 7.5 3.75 3.75 0 0 1 0-7.5Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.23.64.84 1 1.51 1H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z"/></svg><span>Preferences</span></button>
         </nav><!-- USER_NAV_END -->
@@ -1426,7 +1460,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuffix;
       const adminSettingsLocalKey = "silo.ramindex.dispatcharr.adminSettings.v1." + localCacheSuffix;
       const adminSettingsToken = "__ADMIN_SETTINGS_TOKEN__";
-      const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
+      const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsTab: "live", sportsLeague: "", guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
 
       function applySiloTheme() {
         const params = new URLSearchParams(window.location.search);
@@ -1492,7 +1526,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function menuIcon(name) { return "<span class=\"menu-icon\">" + icon(name) + "</span>"; }
       function defaultPrefs() {
-        return { favorites: {}, favoriteOrder: [], autoFavorites: {}, hiddenCategories: {}, recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, customGroups: [], customGroupMemberships: {} };
+        return { favorites: {}, favoriteOrder: [], autoFavorites: {}, hiddenCategories: {}, sportsFavoriteTeams: {}, recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, customGroups: [], customGroupMemberships: {} };
       }
       function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
       function defaultAdminCategorySettings() {
@@ -1529,6 +1563,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       function favoriteMap() { return prefs().favorites || {}; }
       function autoFavoriteMap() { return prefs().autoFavorites || {}; }
       function hiddenMap() { return prefs().hiddenCategories || {}; }
+      function sportsFavoriteTeamMap() { return prefs().sportsFavoriteTeams || {}; }
       function mergePrefs(remote, local) {
         remote = Object.assign(defaultPrefs(), remote || {});
         local = Object.assign(defaultPrefs(), local || {});
@@ -1537,6 +1572,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           favoriteOrder: uniqueIDs(items(local.favoriteOrder).length ? items(local.favoriteOrder) : items(remote.favoriteOrder)),
           autoFavorites: Object.assign({}, remote.autoFavorites, local.autoFavorites),
           hiddenCategories: Object.assign({}, remote.hiddenCategories, local.hiddenCategories),
+          sportsFavoriteTeams: Object.assign({}, remote.sportsFavoriteTeams, local.sportsFavoriteTeams),
           recentChannels: uniqueIDs(items(remote.recentChannels).concat(items(local.recentChannels))).slice(0, 24),
           continueWatching: Object.assign({}, remote.continueWatching, local.continueWatching),
           playback: Object.assign({}, remote.playback, local.playback),
@@ -1549,6 +1585,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (!state.app || !state.app.preferences) return;
         state.app.preferences = Object.assign(defaultPrefs(), state.app.preferences || {});
         state.app.preferences.categoryParsing = Object.assign(defaultPrefs().categoryParsing, state.app.preferences.categoryParsing || {});
+        state.app.preferences.sportsFavoriteTeams = state.app.preferences.sportsFavoriteTeams || {};
         state.app.preferences.customGroups = items(state.app.preferences.customGroups);
         state.app.preferences.customGroupMemberships = state.app.preferences.customGroupMemberships || {};
         const valid = {};
@@ -2134,6 +2171,10 @@ const playerPageHTMLTemplate = `<!doctype html>
         }
         state.view = view;
         if (view === "favorites") state.category = "";
+        if (view === "sports") {
+          state.category = "";
+          loadSports(false);
+        }
         render();
       }
       function setCategory(id) {
@@ -2246,6 +2287,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (state.view === "guide") renderGuidePage();
         else if (state.view === "player") renderPlayerPage();
         else if (state.view === "live" || state.view === "favorites") renderLivePage();
+        else if (state.view === "sports") renderSportsPage();
         else if (state.view === "recordings") renderRecordingsPage();
         else if (state.view === "admin") renderAdminPage();
         else if (state.view === "settings") renderSettings();
@@ -2270,6 +2312,134 @@ const playerPageHTMLTemplate = `<!doctype html>
         return "<div class=\"row-scroll\">" + channels.map(function(channel) {
           return "<button class=\"continue-card\" data-channel=\"" + escapeHTML(channel.id) + "\"><div class=\"poster-box\">" + (channel.logoUrl ? "<img src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">" : "<span>" + escapeHTML((channel.name || "TV").slice(0, 5)) + "</span>") + "</div><div class=\"progress\"><i></i></div><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><div class=\"muted\">" + escapeHTML(channel.categoryName || "Live TV") + "</div></button>";
         }).join("") + "</div>";
+      }
+      function loadSports(force) {
+        if (state.sportsLoading) return;
+        if (state.sports && !force) return;
+        state.sportsLoading = true;
+        getJSON("/dispatcharr/api/sports" + (force ? "?refresh=1" : "")).then(function(payload) {
+          state.sports = payload || { events: [], leagues: [] };
+          applySportsFavoritesToPayload();
+        }).catch(function(error) {
+          if (!state.sports) state.sports = { events: [], leagues: [], error: readableError(error) };
+          else state.sports.error = readableError(error);
+          showAppToast("Could not refresh sports.");
+        }).finally(function() {
+          state.sportsLoading = false;
+          if (state.view === "sports") renderSportsPage();
+        });
+      }
+      function applySportsFavoritesToPayload() {
+        const favorites = sportsFavoriteTeamMap();
+        items(state.sports && state.sports.events).forEach(function(event) {
+          if (event.home) event.home.favorite = !!favorites[event.home.id];
+          if (event.away) event.away.favorite = !!favorites[event.away.id];
+        });
+      }
+      function sportsTabLabel(tab) {
+        return ({ live: "Live", upcoming: "Upcoming", favorites: "Favorites", all: "All" })[tab] || "Live";
+      }
+      function renderSportsPage() {
+        const root = byId("view");
+        if (!state.sports && !state.sportsLoading) loadSports(false);
+        const payload = state.sports || { events: [], leagues: [] };
+        const events = filteredSportsEvents(payload);
+        const tabs = ["live", "upcoming", "favorites", "all"].map(function(tab) {
+          return "<button type=\"button\" data-sports-tab=\"" + tab + "\" class=\"" + (state.sportsTab === tab ? "active" : "") + "\" aria-pressed=\"" + (state.sportsTab === tab ? "true" : "false") + "\">" + escapeHTML(sportsTabLabel(tab)) + "</button>";
+        }).join("");
+        const refreshIcon = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" aria-hidden=\"true\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M20 12a8 8 0 0 1-14.1 5.15M4 12A8 8 0 0 1 18.1 6.85\"/><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M6 17.25H3.75V19.5M18 6.75h2.25V4.5\"/></svg>";
+        root.innerHTML = "<div class=\"sports-page\"><div class=\"sports-toolbar\"><div class=\"sports-filters\"><div class=\"view-toggle\" aria-label=\"Sports filter\">" + tabs + "</div></div><button class=\"refresh-button" + (state.sportsLoading ? " is-loading" : "") + "\" type=\"button\" data-sports-refresh=\"true\" aria-label=\"Refresh sports\" title=\"Refresh sports\">" + refreshIcon + "</button></div>"
+          + renderSportsLeagueFilters(payload)
+          + (payload.error ? "<div class=\"sports-error\">" + escapeHTML(payload.error) + "</div>" : "")
+          + (state.sportsLoading && !events.length ? "<div class=\"empty\">Loading sports...</div>" : "")
+          + (events.length ? "<div class=\"sports-board\">" + events.map(renderSportsEventCard).join("") + "</div>" : (!state.sportsLoading ? "<div class=\"empty\">No sports matches.</div>" : ""))
+          + "</div>";
+      }
+      function renderSportsLeagueFilters(payload) {
+        const leagues = items(payload && payload.leagues);
+        if (!leagues.length) return "";
+        const chips = ["<button class=\"chip" + (!state.sportsLeague ? " active" : "") + "\" data-sports-league=\"\">All leagues</button>"].concat(leagues.map(function(league) {
+          const count = Number(league.liveCount || 0) + Number(league.upcomingCount || 0);
+          const label = league.name + (count ? " " + count : "");
+          return "<button class=\"chip" + (state.sportsLeague === league.id ? " active" : "") + "\" data-sports-league=\"" + escapeHTML(league.id) + "\">" + escapeHTML(label) + "</button>";
+        }));
+        return "<div class=\"sports-leagues\">" + chips.join("") + "</div>";
+      }
+      function filteredSportsEvents(payload) {
+        const now = Math.floor(Date.now() / 1000);
+        return items(payload && payload.events).filter(function(event) {
+          if (state.sportsLeague && event.leagueId !== state.sportsLeague) return false;
+          if (state.sportsTab === "live" && !event.live) return false;
+          if (state.sportsTab === "upcoming" && (event.completed || event.live || Number(event.startUnix || 0) < now - 3600)) return false;
+          if (state.sportsTab === "favorites" && !sportsEventHasFavoriteTeam(event)) return false;
+          if (state.query && !sportsEventMatchesQuery(event)) return false;
+          return true;
+        });
+      }
+      function sportsEventHasFavoriteTeam(event) {
+        const favorites = sportsFavoriteTeamMap();
+        return !!(favorites[(event.home || {}).id] || favorites[(event.away || {}).id]);
+      }
+      function sportsEventMatchesQuery(event) {
+        const channels = items(event.channels).map(function(channel) { return [channel.name, channel.categoryName, channel.reason].join(" "); }).join(" ");
+        const text = [event.name, event.shortName, event.leagueName, event.statusText, (event.home || {}).name, (event.home || {}).abbreviation, (event.away || {}).name, (event.away || {}).abbreviation, channels].join(" ");
+        return lower(text).indexOf(lower(state.query)) !== -1;
+      }
+      function renderSportsEventCard(event) {
+        const status = sportsStatusLabel(event);
+        return "<article class=\"sports-card" + (event.live ? " live" : "") + "\"><div class=\"sports-card-head\"><div><strong data-overflow-tooltip=\"" + escapeHTML(event.name || event.shortName || "Game") + "\">" + escapeHTML(event.shortName || event.name || "Game") + "</strong><span>" + escapeHTML(event.leagueName || "Sports") + "</span></div><div class=\"sports-status\">" + escapeHTML(status) + "</div></div>"
+          + "<div class=\"sports-scoreboard\"><div class=\"sports-teams\">" + renderSportsTeam(event.away || {}) + renderSportsTeam(event.home || {}) + "</div>" + renderSportsScore(event) + "</div>"
+          + renderSportsChannels(event)
+          + "</article>";
+      }
+      function sportsStatusLabel(event) {
+        if (event.live) return event.statusText || "Live";
+        if (event.completed) return event.statusText || "Final";
+        if (event.startUnix) return sportsDateLabel(event.startUnix);
+        return event.statusText || "Scheduled";
+      }
+      function sportsDateLabel(unix) {
+        const date = new Date(Number(unix || 0) * 1000);
+        return date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) + " " + date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      }
+      function renderSportsTeam(team) {
+        const name = team.name || team.abbreviation || "Team";
+        const favorite = !!sportsFavoriteTeamMap()[team.id];
+        const logo = team.logoUrl ? "<img class=\"sports-team-logo\" src=\"" + escapeHTML(team.logoUrl) + "\" alt=\"\" onerror=\"this.hidden = true; this.nextElementSibling.hidden = false;\"><span class=\"sports-team-logo logo-fallback\" hidden>" + escapeHTML((team.abbreviation || name).slice(0, 3)) + "</span>" : "<span class=\"sports-team-logo logo-fallback\">" + escapeHTML((team.abbreviation || name).slice(0, 3)) + "</span>";
+        return "<div class=\"sports-team\">" + logo + "<strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(name) + "</strong><button class=\"sports-team-favorite" + (favorite ? " active" : "") + "\" type=\"button\" data-sports-favorite-team=\"" + escapeHTML(team.id || "") + "\" data-sports-favorite-enabled=\"" + (favorite ? "false" : "true") + "\" aria-label=\"" + escapeHTML(favorite ? "Remove favorite team" : "Favorite team") + "\">&#9733;</button></div>";
+      }
+      function renderSportsScore(event) {
+        const away = event.awayScore || "-";
+        const home = event.homeScore || "-";
+        const label = event.live ? "Live" : (event.completed ? "Final" : "Time");
+        if (!event.live && !event.completed) return "<div class=\"sports-score\"><span>" + escapeHTML(label) + "</span><strong>" + escapeHTML(timeLabel(event.startUnix)) + "</strong></div>";
+        return "<div class=\"sports-score\"><strong>" + escapeHTML(away) + "</strong><strong>" + escapeHTML(home) + "</strong><span>" + escapeHTML(label) + "</span></div>";
+      }
+      function renderSportsChannels(event) {
+        const channels = items(event.channels);
+        if (!channels.length) return "<div class=\"muted\">No matching channels.</div>";
+        return "<div class=\"sports-channels\">" + channels.map(function(channel) {
+          const meta = channel.categoryName || channel.reason || "Live TV";
+          return "<button class=\"sports-channel\" type=\"button\" data-channel=\"" + escapeHTML(channel.id) + "\" title=\"" + escapeHTML(channel.reason || meta) + "\"><strong data-overflow-tooltip=\"" + escapeHTML(channel.name || "Channel") + "\">" + escapeHTML(channel.name || "Channel") + "</strong><small>" + escapeHTML(meta) + "</small></button>";
+        }).join("") + "</div>";
+      }
+      function setSportsTab(tab) {
+        state.sportsTab = tab || "live";
+        renderSportsPage();
+      }
+      function setSportsLeague(leagueID) {
+        state.sportsLeague = leagueID || "";
+        renderSportsPage();
+      }
+      function toggleSportsTeamFavorite(teamID, enabled) {
+        teamID = String(teamID || "");
+        if (!teamID) return;
+        if (enabled) state.app.preferences.sportsFavoriteTeams[teamID] = true;
+        else delete state.app.preferences.sportsFavoriteTeams[teamID];
+        applySportsFavoritesToPayload();
+        savePrefs();
+        renderSportsPage();
+        postJSON("/dispatcharr/api/sports/favorites", { teamId: teamID, enabled: !!enabled }).catch(function() {});
       }
       function favoriteCards(channels) {
         if (!channels.length) return "<div class=\"empty\">No favorite channels yet.</div>";
@@ -3615,6 +3785,31 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (guideRefresh) {
           event.preventDefault();
           refreshAppData();
+          return;
+        }
+        const sportsRefresh = event.target.closest("[data-sports-refresh]");
+        if (sportsRefresh) {
+          event.preventDefault();
+          loadSports(true);
+          renderSportsPage();
+          return;
+        }
+        const sportsTab = event.target.closest("[data-sports-tab]");
+        if (sportsTab) {
+          event.preventDefault();
+          setSportsTab(sportsTab.getAttribute("data-sports-tab"));
+          return;
+        }
+        const sportsLeague = event.target.closest("[data-sports-league]");
+        if (sportsLeague) {
+          event.preventDefault();
+          setSportsLeague(sportsLeague.getAttribute("data-sports-league"));
+          return;
+        }
+        const sportsFavorite = event.target.closest("[data-sports-favorite-team]");
+        if (sportsFavorite) {
+          event.preventDefault();
+          toggleSportsTeamFavorite(sportsFavorite.getAttribute("data-sports-favorite-team"), sportsFavorite.getAttribute("data-sports-favorite-enabled") === "true");
           return;
         }
         const recordingPlayback = event.target.closest("[data-recording-playback]");
