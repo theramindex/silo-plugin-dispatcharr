@@ -481,6 +481,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.EPGOverlapResolved {
 		t.Fatalf("expected overlapping EPG programs to render without overlapping cells: %+v", result)
 	}
+	if !result.GuideStartsAtCurrentSlot {
+		t.Fatalf("expected guide window to start at the current half-hour slot: %+v", result)
+	}
 }
 
 func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
@@ -546,6 +549,7 @@ type virtualAliasResult struct {
 	ReplayPlayerControls     bool   `json:"replayPlayerControls"`
 	ReplayPlayerTag          bool   `json:"replayPlayerTag"`
 	EPGOverlapResolved       bool   `json:"epgOverlapResolved"`
+	GuideStartsAtCurrentSlot bool   `json:"guideStartsAtCurrentSlot"`
 }
 
 func extractPlayerScript(t *testing.T) string {
@@ -657,13 +661,13 @@ JSON.stringify((function() {
   renderPlayerPage();
 	const replayPlayerView = document.elements.view ? document.elements.view.innerHTML : "";
 	const epgHTML = renderEPGCells(channel, 0);
-	const pct = String.fromCharCode(37);
-	const epgProgramCells = epgHTML.split('style="left: ').slice(1).map(function(part) {
-		const pieces = part.split(pct + '; width: calc(');
-		const widthPart = pieces[1] ? pieces[1].split(pct + ' - 0.25rem);')[0] : "";
+	const epgProgramCells = epgHTML.split('style="left: calc(').slice(1).map(function(part) {
+		const pieces = part.split(' * var(--epg-slot)); width: calc(');
+		const widthPart = pieces[1] ? pieces[1].split(' * var(--epg-slot) - 0.25rem);')[0] : "";
 		return { left: Number(pieces[0]), width: Number(widthPart) };
 	});
 	const epgOverlapResolved = epgProgramCells.length >= 2 && epgProgramCells[1].left + 0.001 >= epgProgramCells[0].left + epgProgramCells[0].width;
+	const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(Date.now() / 1000) / 1800) * 1800;
 	return {
     sourcePath: !!source,
     aliasPath: !!alias,
@@ -696,10 +700,11 @@ JSON.stringify((function() {
     channelCategoryName: channel ? channel.categoryName : "",
     replayRewindable: isRewindableChannel(replayChannel),
     normalRewindable: isRewindableChannel(channel),
-    replayPlayerClass: replayPlayerView.indexOf('class="playback-shell is-replay"') !== -1,
+		replayPlayerClass: replayPlayerView.indexOf('class="playback-shell is-replay"') !== -1,
 		replayPlayerControls: replayPlayerView.indexOf('controls></video>') !== -1,
 		replayPlayerTag: replayPlayerView.indexOf(">Replay</span>") !== -1,
-		epgOverlapResolved: epgOverlapResolved
+		epgOverlapResolved: epgOverlapResolved,
+		guideStartsAtCurrentSlot: guideStartsAtCurrentSlot
 	};
 })())
 `+"`"+`, sandbox);
