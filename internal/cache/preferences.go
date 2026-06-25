@@ -25,6 +25,7 @@ type Preferences struct {
 	Favorites              map[string]bool         `json:"favorites"`
 	AutoFavorites          map[string]bool         `json:"autoFavorites"`
 	HiddenCategories       map[string]bool         `json:"hiddenCategories"`
+	SportsFavoriteTeams    map[string]bool         `json:"sportsFavoriteTeams"`
 	RecentChannels         []string                `json:"recentChannels"`
 	ContinueWatching       map[string]any          `json:"continueWatching"`
 	Playback               PlaybackSettings        `json:"playback"`
@@ -38,6 +39,7 @@ func defaultPreferences() Preferences {
 		Favorites:              map[string]bool{},
 		AutoFavorites:          map[string]bool{},
 		HiddenCategories:       map[string]bool{},
+		SportsFavoriteTeams:    map[string]bool{},
 		RecentChannels:         []string{},
 		ContinueWatching:       map[string]any{},
 		CategoryParsing:        CategoryParsingSettings{Mode: "off", Delimiter: "dash"},
