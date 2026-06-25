@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.dispatcharr",
-  "version": "0.2.142",
+  "version": "0.2.143",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -173,6 +173,20 @@
       "id": "dispatcharr-api-recordings-schedule",
       "method": "POST",
       "path": "/dispatcharr/api/recordings",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-sports",
+      "method": "GET",
+      "path": "/dispatcharr/api/sports",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-sports-favorites",
+      "method": "POST",
+      "path": "/dispatcharr/api/sports/favorites",
       "access": "authenticated",
       "navigable": false
     },

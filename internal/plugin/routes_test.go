@@ -260,6 +260,37 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	}
 }
 
+func TestManifestDeclaresSportsAPIRoutes(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile(filepath.Join("..", "..", "manifest.json"))
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	var manifest struct {
+		HTTPRoutes []struct {
+			Method string `json:"method"`
+			Path   string `json:"path"`
+		} `json:"http_routes"`
+	}
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatalf("unmarshal manifest: %v", err)
+	}
+
+	seen := map[string]bool{}
+	for _, route := range manifest.HTTPRoutes {
+		seen[route.Method+" "+route.Path] = true
+	}
+	for _, route := range []string{
+		"GET /dispatcharr/api/sports",
+		"POST /dispatcharr/api/sports/favorites",
+	} {
+		if !seen[route] {
+			t.Fatalf("manifest does not declare %s", route)
+		}
+	}
+}
+
 func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	t.Parallel()
 
