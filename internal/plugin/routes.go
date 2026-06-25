@@ -1244,12 +1244,12 @@ const playerPageHTMLTemplate = `<!doctype html>
       .epg-channel::after { content: attr(data-channel-name); position: absolute; left: calc(100% + 0.45rem); top: 50%; z-index: 5; max-width: min(20rem, 48vw); border: 1px solid rgba(255,255,255,0.2); border-radius: 0.55rem; background: rgba(20,20,23,0.96); box-shadow: 0 0.75rem 1.8rem rgba(0,0,0,0.38); color: var(--text); padding: 0.42rem 0.58rem; font-size: 0.82rem; font-weight: 900; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; opacity: 0; transform: translate(-0.2rem, -50%); transition: opacity 120ms ease, transform 120ms ease; }
       .epg-channel:hover::after, .epg-channel:focus-visible::after { opacity: 1; transform: translate(0, -50%); }
       .epg-programs { position: relative; height: var(--epg-row-h); min-width: 0; overflow: hidden; }
-      .epg-cell { position: absolute; top: 0; height: var(--epg-row-h); min-height: 0; border: 0; border-radius: 0.55rem; text-align: left; color: var(--text); background: var(--panel); padding: 0.48rem 0.7rem; min-width: 0; max-width: 100%; overflow: hidden; clip-path: inset(0 round 0.55rem); contain: paint; white-space: nowrap; }
-      .epg-cell time, .epg-cell strong { display: block; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .epg-cell { position: absolute; top: 0; height: var(--epg-row-h); min-height: 0; border: 0; border-radius: 0.55rem; text-align: left; color: var(--text); background: var(--panel); padding: 0; min-width: 0; max-width: 100%; overflow: hidden; clip-path: inset(0 round 0.55rem); contain: paint; white-space: nowrap; }
+      .epg-cell time, .epg-cell strong { display: block; width: 100%; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .epg-cell time { color: var(--muted); font-size: 0.72rem; font-weight: 780; line-height: 1; }
       .epg-cell strong { line-height: 1.08; }
-      .epg-cell.epg-gap { background: color-mix(in srgb, var(--panel) 78%, var(--bg)); color: var(--muted); }
-      .epg-cell .epg-play { position: absolute; inset: 0; z-index: 1; border: 0; border-radius: inherit; background: transparent; color: inherit; text-align: left; padding: 0.48rem 0.7rem; display: grid; grid-template-rows: auto auto; align-content: center; gap: 0.08rem; min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; }
+      .epg-cell.epg-gap { background: color-mix(in srgb, var(--panel) 78%, var(--bg)); color: var(--muted); padding: 0.48rem 0.7rem; display: grid; align-content: center; gap: 0.08rem; }
+      .epg-cell .epg-play { position: absolute; inset: 0; z-index: 1; border: 0; border-radius: inherit; background: transparent; color: inherit; text-align: left; padding: 0.48rem 0.7rem; display: grid; grid-template-rows: auto auto; align-content: center; gap: 0.08rem; width: 100%; height: 100%; min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; }
       .epg-cell .epg-schedule { position: absolute; right: 0.4rem; top: 50%; z-index: 2; transform: translateY(-50%); width: 1.8rem; height: 1.8rem; border: 1px solid rgba(255,255,255,0.22); border-radius: 999px; color: white; background: rgba(0,0,0,0.34); display: inline-grid; place-items: center; opacity: 0; transition: opacity 140ms ease, background 140ms ease; }
       .epg-cell .epg-schedule svg { width: 1rem; height: 1rem; }
       .epg-cell:hover .epg-schedule, .epg-cell .epg-schedule:focus-visible { opacity: 1; }
@@ -2132,7 +2132,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function guideSlotStart() {
         const now = Math.floor(Date.now() / 1000);
-        return Math.floor((now - 3600) / 1800) * 1800;
+        return Math.floor(now / 1800) * 1800;
       }
       function guideSlots() {
         const start = guideSlotStart();
@@ -2148,12 +2148,11 @@ const playerPageHTMLTemplate = `<!doctype html>
         return { start: start, end: start + (25 * 3600), slotCount: 50 };
       }
       function epgCellStyle(startUnix, endUnix, windowInfo) {
-        const duration = windowInfo.end - windowInfo.start;
         const start = Math.max(startUnix || windowInfo.start, windowInfo.start);
         const end = Math.min(endUnix || start + 1800, windowInfo.end);
-        const left = ((start - windowInfo.start) / duration) * 100;
-        const width = Math.max(((end - start) / duration) * 100, 100 / windowInfo.slotCount * 0.66);
-        return "left: " + left.toFixed(4) + "%; width: calc(" + width.toFixed(4) + "% - 0.25rem);";
+        const leftSlots = (start - windowInfo.start) / 1800;
+        const widthSlots = Math.max((end - start) / 1800, 0);
+        return "left: calc(" + leftSlots.toFixed(4) + " * var(--epg-slot)); width: calc(" + widthSlots.toFixed(4) + " * var(--epg-slot) - 0.25rem);";
       }
       function stopPlayback() {
         const video = byId("player");
@@ -3031,7 +3030,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           const canSchedule = dvrEnabled() && (program.endUnix || 0) > now;
           const programTitle = program.title || "Data not available";
           const programTime = epgVisibleTime(start, windowStart);
-          cells.push("<div class=\"epg-cell program " + colorClass(index + channelIndex) + "\" style=\"" + epgCellStyle(start, end, windowInfo) + "\"><button class=\"epg-play\" data-channel=\"" + escapeHTML(channel.id) + "\" data-overflow-tooltip=\"" + escapeHTML(programTime + " " + programTitle) + "\" aria-label=\"" + escapeHTML(programTime + " " + programTitle) + "\"><time>" + escapeHTML(programTime) + "</time><strong>" + escapeHTML(programTitle) + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>");
+          cells.push("<div class=\"epg-cell program " + colorClass(index + channelIndex) + "\" style=\"" + epgCellStyle(start, end, windowInfo) + "\"><button class=\"epg-play\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(programTime + " " + programTitle) + "\"><time>" + escapeHTML(programTime) + "</time><strong data-overflow-tooltip=\"" + escapeHTML(programTime + " " + programTitle) + "\">" + escapeHTML(programTitle) + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>");
           cursor = end;
         });
         if (cursor < windowEnd) cells.push(renderEPGGapCell(channel, cursor, windowEnd, windowInfo));
