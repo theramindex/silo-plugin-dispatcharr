@@ -102,6 +102,45 @@ func TestHTTPRoutesServerSportsMatchesChannelsAndFavoriteTeams(t *testing.T) {
 	}
 }
 
+func TestMatchSportsChannelsDoesNotUseLeagueOnlyGroups(t *testing.T) {
+	t.Parallel()
+
+	snapshot := cache.Snapshot{
+		Catalog: model.CatalogState{
+			Channels: []model.Channel{
+				{ID: "ch:ari", Name: "Arizona Team Feed", CategoryID: "ari", CategoryName: "US Sports | NFL Teams | Arizona Cardinals"},
+				{ID: "ch:lac", Name: "Los Angeles Team Feed", CategoryID: "lac", CategoryName: "US Sports | NFL Teams | Los Angeles Chargers"},
+				{ID: "ch:atl", Name: "Atlanta Falcons", CategoryID: "atl", CategoryName: "US Sports | NFL Teams | Atlanta Falcons"},
+				{ID: "ch:nfl", Name: "NFL Network", CategoryID: "nfl", CategoryName: "US Sports | NFL Teams"},
+			},
+			Content: model.ContentState{
+				LiveCategories: []model.Category{
+					{ID: "ari", Name: "US Sports | NFL Teams | Arizona Cardinals", Kind: "live"},
+					{ID: "lac", Name: "US Sports | NFL Teams | Los Angeles Chargers", Kind: "live"},
+					{ID: "atl", Name: "US Sports | NFL Teams | Atlanta Falcons", Kind: "live"},
+					{ID: "nfl", Name: "US Sports | NFL Teams", Kind: "live"},
+				},
+			},
+		},
+	}
+	event := SportsEvent{
+		ID:         "event:nfl",
+		LeagueID:   "nfl",
+		LeagueName: "NFL",
+		Name:       "Arizona Cardinals at Los Angeles Chargers",
+		ShortName:  "ARI @ LAC",
+		StartUnix:  1700000000,
+		Home:       SportsTeam{ID: "team:lac", Name: "Los Angeles Chargers", Abbreviation: "LAC"},
+		Away:       SportsTeam{ID: "team:ari", Name: "Arizona Cardinals", Abbreviation: "ARI"},
+	}
+
+	matches := matchSportsChannels(event, snapshot)
+	assertSportsMatch(t, matches, "ch:ari")
+	assertSportsMatch(t, matches, "ch:lac")
+	assertNoSportsMatch(t, matches, "ch:atl")
+	assertNoSportsMatch(t, matches, "ch:nfl")
+}
+
 func TestHTTPRoutesServerSportsUsesStaleCacheOnProviderError(t *testing.T) {
 	t.Parallel()
 
