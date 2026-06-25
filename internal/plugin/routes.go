@@ -1179,31 +1179,46 @@ const playerPageHTMLTemplate = `<!doctype html>
       .tile:hover, .tile.active { background: var(--panel-2); }
       .tile strong { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.08; text-wrap: balance; }
       .tile span { display: block; color: var(--muted); font-size: 0.76rem; font-weight: 760; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .sports-page { display: grid; gap: 0.8rem; }
+      .sports-page { display: grid; gap: 0.7rem; max-width: min(74rem, 100%); }
       .sports-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
       .sports-filters { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-      .sports-leagues { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+      .sports-leagues { display: flex; align-items: center; gap: 0.45rem; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 0.1rem; scrollbar-width: thin; }
+      .sports-leagues .chip { flex: 0 0 auto; }
       .sports-leagues .chip.active { background: var(--panel-2); color: var(--text); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
-      .sports-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(25rem, 100%), 1fr)); gap: 0.75rem; }
-      .sports-card { border: 1px solid var(--line); border-radius: 0.8rem; background: var(--rail-2); padding: 0.85rem; display: grid; gap: 0.75rem; min-width: 0; }
-      .sports-card.live { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
-      .sports-card-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-width: 0; }
+      .sports-board { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+      .sports-card { border: 1px solid var(--line); border-radius: 0.65rem; background: var(--panel); padding: 0.68rem 0.75rem; display: grid; grid-template-columns: minmax(0, 1fr) minmax(14rem, 22rem); grid-template-areas: "head channels" "body channels"; align-items: center; gap: 0.5rem 0.8rem; min-width: 0; }
+      .sports-card.live { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: color-mix(in srgb, var(--green) 9%, var(--panel)); }
+      .sports-card-head { grid-area: head; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-width: 0; }
+      .sports-card-title { display: grid; gap: 0.1rem; min-width: 0; }
       .sports-card-head strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.96rem; }
       .sports-card-head span, .sports-status, .sports-channel small { color: var(--muted); font-size: 0.76rem; font-weight: 760; }
-      .sports-scoreboard { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.7rem; align-items: center; }
-      .sports-teams { display: grid; gap: 0.45rem; min-width: 0; }
-      .sports-team { display: grid; grid-template-columns: 2.2rem minmax(0, 1fr) auto; align-items: center; gap: 0.55rem; min-width: 0; }
-      .sports-team-logo { width: 2.1rem; height: 2.1rem; object-fit: contain; border-radius: 999px; background: var(--panel); }
+      .sports-status { border: 1px solid var(--line); border-radius: 999px; padding: 0.18rem 0.48rem; white-space: nowrap; background: var(--rail-2); }
+      .sports-scoreboard { grid-area: body; display: grid; gap: 0.35rem; min-width: 0; }
+      .sports-teams { display: grid; gap: 0.25rem; min-width: 0; }
+      .sports-team { display: grid; grid-template-columns: 1.75rem 2.75rem minmax(0, 1fr) minmax(1rem, auto) 1.7rem; align-items: center; gap: 0.45rem; min-width: 0; }
+      .sports-team-logo { width: 1.65rem; height: 1.65rem; object-fit: contain; border-radius: 999px; background: var(--rail-2); }
+      .sports-team-abbr { color: var(--muted); font-size: 0.7rem; font-weight: 900; letter-spacing: 0; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .sports-team strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .sports-team-favorite { width: 2rem; height: 2rem; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--muted); display: inline-grid; place-items: center; font-weight: 900; }
+      .sports-team-score { min-width: 1rem; color: var(--text); text-align: right; font-weight: 950; }
+      .sports-team-favorite { width: 1.7rem; height: 1.7rem; border: 1px solid var(--line); border-radius: 999px; background: var(--rail-2); color: var(--muted); display: inline-grid; place-items: center; font-weight: 900; }
       .sports-team-favorite.active, .sports-team-favorite:hover { background: var(--panel-2); color: var(--warn); }
-      .sports-score { display: grid; gap: 0.25rem; min-width: 4.6rem; text-align: right; font-size: 1.45rem; font-weight: 950; }
-      .sports-score span { color: var(--muted); font-size: 0.74rem; font-weight: 850; text-transform: uppercase; }
-      .sports-channels { display: flex; flex-wrap: wrap; gap: 0.45rem; }
-      .sports-channel { border: 1px solid var(--line); border-radius: 0.65rem; background: var(--panel); color: var(--text); padding: 0.48rem 0.62rem; display: grid; gap: 0.12rem; max-width: min(14rem, 100%); text-align: left; }
+      .sports-team-favorite.placeholder { opacity: 0; pointer-events: none; }
+      .sports-channels { grid-area: channels; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.35rem; min-width: 0; }
+      .sports-channel, .sports-channel-more { border: 1px solid var(--line); border-radius: 0.55rem; background: var(--rail-2); color: var(--text); padding: 0.38rem 0.5rem; display: grid; gap: 0.1rem; max-width: min(10.75rem, 100%); text-align: left; }
       .sports-channel:hover { background: var(--panel-2); }
       .sports-channel strong, .sports-channel small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .sports-channel strong { font-size: 0.78rem; }
+      .sports-channel small { font-size: 0.68rem; }
+      .sports-channel-more { place-items: center; color: var(--muted); font-size: 0.78rem; font-weight: 850; white-space: nowrap; }
+      .sports-channel-more:hover { background: var(--panel-2); color: var(--text); }
       .sports-error { color: var(--warn); font-size: 0.85rem; font-weight: 780; }
+      @media (max-width: 760px) {
+        .sports-card { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "body" "channels"; align-items: stretch; }
+        .sports-card-head { align-items: flex-start; }
+        .sports-status { align-self: start; }
+        .sports-channels { justify-content: flex-start; }
+        .sports-channel, .sports-channel-more { max-width: min(13rem, 100%); }
+      }
       .channel-button-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.5rem; }
       .virtual-channel-button { border: 0; border-radius: 0.65rem; background: var(--panel); color: var(--text); display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); align-items: center; gap: 0.7rem; min-height: 4rem; padding: 0.55rem 0.65rem; text-align: left; }
       .virtual-channel-button:hover { background: var(--panel-2); }
@@ -1460,7 +1475,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuffix;
       const adminSettingsLocalKey = "silo.ramindex.dispatcharr.adminSettings.v1." + localCacheSuffix;
       const adminSettingsToken = "__ADMIN_SETTINGS_TOKEN__";
-      const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsTab: "live", sportsLeague: "", guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
+      const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsTab: "live", sportsLeague: "", sportsExpandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
 
       function applySiloTheme() {
         const params = new URLSearchParams(window.location.search);
@@ -2387,8 +2402,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function renderSportsEventCard(event) {
         const status = sportsStatusLabel(event);
-        return "<article class=\"sports-card" + (event.live ? " live" : "") + "\"><div class=\"sports-card-head\"><div><strong data-overflow-tooltip=\"" + escapeHTML(event.name || event.shortName || "Game") + "\">" + escapeHTML(event.shortName || event.name || "Game") + "</strong><span>" + escapeHTML(event.leagueName || "Sports") + "</span></div><div class=\"sports-status\">" + escapeHTML(status) + "</div></div>"
-          + "<div class=\"sports-scoreboard\"><div class=\"sports-teams\">" + renderSportsTeam(event.away || {}) + renderSportsTeam(event.home || {}) + "</div>" + renderSportsScore(event) + "</div>"
+        return "<article class=\"sports-card" + (event.live ? " live" : "") + "\"><div class=\"sports-card-head\"><div class=\"sports-card-title\"><strong data-overflow-tooltip=\"" + escapeHTML(event.name || event.shortName || "Game") + "\">" + escapeHTML(event.shortName || event.name || "Game") + "</strong><span>" + escapeHTML(event.leagueName || "Sports") + "</span></div><div class=\"sports-status\">" + escapeHTML(status) + "</div></div>"
+          + "<div class=\"sports-scoreboard\"><div class=\"sports-teams\">" + renderSportsTeam(event.away || {}, event.awayScore) + renderSportsTeam(event.home || {}, event.homeScore) + "</div></div>"
           + renderSportsChannels(event)
           + "</article>";
       }
@@ -2402,33 +2417,41 @@ const playerPageHTMLTemplate = `<!doctype html>
         const date = new Date(Number(unix || 0) * 1000);
         return date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) + " " + date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       }
-      function renderSportsTeam(team) {
+      function renderSportsTeam(team, score) {
         const name = team.name || team.abbreviation || "Team";
+        const abbr = team.abbreviation || name.split(/\s+/).map(function(part) { return part.slice(0, 1); }).join("").slice(0, 3);
         const favorite = !!sportsFavoriteTeamMap()[team.id];
         const logo = team.logoUrl ? "<img class=\"sports-team-logo\" src=\"" + escapeHTML(team.logoUrl) + "\" alt=\"\" onerror=\"this.hidden = true; this.nextElementSibling.hidden = false;\"><span class=\"sports-team-logo logo-fallback\" hidden>" + escapeHTML((team.abbreviation || name).slice(0, 3)) + "</span>" : "<span class=\"sports-team-logo logo-fallback\">" + escapeHTML((team.abbreviation || name).slice(0, 3)) + "</span>";
-        return "<div class=\"sports-team\">" + logo + "<strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(name) + "</strong><button class=\"sports-team-favorite" + (favorite ? " active" : "") + "\" type=\"button\" data-sports-favorite-team=\"" + escapeHTML(team.id || "") + "\" data-sports-favorite-enabled=\"" + (favorite ? "false" : "true") + "\" aria-label=\"" + escapeHTML(favorite ? "Remove favorite team" : "Favorite team") + "\">&#9733;</button></div>";
-      }
-      function renderSportsScore(event) {
-        const away = event.awayScore || "-";
-        const home = event.homeScore || "-";
-        const label = event.live ? "Live" : (event.completed ? "Final" : "Time");
-        if (!event.live && !event.completed) return "<div class=\"sports-score\"><span>" + escapeHTML(label) + "</span><strong>" + escapeHTML(timeLabel(event.startUnix)) + "</strong></div>";
-        return "<div class=\"sports-score\"><strong>" + escapeHTML(away) + "</strong><strong>" + escapeHTML(home) + "</strong><span>" + escapeHTML(label) + "</span></div>";
+        const favoriteControl = team.id ? "<button class=\"sports-team-favorite" + (favorite ? " active" : "") + "\" type=\"button\" data-sports-favorite-team=\"" + escapeHTML(team.id || "") + "\" data-sports-favorite-enabled=\"" + (favorite ? "false" : "true") + "\" aria-label=\"" + escapeHTML(favorite ? "Remove favorite team" : "Favorite team") + "\">&#9733;</button>" : "<span class=\"sports-team-favorite placeholder\" aria-hidden=\"true\"></span>";
+        return "<div class=\"sports-team\">" + logo + "<span class=\"sports-team-abbr\">" + escapeHTML(abbr) + "</span><strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(name) + "</strong><span class=\"sports-team-score\">" + escapeHTML(score || "") + "</span>" + favoriteControl + "</div>";
       }
       function renderSportsChannels(event) {
         const channels = items(event.channels);
         if (!channels.length) return "<div class=\"muted\">No matching channels.</div>";
-        return "<div class=\"sports-channels\">" + channels.map(function(channel) {
+        const expanded = !!state.sportsExpandedEvents[event.id];
+        const visible = expanded ? channels : channels.slice(0, 3);
+        const hiddenCount = channels.length - visible.length;
+        const more = hiddenCount > 0 ? "<button class=\"sports-channel-more\" type=\"button\" data-sports-expand-event=\"" + escapeHTML(event.id || "") + "\">+" + hiddenCount + " more</button>" : (expanded && channels.length > 3 ? "<button class=\"sports-channel-more\" type=\"button\" data-sports-expand-event=\"" + escapeHTML(event.id || "") + "\">Show less</button>" : "");
+        return "<div class=\"sports-channels\">" + visible.map(function(channel) {
           const meta = channel.categoryName || channel.reason || "Live TV";
           return "<button class=\"sports-channel\" type=\"button\" data-channel=\"" + escapeHTML(channel.id) + "\" title=\"" + escapeHTML(channel.reason || meta) + "\"><strong data-overflow-tooltip=\"" + escapeHTML(channel.name || "Channel") + "\">" + escapeHTML(channel.name || "Channel") + "</strong><small>" + escapeHTML(meta) + "</small></button>";
-        }).join("") + "</div>";
+        }).join("") + more + "</div>";
       }
       function setSportsTab(tab) {
         state.sportsTab = tab || "live";
+        state.sportsExpandedEvents = {};
         renderSportsPage();
       }
       function setSportsLeague(leagueID) {
         state.sportsLeague = leagueID || "";
+        state.sportsExpandedEvents = {};
+        renderSportsPage();
+      }
+      function toggleSportsEventChannels(eventID) {
+        eventID = String(eventID || "");
+        if (!eventID) return;
+        if (state.sportsExpandedEvents[eventID]) delete state.sportsExpandedEvents[eventID];
+        else state.sportsExpandedEvents[eventID] = true;
         renderSportsPage();
       }
       function toggleSportsTeamFavorite(teamID, enabled) {
@@ -3804,6 +3827,12 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (sportsLeague) {
           event.preventDefault();
           setSportsLeague(sportsLeague.getAttribute("data-sports-league"));
+          return;
+        }
+        const sportsExpand = event.target.closest("[data-sports-expand-event]");
+        if (sportsExpand) {
+          event.preventDefault();
+          toggleSportsEventChannels(sportsExpand.getAttribute("data-sports-expand-event"));
           return;
         }
         const sportsFavorite = event.target.closest("[data-sports-favorite-team]");

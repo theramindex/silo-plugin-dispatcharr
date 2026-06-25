@@ -326,8 +326,8 @@ func matchSportsChannels(event SportsEvent, snapshot cache.Snapshot) []SportsCha
 		}
 		return matches[i].Name < matches[j].Name
 	})
-	if len(matches) > 8 {
-		matches = matches[:8]
+	if len(matches) > 6 {
+		matches = matches[:6]
 	}
 	return matches
 }
@@ -351,7 +351,7 @@ func sportsMatchTerms(event SportsEvent) []sportsTerm {
 	add(event.Away.Name, event.Away.Name, 60)
 	add(event.Home.Abbreviation, event.Home.Abbreviation, 28)
 	add(event.Away.Abbreviation, event.Away.Abbreviation, 28)
-	add(event.LeagueName, event.LeagueName, 16)
+	// League names are too broad for channel matching; "NFL" or "MLB" would pull in every team group.
 	add(event.Name, "event title", 22)
 	add(event.ShortName, "event title", 22)
 	return terms
