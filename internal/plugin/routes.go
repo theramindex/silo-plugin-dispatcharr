@@ -1122,7 +1122,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       .main { min-width: 0; overflow: auto; padding: 1rem 1.25rem 2rem; }
       .shell.is-player .main { padding: 0; overflow: hidden; background: #050505; }
       .topbar { display: flex; align-items: center; justify-content: flex-end; gap: 0.65rem; margin-bottom: 0.85rem; position: sticky; top: 0; z-index: 5; background: linear-gradient(180deg, var(--bg) 70%, color-mix(in srgb, var(--bg) 0%, transparent)); padding-bottom: 0.65rem; }
-      .shell.is-player .topbar, .shell.is-guide .topbar { display: none; }
+      .shell.is-player .topbar, .shell.is-guide .topbar, .shell.is-search .topbar { display: none; }
       .sports-topbar-tabs { display: none; margin-right: auto; min-width: 0; }
       .shell.is-sports .topbar, .shell.is-events .topbar { justify-content: flex-start; flex-wrap: wrap; }
       .shell.is-sports .sports-topbar-tabs, .shell.is-events .sports-topbar-tabs { display: inline-flex; }
@@ -1159,6 +1159,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       .refresh-button:disabled { cursor: default; opacity: 0.7; }
       .refresh-button svg { width: 1.1rem; height: 1.1rem; display: block; }
       .refresh-button.is-loading svg { animation: spin 880ms linear infinite; }
+      .topbar-icon { width: 2.45rem; height: 2.45rem; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); display: inline-grid; place-items: center; flex: 0 0 auto; }
+      .topbar-icon:hover, .topbar-icon.active { background: var(--panel-2); }
+      .topbar-icon svg { width: 1.08rem; height: 1.08rem; display: block; stroke-width: 1.9; }
       .section-title { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1rem 0 0.55rem; color: var(--muted); font-size: 0.95rem; font-weight: 850; }
       .section-title.actions-only { justify-content: flex-end; }
       .breadcrumbs { display: flex; align-items: center; gap: 0.4rem; min-width: 0; color: var(--muted); }
@@ -1192,6 +1195,36 @@ const playerPageHTMLTemplate = `<!doctype html>
       .tile:hover, .tile.active { background: var(--panel-2); }
       .tile strong { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.08; text-wrap: balance; }
       .tile span { display: block; color: var(--muted); font-size: 0.76rem; font-weight: 760; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .search-page { max-width: 74rem; padding: 0.35rem 0 2rem; display: grid; gap: 1.45rem; }
+      .search-hero { display: grid; grid-template-columns: minmax(10rem, 17rem) minmax(0, 1fr) auto; align-items: end; gap: 1rem; }
+      .search-hero h2 { margin: 0; font-size: clamp(2.15rem, 5vw, 4rem); line-height: 0.95; letter-spacing: 0; }
+      .search-form { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.75rem; align-items: center; }
+      .search-field { width: 100%; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--text) 66%, transparent); border-radius: 0; background: transparent; color: var(--text); padding: 0.7rem 0; font-size: 1.08rem; font-weight: 800; outline: none; }
+      .search-field::placeholder { color: var(--muted); }
+      .search-cancel { border: 0; border-radius: 999px; background: transparent; color: var(--muted); min-height: 2.35rem; padding: 0 0.65rem; font-weight: 850; }
+      .search-cancel:hover { color: var(--text); background: var(--panel); }
+      .search-clear { justify-self: end; border: 0; border-radius: 999px; background: transparent; color: var(--muted); min-height: 2.35rem; padding: 0 0.65rem; font-weight: 850; }
+      .search-clear:hover { color: var(--text); background: var(--panel); }
+      .search-chip-row { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+      .search-chip { border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); min-height: 2.15rem; padding: 0 0.75rem; font-weight: 850; }
+      .search-chip:hover, .search-chip.active { background: var(--panel-2); }
+      .search-category-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr)); gap: 0.75rem; }
+      .search-category-tile { min-height: 7.4rem; border: 1px solid var(--line); border-radius: 0.65rem; background: var(--panel); color: var(--text); display: grid; align-content: center; justify-items: center; gap: 0.45rem; text-align: center; padding: 0.9rem; }
+      .search-category-tile:hover { background: var(--panel-2); }
+      .search-category-tile svg { width: 1.65rem; height: 1.65rem; display: block; color: var(--muted); stroke-width: 1.8; }
+      .search-category-tile strong { font-size: 1.2rem; }
+      .search-results { display: grid; gap: 1.15rem; }
+      .search-result-list { display: grid; gap: 0.45rem; }
+      .search-result { min-width: 0; border: 1px solid color-mix(in srgb, var(--line) 88%, transparent); border-radius: 0.65rem; background: var(--panel); color: var(--text); min-height: 4.35rem; display: grid; grid-template-columns: 4.2rem minmax(0, 1fr) auto; align-items: center; gap: 0.72rem; padding: 0.55rem 0.7rem; text-align: left; }
+      .search-result:hover { background: var(--panel-2); }
+      .search-result[disabled] { cursor: default; opacity: 0.76; }
+      .search-result-art { width: 4rem; height: 2.7rem; display: grid; place-items: center; border-radius: 0.5rem; background: var(--rail); overflow: hidden; }
+      .search-result-art .logo, .search-result-art img { width: 100%; height: 100%; object-fit: contain; border-radius: 0; background: transparent; }
+      .search-result-main { min-width: 0; display: grid; gap: 0.12rem; }
+      .search-result-main strong, .search-result-main small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .search-result-main small { color: var(--muted); font-weight: 760; }
+      .search-result-action { color: var(--muted); font-size: 0.78rem; font-weight: 900; white-space: nowrap; }
+      .search-empty { border: 1px solid var(--line); border-radius: 0.65rem; background: var(--panel); color: var(--muted); padding: 1.1rem; font-weight: 800; }
       .sports-page { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 0.7rem; min-height: 0; height: 100%; max-width: min(92rem, 100%); }
       .sports-pinned { display: grid; gap: 0.7rem; min-width: 0; }
       .sports-leagues { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; overflow: visible; padding-bottom: 0; }
@@ -1527,6 +1560,9 @@ const playerPageHTMLTemplate = `<!doctype html>
           <button id="guide-refresh" class="refresh-button" type="button" data-guide-refresh="true" aria-label="Refresh guide" title="Refresh guide">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20 12a8 8 0 0 1-14.1 5.15M4 12A8 8 0 0 1 18.1 6.85"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 17.25H3.75V19.5M18 6.75h2.25V4.5"/></svg>
           </button>
+          <button id="app-search-button" class="topbar-icon" type="button" data-view="search" aria-label="Search Live TV" title="Search Live TV">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m20 20-4.5-4.5M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"/></svg>
+          </button>
           <input id="global-search" class="search" placeholder="Search by program or channel">
         </div><!-- USER_TOPBAR_END -->
         <div id="view"><div class="empty">Loading Live TV...</div></div>
@@ -1537,13 +1573,14 @@ const playerPageHTMLTemplate = `<!doctype html>
       const base = path.endsWith("/dispatcharr/player") ? path.slice(0, -"/dispatcharr/player".length) : (path.endsWith("/dispatcharr/admin") ? path.slice(0, -"/dispatcharr/admin".length) : (path.endsWith("/dispatcharr") ? path.slice(0, -"/dispatcharr".length) : ""));
       const isAdminRoute = path.endsWith("/dispatcharr/admin");
       const prefsKey = "silo.ramindex.dispatcharr.preferences.v1";
+      const searchHistoryKey = "silo.ramindex.dispatcharr.searchHistory.v1";
       const adminSettingsKey = "adminCategorySettings";
       const pluginInstallationID = (base.match(/\/api\/v1\/plugins\/(\d+)/) || [])[1] || "";
       const localCacheSuffix = pluginInstallationID || "default";
       const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuffix;
       const adminSettingsLocalKey = "silo.ramindex.dispatcharr.adminSettings.v1." + localCacheSuffix;
       const adminSettingsToken = "__ADMIN_SETTINGS_TOKEN__";
-      const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsTab: "live", sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
+      const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsTab: "live", sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
 
       function applySiloTheme() {
         const params = new URLSearchParams(window.location.search);
@@ -1809,6 +1846,22 @@ const playerPageHTMLTemplate = `<!doctype html>
       function readLocalPrefs() {
         try { return Object.assign(defaultPrefs(), JSON.parse(localStorage.getItem(prefsKey) || "{}")); }
         catch (_) { return defaultPrefs(); }
+      }
+      function readRecentSearches() {
+        try { return uniqueIDs(items(JSON.parse(localStorage.getItem(searchHistoryKey) || "[]")).map(function(value) { return String(value || "").trim(); })).slice(0, 12); }
+        catch (_) { return []; }
+      }
+      function writeRecentSearches(searches) {
+        state.recentSearches = uniqueIDs(items(searches).map(function(value) { return String(value || "").trim(); }).filter(Boolean)).slice(0, 12);
+        try { localStorage.setItem(searchHistoryKey, JSON.stringify(state.recentSearches)); } catch (_) {}
+      }
+      function rememberSearch(value) {
+        value = String(value || "").trim();
+        if (!value) return;
+        writeRecentSearches([value].concat(state.recentSearches));
+      }
+      function clearRecentSearches() {
+        writeRecentSearches([]);
       }
       function cacheProgramWindow() {
         const now = Math.floor(Date.now() / 1000);
@@ -2366,6 +2419,9 @@ const playerPageHTMLTemplate = `<!doctype html>
         }
       }
       function setView(view) {
+        if (view === "search" && state.view !== "search" && state.view !== "player") {
+          state.searchReturnView = state.view || "home";
+        }
         if (view !== "player") {
           stopPlayback();
           if (state.view === "player") stopCurrentWatch("leave_player");
@@ -2407,6 +2463,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         }
         state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
         state.app.programs = items(state.app.programs);
+        state.recentSearches = readRecentSearches();
         rebuildProgramIndex();
         normalizePreferences();
         normalizeAdminCategorySettings();
@@ -2492,6 +2549,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         document.querySelector(".shell").classList.toggle("is-sports", state.view === "sports");
         document.querySelector(".shell").classList.toggle("is-events", state.view === "events");
         document.querySelector(".shell").classList.toggle("is-multiview", state.view === "multiview");
+        document.querySelector(".shell").classList.toggle("is-search", state.view === "search");
         renderRail();
         renderSportsTopbarTabs();
         if (state.view === "guide") renderGuidePage();
@@ -2500,6 +2558,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         else if (state.view === "live" || state.view === "favorites") renderLivePage();
         else if (state.view === "sports") renderSportsPage();
         else if (state.view === "events") renderEventsPage();
+        else if (state.view === "search") renderSearchPage();
         else if (state.view === "recordings") renderRecordingsPage();
         else if (state.view === "admin") renderAdminPage();
         else if (state.view === "settings") renderSettings();
@@ -2524,6 +2583,145 @@ const playerPageHTMLTemplate = `<!doctype html>
         return "<div class=\"row-scroll\">" + channels.map(function(channel) {
           return "<button class=\"continue-card\" data-channel=\"" + escapeHTML(channel.id) + "\"><div class=\"poster-box\">" + (channel.logoUrl ? "<img src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">" : "<span>" + escapeHTML((channel.name || "TV").slice(0, 5)) + "</span>") + "</div><div class=\"progress\"><i></i></div><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><div class=\"muted\">" + escapeHTML(channel.categoryName || "Live TV") + "</div></button>";
         }).join("") + "</div>";
+      }
+      function searchNeedle() {
+        return lower(state.searchQuery).trim();
+      }
+      function searchableChannels() {
+        const hidden = hiddenMap();
+        return effectiveChannels(false).filter(function(channel) {
+          return !(channel.categoryId && hidden[channel.categoryId]);
+        });
+      }
+      function channelMatchesSearch(channel, query) {
+        const haystack = [channel.name, channel.number, channel.categoryName, sourceCategoryLabel(channel), sourceCategoryRawLabel(channel)].join(" ");
+        return lower(haystack).indexOf(query) !== -1;
+      }
+      function programMatchesSearch(program, query) {
+        const channel = channelByID(program.channelId) || {};
+        const haystack = [program.title, program.summary, program.description, channel.name, channel.categoryName].join(" ");
+        return lower(haystack).indexOf(query) !== -1;
+      }
+      function contentCategoryName(kind, item) {
+        const payload = state.app && state.app[kind] ? state.app[kind] : {};
+        const match = items(payload.categories).find(function(category) { return category.id === item.categoryId; });
+        return (match && match.name) || "";
+      }
+      function contentMatchesSearch(kind, item, query) {
+        const haystack = [item.name, item.title, item.description, item.rating, contentCategoryName(kind, item)].join(" ");
+        return lower(haystack).indexOf(query) !== -1;
+      }
+      function searchFilters() {
+        return [
+          { id: "all", label: "All" },
+          { id: "channels", label: "Channels" },
+          { id: "programs", label: "Programs" },
+          { id: "movies", label: "Movies" },
+          { id: "shows", label: "Shows" }
+        ];
+      }
+      function searchResultSections(query) {
+        const filter = state.searchType || "all";
+        const include = function(id) { return filter === "all" || filter === id; };
+        const sections = [];
+        if (include("channels")) {
+          const channels = searchableChannels().filter(function(channel) { return channelMatchesSearch(channel, query); }).slice(0, 18);
+          sections.push({ id: "channels", title: "Channels", rows: channels.map(function(channel) {
+            return {
+              attrs: "data-search-channel=\"" + escapeHTML(channel.id) + "\"",
+              art: logoHTML(channel),
+              title: channel.name || "Untitled",
+              meta: ["Channel", channel.categoryName || "Live TV"].filter(Boolean).join(" - "),
+              action: "Watch"
+            };
+          }) });
+        }
+        if (include("programs")) {
+          const programs = programsFor("").filter(function(program) { return programMatchesSearch(program, query); }).slice(0, 18);
+          sections.push({ id: "programs", title: "Guide Programs", rows: programs.map(function(program) {
+            const channel = channelByID(program.channelId) || {};
+            return {
+              attrs: "data-search-channel=\"" + escapeHTML(program.channelId || "") + "\"",
+              art: logoHTML(channel),
+              title: program.title || "Untitled program",
+              meta: [timeLabel(program.startUnix), channel.name || "Live TV"].filter(Boolean).join(" - "),
+              action: "Watch"
+            };
+          }) });
+        }
+        if (include("movies")) {
+          const movies = items(state.app && state.app.vod && state.app.vod.items).filter(function(item) { return contentMatchesSearch("vod", item, query); }).slice(0, 12);
+          sections.push({ id: "movies", title: "Movies", rows: movies.map(function(item) {
+            return {
+              attrs: "",
+              disabled: true,
+              art: item.posterUrl ? "<img src=\"" + escapeHTML(item.posterUrl) + "\" alt=\"\">" : "<span class=\"logo logo-fallback\">VOD</span>",
+              title: item.name || "Untitled movie",
+              meta: ["Movie", contentCategoryName("vod", item), item.rating].filter(Boolean).join(" - "),
+              action: "On Demand"
+            };
+          }) });
+        }
+        if (include("shows")) {
+          const shows = items(state.app && state.app.series && state.app.series.items).filter(function(item) { return contentMatchesSearch("series", item, query); }).slice(0, 12);
+          sections.push({ id: "shows", title: "Shows", rows: shows.map(function(item) {
+            return {
+              attrs: "",
+              disabled: true,
+              art: item.posterUrl ? "<img src=\"" + escapeHTML(item.posterUrl) + "\" alt=\"\">" : "<span class=\"logo logo-fallback\">TV</span>",
+              title: item.name || "Untitled show",
+              meta: ["Show", contentCategoryName("series", item), item.releaseDate].filter(Boolean).join(" - "),
+              action: "On Demand"
+            };
+          }) });
+        }
+        return sections.filter(function(section) { return section.rows.length; });
+      }
+      function renderSearchResultRow(row) {
+        return "<button class=\"search-result\" type=\"button\" " + (row.attrs || "") + (row.disabled ? " disabled" : "") + "><span class=\"search-result-art\">" + row.art + "</span><span class=\"search-result-main\"><strong>" + escapeHTML(row.title) + "</strong><small>" + escapeHTML(row.meta || "") + "</small></span><span class=\"search-result-action\">" + escapeHTML(row.action || "") + "</span></button>";
+      }
+      function renderSearchResults(query) {
+        const sections = searchResultSections(query);
+        if (!sections.length) return "<div class=\"search-empty\">No matches found.</div>";
+        return "<div class=\"search-results\">" + sections.map(function(section) {
+          return sectionHeader(section.title) + "<div class=\"search-result-list\">" + section.rows.map(renderSearchResultRow).join("") + "</div>";
+        }).join("") + "</div>";
+      }
+      function renderSearchStart() {
+        const recent = items(state.recentSearches);
+        const recentHTML = recent.length ? sectionHeaderWithActions("Recent searches", "<button class=\"search-clear\" type=\"button\" data-search-clear=\"true\">Clear All</button>") + "<div class=\"search-chip-row\">" + recent.map(function(value) {
+          return "<button class=\"search-chip\" type=\"button\" data-search-recent=\"" + escapeHTML(value) + "\">" + escapeHTML(value) + "</button>";
+        }).join("") + "</div>" : "";
+        const categoryHTML = sectionHeader("Categories") + "<div class=\"search-category-grid\">" + [
+          { id: "channels", label: "Channels", icon: "guide" },
+          { id: "programs", label: "Programs", icon: "search" },
+          { id: "movies", label: "Movies", icon: "play" },
+          { id: "shows", label: "Shows", icon: "multiview" }
+        ].map(function(item) {
+          return "<button class=\"search-category-tile\" type=\"button\" data-search-type=\"" + escapeHTML(item.id) + "\">" + icon(item.icon) + "<strong>" + escapeHTML(item.label) + "</strong></button>";
+        }).join("") + "</div>";
+        const browsed = recentChannels(10);
+        const browsedHTML = browsed.length ? sectionHeader("Recently browsed") + rowCards(browsed) : "";
+        return recentHTML + categoryHTML + browsedHTML;
+      }
+      function renderSearchPage() {
+        const root = byId("view");
+        const query = state.searchQuery || "";
+        const filter = state.searchType || "all";
+        const filterHTML = "<div class=\"search-chip-row\">" + searchFilters().map(function(item) {
+          return "<button class=\"search-chip" + (filter === item.id ? " active" : "") + "\" type=\"button\" data-search-type=\"" + escapeHTML(item.id) + "\">" + escapeHTML(item.label) + "</button>";
+        }).join("") + "</div>";
+        root.innerHTML = "<div class=\"search-page\"><div class=\"search-hero\"><h2>Search</h2><div class=\"search-form\"><input id=\"search-page-input\" class=\"search-field\" value=\"" + escapeHTML(query) + "\" placeholder=\"Search movies, tv shows, channels and more\" autocomplete=\"off\"><button class=\"search-cancel\" type=\"button\" data-search-cancel=\"true\">Cancel</button></div></div>" + filterHTML + (searchNeedle() ? renderSearchResults(searchNeedle()) : renderSearchStart()) + "</div>";
+        const input = byId("search-page-input");
+        if (input && document.activeElement !== input) {
+          setTimeout(function() {
+            const focused = byId("search-page-input");
+            if (focused) {
+              focused.focus();
+              focused.setSelectionRange(focused.value.length, focused.value.length);
+            }
+          }, 0);
+        }
       }
       function loadSports(force) {
         if (state.sportsLoading) return Promise.resolve(state.sports || { events: [], leagues: [] });
@@ -4324,6 +4522,42 @@ const playerPageHTMLTemplate = `<!doctype html>
           refreshAppData();
           return;
         }
+        const searchCancel = event.target.closest("[data-search-cancel]");
+        if (searchCancel) {
+          event.preventDefault();
+          setView(state.searchReturnView || "home");
+          return;
+        }
+        const searchClear = event.target.closest("[data-search-clear]");
+        if (searchClear) {
+          event.preventDefault();
+          clearRecentSearches();
+          renderSearchPage();
+          return;
+        }
+        const searchRecent = event.target.closest("[data-search-recent]");
+        if (searchRecent) {
+          event.preventDefault();
+          state.searchQuery = searchRecent.getAttribute("data-search-recent") || "";
+          rememberSearch(state.searchQuery);
+          renderSearchPage();
+          return;
+        }
+        const searchType = event.target.closest("[data-search-type]");
+        if (searchType) {
+          event.preventDefault();
+          state.searchType = searchType.getAttribute("data-search-type") || "all";
+          renderSearchPage();
+          return;
+        }
+        const searchChannel = event.target.closest("[data-search-channel]");
+        if (searchChannel) {
+          event.preventDefault();
+          rememberSearch(state.searchQuery);
+          const channel = channelByID(searchChannel.getAttribute("data-search-channel"));
+          if (channel) playChannel(channel);
+          return;
+        }
         const sportsTab = event.target.closest("[data-sports-tab]");
         if (sportsTab) {
           event.preventDefault();
@@ -4484,6 +4718,17 @@ const playerPageHTMLTemplate = `<!doctype html>
       document.addEventListener("fullscreenchange", updateFullscreenButton);
       document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
       document.addEventListener("keydown", function(event) {
+        if (event.target && event.target.id === "search-page-input" && event.key === "Enter") {
+          event.preventDefault();
+          rememberSearch(state.searchQuery);
+          renderSearchPage();
+          return;
+        }
+        if (state.view === "search" && event.key === "Escape") {
+          event.preventDefault();
+          setView(state.searchReturnView || "home");
+          return;
+        }
         if (state.view !== "player") return;
         const tag = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : "";
         if (tag === "input" || tag === "textarea" || tag === "select") return;
@@ -4540,6 +4785,11 @@ const playerPageHTMLTemplate = `<!doctype html>
           applyVolumeToVideo();
           syncMultiviewAudio();
         }
+        if (event.target && event.target.id === "search-page-input") {
+          state.searchQuery = event.target.value || "";
+          renderSearchPage();
+          return;
+        }
         const adminEventKeywordIndex = event.target.getAttribute("data-admin-event-keyword-index");
         if (adminEventKeywordIndex !== null) {
           updateAdminEventKeywords(Number(adminEventKeywordIndex), event.target.value || "");
@@ -4559,8 +4809,18 @@ const playerPageHTMLTemplate = `<!doctype html>
       document.querySelectorAll(".nav button").forEach(function(button) {
         button.onclick = function() { setView(button.dataset.view); };
       });
+      const appSearchButton = byId("app-search-button");
+      if (appSearchButton) appSearchButton.onclick = function() { setView("search"); };
       const globalSearch = byId("global-search");
-      if (globalSearch) globalSearch.oninput = function(event) { state.query = event.target.value; render(); };
+      if (globalSearch) {
+        globalSearch.oninput = function(event) { state.query = event.target.value; render(); };
+        globalSearch.onkeydown = function(event) {
+          if (event.key !== "Enter") return;
+          state.searchQuery = event.target.value || "";
+          rememberSearch(state.searchQuery);
+          setView("search");
+        };
+      }
       window.addEventListener("scroll", function() {
         if (state.view === "guide" && isNearGuideEnd()) appendGuideRows();
       }, { passive: true });
