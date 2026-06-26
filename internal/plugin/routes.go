@@ -3463,7 +3463,6 @@ const playerPageHTMLTemplate = `<!doctype html>
           + "<div class=\"settings-card\"><h2>Group method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
           + "<div class=\"settings-card\"><h2>Presentation Overrides</h2><div class=\"settings-note admin-status-note\">Alternative Group Names add alternate virtual group paths without changing the original Dispatcharr groups. The original group remains visible.</div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>"
           + "<div class=\"settings-card\"><h2>ECM</h2><div id=\"admin-ecm-settings\" class=\"settings-list\"></div></div>"
-          + "<div class=\"settings-card\"><h2>Preview</h2><div class=\"settings-preview\">" + adminCategoryPreview() + "</div></div>"
           + "";
       }
       function adminStatusPill(status) {
@@ -3487,7 +3486,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           + adminStatusItem("Channels", escapeHTML(String(status.channelCount || items(state.app.channels).length || 0)), "Last catalog sync: " + dateTimeLabel(status.lastSuccessUnix))
           + adminStatusItem("Guide", adminStatusPill(guideStatus), String(status.epgProgramCount || items(state.app.programs).length || 0) + " programs · " + dateTimeLabel(status.epgLastSuccessUnix))
           + "</div>"
-          + (error ? "<div class=\"settings-note settings-warning admin-status-note\">" + escapeHTML(error) + "</div>" : "<div class=\"settings-note admin-status-note\">Admin-only status panel. No usernames, passwords, or API keys are shown.</div>");
+          + (error ? "<div class=\"settings-note settings-warning admin-status-note\">" + escapeHTML(error) + "</div>" : "");
       }
       function renderExternalChannelManager() {
         const managerURL = adminECMURL();
@@ -3573,12 +3572,6 @@ const playerPageHTMLTemplate = `<!doctype html>
         root.innerHTML = (settings.mode !== "delimiter" ? "<div class=\"settings-note settings-warning\">Alternative group names apply when category mode is By delimiter.</div>" : "")
           + addRow
           + "<div class=\"alias-table\"><div class=\"alias-table-head\"><span>Source group</span><span>Channels</span><span>Alternative group name</span><span>Actions</span></div>" + (rows || "<div class=\"empty\">No alternative group names yet.</div>") + "</div>";
-      }
-      function adminCategoryPreview() {
-        const categories = adminListingCategories("").slice(0, 8);
-        return categories.length ? categories.map(function(category) {
-          return "<div>" + escapeHTML(category.name || category.id) + " · " + escapeHTML(String(category.count || 0)) + " channels</div>";
-        }).join("") : "<div>No channel groups available yet.</div>";
       }
       function ensureSelectedCustomGroup() {
         const groups = customGroups();
