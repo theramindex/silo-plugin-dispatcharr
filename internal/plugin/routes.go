@@ -1120,6 +1120,10 @@ const playerPageHTMLTemplate = `<!doctype html>
       .shell.is-player .main { padding: 0; overflow: hidden; background: #050505; }
       .topbar { display: flex; align-items: center; justify-content: flex-end; gap: 0.65rem; margin-bottom: 0.85rem; position: sticky; top: 0; z-index: 5; background: linear-gradient(180deg, var(--bg) 70%, color-mix(in srgb, var(--bg) 0%, transparent)); padding-bottom: 0.65rem; }
       .shell.is-player .topbar, .shell.is-guide .topbar { display: none; }
+      .sports-topbar-tabs { display: none; margin-right: auto; min-width: 0; }
+      .shell.is-sports .topbar { justify-content: flex-start; flex-wrap: wrap; }
+      .shell.is-sports .sports-topbar-tabs { display: inline-flex; }
+      .shell.is-sports .topbar .search { margin-left: auto; flex: 1 1 24rem; max-width: 32rem; }
       .shell.is-sports .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
       .shell.is-sports #view { min-height: 0; overflow: hidden; }
       .shell.is-multiview .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
@@ -1185,10 +1189,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       .tile span { display: block; color: var(--muted); font-size: 0.76rem; font-weight: 760; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .sports-page { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 0.7rem; min-height: 0; height: 100%; max-width: min(92rem, 100%); }
       .sports-pinned { display: grid; gap: 0.7rem; min-width: 0; }
-      .sports-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
-      .sports-filters { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-      .sports-leagues { display: flex; align-items: center; gap: 0.45rem; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 0.1rem; scrollbar-width: thin; }
-      .sports-leagues .chip { flex: 0 0 auto; }
+      .sports-leagues { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; overflow: visible; padding-bottom: 0; }
+      .sports-leagues .chip { flex: 0 1 auto; }
       .sports-leagues .chip.active { background: var(--panel-2); color: var(--text); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
       .sports-score-scroll { min-height: 0; overflow: auto; padding: 0.05rem 0.15rem 1rem 0; scrollbar-width: thin; }
       .sports-board { display: grid; grid-template-columns: repeat(2, minmax(20rem, 1fr)); gap: 0.7rem; align-items: start; }
@@ -1462,6 +1464,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         .shell.is-admin { display: grid; height: 100vh; }
         .rail { min-height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
         .topbar { position: static; }
+        .shell.is-sports .topbar .search { flex-basis: 100%; max-width: none; margin-left: 0; }
         .admin-topbar { position: sticky; flex-wrap: wrap; padding: 0.75rem 1rem; }
         .admin-tabs { width: 100%; overflow-x: auto; justify-content: flex-start; }
         .admin-actions { margin-left: auto; }
@@ -1505,6 +1508,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       </aside>
       <main class="main">
         <!-- USER_TOPBAR_START --><div class="topbar">
+          <div id="sports-topbar-tabs" class="sports-topbar-tabs"></div>
           <button id="guide-refresh" class="refresh-button" type="button" data-guide-refresh="true" aria-label="Refresh guide" title="Refresh guide">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20 12a8 8 0 0 1-14.1 5.15M4 12A8 8 0 0 1 18.1 6.85"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 17.25H3.75V19.5M18 6.75h2.25V4.5"/></svg>
           </button>
@@ -2418,6 +2422,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         document.querySelector(".shell").classList.toggle("is-sports", state.view === "sports");
         document.querySelector(".shell").classList.toggle("is-multiview", state.view === "multiview");
         renderRail();
+        renderSportsTopbarTabs();
         if (state.view === "guide") renderGuidePage();
         else if (state.view === "player") renderPlayerPage();
         else if (state.view === "multiview") renderMultiviewPage();
@@ -2449,16 +2454,18 @@ const playerPageHTMLTemplate = `<!doctype html>
         }).join("") + "</div>";
       }
       function loadSports(force) {
-        if (state.sportsLoading) return;
-        if (state.sports && !force) return;
+        if (state.sportsLoading) return Promise.resolve(state.sports || { events: [], leagues: [] });
+        if (state.sports && !force) return Promise.resolve(state.sports);
         state.sportsLoading = true;
-        getJSON("/dispatcharr/api/sports" + (force ? "?refresh=1" : "")).then(function(payload) {
+        return getJSON("/dispatcharr/api/sports" + (force ? "?refresh=1" : "")).then(function(payload) {
           state.sports = payload || { events: [], leagues: [] };
           applySportsFavoritesToPayload();
+          return state.sports;
         }).catch(function(error) {
           if (!state.sports) state.sports = { events: [], leagues: [], error: readableError(error) };
           else state.sports.error = readableError(error);
           showAppToast("Could not refresh sports.");
+          return state.sports;
         }).finally(function() {
           state.sportsLoading = false;
           if (state.view === "sports") renderSportsPage();
@@ -2474,17 +2481,23 @@ const playerPageHTMLTemplate = `<!doctype html>
       function sportsTabLabel(tab) {
         return ({ live: "Live", upcoming: "Upcoming", favorites: "Favorites", all: "All" })[tab] || "Live";
       }
+      function sportsTabButtonsHTML() {
+        return ["live", "upcoming", "favorites", "all"].map(function(tab) {
+          return "<button type=\"button\" data-sports-tab=\"" + tab + "\" class=\"" + (state.sportsTab === tab ? "active" : "") + "\" aria-pressed=\"" + (state.sportsTab === tab ? "true" : "false") + "\">" + escapeHTML(sportsTabLabel(tab)) + "</button>";
+        }).join("");
+      }
+      function renderSportsTopbarTabs() {
+        const root = byId("sports-topbar-tabs");
+        if (!root) return;
+        root.innerHTML = state.view === "sports" ? "<div class=\"view-toggle\" aria-label=\"Sports filter\">" + sportsTabButtonsHTML() + "</div>" : "";
+      }
       function renderSportsPage() {
         const root = byId("view");
         if (!state.sports && !state.sportsLoading) loadSports(false);
+        renderSportsTopbarTabs();
         const payload = state.sports || { events: [], leagues: [] };
         const events = filteredSportsEvents(payload);
-        const tabs = ["live", "upcoming", "favorites", "all"].map(function(tab) {
-          return "<button type=\"button\" data-sports-tab=\"" + tab + "\" class=\"" + (state.sportsTab === tab ? "active" : "") + "\" aria-pressed=\"" + (state.sportsTab === tab ? "true" : "false") + "\">" + escapeHTML(sportsTabLabel(tab)) + "</button>";
-        }).join("");
-        const refreshIcon = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" aria-hidden=\"true\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M20 12a8 8 0 0 1-14.1 5.15M4 12A8 8 0 0 1 18.1 6.85\"/><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M6 17.25H3.75V19.5M18 6.75h2.25V4.5\"/></svg>";
-        root.innerHTML = "<div class=\"sports-page\"><div class=\"sports-pinned\"><div class=\"sports-toolbar\"><div class=\"sports-filters\"><div class=\"view-toggle\" aria-label=\"Sports filter\">" + tabs + "</div></div><button class=\"refresh-button" + (state.sportsLoading ? " is-loading" : "") + "\" type=\"button\" data-sports-refresh=\"true\" aria-label=\"Refresh sports\" title=\"Refresh sports\">" + refreshIcon + "</button></div>"
-          + renderSportsLeagueFilters(payload)
+        root.innerHTML = "<div class=\"sports-page\"><div class=\"sports-pinned\">" + renderSportsLeagueFilters(payload)
           + (payload.error ? "<div class=\"sports-error\">" + escapeHTML(payload.error) + "</div>" : "")
           + (state.sportsLoading && !events.length ? "<div class=\"empty\">Loading sports...</div>" : "")
           + "</div><div class=\"sports-score-scroll\">"
@@ -2496,8 +2509,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         const leagues = items(payload && payload.leagues);
         if (!leagues.length) return "";
         const chips = ["<button class=\"chip" + (!state.sportsLeague ? " active" : "") + "\" data-sports-league=\"\">All leagues</button>"].concat(leagues.map(function(league) {
-          const count = Number(league.liveCount || 0) + Number(league.upcomingCount || 0);
-          const label = league.name + (count ? " " + count : "");
+          const label = league.name || league.id || "League";
           return "<button class=\"chip" + (state.sportsLeague === league.id ? " active" : "") + "\" data-sports-league=\"" + escapeHTML(league.id) + "\">" + escapeHTML(label) + "</button>";
         }));
         return "<div class=\"sports-leagues\">" + chips.join("") + "</div>";
@@ -4083,14 +4095,22 @@ const playerPageHTMLTemplate = `<!doctype html>
         const guideRefresh = event.target.closest("[data-guide-refresh]");
         if (guideRefresh) {
           event.preventDefault();
+          if (state.view === "sports") {
+            const buttons = Array.prototype.slice.call(document.querySelectorAll("[data-guide-refresh]"));
+            buttons.forEach(function(button) {
+              button.classList.add("is-loading");
+              button.disabled = true;
+            });
+            loadSports(true).finally(function() {
+              buttons.forEach(function(button) {
+                button.classList.remove("is-loading");
+                button.disabled = false;
+              });
+            });
+            renderSportsPage();
+            return;
+          }
           refreshAppData();
-          return;
-        }
-        const sportsRefresh = event.target.closest("[data-sports-refresh]");
-        if (sportsRefresh) {
-          event.preventDefault();
-          loadSports(true);
-          renderSportsPage();
           return;
         }
         const sportsTab = event.target.closest("[data-sports-tab]");
