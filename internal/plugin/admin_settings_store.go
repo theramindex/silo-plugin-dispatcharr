@@ -107,6 +107,10 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	ecmURL, _ := payload["ecmURL"].(string)
 	ecmURL = normalizeAdminECMURL(ecmURL)
 	categoryAliases := normalizeCategoryAliases(payload["categoryAliases"])
+	eventKeywords := normalizeEventKeywordRules(payload["eventKeywords"])
+	if len(eventKeywords) == 0 {
+		eventKeywords = defaultEventKeywordRules()
+	}
 
 	return map[string]any{
 		"mode":            mode,
@@ -114,6 +118,7 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 		"ecmEnabled":      ecmEnabled,
 		"ecmURL":          ecmURL,
 		"categoryAliases": categoryAliases,
+		"eventKeywords":   eventKeywords,
 	}
 }
 

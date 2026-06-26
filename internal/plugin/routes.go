@@ -184,6 +184,9 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return s.handleSports(ctx, request)
 	case "/dispatcharr/api/sports/favorites":
 		return s.handleSportsFavorite(request)
+	case "/dispatcharr/api/events":
+		s.ensureCatalogHydrated(ctx)
+		return s.handleEvents(ctx, request)
 	case "/dispatcharr/api/preferences":
 		return s.handlePreferences(request)
 	case "/dispatcharr/api/admin-settings":
@@ -1121,11 +1124,11 @@ const playerPageHTMLTemplate = `<!doctype html>
       .topbar { display: flex; align-items: center; justify-content: flex-end; gap: 0.65rem; margin-bottom: 0.85rem; position: sticky; top: 0; z-index: 5; background: linear-gradient(180deg, var(--bg) 70%, color-mix(in srgb, var(--bg) 0%, transparent)); padding-bottom: 0.65rem; }
       .shell.is-player .topbar, .shell.is-guide .topbar { display: none; }
       .sports-topbar-tabs { display: none; margin-right: auto; min-width: 0; }
-      .shell.is-sports .topbar { justify-content: flex-start; flex-wrap: wrap; }
-      .shell.is-sports .sports-topbar-tabs { display: inline-flex; }
-      .shell.is-sports .topbar .search { margin-left: auto; flex: 1 1 24rem; max-width: 32rem; }
-      .shell.is-sports .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
-      .shell.is-sports #view { min-height: 0; overflow: hidden; }
+      .shell.is-sports .topbar, .shell.is-events .topbar { justify-content: flex-start; flex-wrap: wrap; }
+      .shell.is-sports .sports-topbar-tabs, .shell.is-events .sports-topbar-tabs { display: inline-flex; }
+      .shell.is-sports .topbar .search, .shell.is-events .topbar .search { margin-left: auto; flex: 1 1 24rem; max-width: 32rem; }
+      .shell.is-sports .main, .shell.is-events .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
+      .shell.is-sports #view, .shell.is-events #view { min-height: 0; overflow: hidden; }
       .shell.is-multiview .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
       .shell.is-multiview #view { min-height: 0; overflow: hidden; }
       .shell.is-admin { grid-template-columns: minmax(0, 1fr); }
@@ -1204,6 +1207,13 @@ const playerPageHTMLTemplate = `<!doctype html>
       .sports-card-head span, .sports-status, .sports-channel small { color: var(--muted); font-size: 0.76rem; font-weight: 760; }
       .sports-league-pill { width: max-content; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid var(--line); border-radius: 999px; padding: 0.14rem 0.44rem; background: var(--rail-2); }
       .sports-status { border: 1px solid var(--line); border-radius: 999px; padding: 0.18rem 0.48rem; white-space: nowrap; background: var(--rail-2); }
+      .event-card-body { display: grid; grid-template-columns: 6.2rem minmax(0, 1fr); gap: 0.72rem; min-width: 0; align-items: stretch; }
+      .event-poster { border: 1px solid var(--line); border-radius: 0.58rem; background: var(--rail-2); min-height: 8rem; display: grid; place-items: center; overflow: hidden; color: var(--muted); font-size: 0.74rem; font-weight: 950; text-align: center; }
+      .event-poster img { width: 100%; height: 100%; object-fit: cover; }
+      .event-details { min-width: 0; display: grid; align-content: start; gap: 0.45rem; }
+      .event-details p { margin: 0; color: var(--muted); font-size: 0.78rem; font-weight: 720; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+      .event-meta { display: flex; flex-wrap: wrap; gap: 0.35rem; min-width: 0; }
+      .event-meta span { border: 1px solid var(--line); border-radius: 999px; background: var(--rail-2); color: var(--muted); padding: 0.16rem 0.44rem; font-size: 0.68rem; font-weight: 850; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
       .sports-matchup { grid-area: body; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 0.68rem; min-width: 0; min-height: 6.35rem; padding: 0.18rem 0; }
       .sports-match-team { position: relative; display: grid; justify-items: center; align-content: center; gap: 0.32rem; min-width: 0; text-align: center; }
       .sports-match-team-logo { width: clamp(2.85rem, 7vw, 4.35rem); height: clamp(2.85rem, 7vw, 4.35rem); object-fit: contain; border-radius: 999px; background: var(--rail-2); }
@@ -1233,8 +1243,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       .sports-error { color: var(--warn); font-size: 0.85rem; font-weight: 780; }
       @media (max-width: 900px) {
         .sports-page { height: auto; }
-        .shell.is-sports .main { display: block; overflow: auto; }
-        .shell.is-sports #view { overflow: visible; }
+        .shell.is-sports .main, .shell.is-events .main { display: block; overflow: auto; }
+        .shell.is-sports #view, .shell.is-events #view { overflow: visible; }
         .shell.is-multiview .main { display: block; overflow: auto; }
         .shell.is-multiview #view { overflow: visible; }
         .sports-score-scroll { overflow: visible; padding-right: 0; }
@@ -1410,7 +1420,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       .settings-card h2 { margin: 0 0 0.7rem; font-size: 1.05rem; }
       .settings-list { display: grid; gap: 0.55rem; }
       .settings-list label, .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--panel); border-radius: 0.65rem; padding: 0.7rem; }
-      .settings-row input, .settings-row select { min-width: 12rem; border: 1px solid var(--line); border-radius: 0.55rem; background: var(--rail-2); color: var(--text); padding: 0.45rem 0.55rem; }
+      .settings-row input, .settings-row select, .settings-row textarea { min-width: 12rem; border: 1px solid var(--line); border-radius: 0.55rem; background: var(--rail-2); color: var(--text); padding: 0.45rem 0.55rem; }
+      .settings-row textarea { width: 100%; min-height: 5.2rem; resize: vertical; line-height: 1.35; }
       .settings-row.ecm-url-row input { flex: 1 1 34rem; max-width: 42rem; }
       .settings-row input[type="checkbox"], .settings-list label input[type="checkbox"] { min-width: 0; width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
       .settings-row button, .settings-actions button { border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); padding: 0.45rem 0.7rem; font-weight: 820; }
@@ -1467,7 +1478,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         .shell.is-admin { display: grid; height: 100vh; }
         .rail { min-height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
         .topbar { position: static; }
-        .shell.is-sports .topbar .search { flex-basis: 100%; max-width: none; margin-left: 0; }
+        .shell.is-sports .topbar .search, .shell.is-events .topbar .search { flex-basis: 100%; max-width: none; margin-left: 0; }
         .admin-topbar { position: sticky; flex-wrap: wrap; padding: 0.75rem 1rem; }
         .admin-tabs { width: 100%; overflow-x: auto; justify-content: flex-start; }
         .admin-actions { margin-left: auto; }
@@ -1504,6 +1515,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           <button data-view="favorites"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0 6.25-9 11.25-9 11.25s-9-5-9-11.25A4.75 4.75 0 0 1 11.25 5 4.75 4.75 0 0 1 21 8.25Z"/></svg><span>Favorites</span> <small id="favorite-count">0</small></button>
           <button data-view="guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75h15M4.5 12h15M4.5 17.25h15M8.25 4.5v15M15.75 4.5v15"/></svg><span>TV Guide</span></button>
           <button data-view="sports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 4.75h9l2.75 5.25-7.25 9.25L4.75 10l2.75-5.25Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 4.75 12 10l4.5-5.25M4.75 10H19.25M12 10v9.25"/></svg><span>Sports</span></button>
+          <button data-view="events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7 4.75v2.5M17 4.75v2.5M5.25 9.5h13.5M6.5 6.25h11a1.75 1.75 0 0 1 1.75 1.75v9.5a1.75 1.75 0 0 1-1.75 1.75h-11a1.75 1.75 0 0 1-1.75-1.75V8A1.75 1.75 0 0 1 6.5 6.25Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m9 14 1.7 1.7L15.25 12"/></svg><span>Events</span></button>
           <button data-view="multiview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 5.75h6.25v5.75H4.5zM13.25 5.75h6.25v5.75h-6.25zM4.5 14h6.25v4.25H4.5zM13.25 14h6.25v4.25h-6.25z"/></svg><span>Multiview</span></button>
           <button data-view="recordings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20.25a8.25 8.25 0 1 0 0-16.5 8.25 8.25 0 0 0 0 16.5Zm0-4a4.25 4.25 0 1 1 0-8.5 4.25 4.25 0 0 1 0 8.5Z"/></svg><span>Recordings</span></button>
           <button data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8.25a3.75 3.75 0 1 1 0 7.5 3.75 3.75 0 0 1 0-7.5Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.23.64.84 1 1.51 1H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z"/></svg><span>Preferences</span></button>
@@ -1531,7 +1543,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuffix;
       const adminSettingsLocalKey = "silo.ramindex.dispatcharr.adminSettings.v1." + localCacheSuffix;
       const adminSettingsToken = "__ADMIN_SETTINGS_TOKEN__";
-      const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsTab: "live", sportsLeague: "", sportsExpandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
+      const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsTab: "live", sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
 
       function applySiloTheme() {
         const params = new URLSearchParams(window.location.search);
@@ -1605,8 +1617,16 @@ const playerPageHTMLTemplate = `<!doctype html>
         return { favorites: {}, favoriteOrder: [], autoFavorites: {}, hiddenCategories: {}, sportsFavoriteTeams: {}, recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, customGroups: [], customGroupMemberships: {} };
       }
       function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
+      function defaultEventKeywordRules() {
+        return [
+          { categoryId: "awards", categoryName: "Awards", keywords: ["Academy Awards", "The Oscars", "Oscars", "Tony Awards", "The Tonys", "Golden Globes", "Grammy Awards", "Grammys", "Emmy Awards", "Emmys", "CMA Awards", "ACM Awards", "Billboard Music Awards", "American Music Awards", "BET Awards", "MTV Video Music Awards", "Critics Choice Awards", "SAG Awards"] },
+          { categoryId: "civic", categoryName: "Civic", keywords: ["State of the Union", "Presidential Address", "Joint Session", "Inauguration", "Election Night", "Presidential Debate"] },
+          { categoryId: "parades", categoryName: "Parades", keywords: ["Thanksgiving Day Parade", "Macy's Thanksgiving Day Parade", "Rose Parade", "Christmas Parade"] },
+          { categoryId: "entertainment", categoryName: "Entertainment", keywords: ["Live Special", "Special Presentation", "Red Carpet", "Ceremony", "Tribute Concert", "Benefit Concert", "Festival"] }
+        ];
+      }
       function defaultAdminCategorySettings() {
-        return { mode: "normal", delimiter: "pipe", ecmEnabled: false, ecmURL: "", categoryAliases: [] };
+        return { mode: "normal", delimiter: "pipe", ecmEnabled: false, ecmURL: "", categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
       }
       function cloneAdminCategorySettings(settings) {
         try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -1688,6 +1708,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         state.adminCategorySettings.ecmEnabled = state.adminCategorySettings.ecmEnabled === true;
         state.adminCategorySettings.ecmURL = normalizeAdminECMURL(state.adminCategorySettings.ecmURL);
         state.adminCategorySettings.categoryAliases = normalizeCategoryAliases(state.adminCategorySettings.categoryAliases);
+        state.adminCategorySettings.eventKeywords = normalizeEventKeywordRows(state.adminCategorySettings.eventKeywords);
         delete state.adminCategorySettings.groupAliases;
         delete state.adminCategorySettings.adminGroups;
         delete state.adminCategorySettings.adminGroupMemberships;
@@ -1707,6 +1728,48 @@ const playerPageHTMLTemplate = `<!doctype html>
           seen[key] = true;
           return true;
         });
+      }
+      function normalizeEventKeywordRows(value) {
+        const defaults = defaultEventKeywordRules();
+        const rows = items(value).map(function(row) {
+          row = row || {};
+          const categoryId = normalizeEventCategoryId(row.categoryId || row.categoryName || "");
+          const categoryName = String(row.categoryName || eventCategoryName(categoryId)).trim();
+          const keywords = normalizeKeywordList(row.keywords);
+          return { categoryId: categoryId, categoryName: categoryName, keywords: keywords };
+        }).filter(function(row) { return row.categoryId && row.keywords.length; });
+        const byID = {};
+        defaults.concat(rows).forEach(function(row) {
+          const id = normalizeEventCategoryId(row.categoryId || row.categoryName);
+          if (!id) return;
+          const existing = byID[id] || { categoryId: id, categoryName: row.categoryName || eventCategoryName(id), keywords: [] };
+          existing.keywords = normalizeKeywordList(existing.keywords.concat(row.keywords || []));
+          byID[id] = existing;
+        });
+        return Object.keys(byID).sort(function(left, right) {
+          return eventCategoryName(left).localeCompare(eventCategoryName(right));
+        }).map(function(id) { return byID[id]; });
+      }
+      function normalizeKeywordList(value) {
+        const rows = Array.isArray(value) ? value : String(value || "").split(/[\n,]+/);
+        const seen = {};
+        return rows.map(function(item) { return String(item || "").trim(); }).filter(function(item) {
+          const key = lower(item);
+          if (!key || seen[key]) return false;
+          seen[key] = true;
+          return true;
+        });
+      }
+      function normalizeEventCategoryId(value) {
+        value = lower(String(value || "").replace(/[^a-z0-9]+/gi, " ")).trim();
+        if (value === "award") return "awards";
+        if (value === "politics" || value === "political") return "civic";
+        if (value === "parade") return "parades";
+        if (value === "special" || value === "specials") return "entertainment";
+        return value.replace(/\s+/g, "-");
+      }
+      function eventCategoryName(categoryId) {
+        return ({ awards: "Awards", civic: "Civic", parades: "Parades", entertainment: "Entertainment" })[categoryId] || String(categoryId || "Events");
       }
       function categoryAliases() {
         return normalizeCategoryAliases(adminSettings().categoryAliases);
@@ -2314,6 +2377,10 @@ const playerPageHTMLTemplate = `<!doctype html>
           state.category = "";
           loadSports(false);
         }
+        if (view === "events") {
+          state.category = "";
+          loadEvents(false);
+        }
         render();
       }
       function setCategory(id) {
@@ -2423,6 +2490,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         document.querySelector(".shell").classList.toggle("is-player", state.view === "player");
         document.querySelector(".shell").classList.toggle("is-guide", state.view === "guide");
         document.querySelector(".shell").classList.toggle("is-sports", state.view === "sports");
+        document.querySelector(".shell").classList.toggle("is-events", state.view === "events");
         document.querySelector(".shell").classList.toggle("is-multiview", state.view === "multiview");
         renderRail();
         renderSportsTopbarTabs();
@@ -2431,6 +2499,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         else if (state.view === "multiview") renderMultiviewPage();
         else if (state.view === "live" || state.view === "favorites") renderLivePage();
         else if (state.view === "sports") renderSportsPage();
+        else if (state.view === "events") renderEventsPage();
         else if (state.view === "recordings") renderRecordingsPage();
         else if (state.view === "admin") renderAdminPage();
         else if (state.view === "settings") renderSettings();
@@ -2492,7 +2561,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       function renderSportsTopbarTabs() {
         const root = byId("sports-topbar-tabs");
         if (!root) return;
-        root.innerHTML = state.view === "sports" ? "<div class=\"view-toggle\" aria-label=\"Sports filter\">" + sportsTabButtonsHTML() + "</div>" : "";
+        if (state.view === "sports") root.innerHTML = "<div class=\"view-toggle\" aria-label=\"Sports filter\">" + sportsTabButtonsHTML() + "</div>";
+        else if (state.view === "events") root.innerHTML = "<div class=\"view-toggle\" aria-label=\"Events filter\">" + eventTabButtonsHTML() + "</div>";
+        else root.innerHTML = "";
       }
       function renderSportsPage() {
         const root = byId("view");
@@ -2620,6 +2691,115 @@ const playerPageHTMLTemplate = `<!doctype html>
         savePrefs();
         renderSportsPage();
         postJSON("/dispatcharr/api/sports/favorites", { teamId: teamID, enabled: !!enabled }).catch(function() {});
+      }
+      function loadEvents(force) {
+        if (state.eventsLoading) return Promise.resolve(state.events || { events: [], categories: [] });
+        if (state.events && !force) return Promise.resolve(state.events);
+        state.eventsLoading = true;
+        return getJSON("/dispatcharr/api/events" + (force ? "?refresh=1" : "")).then(function(payload) {
+          state.events = payload || { events: [], categories: [] };
+          return state.events;
+        }).catch(function(error) {
+          if (!state.events) state.events = { events: [], categories: [], error: readableError(error) };
+          else state.events.error = readableError(error);
+          showAppToast("Could not refresh events.");
+          return state.events;
+        }).finally(function() {
+          state.eventsLoading = false;
+          if (state.view === "events") renderEventsPage();
+        });
+      }
+      function eventTabLabel(tab) {
+        return ({ live: "Live", upcoming: "Upcoming", all: "All" })[tab] || "Live";
+      }
+      function eventTabButtonsHTML() {
+        return ["upcoming", "live", "all"].map(function(tab) {
+          return "<button type=\"button\" data-event-tab=\"" + tab + "\" class=\"" + (state.eventsTab === tab ? "active" : "") + "\" aria-pressed=\"" + (state.eventsTab === tab ? "true" : "false") + "\">" + escapeHTML(eventTabLabel(tab)) + "</button>";
+        }).join("");
+      }
+      function renderEventsPage() {
+        const root = byId("view");
+        if (!state.events && !state.eventsLoading) loadEvents(false);
+        renderSportsTopbarTabs();
+        const payload = state.events || { events: [], categories: [] };
+        const events = filteredBroadcastEvents(payload);
+        root.innerHTML = "<div class=\"sports-page\"><div class=\"sports-pinned\">" + renderEventCategoryFilters(payload)
+          + (payload.error ? "<div class=\"sports-error\">" + escapeHTML(payload.error) + "</div>" : "")
+          + (state.eventsLoading && !events.length ? "<div class=\"empty\">Loading events...</div>" : "")
+          + "</div><div class=\"sports-score-scroll\">"
+          + (events.length ? "<div class=\"sports-board\">" + events.map(renderBroadcastEventCard).join("") + "</div>" : (!state.eventsLoading ? "<div class=\"empty\">No matching events.</div>" : ""))
+          + "</div>"
+          + "</div>";
+      }
+      function renderEventCategoryFilters(payload) {
+        const categories = items(payload && payload.categories);
+        if (!categories.length) return "";
+        const chips = ["<button class=\"chip" + (!state.eventCategory ? " active" : "") + "\" data-event-category=\"\">All events</button>"].concat(categories.map(function(category) {
+          const label = category.name || category.id || "Events";
+          return "<button class=\"chip" + (state.eventCategory === category.id ? " active" : "") + "\" data-event-category=\"" + escapeHTML(category.id) + "\">" + escapeHTML(label) + "</button>";
+        }));
+        return "<div class=\"sports-leagues\">" + chips.join("") + "</div>";
+      }
+      function filteredBroadcastEvents(payload) {
+        const now = Math.floor(Date.now() / 1000);
+        return items(payload && payload.events).filter(function(event) {
+          if (state.eventCategory && event.categoryId !== state.eventCategory) return false;
+          if (state.eventsTab === "live" && !event.live) return false;
+          const startUnix = Number(event.startUnix || 0);
+          if (state.eventsTab === "upcoming" && (event.completed || event.live || (startUnix > 0 && startUnix < now - 3600))) return false;
+          if (state.query && !broadcastEventMatchesQuery(event)) return false;
+          return true;
+        });
+      }
+      function broadcastEventMatchesQuery(event) {
+        const channels = items(event.channels).map(function(channel) { return [channel.name, channel.categoryName, channel.reason].join(" "); }).join(" ");
+        const text = [event.name, event.shortName, event.categoryName, event.keyword, event.description, channels].join(" ");
+        return lower(text).indexOf(lower(state.query)) !== -1;
+      }
+      function renderBroadcastEventCard(event) {
+        const status = eventStatusLabel(event);
+        const title = event.shortName || event.name || "Event";
+        const poster = "<span>" + escapeHTML((event.categoryName || "Event").slice(0, 14)) + "</span>";
+        const meta = [event.keyword ? "Matched: " + event.keyword : "", event.channels && event.channels.length ? event.channels.length + " channel" + (event.channels.length === 1 ? "" : "s") : ""].filter(Boolean).map(function(value) { return "<span>" + escapeHTML(value) + "</span>"; }).join("");
+        return "<article class=\"sports-card" + (event.live ? " live" : "") + "\"><div class=\"sports-card-head\"><div class=\"sports-card-title\"><span class=\"sports-league-pill\">" + escapeHTML(event.categoryName || "Events") + "</span><strong data-overflow-tooltip=\"" + escapeHTML(event.name || title) + "\">" + escapeHTML(title) + "</strong></div><div class=\"sports-status\">" + escapeHTML(status) + "</div></div>"
+          + "<div class=\"event-card-body\"><div class=\"event-poster\">" + poster + "</div><div class=\"event-details\"><p data-overflow-description=\"true\">" + escapeHTML(event.description || "No event details available.") + "</p><div class=\"event-meta\">" + meta + "</div></div></div>"
+          + renderBroadcastEventChannels(event)
+          + "</article>";
+      }
+      function eventStatusLabel(event) {
+        if (event.live) return "Live";
+        if (event.completed) return "Ended";
+        if (event.startUnix) return sportsDateLabel(event.startUnix);
+        return "Time TBD";
+      }
+      function renderBroadcastEventChannels(event) {
+        const channels = items(event.channels);
+        if (!channels.length) return "<div class=\"muted\">No matching channels.</div>";
+        const expanded = !!state.expandedEvents[event.id];
+        const visible = expanded ? channels : channels.slice(0, 3);
+        const hiddenCount = channels.length - visible.length;
+        const more = hiddenCount > 0 ? "<button class=\"sports-channel-more\" type=\"button\" data-event-expand=\"" + escapeHTML(event.id || "") + "\">+" + hiddenCount + " more</button>" : (expanded && channels.length > 3 ? "<button class=\"sports-channel-more\" type=\"button\" data-event-expand=\"" + escapeHTML(event.id || "") + "\">Show less</button>" : "");
+        return "<div class=\"sports-channels\">" + visible.map(function(channel) {
+          const meta = channel.categoryName || channel.reason || "Live TV";
+          return "<div class=\"sports-channel-wrap\"><button class=\"sports-channel\" type=\"button\" data-channel=\"" + escapeHTML(channel.id) + "\" title=\"" + escapeHTML(channel.reason || meta) + "\"><strong data-overflow-tooltip=\"" + escapeHTML(channel.name || "Channel") + "\">" + escapeHTML(channel.name || "Channel") + "</strong><small>" + escapeHTML(meta) + "</small></button><button class=\"sports-channel-multiview\" type=\"button\" data-multiview-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"Add " + escapeHTML(channel.name || "channel") + " to multiview\" title=\"Add to multiview\">" + icon("multiview") + "</button></div>";
+        }).join("") + more + "</div>";
+      }
+      function setEventTab(tab) {
+        state.eventsTab = tab || "live";
+        state.expandedEvents = {};
+        renderEventsPage();
+      }
+      function setEventCategory(categoryID) {
+        state.eventCategory = categoryID || "";
+        state.expandedEvents = {};
+        renderEventsPage();
+      }
+      function toggleBroadcastEventChannels(eventID) {
+        eventID = String(eventID || "");
+        if (!eventID) return;
+        if (state.expandedEvents[eventID]) delete state.expandedEvents[eventID];
+        else state.expandedEvents[eventID] = true;
+        renderEventsPage();
       }
       function favoriteCards(channels) {
         if (!channels.length) return "<div class=\"empty\">No favorite channels yet.</div>";
@@ -3433,6 +3613,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (state.adminTab !== "manager") {
           renderAdminCategorySettings();
           renderAdminCategoryAliasSettings();
+          renderAdminEventKeywordSettings();
           renderAdminECMSettings();
         }
       }
@@ -3462,6 +3643,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           + "<div class=\"settings-card\"><h2>Connection Status</h2>" + adminStatusPanel() + "</div>"
           + "<div class=\"settings-card\"><h2>Group method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
           + "<div class=\"settings-card\"><h2>Presentation Overrides</h2><div class=\"settings-note admin-status-note\">Alternative Group Names add alternate virtual group paths without changing the original Dispatcharr groups. The original group remains visible.</div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>"
+          + "<div class=\"settings-card\"><h2>Event Keywords</h2><div class=\"settings-note admin-status-note\">Events are detected from the Dispatcharr guide. One keyword per line or comma-separated.</div><div id=\"admin-event-keyword-settings\" class=\"settings-list\"></div></div>"
           + "<div class=\"settings-card\"><h2>ECM</h2><div id=\"admin-ecm-settings\" class=\"settings-list\"></div></div>"
           + "<div class=\"settings-card\"><h2>Preview</h2><div class=\"settings-preview\">" + adminCategoryPreview() + "</div></div>"
           + "";
@@ -3573,6 +3755,24 @@ const playerPageHTMLTemplate = `<!doctype html>
         root.innerHTML = (settings.mode !== "delimiter" ? "<div class=\"settings-note settings-warning\">Alternative group names apply when category mode is By delimiter.</div>" : "")
           + addRow
           + "<div class=\"alias-table\"><div class=\"alias-table-head\"><span>Source group</span><span>Channels</span><span>Alternative group name</span><span>Actions</span></div>" + (rows || "<div class=\"empty\">No alternative group names yet.</div>") + "</div>";
+      }
+      function renderAdminEventKeywordSettings() {
+        const root = byId("admin-event-keyword-settings");
+        if (!root) return;
+        const rows = normalizeEventKeywordRows(adminSettings().eventKeywords);
+        root.innerHTML = rows.map(function(row, index) {
+          return "<div class=\"settings-row event-keyword-row\"><span>" + escapeHTML(row.categoryName || eventCategoryName(row.categoryId)) + "</span><textarea data-admin-event-keyword-index=\"" + index + "\" aria-label=\"" + escapeHTML((row.categoryName || row.categoryId) + " event keywords") + "\">" + escapeHTML(row.keywords.join("\\n")) + "</textarea></div>";
+        }).join("");
+      }
+      function updateAdminEventKeywords(index, value) {
+        const settings = state.adminCategorySettings || defaultAdminCategorySettings();
+        const rows = normalizeEventKeywordRows(settings.eventKeywords);
+        if (!rows[index]) return;
+        rows[index] = Object.assign({}, rows[index], { keywords: normalizeKeywordList(value) });
+        settings.eventKeywords = rows;
+        state.adminCategorySettings = settings;
+        state.events = null;
+        markAdminSettingsDraft();
       }
       function adminCategoryPreview() {
         const categories = adminListingCategories("").slice(0, 8);
@@ -4113,6 +4313,21 @@ const playerPageHTMLTemplate = `<!doctype html>
             renderSportsPage();
             return;
           }
+          if (state.view === "events") {
+            const buttons = Array.prototype.slice.call(document.querySelectorAll("[data-guide-refresh]"));
+            buttons.forEach(function(button) {
+              button.classList.add("is-loading");
+              button.disabled = true;
+            });
+            loadEvents(true).finally(function() {
+              buttons.forEach(function(button) {
+                button.classList.remove("is-loading");
+                button.disabled = false;
+              });
+            });
+            renderEventsPage();
+            return;
+          }
           refreshAppData();
           return;
         }
@@ -4138,6 +4353,24 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (sportsFavorite) {
           event.preventDefault();
           toggleSportsTeamFavorite(sportsFavorite.getAttribute("data-sports-favorite-team"), sportsFavorite.getAttribute("data-sports-favorite-enabled") === "true");
+          return;
+        }
+        const eventTab = event.target.closest("[data-event-tab]");
+        if (eventTab) {
+          event.preventDefault();
+          setEventTab(eventTab.getAttribute("data-event-tab"));
+          return;
+        }
+        const eventCategory = event.target.closest("[data-event-category]");
+        if (eventCategory) {
+          event.preventDefault();
+          setEventCategory(eventCategory.getAttribute("data-event-category"));
+          return;
+        }
+        const eventExpand = event.target.closest("[data-event-expand]");
+        if (eventExpand) {
+          event.preventDefault();
+          toggleBroadcastEventChannels(eventExpand.getAttribute("data-event-expand"));
           return;
         }
         const recordingPlayback = event.target.closest("[data-recording-playback]");
@@ -4313,6 +4546,11 @@ const playerPageHTMLTemplate = `<!doctype html>
           state.volume = Number(event.target.value || 0) / 100;
           applyVolumeToVideo();
           syncMultiviewAudio();
+        }
+        const adminEventKeywordIndex = event.target.getAttribute("data-admin-event-keyword-index");
+        if (adminEventKeywordIndex !== null) {
+          updateAdminEventKeywords(Number(adminEventKeywordIndex), event.target.value || "");
+          return;
         }
         if (event.target && event.target.id === "custom-group-channel-search") {
           state.customGroupQuery = event.target.value || "";
