@@ -248,8 +248,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if !strings.Contains(body, `const recent = recentChannels(10);`) {
 		t.Fatalf("expected home guide to be based on up to 10 continue-watching channels")
 	}
-	if !strings.Contains(body, `sectionHeader("Continue watching") + rowCards(recent.length ? recent : visibleChannels(false).slice(0, 6)) + sectionHeader("TV Guide") + renderHomeGuide(recent) + categoryGrid()`) {
-		t.Fatalf("expected home page order to be continue watching, TV guide, then group sections")
+	if !strings.Contains(body, `sectionHeader("Continue watching") + rowCards(recent.length ? recent : visibleChannels(false).slice(0, 6)) + renderHomeGuide(recent) + categoryGrid()`) {
+		t.Fatalf("expected home page order to be continue watching, guide grid, then group sections")
 	}
 	virtualHeaderIndex := strings.Index(body, `byId("view").innerHTML = virtualFolderHeader(path, featured)`)
 	virtualChildrenIndex := strings.Index(body, `+ (children.length ? "<div class=\"category-grid\">`)
@@ -514,7 +514,7 @@ func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
 		`function moveFavorite(channelID, direction)`,
 		`data-favorite-move=\"up\"`,
 		`data-favorite-move=\"down\"`,
-		`clip-path: inset(0 round 0.55rem);`,
+		`clip-path: inset(0);`,
 		`.epg-cell .epg-play { position: absolute; inset: 0;`,
 		`max-width: 100%; overflow: hidden; white-space: nowrap;`,
 	} {
@@ -674,7 +674,7 @@ JSON.stringify((function() {
 	const epgHTML = renderEPGCells(channel, 0);
 	const epgProgramCells = epgHTML.split('style="left: calc(').slice(1).map(function(part) {
 		const pieces = part.split(' * var(--epg-slot)); width: calc(');
-		const widthPart = pieces[1] ? pieces[1].split(' * var(--epg-slot) - 0.25rem);')[0] : "";
+		const widthPart = pieces[1] ? pieces[1].split(' * var(--epg-slot) - 0.0625rem);')[0] : "";
 		return { left: Number(pieces[0]), width: Number(widthPart) };
 	});
 	const epgOverlapResolved = epgProgramCells.length >= 2 && epgProgramCells[1].left + 0.001 >= epgProgramCells[0].left + epgProgramCells[0].width;
