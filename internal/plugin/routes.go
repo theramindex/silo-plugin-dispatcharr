@@ -1008,7 +1008,8 @@ func htmlResponse(status int, body string) *pluginv1.HandleHTTPResponse {
 	return &pluginv1.HandleHTTPResponse{
 		StatusCode: int32(status),
 		Headers: map[string]string{
-			"content-type": "text/html; charset=utf-8",
+			"cache-control": "no-store",
+			"content-type":  "text/html; charset=utf-8",
 		},
 		Body: []byte(body),
 	}

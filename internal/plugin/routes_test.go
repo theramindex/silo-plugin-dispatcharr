@@ -158,6 +158,9 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if response.GetStatusCode() != 200 {
 		t.Fatalf("expected 200, got %d", response.GetStatusCode())
 	}
+	if response.GetHeaders()["cache-control"] != "no-store" {
+		t.Fatalf("expected app shell to disable browser caching, got %q", response.GetHeaders()["cache-control"])
+	}
 	body := string(response.GetBody())
 	for _, want := range []string{
 		`function sourceVirtualChildCategories(parentPath, includeChannel)`,
