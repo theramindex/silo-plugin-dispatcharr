@@ -393,6 +393,15 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	if strings.Contains(body, `https://`+`ecm.ramindex.org`) {
 		t.Fatal("expected admin page not to include a hardcoded ECM URL")
 	}
+	for _, removed := range []string{
+		`Admin-only status panel. No usernames, passwords, or API keys are shown.`,
+		`<div class=\"settings-card\"><h2>Preview</h2>`,
+		`function adminCategoryPreview()`,
+	} {
+		if strings.Contains(body, removed) {
+			t.Fatalf("expected admin page to omit removed settings clutter %q", removed)
+		}
+	}
 	for _, hidden := range []string{`<span>Home</span>`, `<span>Favorites</span>`, `<span>TV Guide</span>`, `<span>Preferences</span>`} {
 		if strings.Contains(body, hidden) {
 			t.Fatalf("expected admin page shell to hide user nav marker %q", hidden)
