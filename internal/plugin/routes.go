@@ -1120,6 +1120,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       .shell.is-player .main { padding: 0; overflow: hidden; background: #050505; }
       .topbar { display: flex; align-items: center; justify-content: flex-end; gap: 0.65rem; margin-bottom: 0.85rem; position: sticky; top: 0; z-index: 5; background: linear-gradient(180deg, var(--bg) 70%, color-mix(in srgb, var(--bg) 0%, transparent)); padding-bottom: 0.65rem; }
       .shell.is-player .topbar, .shell.is-guide .topbar { display: none; }
+      .shell.is-sports .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
+      .shell.is-sports #view { min-height: 0; overflow: hidden; }
       .shell.is-admin { grid-template-columns: minmax(0, 1fr); }
       .shell.is-admin .rail { display: none; }
       .shell.is-admin .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; padding: 0; }
@@ -1179,14 +1181,16 @@ const playerPageHTMLTemplate = `<!doctype html>
       .tile:hover, .tile.active { background: var(--panel-2); }
       .tile strong { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.08; text-wrap: balance; }
       .tile span { display: block; color: var(--muted); font-size: 0.76rem; font-weight: 760; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .sports-page { display: grid; gap: 0.7rem; max-width: min(74rem, 100%); }
+      .sports-page { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 0.7rem; min-height: 0; height: 100%; max-width: min(92rem, 100%); }
+      .sports-pinned { display: grid; gap: 0.7rem; min-width: 0; }
       .sports-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
       .sports-filters { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
       .sports-leagues { display: flex; align-items: center; gap: 0.45rem; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 0.1rem; scrollbar-width: thin; }
       .sports-leagues .chip { flex: 0 0 auto; }
       .sports-leagues .chip.active { background: var(--panel-2); color: var(--text); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
-      .sports-board { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
-      .sports-card { border: 1px solid var(--line); border-radius: 0.65rem; background: var(--panel); padding: 0.68rem 0.75rem; display: grid; grid-template-columns: minmax(0, 1fr) minmax(14rem, 22rem); grid-template-areas: "head channels" "body channels"; align-items: center; gap: 0.5rem 0.8rem; min-width: 0; }
+      .sports-score-scroll { min-height: 0; overflow: auto; padding: 0.05rem 0.15rem 1rem 0; scrollbar-width: thin; }
+      .sports-board { display: grid; grid-template-columns: repeat(2, minmax(18rem, 1fr)); gap: 0.65rem; align-items: start; }
+      .sports-card { border: 1px solid var(--line); border-radius: 0.65rem; background: var(--panel); padding: 0.74rem 0.78rem; display: grid; grid-template-areas: "head" "body" "channels"; align-items: stretch; gap: 0.62rem; min-width: 0; }
       .sports-card.live { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: color-mix(in srgb, var(--green) 9%, var(--panel)); }
       .sports-card-head { grid-area: head; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-width: 0; }
       .sports-card-title { display: grid; gap: 0.1rem; min-width: 0; }
@@ -1203,8 +1207,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       .sports-team-favorite { width: 1.7rem; height: 1.7rem; border: 1px solid var(--line); border-radius: 999px; background: var(--rail-2); color: var(--muted); display: inline-grid; place-items: center; font-weight: 900; }
       .sports-team-favorite.active, .sports-team-favorite:hover { background: var(--panel-2); color: var(--warn); }
       .sports-team-favorite.placeholder { opacity: 0; pointer-events: none; }
-      .sports-channels { grid-area: channels; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.35rem; min-width: 0; }
-      .sports-channel, .sports-channel-more { border: 1px solid var(--line); border-radius: 0.55rem; background: var(--rail-2); color: var(--text); padding: 0.38rem 0.5rem; display: grid; gap: 0.1rem; max-width: min(10.75rem, 100%); text-align: left; }
+      .sports-channels { grid-area: channels; display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 0.35rem; min-width: 0; }
+      .sports-channel, .sports-channel-more { border: 1px solid var(--line); border-radius: 0.55rem; background: var(--rail-2); color: var(--text); padding: 0.38rem 0.5rem; display: grid; gap: 0.1rem; max-width: min(12rem, 100%); text-align: left; }
       .sports-channel:hover { background: var(--panel-2); }
       .sports-channel strong, .sports-channel small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .sports-channel strong { font-size: 0.78rem; }
@@ -1212,11 +1216,14 @@ const playerPageHTMLTemplate = `<!doctype html>
       .sports-channel-more { place-items: center; color: var(--muted); font-size: 0.78rem; font-weight: 850; white-space: nowrap; }
       .sports-channel-more:hover { background: var(--panel-2); color: var(--text); }
       .sports-error { color: var(--warn); font-size: 0.85rem; font-weight: 780; }
-      @media (max-width: 760px) {
-        .sports-card { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "body" "channels"; align-items: stretch; }
+      @media (max-width: 900px) {
+        .sports-page { height: auto; }
+        .shell.is-sports .main { display: block; overflow: auto; }
+        .shell.is-sports #view { overflow: visible; }
+        .sports-score-scroll { overflow: visible; padding-right: 0; }
+        .sports-board { grid-template-columns: minmax(0, 1fr); }
         .sports-card-head { align-items: flex-start; }
         .sports-status { align-self: start; }
-        .sports-channels { justify-content: flex-start; }
         .sports-channel, .sports-channel-more { max-width: min(13rem, 100%); }
       }
       .channel-button-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.5rem; }
@@ -2297,6 +2304,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (state.view === "admin" && !isAdminRoute) state.view = "home";
         document.querySelector(".shell").classList.toggle("is-player", state.view === "player");
         document.querySelector(".shell").classList.toggle("is-guide", state.view === "guide");
+        document.querySelector(".shell").classList.toggle("is-sports", state.view === "sports");
         renderRail();
         if (state.view === "guide") renderGuidePage();
         else if (state.view === "player") renderPlayerPage();
@@ -2362,11 +2370,13 @@ const playerPageHTMLTemplate = `<!doctype html>
           return "<button type=\"button\" data-sports-tab=\"" + tab + "\" class=\"" + (state.sportsTab === tab ? "active" : "") + "\" aria-pressed=\"" + (state.sportsTab === tab ? "true" : "false") + "\">" + escapeHTML(sportsTabLabel(tab)) + "</button>";
         }).join("");
         const refreshIcon = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" aria-hidden=\"true\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M20 12a8 8 0 0 1-14.1 5.15M4 12A8 8 0 0 1 18.1 6.85\"/><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M6 17.25H3.75V19.5M18 6.75h2.25V4.5\"/></svg>";
-        root.innerHTML = "<div class=\"sports-page\"><div class=\"sports-toolbar\"><div class=\"sports-filters\"><div class=\"view-toggle\" aria-label=\"Sports filter\">" + tabs + "</div></div><button class=\"refresh-button" + (state.sportsLoading ? " is-loading" : "") + "\" type=\"button\" data-sports-refresh=\"true\" aria-label=\"Refresh sports\" title=\"Refresh sports\">" + refreshIcon + "</button></div>"
+        root.innerHTML = "<div class=\"sports-page\"><div class=\"sports-pinned\"><div class=\"sports-toolbar\"><div class=\"sports-filters\"><div class=\"view-toggle\" aria-label=\"Sports filter\">" + tabs + "</div></div><button class=\"refresh-button" + (state.sportsLoading ? " is-loading" : "") + "\" type=\"button\" data-sports-refresh=\"true\" aria-label=\"Refresh sports\" title=\"Refresh sports\">" + refreshIcon + "</button></div>"
           + renderSportsLeagueFilters(payload)
           + (payload.error ? "<div class=\"sports-error\">" + escapeHTML(payload.error) + "</div>" : "")
           + (state.sportsLoading && !events.length ? "<div class=\"empty\">Loading sports...</div>" : "")
+          + "</div><div class=\"sports-score-scroll\">"
           + (events.length ? "<div class=\"sports-board\">" + events.map(renderSportsEventCard).join("") + "</div>" : (!state.sportsLoading ? "<div class=\"empty\">No sports matches.</div>" : ""))
+          + "</div>"
           + "</div>";
       }
       function renderSportsLeagueFilters(payload) {
