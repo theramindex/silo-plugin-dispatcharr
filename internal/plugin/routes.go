@@ -1096,21 +1096,25 @@ const playerPageHTMLTemplate = `<!doctype html>
       body { margin: 0; min-height: 100vh; overflow: hidden; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
       button, input, select { font: inherit; }
       button { cursor: pointer; }
-      .shell { display: grid; grid-template-columns: 17rem minmax(0, 1fr); height: 100vh; }
+      .shell { display: grid; grid-template-columns: minmax(0, 1fr); height: 100vh; }
       .shell.is-player { grid-template-columns: minmax(0, 1fr); background: #050505; }
-      .rail { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--line); background: linear-gradient(135deg, #19191a, #201e20); padding: 1rem; }
+      .rail { display: none; }
       .shell.is-player .rail { display: none; }
-      .brand { display: flex; align-items: center; gap: 0.65rem; margin-bottom: 1.25rem; }
+      .brand { display: flex; align-items: center; gap: 0.65rem; min-width: max-content; }
       .brand h1 { margin: 0; font-size: 1.55rem; font-weight: 900; letter-spacing: 0; }
       .back { width: 2.25rem; height: 2.25rem; color: var(--muted); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; display: inline-grid; place-items: center; flex: 0 0 auto; }
       .back:hover { color: var(--text); background: var(--panel); }
       .back svg { width: 1.05rem; height: 1.05rem; display: block; }
       .source-icon { width: 1.45rem; height: 1.45rem; border-radius: 999px; display: inline-grid; place-items: center; background: var(--accent); color: var(--on-accent); }
-      .nav { display: grid; gap: 0.28rem; margin-bottom: 1rem; }
-      .nav button { width: 100%; border: 0; border-radius: 0.65rem; background: transparent; color: var(--muted); display: flex; align-items: center; gap: 0.65rem; padding: 0.7rem 0.72rem; text-align: left; font-weight: 750; }
+      .nav { display: inline-flex; align-items: center; gap: 0.22rem; min-width: 0; padding: 0.2rem; border: 1px solid var(--line); border-radius: 999px; background: var(--rail-2); }
+      .nav button { border: 0; border-radius: 999px; background: transparent; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; min-height: 2.2rem; padding: 0 0.75rem; white-space: nowrap; text-align: left; font-weight: 820; }
       .nav button.active, .nav button:hover { background: var(--panel-2); color: var(--text); }
       .nav svg { width: 1.15rem; height: 1.15rem; flex: 0 0 auto; stroke-width: 1.9; }
-      .nav small { margin-left: auto; color: var(--muted); }
+      .nav small { color: var(--muted); }
+      .topnav-menu { position: relative; display: inline-flex; }
+      .topnav-submenu { position: absolute; top: calc(100% + 0.45rem); left: 0; z-index: 10; display: none; min-width: 11rem; padding: 0.28rem; border: 1px solid var(--line); border-radius: 0.8rem; background: color-mix(in srgb, var(--rail-2) 94%, transparent); box-shadow: 0 1rem 2rem rgba(0,0,0,0.28); backdrop-filter: blur(18px); }
+      .topnav-menu:hover .topnav-submenu, .topnav-menu:focus-within .topnav-submenu { display: grid; gap: 0.18rem; }
+      .topnav-submenu button { width: 100%; justify-content: flex-start; }
       .channel-row { width: 100%; border: 0; border-radius: 0.75rem; background: transparent; color: var(--text); display: grid; grid-template-columns: 3.1rem minmax(0, 1fr) 1.8rem; align-items: center; gap: 0.65rem; padding: 0.45rem; text-align: left; }
       .channel-row:hover, .channel-row.active { background: var(--panel-2); }
       .logo { width: 3rem; height: 2.05rem; object-fit: contain; border-radius: 0.5rem; background: var(--rail); }
@@ -1121,12 +1125,14 @@ const playerPageHTMLTemplate = `<!doctype html>
       .star { color: var(--warn); font-size: 1rem; }
       .main { min-width: 0; overflow: auto; padding: 1rem 1.25rem 2rem; }
       .shell.is-player .main { padding: 0; overflow: hidden; background: #050505; }
-      .topbar { display: flex; align-items: center; justify-content: flex-end; gap: 0.65rem; margin-bottom: 0.85rem; position: sticky; top: 0; z-index: 5; background: linear-gradient(180deg, var(--bg) 70%, color-mix(in srgb, var(--bg) 0%, transparent)); padding-bottom: 0.65rem; }
-      .shell.is-player .topbar, .shell.is-guide .topbar, .shell.is-search .topbar { display: none; }
-      .sports-topbar-tabs { display: none; margin-right: auto; min-width: 0; }
-      .shell.is-sports .topbar, .shell.is-events .topbar { justify-content: flex-start; flex-wrap: wrap; }
+      .topbar { display: flex; align-items: center; flex-wrap: wrap; gap: 0.65rem 0.8rem; margin: -1rem -1.25rem 1rem; position: sticky; top: 0; z-index: 8; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, var(--bg) 86%, color-mix(in srgb, var(--bg) 0%, transparent)); padding: 0.85rem 1.25rem; }
+      .shell.is-player .topbar { display: none; }
+      .topbar-primary { display: flex; align-items: center; gap: 0.9rem; min-width: 0; flex: 1 1 auto; }
+      .topbar-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 0.55rem; min-width: 0; margin-left: auto; }
+      .sports-topbar-tabs { display: none; order: 3; flex: 1 1 100%; min-width: 0; }
+      .shell.is-sports .topbar, .shell.is-events .topbar { justify-content: flex-start; }
       .shell.is-sports .sports-topbar-tabs, .shell.is-events .sports-topbar-tabs { display: inline-flex; }
-      .shell.is-sports .topbar .search, .shell.is-events .topbar .search { margin-left: auto; flex: 1 1 24rem; max-width: 32rem; }
+      .shell.is-sports .topbar .search, .shell.is-events .topbar .search { flex: 1 1 18rem; max-width: 32rem; }
       .shell.is-sports .main, .shell.is-events .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
       .shell.is-sports #view, .shell.is-events #view { min-height: 0; overflow: hidden; }
       .shell.is-multiview .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
@@ -1509,8 +1515,11 @@ const playerPageHTMLTemplate = `<!doctype html>
         body { overflow: auto; }
         .shell { display: block; height: auto; }
         .shell.is-admin { display: grid; height: 100vh; }
-        .rail { min-height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
         .topbar { position: static; }
+        .topbar-primary { flex: 1 1 100%; flex-wrap: wrap; }
+        .nav { width: 100%; overflow-x: auto; justify-content: flex-start; }
+        .topbar-actions { flex: 1 1 100%; margin-left: 0; }
+        .topbar-actions .search { flex: 1 1 16rem; }
         .shell.is-sports .topbar .search, .shell.is-events .topbar .search { flex-basis: 100%; max-width: none; margin-left: 0; }
         .admin-topbar { position: sticky; flex-wrap: wrap; padding: 0.75rem 1rem; }
         .admin-tabs { width: 100%; overflow-x: auto; justify-content: flex-start; }
@@ -1538,32 +1547,41 @@ const playerPageHTMLTemplate = `<!doctype html>
   </head>
   <body>
     <div class="shell __ROUTE_CLASS__">
-      <aside class="rail">
-        <div class="brand">
-          <a class="back" href="/" aria-label="Back to Silo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg></a>
-          <h1>__APP_TITLE__</h1>
-        </div>
-        <!-- USER_NAV_START --><nav class="nav" aria-label="Dispatcharr views">
-          <button class="active" data-view="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 10.75 12 4l8.25 6.75M6.25 9.25v9.5h11.5v-9.5M9.75 18.75v-5h4.5v5"/></svg><span>Home</span></button>
-          <button data-view="favorites"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0 6.25-9 11.25-9 11.25s-9-5-9-11.25A4.75 4.75 0 0 1 11.25 5 4.75 4.75 0 0 1 21 8.25Z"/></svg><span>Favorites</span> <small id="favorite-count">0</small></button>
-          <button data-view="guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75h15M4.5 12h15M4.5 17.25h15M8.25 4.5v15M15.75 4.5v15"/></svg><span>TV Guide</span></button>
-          <button data-view="sports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 4.75h9l2.75 5.25-7.25 9.25L4.75 10l2.75-5.25Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 4.75 12 10l4.5-5.25M4.75 10H19.25M12 10v9.25"/></svg><span>Sports</span></button>
-          <button data-view="events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7 4.75v2.5M17 4.75v2.5M5.25 9.5h13.5M6.5 6.25h11a1.75 1.75 0 0 1 1.75 1.75v9.5a1.75 1.75 0 0 1-1.75 1.75h-11a1.75 1.75 0 0 1-1.75-1.75V8A1.75 1.75 0 0 1 6.5 6.25Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m9 14 1.7 1.7L15.25 12"/></svg><span>Events</span></button>
-          <button data-view="multiview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 5.75h6.25v5.75H4.5zM13.25 5.75h6.25v5.75h-6.25zM4.5 14h6.25v4.25H4.5zM13.25 14h6.25v4.25h-6.25z"/></svg><span>Multiview</span></button>
-          <button data-view="recordings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20.25a8.25 8.25 0 1 0 0-16.5 8.25 8.25 0 0 0 0 16.5Zm0-4a4.25 4.25 0 1 1 0-8.5 4.25 4.25 0 0 1 0 8.5Z"/></svg><span>Recordings</span></button>
-          <button data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8.25a3.75 3.75 0 1 1 0 7.5 3.75 3.75 0 0 1 0-7.5Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.23.64.84 1 1.51 1H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z"/></svg><span>Preferences</span></button>
-        </nav><!-- USER_NAV_END -->
-      </aside>
       <main class="main">
         <!-- USER_TOPBAR_START --><div class="topbar">
+          <div class="topbar-primary">
+            <div class="brand">
+              <a class="back" href="/" aria-label="Back to Silo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg></a>
+              <h1>__APP_TITLE__</h1>
+            </div>
+            <!-- USER_NAV_START --><nav class="nav topnav" aria-label="Live TV sections">
+              <button class="active" data-view="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 10.75 12 4l8.25 6.75M6.25 9.25v9.5h11.5v-9.5M9.75 18.75v-5h4.5v5"/></svg><span>Home</span></button>
+              <button data-view="guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75h15M4.5 12h15M4.5 17.25h15M8.25 4.5v15M15.75 4.5v15"/></svg><span>Guide</span></button>
+              <button data-view="sports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 4.75h9l2.75 5.25-7.25 9.25L4.75 10l2.75-5.25Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 4.75 12 10l4.5-5.25M4.75 10H19.25M12 10v9.25"/></svg><span>Sports</span></button>
+              <button data-view="events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7 4.75v2.5M17 4.75v2.5M5.25 9.5h13.5M6.5 6.25h11a1.75 1.75 0 0 1 1.75 1.75v9.5a1.75 1.75 0 0 1-1.75 1.75h-11a1.75 1.75 0 0 1-1.75-1.75V8A1.75 1.75 0 0 1 6.5 6.25Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m9 14 1.7 1.7L15.25 12"/></svg><span>Events</span></button>
+              <button data-view="multiview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 5.75h6.25v5.75H4.5zM13.25 5.75h6.25v5.75h-6.25zM4.5 14h6.25v4.25H4.5zM13.25 14h6.25v4.25h-6.25z"/></svg><span>Multiview</span></button>
+              <div class="topnav-menu">
+                <button data-view="favorites" data-active-views="favorites recordings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0 6.25-9 11.25-9 11.25s-9-5-9-11.25A4.75 4.75 0 0 1 11.25 5 4.75 4.75 0 0 1 21 8.25Z"/></svg><span>My Stuff</span><small id="favorite-count">0</small></button>
+                <div class="topnav-submenu">
+                  <button data-view="favorites">Favorites</button>
+                  <button data-view="recordings">Recordings</button>
+                </div>
+              </div>
+            </nav><!-- USER_NAV_END -->
+          </div>
           <div id="sports-topbar-tabs" class="sports-topbar-tabs"></div>
-          <button id="guide-refresh" class="refresh-button" type="button" data-guide-refresh="true" aria-label="Refresh guide" title="Refresh guide">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20 12a8 8 0 0 1-14.1 5.15M4 12A8 8 0 0 1 18.1 6.85"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 17.25H3.75V19.5M18 6.75h2.25V4.5"/></svg>
-          </button>
-          <button id="app-search-button" class="topbar-icon" type="button" data-view="search" aria-label="Search Live TV" title="Search Live TV">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m20 20-4.5-4.5M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"/></svg>
-          </button>
-          <input id="global-search" class="search" placeholder="Search by program or channel">
+          <div class="topbar-actions">
+            <button id="guide-refresh" class="refresh-button" type="button" data-guide-refresh="true" aria-label="Refresh guide" title="Refresh guide">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20 12a8 8 0 0 1-14.1 5.15M4 12A8 8 0 0 1 18.1 6.85"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 17.25H3.75V19.5M18 6.75h2.25V4.5"/></svg>
+            </button>
+            <button id="app-search-button" class="topbar-icon" type="button" data-view="search" aria-label="Search Live TV" title="Search Live TV">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m20 20-4.5-4.5M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"/></svg>
+            </button>
+            <input id="global-search" class="search" placeholder="Search by program or channel">
+            <button class="topbar-icon" type="button" data-view="settings" aria-label="Preferences" title="Preferences">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8.25a3.75 3.75 0 1 1 0 7.5 3.75 3.75 0 0 1 0-7.5Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.23.64.84 1 1.51 1H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z"/></svg>
+            </button>
+          </div>
         </div><!-- USER_TOPBAR_END -->
         <div id="view"><div class="empty">Loading Live TV...</div></div>
       </main>
@@ -2515,10 +2533,11 @@ const playerPageHTMLTemplate = `<!doctype html>
         }
       }
       function renderRail() {
-        document.querySelectorAll(".nav button").forEach(function(button) {
+        document.querySelectorAll("[data-view]").forEach(function(button) {
           const unavailable = button.dataset.view === "recordings" && !dvrEnabled();
+          const activeViews = String(button.dataset.activeViews || button.dataset.view || "").split(/\s+/).filter(Boolean);
           button.hidden = unavailable;
-          button.classList.toggle("active", !unavailable && button.dataset.view === state.view);
+          button.classList.toggle("active", !unavailable && activeViews.indexOf(state.view) !== -1);
         });
         const favoriteCount = byId("favorite-count");
         if (favoriteCount) favoriteCount.textContent = Object.keys(favoriteMap()).length + Object.keys(autoFavoriteMap()).length;
@@ -4806,7 +4825,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           }
         }
       });
-      document.querySelectorAll(".nav button").forEach(function(button) {
+      document.querySelectorAll("[data-view]").forEach(function(button) {
         button.onclick = function() { setView(button.dataset.view); };
       });
       const appSearchButton = byId("app-search-button");

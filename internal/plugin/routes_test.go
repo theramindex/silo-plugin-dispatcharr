@@ -169,10 +169,13 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`const rootLabel = featured ? "Featured Groups" : "Virtual Groups"`,
 		`const showSourceCategorySettings = !virtualCategoriesActive()`,
 		`Saved on this device, but not to your Silo profile.`,
-		`<span>Preferences</span>`,
+		`aria-label="Live TV sections"`,
+		`<span>Guide</span>`,
+		`<span>My Stuff</span>`,
 		`<span>Sports</span>`,
 		`<span>Events</span>`,
 		`<span>Multiview</span>`,
+		`aria-label="Preferences"`,
 		`id="sports-topbar-tabs"`,
 		`id="app-search-button"`,
 		`data-view="search"`,
@@ -417,7 +420,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 			t.Fatalf("expected admin page to omit removed settings clutter %q", removed)
 		}
 	}
-	for _, hidden := range []string{`<span>Home</span>`, `<span>Favorites</span>`, `<span>TV Guide</span>`, `<span>Preferences</span>`} {
+	for _, hidden := range []string{`<span>Home</span>`, `<span>My Stuff</span>`, `<span>Guide</span>`, `aria-label="Live TV sections"`} {
 		if strings.Contains(body, hidden) {
 			t.Fatalf("expected admin page shell to hide user nav marker %q", hidden)
 		}
@@ -1487,7 +1490,7 @@ func TestHTTPRoutesServerPlayerRoute(t *testing.T) {
 	if response.GetStatusCode() != 200 {
 		t.Fatalf("expected 200, got %d", response.GetStatusCode())
 	}
-	if !strings.Contains(string(response.GetBody()), "TV Guide") {
+	if !strings.Contains(string(response.GetBody()), `aria-label="Live TV sections"`) {
 		t.Fatalf("expected app shell html body")
 	}
 	if !strings.Contains(string(response.GetBody()), `href="/" aria-label="Back to Silo"`) {
