@@ -1122,6 +1122,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       .shell.is-player .topbar, .shell.is-guide .topbar { display: none; }
       .shell.is-sports .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
       .shell.is-sports #view { min-height: 0; overflow: hidden; }
+      .shell.is-multiview .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
+      .shell.is-multiview #view { min-height: 0; overflow: hidden; }
       .shell.is-admin { grid-template-columns: minmax(0, 1fr); }
       .shell.is-admin .rail { display: none; }
       .shell.is-admin .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; padding: 0; }
@@ -1213,7 +1215,11 @@ const playerPageHTMLTemplate = `<!doctype html>
       .sports-team-favorite.active, .sports-team-favorite:hover { background: var(--panel-2); color: var(--warn); }
       .sports-team-favorite.placeholder { opacity: 0; pointer-events: none; }
       .sports-channels { grid-area: channels; display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 0.35rem; min-width: 0; }
+      .sports-channel-wrap { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.25rem; max-width: min(15rem, 100%); min-width: min(12rem, 100%); }
       .sports-channel, .sports-channel-more { border: 1px solid var(--line); border-radius: 0.55rem; background: var(--rail-2); color: var(--text); padding: 0.38rem 0.5rem; display: grid; gap: 0.1rem; max-width: min(12rem, 100%); text-align: left; }
+      .sports-channel { max-width: none; min-width: 0; }
+      .sports-channel-multiview { width: 2.15rem; border: 1px solid var(--line); border-radius: 0.55rem; background: var(--rail-2); color: var(--muted); display: grid; place-items: center; }
+      .sports-channel-multiview:hover { background: var(--panel-2); color: var(--text); }
       .sports-channel:hover { background: var(--panel-2); }
       .sports-channel strong, .sports-channel small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .sports-channel strong { font-size: 0.78rem; }
@@ -1225,13 +1231,42 @@ const playerPageHTMLTemplate = `<!doctype html>
         .sports-page { height: auto; }
         .shell.is-sports .main { display: block; overflow: auto; }
         .shell.is-sports #view { overflow: visible; }
+        .shell.is-multiview .main { display: block; overflow: auto; }
+        .shell.is-multiview #view { overflow: visible; }
         .sports-score-scroll { overflow: visible; padding-right: 0; }
         .sports-board { grid-template-columns: minmax(0, 1fr); }
+        .multiview-grid { grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(13rem, 42vh); }
         .sports-card-head { align-items: flex-start; }
         .sports-status { align-self: start; }
         .sports-matchup { gap: 0.5rem; }
-        .sports-channel, .sports-channel-more { max-width: min(13rem, 100%); }
+        .sports-channel-wrap, .sports-channel, .sports-channel-more { max-width: min(13rem, 100%); }
       }
+      .multiview-page { height: 100%; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 0.9rem; }
+      .multiview-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
+      .multiview-toolbar h2 { margin: 0; font-size: 1.08rem; }
+      .multiview-toolbar p { margin: 0.12rem 0 0; color: var(--muted); font-size: 0.78rem; font-weight: 760; }
+      .multiview-actions { display: flex; align-items: center; gap: 0.45rem; }
+      .multiview-grid { min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(14rem, 1fr); gap: 0.55rem; }
+      .multiview-grid.count-1 { grid-template-columns: minmax(0, 1fr); }
+      .multiview-grid.count-1 .multiview-tile { min-height: min(68vh, 42rem); }
+      .multiview-tile { position: relative; min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 0.65rem; background: #050505; display: grid; place-items: center; }
+      .multiview-tile.active { border-color: color-mix(in srgb, var(--accent) 72%, white 8%); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 42%, transparent); }
+      .multiview-video { width: 100%; height: 100%; object-fit: cover; background: #050505; }
+      .multiview-tile-meta { position: absolute; left: 0.65rem; right: 0.65rem; bottom: 0.6rem; display: flex; align-items: end; justify-content: space-between; gap: 0.6rem; pointer-events: none; }
+      .multiview-tile-meta strong, .multiview-tile-meta small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 10px rgba(0,0,0,0.7); }
+      .multiview-tile-meta strong { color: white; font-size: 0.92rem; }
+      .multiview-tile-meta small { color: rgba(255,255,255,0.72); font-size: 0.72rem; font-weight: 760; }
+      .multiview-audio-badge { flex: 0 0 auto; border: 1px solid rgba(255,255,255,0.24); border-radius: 999px; background: rgba(0,0,0,0.48); color: white; padding: 0.18rem 0.46rem; font-size: 0.68rem; font-weight: 900; }
+      .multiview-tile-controls { position: absolute; top: 0.55rem; right: 0.55rem; display: flex; gap: 0.35rem; opacity: 0; transition: opacity 0.15s ease; }
+      .multiview-tile:hover .multiview-tile-controls, .multiview-tile:focus-within .multiview-tile-controls, .multiview-tile.active .multiview-tile-controls { opacity: 1; }
+      .multiview-tile-controls button { width: 2rem; height: 2rem; border: 1px solid rgba(255,255,255,0.24); border-radius: 999px; background: rgba(0,0,0,0.52); color: white; display: grid; place-items: center; }
+      .multiview-tile-controls button:hover { background: rgba(255,255,255,0.16); }
+      .multiview-empty { display: grid; align-content: start; gap: 0.75rem; }
+      .multiview-channel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.5rem; }
+      .multiview-channel-add { border: 1px solid var(--line); border-radius: 0.65rem; background: var(--panel); color: var(--text); min-width: 0; min-height: 4.4rem; padding: 0.55rem 0.65rem; display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); align-items: center; gap: 0.65rem; text-align: left; }
+      .multiview-channel-add:hover { background: var(--panel-2); }
+      .multiview-channel-add strong, .multiview-channel-add small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .multiview-channel-add small { color: var(--muted); font-size: 0.74rem; font-weight: 760; }
       .channel-button-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.5rem; }
       .virtual-channel-button { border: 0; border-radius: 0.65rem; background: var(--panel); color: var(--text); display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); align-items: center; gap: 0.7rem; min-height: 4rem; padding: 0.55rem 0.65rem; text-align: left; }
       .virtual-channel-button:hover { background: var(--panel-2); }
@@ -1463,6 +1498,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           <button data-view="favorites"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0 6.25-9 11.25-9 11.25s-9-5-9-11.25A4.75 4.75 0 0 1 11.25 5 4.75 4.75 0 0 1 21 8.25Z"/></svg><span>Favorites</span> <small id="favorite-count">0</small></button>
           <button data-view="guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75h15M4.5 12h15M4.5 17.25h15M8.25 4.5v15M15.75 4.5v15"/></svg><span>TV Guide</span></button>
           <button data-view="sports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 4.75h9l2.75 5.25-7.25 9.25L4.75 10l2.75-5.25Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 4.75 12 10l4.5-5.25M4.75 10H19.25M12 10v9.25"/></svg><span>Sports</span></button>
+          <button data-view="multiview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 5.75h6.25v5.75H4.5zM13.25 5.75h6.25v5.75h-6.25zM4.5 14h6.25v4.25H4.5zM13.25 14h6.25v4.25h-6.25z"/></svg><span>Multiview</span></button>
           <button data-view="recordings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20.25a8.25 8.25 0 1 0 0-16.5 8.25 8.25 0 0 0 0 16.5Zm0-4a4.25 4.25 0 1 1 0-8.5 4.25 4.25 0 0 1 0 8.5Z"/></svg><span>Recordings</span></button>
           <button data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8.25a3.75 3.75 0 1 1 0 7.5 3.75 3.75 0 0 1 0-7.5Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.23.64.84 1 1.51 1H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z"/></svg><span>Preferences</span></button>
         </nav><!-- USER_NAV_END -->
@@ -1488,7 +1524,7 @@ const playerPageHTMLTemplate = `<!doctype html>
       const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuffix;
       const adminSettingsLocalKey = "silo.ramindex.dispatcharr.adminSettings.v1." + localCacheSuffix;
       const adminSettingsToken = "__ADMIN_SETTINGS_TOKEN__";
-      const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsTab: "live", sportsLeague: "", sportsExpandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
+      const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsTab: "live", sportsLeague: "", sportsExpandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
 
       function applySiloTheme() {
         const params = new URLSearchParams(window.location.search);
@@ -1523,6 +1559,10 @@ const playerPageHTMLTemplate = `<!doctype html>
           return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[ch];
         });
       }
+      function cssEscape(value) {
+        if (window.CSS && CSS.escape) return CSS.escape(String(value || ""));
+        return String(value || "").replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
+      }
       function icon(name) {
         const icons = {
           "arrow-left": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M15.75 19.5 8.25 12l7.5-7.5'/></svg>",
@@ -1536,6 +1576,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           "speaker-off": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m4.5 4.5 15 15M5 14.25h2.5l4.25 3.25v-5.75M11.75 8.7V6.5L8.8 8.75M16 10.8a3 3 0 0 1 .2 2.2'/></svg>",
           "airplay": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 17.25h-1.5A2.25 2.25 0 0 1 3 15V6.75A2.25 2.25 0 0 1 5.25 4.5h13.5A2.25 2.25 0 0 1 21 6.75V15a2.25 2.25 0 0 1-2.25 2.25h-1.5M8.25 21h7.5L12 16.5 8.25 21Z'/></svg>",
           "guide": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M4.5 6.75h15M4.5 12h15M4.5 17.25h15M8.25 4.5v15M15.75 4.5v15'/></svg>",
+          "multiview": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M4.5 5.75h6.25v5.75H4.5zM13.25 5.75h6.25v5.75h-6.25zM4.5 14h6.25v4.25H4.5zM13.25 14h6.25v4.25h-6.25z'/></svg>",
           "settings": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M12 8.25a3.75 3.75 0 1 1 0 7.5 3.75 3.75 0 0 1 0-7.5Z'/><path stroke-linecap='round' stroke-linejoin='round' d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.23.64.84 1 1.51 1H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z'/></svg>",
           "fullscreen": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M8.25 4.5H4.5v3.75M15.75 4.5h3.75v3.75M19.5 15.75v3.75h-3.75M4.5 15.75v3.75h3.75M9 9 4.5 4.5M15 9l4.5-4.5M15 15l4.5 4.5M9 15l-4.5 4.5'/></svg>",
           "fullscreen-exit": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M4.5 9h4.25V4.75M15.25 4.75V9h4.25M19.5 15h-4.25v4.25M8.75 19.25V15H4.5M8.75 9 4.5 4.75M15.25 9l4.25-4.25M15.25 15l4.25 4.25M8.75 15 4.5 19.25'/></svg>",
@@ -2191,11 +2232,75 @@ const playerPageHTMLTemplate = `<!doctype html>
           state.heartbeat = null;
         }
       }
+      function multiviewTileKey(channelID) {
+        return "mv-" + String(channelID || "").replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) + "-" + Math.random().toString(36).slice(2, 8);
+      }
+      function multiviewTileByID(tileID) {
+        return items(state.multiviewTiles).find(function(tile) { return tile.id === tileID; }) || null;
+      }
+      function destroyMultiviewMedia(tile) {
+        if (!tile) return;
+        if (tile.hls) { tile.hls.destroy(); tile.hls = null; }
+        if (tile.tsPlayer) { tile.tsPlayer.destroy(); tile.tsPlayer = null; }
+        tile.attached = false;
+      }
+      function resetMultiviewMedia() {
+        items(state.multiviewTiles).forEach(destroyMultiviewMedia);
+      }
+      function syncMultiviewAudio() {
+        if (!items(state.multiviewTiles).length) state.multiviewActiveTileID = "";
+        if (!state.multiviewActiveTileID && state.multiviewTiles[0]) state.multiviewActiveTileID = state.multiviewTiles[0].id;
+        items(state.multiviewTiles).forEach(function(tile) {
+          const video = byId(tile.videoID);
+          const active = tile.id === state.multiviewActiveTileID;
+          if (video) {
+            video.muted = !active;
+            video.volume = active ? state.volume : 0;
+          }
+          const root = document.querySelector("[data-multiview-tile=\"" + cssEscape(tile.id) + "\"]");
+          if (root) root.classList.toggle("active", active);
+        });
+      }
+      function startMultiviewHeartbeat() {
+        if (state.multiviewHeartbeat) clearInterval(state.multiviewHeartbeat);
+        state.multiviewHeartbeat = setInterval(function() {
+          items(state.multiviewTiles).forEach(function(tile) {
+            if (tile.session) postJSON("/dispatcharr/api/watch/heartbeat", { sessionId: tile.session.id }).catch(function() {});
+          });
+        }, 30000);
+      }
+      function startMultiviewWatch(tile) {
+        if (!tile || tile.session || !tile.channel) return;
+        recordWatchPreference(tile.channel);
+        postJSON("/dispatcharr/api/watch/start", { itemKind: "channel", itemId: tile.channel.id, itemName: tile.channel.name }).then(function(payload) {
+          tile.session = payload.session;
+          startMultiviewHeartbeat();
+          renderRail();
+        }).catch(function() {});
+      }
+      function stopMultiviewWatch(tile, reason) {
+        if (!tile || !tile.session) return;
+        postJSON("/dispatcharr/api/watch/stop", { sessionId: tile.session.id, reason: reason || "stop" }).catch(function() {});
+        tile.session = null;
+      }
+      function stopAllMultiview(reason) {
+        items(state.multiviewTiles).forEach(function(tile) {
+          destroyMultiviewMedia(tile);
+          stopMultiviewWatch(tile, reason || "stop_multiview");
+        });
+        state.multiviewTiles = [];
+        state.multiviewActiveTileID = "";
+        if (state.multiviewHeartbeat) {
+          clearInterval(state.multiviewHeartbeat);
+          state.multiviewHeartbeat = null;
+        }
+      }
       function setView(view) {
         if (view !== "player") {
           stopPlayback();
           if (state.view === "player") stopCurrentWatch("leave_player");
         }
+        if (view !== "multiview" && state.view === "multiview") stopAllMultiview("leave_multiview");
         state.view = view;
         if (view === "favorites") state.category = "";
         if (view === "sports") {
@@ -2311,9 +2416,11 @@ const playerPageHTMLTemplate = `<!doctype html>
         document.querySelector(".shell").classList.toggle("is-player", state.view === "player");
         document.querySelector(".shell").classList.toggle("is-guide", state.view === "guide");
         document.querySelector(".shell").classList.toggle("is-sports", state.view === "sports");
+        document.querySelector(".shell").classList.toggle("is-multiview", state.view === "multiview");
         renderRail();
         if (state.view === "guide") renderGuidePage();
         else if (state.view === "player") renderPlayerPage();
+        else if (state.view === "multiview") renderMultiviewPage();
         else if (state.view === "live" || state.view === "favorites") renderLivePage();
         else if (state.view === "sports") renderSportsPage();
         else if (state.view === "recordings") renderRecordingsPage();
@@ -2469,7 +2576,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         const more = hiddenCount > 0 ? "<button class=\"sports-channel-more\" type=\"button\" data-sports-expand-event=\"" + escapeHTML(event.id || "") + "\">+" + hiddenCount + " more</button>" : (expanded && channels.length > 3 ? "<button class=\"sports-channel-more\" type=\"button\" data-sports-expand-event=\"" + escapeHTML(event.id || "") + "\">Show less</button>" : "");
         return "<div class=\"sports-channels\">" + visible.map(function(channel) {
           const meta = channel.categoryName || channel.reason || "Live TV";
-          return "<button class=\"sports-channel\" type=\"button\" data-channel=\"" + escapeHTML(channel.id) + "\" title=\"" + escapeHTML(channel.reason || meta) + "\"><strong data-overflow-tooltip=\"" + escapeHTML(channel.name || "Channel") + "\">" + escapeHTML(channel.name || "Channel") + "</strong><small>" + escapeHTML(meta) + "</small></button>";
+          return "<div class=\"sports-channel-wrap\"><button class=\"sports-channel\" type=\"button\" data-channel=\"" + escapeHTML(channel.id) + "\" title=\"" + escapeHTML(channel.reason || meta) + "\"><strong data-overflow-tooltip=\"" + escapeHTML(channel.name || "Channel") + "\">" + escapeHTML(channel.name || "Channel") + "</strong><small>" + escapeHTML(meta) + "</small></button><button class=\"sports-channel-multiview\" type=\"button\" data-multiview-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"Add " + escapeHTML(channel.name || "channel") + " to multiview\" title=\"Add to multiview\">" + icon("multiview") + "</button></div>";
         }).join("") + more + "</div>";
       }
       function setSportsTab(tab) {
@@ -2903,6 +3010,114 @@ const playerPageHTMLTemplate = `<!doctype html>
         updateFullscreenButton();
         wakePlayerChrome(1800);
       }
+      function renderMultiviewPage() {
+        resetMultiviewMedia();
+        const tiles = items(state.multiviewTiles).filter(function(tile) {
+          tile.channel = channelByID((tile.channel || {}).id || tile.channelID) || tile.channel;
+          return tile.channel;
+        }).slice(0, 4);
+        state.multiviewTiles = tiles;
+        if (!state.multiviewActiveTileID && tiles[0]) state.multiviewActiveTileID = tiles[0].id;
+        if (state.multiviewActiveTileID && !tiles.some(function(tile) { return tile.id === state.multiviewActiveTileID; })) state.multiviewActiveTileID = tiles[0] ? tiles[0].id : "";
+        const countClass = "count-" + Math.max(tiles.length, 1);
+        const title = tiles.length ? tiles.length + " channel" + (tiles.length === 1 ? "" : "s") : "Choose channels";
+        byId("view").innerHTML = "<section class=\"multiview-page\"><div class=\"multiview-toolbar\"><div><h2>Multiview</h2><p>" + escapeHTML(title) + " · focused tile owns audio</p></div><div class=\"multiview-actions\">" + (tiles.length ? "<button class=\"chip\" type=\"button\" data-multiview-action=\"clear\">Clear</button>" : "") + "</div></div>"
+          + (tiles.length ? "<div class=\"multiview-grid " + countClass + "\">" + tiles.map(renderMultiviewTile).join("") + "</div>" : renderMultiviewEmpty())
+          + "</section>";
+        attachMultiviewPlayers();
+      }
+      function renderMultiviewTile(tile) {
+        const channel = tile.channel || {};
+        const active = tile.id === state.multiviewActiveTileID;
+        const program = currentProgram(channel) || {};
+        const title = program.title || channel.name || "Live TV";
+        const subtitle = channel.categoryName || "Live TV";
+        const muted = active ? "Audio" : "Muted";
+        return "<article class=\"multiview-tile" + (active ? " active" : "") + "\" data-multiview-tile=\"" + escapeHTML(tile.id) + "\" data-multiview-focus=\"" + escapeHTML(tile.id) + "\"><video id=\"" + escapeHTML(tile.videoID) + "\" class=\"multiview-video\" autoplay playsinline" + (active ? "" : " muted") + "></video><div class=\"multiview-tile-controls\"><button type=\"button\" data-multiview-action=\"focus\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-label=\"Use audio from this tile\">" + icon("speaker") + "</button><button type=\"button\" data-multiview-action=\"single\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-label=\"Open channel player\">" + icon("external") + "</button><button type=\"button\" data-multiview-action=\"remove\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-label=\"Remove from multiview\">" + icon("x") + "</button></div><div class=\"multiview-tile-meta\"><div><strong data-overflow-tooltip=\"" + escapeHTML(title) + "\">" + escapeHTML(title) + "</strong><small data-overflow-tooltip=\"" + escapeHTML(channel.name || subtitle) + "\">" + escapeHTML(channel.name || subtitle) + "</small></div><span class=\"multiview-audio-badge\">" + escapeHTML(muted) + "</span></div></article>";
+      }
+      function renderMultiviewEmpty() {
+        const picks = recentChannels(8).concat(visibleChannels(false).slice(0, 8)).filter(Boolean);
+        const unique = [];
+        const seen = {};
+        picks.forEach(function(channel) {
+          if (!channel || seen[channel.id]) return;
+          seen[channel.id] = true;
+          unique.push(channel);
+        });
+        return "<div class=\"multiview-empty\"><div class=\"empty\">Add up to four live channels. The active tile is the only one with audio.</div><div class=\"multiview-channel-grid\">" + unique.slice(0, 12).map(function(channel) {
+          return "<button class=\"multiview-channel-add\" type=\"button\" data-multiview-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<span><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><small>" + escapeHTML(channel.categoryName || "Live TV") + "</small></span></button>";
+        }).join("") + "</div></div>";
+      }
+      function attachMultiviewPlayers() {
+        items(state.multiviewTiles).forEach(function(tile) {
+          const video = byId(tile.videoID);
+          if (!video || tile.attached || !tile.channel) return;
+          const attachment = attachVideoSource(video, browserStreamURL(tile.channel), { rewindable: isRewindableChannel(tile.channel) });
+          tile.hls = attachment.hls;
+          tile.tsPlayer = attachment.tsPlayer;
+          tile.attached = true;
+          video.addEventListener("click", function() { focusMultiviewTile(tile.id); });
+          video.addEventListener("dblclick", function() { openMultiviewTileSingle(tile.id); });
+          video.play().catch(function() {});
+          startMultiviewWatch(tile);
+        });
+        syncMultiviewAudio();
+      }
+      function addChannelToMultiview(channel) {
+        if (!channel) return;
+        if (state.view === "player") {
+          stopPlayback();
+          stopCurrentWatch("open_multiview");
+        }
+        const existing = state.multiviewTiles.find(function(tile) { return tile.channel && tile.channel.id === channel.id; });
+        if (existing) {
+          state.multiviewActiveTileID = existing.id;
+          state.view = "multiview";
+          render();
+          return;
+        }
+        if (state.multiviewTiles.length >= 4) {
+          showAppToast("Multiview supports up to four channels.");
+          state.view = "multiview";
+          render();
+          return;
+        }
+        const tile = { id: multiviewTileKey(channel.id), channelID: channel.id, channel: channel, videoID: multiviewTileKey("video-" + channel.id), hls: null, tsPlayer: null, session: null, attached: false };
+        state.multiviewTiles.push(tile);
+        state.multiviewActiveTileID = tile.id;
+        state.view = "multiview";
+        render();
+      }
+      function focusMultiviewTile(tileID) {
+        if (!multiviewTileByID(tileID)) return;
+        state.multiviewActiveTileID = tileID;
+        syncMultiviewAudio();
+      }
+      function removeMultiviewTile(tileID) {
+        const tile = multiviewTileByID(tileID);
+        if (!tile) return;
+        destroyMultiviewMedia(tile);
+        stopMultiviewWatch(tile, "remove_multiview_tile");
+        state.multiviewTiles = state.multiviewTiles.filter(function(item) { return item.id !== tileID; });
+        if (state.multiviewActiveTileID === tileID) state.multiviewActiveTileID = state.multiviewTiles[0] ? state.multiviewTiles[0].id : "";
+        renderMultiviewPage();
+      }
+      function openMultiviewTileSingle(tileID) {
+        const tile = multiviewTileByID(tileID);
+        if (!tile || !tile.channel) return;
+        stopAllMultiview("open_single_player");
+        playChannel(tile.channel);
+      }
+      function handleMultiviewAction(action, tileID) {
+        if (action === "clear") {
+          stopAllMultiview("clear_multiview");
+          renderMultiviewPage();
+          return;
+        }
+        if (action === "focus") focusMultiviewTile(tileID);
+        if (action === "remove") removeMultiviewTile(tileID);
+        if (action === "single") openMultiviewTileSingle(tileID);
+      }
       function hasOpenPlayerOverlay() {
         return state.audioMenuOpen || state.volumeMenuOpen || state.moreMenuOpen || state.playerGuideOpen;
       }
@@ -2950,6 +3165,35 @@ const playerPageHTMLTemplate = `<!doctype html>
         const video = byId("player");
         if (video) video.style.objectFit = state.aspectMode === "fit" ? "contain" : "cover";
       }
+      function attachVideoSource(video, url, options) {
+        const rewindable = !!(options && options.rewindable);
+        const attachment = {
+          hls: null,
+          tsPlayer: null,
+          destroy: function() {
+            if (attachment.hls) { attachment.hls.destroy(); attachment.hls = null; }
+            if (attachment.tsPlayer) { attachment.tsPlayer.destroy(); attachment.tsPlayer = null; }
+            if (video) {
+              video.pause();
+              video.removeAttribute("src");
+              video.load();
+            }
+          }
+        };
+        const isHLS = url.indexOf(".m3u8") !== -1;
+        if (window.Hls && Hls.isSupported() && isHLS) {
+          attachment.hls = new Hls();
+          attachment.hls.loadSource(url);
+          attachment.hls.attachMedia(video);
+        } else if (window.mpegts && mpegts.isSupported() && !isHLS) {
+          attachment.tsPlayer = mpegts.createPlayer({ type: "mpegts", isLive: !rewindable, url: url });
+          attachment.tsPlayer.attachMediaElement(video);
+          attachment.tsPlayer.load();
+        } else {
+          video.src = url;
+        }
+        return attachment;
+      }
       function renderPlayerMoreMenu() {
         const button = byId("player-more-button");
         const menu = byId("player-more-menu");
@@ -2965,6 +3209,7 @@ const playerPageHTMLTemplate = `<!doctype html>
           + "<button data-player-action=\"aspect\">" + menuIcon("aspect") + "<span>Aspect ratio<small>" + (state.aspectMode === "fit" ? "Fit to screen" : "Fill screen") + "</small></span></button>"
           + "<button data-player-action=\"fullscreen\">" + menuIcon(document.fullscreenElement ? "fullscreen-exit" : "fullscreen") + "<span>Fullscreen<small>" + (document.fullscreenElement ? "Exit player fullscreen" : "Fill the display") + "</small></span></button>"
           + "<button data-player-action=\"guide\">" + menuIcon("guide") + "<span>Channel guide<small>Browse channels without leaving playback</small></span></button>"
+          + "<button data-player-action=\"add-multiview\">" + menuIcon("multiview") + "<span>Add to multiview<small>Tile this channel with up to three more</small></span></button>"
           + "<button data-player-action=\"search-channel\">" + menuIcon("search") + "<span>Search channel<small>Jump to the channel list search</small></span></button>"
           + (recent.length ? "<div class=\"player-more-separator\"></div><div class=\"player-more-kicker\">Channels history</div>" + recent.map(function(channel) { return "<button data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<span>" + escapeHTML(channel.name || "Untitled") + "<small>" + escapeHTML(channel.categoryName || "Live TV") + "</small></span></button>"; }).join("") : "")
           + "<div class=\"player-more-separator\"></div><div class=\"player-more-kicker\">Video & audio casting</div>"
@@ -3668,18 +3913,9 @@ const playerPageHTMLTemplate = `<!doctype html>
         }
         if (state.hls) { state.hls.destroy(); state.hls = null; }
         if (state.tsPlayer) { state.tsPlayer.destroy(); state.tsPlayer = null; }
-        const isHLS = url.indexOf(".m3u8") !== -1;
-        if (window.Hls && Hls.isSupported() && isHLS) {
-          state.hls = new Hls();
-          state.hls.loadSource(url);
-          state.hls.attachMedia(video);
-        } else if (window.mpegts && mpegts.isSupported() && !isHLS) {
-          state.tsPlayer = mpegts.createPlayer({ type: "mpegts", isLive: !rewindable, url: url });
-          state.tsPlayer.attachMediaElement(video);
-          state.tsPlayer.load();
-        } else {
-          video.src = url;
-        }
+        const attachment = attachVideoSource(video, url, { rewindable: rewindable });
+        state.hls = attachment.hls;
+        state.tsPlayer = attachment.tsPlayer;
         setTimeout(updateAudioMenu, 500);
         setTimeout(updateAudioMenu, 1800);
         setTimeout(updateSubtitlesButton, 500);
@@ -3786,6 +4022,11 @@ const playerPageHTMLTemplate = `<!doctype html>
           renderPlayerMoreMenu();
           const search = byId("global-search");
           if (search) search.focus();
+          return;
+        }
+        if (action === "add-multiview" && state.currentChannel) {
+          state.moreMenuOpen = false;
+          addChannelToMultiview(state.currentChannel);
           return;
         }
         if (action === "copy-stream") {
@@ -3940,6 +4181,27 @@ const playerPageHTMLTemplate = `<!doctype html>
           moveFavorite(favoriteMove.getAttribute("data-channel-id"), favoriteMove.getAttribute("data-favorite-move"));
           return;
         }
+        const multiviewAction = event.target.closest("[data-multiview-action]");
+        if (multiviewAction) {
+          event.preventDefault();
+          event.stopPropagation();
+          handleMultiviewAction(multiviewAction.getAttribute("data-multiview-action"), multiviewAction.getAttribute("data-multiview-tile-id"));
+          return;
+        }
+        const multiviewChannel = event.target.closest("[data-multiview-channel]");
+        if (multiviewChannel) {
+          event.preventDefault();
+          event.stopPropagation();
+          const channel = channelByID(multiviewChannel.getAttribute("data-multiview-channel"));
+          if (channel) addChannelToMultiview(channel);
+          return;
+        }
+        const multiviewFocus = event.target.closest("[data-multiview-focus]");
+        if (multiviewFocus) {
+          event.preventDefault();
+          focusMultiviewTile(multiviewFocus.getAttribute("data-multiview-focus"));
+          return;
+        }
         const channelTarget = event.target.closest("[data-channel]");
         if (channelTarget) {
           const channel = channelByID(channelTarget.getAttribute("data-channel"));
@@ -4027,6 +4289,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (event.target && event.target.id === "player-volume-slider") {
           state.volume = Number(event.target.value || 0) / 100;
           applyVolumeToVideo();
+          syncMultiviewAudio();
         }
         if (event.target && event.target.id === "custom-group-channel-search") {
           state.customGroupQuery = event.target.value || "";
@@ -4049,6 +4312,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       }, { passive: true });
       window.addEventListener("beforeunload", function() {
         if (state.currentSession) navigator.sendBeacon(route("/dispatcharr/api/watch/stop"), JSON.stringify({ sessionId: state.currentSession.id, reason: "page_unload" }));
+        items(state.multiviewTiles).forEach(function(tile) {
+          if (tile.session) navigator.sendBeacon(route("/dispatcharr/api/watch/stop"), JSON.stringify({ sessionId: tile.session.id, reason: "page_unload" }));
+        });
       });
       loadApp().catch(function() {
         byId("view").innerHTML = "<div class=\"empty\">Unable to load Live TV app data.</div>";
