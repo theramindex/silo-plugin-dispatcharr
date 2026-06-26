@@ -171,10 +171,14 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`Saved on this device, but not to your Silo profile.`,
 		`<span>Preferences</span>`,
 		`<span>Sports</span>`,
+		`<span>Events</span>`,
 		`<span>Multiview</span>`,
 		`id="sports-topbar-tabs"`,
 		`function renderSportsPage()`,
 		`function renderSportsTopbarTabs()`,
+		`function renderEventsPage()`,
+		`/dispatcharr/api/events`,
+		`data-event-tab=`,
 		`function renderMultiviewPage()`,
 		`function addChannelToMultiview(channel)`,
 		`function syncMultiviewAudio()`,
@@ -295,6 +299,7 @@ func TestManifestDeclaresSportsAPIRoutes(t *testing.T) {
 	for _, route := range []string{
 		"GET /dispatcharr/api/sports",
 		"POST /dispatcharr/api/sports/favorites",
+		"GET /dispatcharr/api/events",
 	} {
 		if !seen[route] {
 			t.Fatalf("manifest does not declare %s", route)

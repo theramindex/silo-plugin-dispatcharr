@@ -191,6 +191,13 @@
       "navigable": false
     },
     {
+      "id": "dispatcharr-api-events",
+      "method": "GET",
+      "path": "/dispatcharr/api/events",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
       "id": "dispatcharr-api-preferences",
       "method": "GET",
       "path": "/dispatcharr/api/preferences",
