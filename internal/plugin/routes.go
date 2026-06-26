@@ -1189,22 +1189,27 @@ const playerPageHTMLTemplate = `<!doctype html>
       .sports-leagues .chip { flex: 0 0 auto; }
       .sports-leagues .chip.active { background: var(--panel-2); color: var(--text); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
       .sports-score-scroll { min-height: 0; overflow: auto; padding: 0.05rem 0.15rem 1rem 0; scrollbar-width: thin; }
-      .sports-board { display: grid; grid-template-columns: repeat(2, minmax(18rem, 1fr)); gap: 0.65rem; align-items: start; }
-      .sports-card { border: 1px solid var(--line); border-radius: 0.65rem; background: var(--panel); padding: 0.74rem 0.78rem; display: grid; grid-template-areas: "head" "body" "channels"; align-items: stretch; gap: 0.62rem; min-width: 0; }
+      .sports-board { display: grid; grid-template-columns: repeat(2, minmax(20rem, 1fr)); gap: 0.7rem; align-items: start; }
+      .sports-card { border: 1px solid var(--line); border-radius: 0.65rem; background: var(--panel); padding: 0.76rem 0.82rem; display: grid; grid-template-areas: "head" "body" "channels"; align-items: stretch; gap: 0.65rem; min-width: 0; }
       .sports-card.live { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: color-mix(in srgb, var(--green) 9%, var(--panel)); }
       .sports-card-head { grid-area: head; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-width: 0; }
       .sports-card-title { display: grid; gap: 0.1rem; min-width: 0; }
       .sports-card-head strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.96rem; }
       .sports-card-head span, .sports-status, .sports-channel small { color: var(--muted); font-size: 0.76rem; font-weight: 760; }
+      .sports-league-pill { width: max-content; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid var(--line); border-radius: 999px; padding: 0.14rem 0.44rem; background: var(--rail-2); }
       .sports-status { border: 1px solid var(--line); border-radius: 999px; padding: 0.18rem 0.48rem; white-space: nowrap; background: var(--rail-2); }
-      .sports-scoreboard { grid-area: body; display: grid; gap: 0.35rem; min-width: 0; }
-      .sports-teams { display: grid; gap: 0.25rem; min-width: 0; }
-      .sports-team { display: grid; grid-template-columns: 1.75rem 2.75rem minmax(0, 1fr) minmax(1rem, auto) 1.7rem; align-items: center; gap: 0.45rem; min-width: 0; }
-      .sports-team-logo { width: 1.65rem; height: 1.65rem; object-fit: contain; border-radius: 999px; background: var(--rail-2); }
-      .sports-team-abbr { color: var(--muted); font-size: 0.7rem; font-weight: 900; letter-spacing: 0; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .sports-team strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .sports-team-score { min-width: 1rem; color: var(--text); text-align: right; font-weight: 950; }
+      .sports-matchup { grid-area: body; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 0.68rem; min-width: 0; min-height: 6.35rem; padding: 0.18rem 0; }
+      .sports-match-team { position: relative; display: grid; justify-items: center; align-content: center; gap: 0.32rem; min-width: 0; text-align: center; }
+      .sports-match-team-logo { width: clamp(2.85rem, 7vw, 4.35rem); height: clamp(2.85rem, 7vw, 4.35rem); object-fit: contain; border-radius: 999px; background: var(--rail-2); }
+      .sports-match-team-logo.logo-fallback { display: grid; place-items: center; color: var(--text); font-weight: 950; font-size: 1rem; }
+      .sports-match-team strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.86rem; line-height: 1.1; }
+      .sports-match-team small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 0.68rem; font-weight: 850; letter-spacing: 0; text-transform: uppercase; }
+      .sports-match-team-score { min-height: 1.2rem; color: var(--text); font-size: 1.25rem; font-weight: 950; line-height: 1; }
+      .sports-versus { display: grid; place-items: center; gap: 0.18rem; min-width: 2.7rem; color: var(--muted); text-align: center; }
+      .sports-versus strong { border: 1px solid var(--line); border-radius: 999px; background: var(--rail-2); color: var(--text); font-size: 0.74rem; font-weight: 950; padding: 0.2rem 0.42rem; white-space: nowrap; }
+      .sports-versus span { max-width: 5.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.68rem; font-weight: 850; }
       .sports-team-favorite { width: 1.7rem; height: 1.7rem; border: 1px solid var(--line); border-radius: 999px; background: var(--rail-2); color: var(--muted); display: inline-grid; place-items: center; font-weight: 900; }
+      .sports-match-team .sports-team-favorite { position: absolute; top: -0.15rem; right: 0; width: 1.52rem; height: 1.52rem; font-size: 0.76rem; }
       .sports-team-favorite.active, .sports-team-favorite:hover { background: var(--panel-2); color: var(--warn); }
       .sports-team-favorite.placeholder { opacity: 0; pointer-events: none; }
       .sports-channels { grid-area: channels; display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 0.35rem; min-width: 0; }
@@ -1224,6 +1229,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         .sports-board { grid-template-columns: minmax(0, 1fr); }
         .sports-card-head { align-items: flex-start; }
         .sports-status { align-self: start; }
+        .sports-matchup { gap: 0.5rem; }
         .sports-channel, .sports-channel-more { max-width: min(13rem, 100%); }
       }
       .channel-button-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.5rem; }
@@ -2394,7 +2400,8 @@ const playerPageHTMLTemplate = `<!doctype html>
         return items(payload && payload.events).filter(function(event) {
           if (state.sportsLeague && event.leagueId !== state.sportsLeague) return false;
           if (state.sportsTab === "live" && !event.live) return false;
-          if (state.sportsTab === "upcoming" && (event.completed || event.live || Number(event.startUnix || 0) < now - 3600)) return false;
+          const startUnix = Number(event.startUnix || 0);
+          if (state.sportsTab === "upcoming" && (event.completed || event.live || (startUnix > 0 && startUnix < now - 3600))) return false;
           if (state.sportsTab === "favorites" && !sportsEventHasFavoriteTeam(event)) return false;
           if (state.query && !sportsEventMatchesQuery(event)) return false;
           return true;
@@ -2411,8 +2418,9 @@ const playerPageHTMLTemplate = `<!doctype html>
       }
       function renderSportsEventCard(event) {
         const status = sportsStatusLabel(event);
-        return "<article class=\"sports-card" + (event.live ? " live" : "") + "\"><div class=\"sports-card-head\"><div class=\"sports-card-title\"><strong data-overflow-tooltip=\"" + escapeHTML(event.name || event.shortName || "Game") + "\">" + escapeHTML(event.shortName || event.name || "Game") + "</strong><span>" + escapeHTML(event.leagueName || "Sports") + "</span></div><div class=\"sports-status\">" + escapeHTML(status) + "</div></div>"
-          + "<div class=\"sports-scoreboard\"><div class=\"sports-teams\">" + renderSportsTeam(event.away || {}, event.awayScore) + renderSportsTeam(event.home || {}, event.homeScore) + "</div></div>"
+        const title = event.shortName || event.name || "Game";
+        return "<article class=\"sports-card" + (event.live ? " live" : "") + "\"><div class=\"sports-card-head\"><div class=\"sports-card-title\"><span class=\"sports-league-pill\">" + escapeHTML(event.leagueName || "Sports") + "</span><strong data-overflow-tooltip=\"" + escapeHTML(event.name || title) + "\">" + escapeHTML(title) + "</strong></div><div class=\"sports-status\">" + escapeHTML(status) + "</div></div>"
+          + renderSportsMatchup(event, status)
           + renderSportsChannels(event)
           + "</article>";
       }
@@ -2420,19 +2428,37 @@ const playerPageHTMLTemplate = `<!doctype html>
         if (event.live) return event.statusText || "Live";
         if (event.completed) return event.statusText || "Final";
         if (event.startUnix) return sportsDateLabel(event.startUnix);
-        return event.statusText || "Scheduled";
+        return event.statusText || "Time TBD";
       }
       function sportsDateLabel(unix) {
         const date = new Date(Number(unix || 0) * 1000);
         return date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) + " " + date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       }
-      function renderSportsTeam(team, score) {
+      function sportsTeamName(team) {
+        return (team && (team.name || team.abbreviation)) || "Team";
+      }
+      function sportsTeamAbbreviation(team) {
+        const name = sportsTeamName(team);
+        return (team && team.abbreviation) || name.split(/\s+/).map(function(part) { return part.slice(0, 1); }).join("").slice(0, 3);
+      }
+      function renderSportsTeamLogo(team, className) {
+        const name = sportsTeamName(team);
+        const label = sportsTeamAbbreviation(team).slice(0, 3);
+        if (team && team.logoUrl) return "<img class=\"" + className + "\" src=\"" + escapeHTML(team.logoUrl) + "\" alt=\"\" onerror=\"this.hidden = true; this.nextElementSibling.hidden = false;\"><span class=\"" + className + " logo-fallback\" hidden>" + escapeHTML(label) + "</span>";
+        return "<span class=\"" + className + " logo-fallback\">" + escapeHTML(label) + "</span>";
+      }
+      function renderSportsMatchup(event, status) {
+        const center = event.live ? "Live" : (event.completed ? "Final" : "VS");
+        const detail = event.live || event.completed ? status : "";
+        return "<div class=\"sports-matchup\">" + renderSportsMatchTeam(event.away || {}, event.awayScore) + "<div class=\"sports-versus\"><strong>" + escapeHTML(center) + "</strong>" + (detail ? "<span>" + escapeHTML(detail) + "</span>" : "") + "</div>" + renderSportsMatchTeam(event.home || {}, event.homeScore) + "</div>";
+      }
+      function renderSportsMatchTeam(team, score) {
         const name = team.name || team.abbreviation || "Team";
-        const abbr = team.abbreviation || name.split(/\s+/).map(function(part) { return part.slice(0, 1); }).join("").slice(0, 3);
+        const abbr = sportsTeamAbbreviation(team);
         const favorite = !!sportsFavoriteTeamMap()[team.id];
-        const logo = team.logoUrl ? "<img class=\"sports-team-logo\" src=\"" + escapeHTML(team.logoUrl) + "\" alt=\"\" onerror=\"this.hidden = true; this.nextElementSibling.hidden = false;\"><span class=\"sports-team-logo logo-fallback\" hidden>" + escapeHTML((team.abbreviation || name).slice(0, 3)) + "</span>" : "<span class=\"sports-team-logo logo-fallback\">" + escapeHTML((team.abbreviation || name).slice(0, 3)) + "</span>";
+        const logo = renderSportsTeamLogo(team, "sports-match-team-logo");
         const favoriteControl = team.id ? "<button class=\"sports-team-favorite" + (favorite ? " active" : "") + "\" type=\"button\" data-sports-favorite-team=\"" + escapeHTML(team.id || "") + "\" data-sports-favorite-enabled=\"" + (favorite ? "false" : "true") + "\" aria-label=\"" + escapeHTML(favorite ? "Remove favorite team" : "Favorite team") + "\">&#9733;</button>" : "<span class=\"sports-team-favorite placeholder\" aria-hidden=\"true\"></span>";
-        return "<div class=\"sports-team\">" + logo + "<span class=\"sports-team-abbr\">" + escapeHTML(abbr) + "</span><strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(name) + "</strong><span class=\"sports-team-score\">" + escapeHTML(score || "") + "</span>" + favoriteControl + "</div>";
+        return "<div class=\"sports-match-team\">" + logo + "<strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(name) + "</strong><small>" + escapeHTML(abbr) + "</small><span class=\"sports-match-team-score\">" + escapeHTML(score || "") + "</span>" + favoriteControl + "</div>";
       }
       function renderSportsChannels(event) {
         const channels = items(event.channels);
