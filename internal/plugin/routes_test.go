@@ -172,7 +172,9 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`<span>Preferences</span>`,
 		`<span>Sports</span>`,
 		`<span>Multiview</span>`,
+		`id="sports-topbar-tabs"`,
 		`function renderSportsPage()`,
+		`function renderSportsTopbarTabs()`,
 		`function renderMultiviewPage()`,
 		`function addChannelToMultiview(channel)`,
 		`function syncMultiviewAudio()`,
@@ -239,6 +241,9 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	}
 	if strings.Contains(body, `id=\"custom-group-channel\"><option`) {
 		t.Fatalf("expected custom group channel picker not to render a native select")
+	}
+	if strings.Contains(body, `data-sports-refresh`) {
+		t.Fatalf("expected sports refresh to use the shared topbar refresh button")
 	}
 	if !strings.Contains(body, `const recent = recentChannels(10);`) {
 		t.Fatalf("expected home guide to be based on up to 10 continue-watching channels")
