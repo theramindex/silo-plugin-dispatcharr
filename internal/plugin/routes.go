@@ -2249,7 +2249,7 @@ const playerPageHTMLTemplate = `<!doctype html>
         const channels = effectiveChannels(false).filter(function(channel) {
           if (channel.categoryId && hidden[channel.categoryId]) return false;
           if (state.view !== "favorites" && state.category && !channelInSelectedCategory(channel, state.category)) return false;
-          if (!ignoreQuery && state.query && !channelMatchesQuery(channel)) return false;
+          if (!ignoreQuery && state.query && !guideChannelMatchesQuery(channel)) return false;
           if (state.view === "favorites" && !favoriteMap()[channel.id] && !autoFavoriteMap()[channel.id]) return false;
           return true;
         });
@@ -2521,9 +2521,13 @@ const playerPageHTMLTemplate = `<!doctype html>
         });
         try {
           await hydrateApp(await postJSON("/dispatcharr/api/refresh", {}));
+          if (guideNeedsFollowupRefresh()) {
+            showAppToast("Guide refresh started. Waiting for EPG data...");
+            await pollGuideRefresh();
+          }
           state.recordings = null;
           render();
-          showAppToast("Guide refreshed from Dispatcharr.");
+          showAppToast(guideHasPrograms() ? "Guide refreshed from Dispatcharr." : "Guide refreshed, but no EPG entries are available yet.");
         } catch (error) {
           showAppToast("Dispatcharr refresh failed.");
         } finally {
@@ -2532,6 +2536,20 @@ const playerPageHTMLTemplate = `<!doctype html>
             button.classList.remove("is-loading");
             button.disabled = false;
           });
+        }
+      }
+      function guideHasPrograms() {
+        return items(state.app && state.app.programs).length > 0;
+      }
+      function guideNeedsFollowupRefresh() {
+        const status = state.app && state.app.status ? state.app.status : {};
+        const epgStatus = String(status.epgStatus || "").toLowerCase();
+        return !guideHasPrograms() || epgStatus === "loading";
+      }
+      async function pollGuideRefresh() {
+        for (let attempt = 0; attempt < 4 && guideNeedsFollowupRefresh(); attempt++) {
+          await new Promise(function(resolve) { setTimeout(resolve, 1800); });
+          await hydrateApp(await getJSON("/dispatcharr/api/app"));
         }
       }
       function renderRail() {

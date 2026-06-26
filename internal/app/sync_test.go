@@ -308,6 +308,9 @@ func TestSyncDispatcharrSkipsVODWithTightDeadline(t *testing.T) {
 		DispatcharrFactory: func(config.Settings) DispatcharrClient {
 			return client
 		},
+		FetchURL: func(context.Context, string) ([]byte, error) {
+			return []byte(`<?xml version="1.0"?><tv><programme start="20260619070000 +0000" stop="20260619080000 +0000" channel="news.hd"><title>Morning News</title></programme></tv>`), nil
+		},
 	})
 
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(10*time.Second))
@@ -332,6 +335,60 @@ func TestSyncDispatcharrSkipsVODWithTightDeadline(t *testing.T) {
 	if client.vodCalls != 0 {
 		t.Fatalf("expected no VOD calls under tight deadline, got %d", client.vodCalls)
 	}
+}
+
+func TestSyncDispatcharrTightDeadlineStartsAsyncEPGRefresh(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	service := NewService(Dependencies{
+		Store: store,
+		DispatcharrFactory: func(config.Settings) DispatcharrClient {
+			return &stubDispatcharrClient{
+				channels: []dispatcharr.Channel{{
+					ID:                     "1",
+					UUID:                   "11111111-1111-1111-1111-111111111111",
+					Name:                   "Provider Name",
+					EffectiveName:          "News HD",
+					EffectiveChannelNumber: "5.1",
+					EffectiveTVGID:         "news.hd",
+					EffectiveGroupID:       "10",
+				}},
+				groups: []dispatcharr.ChannelGroup{{ID: "10", Name: "Local"}},
+			}
+		},
+		FetchURL: func(_ context.Context, rawURL string) ([]byte, error) {
+			if rawURL == "" {
+				return nil, errors.New("missing epg url")
+			}
+			return []byte(`<?xml version="1.0"?><tv><programme start="20260619070000 +0000" stop="20260619080000 +0000" channel="news.hd"><title>Morning News</title></programme></tv>`), nil
+		},
+	})
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(10*time.Second))
+	defer cancel()
+
+	err := service.SyncNow(ctx, config.Settings{
+		SourceMode:      config.SourceModeDirectLogin,
+		DispatcharrURL:  "https://dispatcharr.example.com",
+		DispatcharrUser: "demo",
+		DispatcharrPass: "secret",
+		ChannelRefreshH: 24,
+		EPGRefreshH:     24,
+	}, 675)
+	if err != nil {
+		t.Fatalf("expected tight-deadline dispatcharr sync success, got %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		snapshot := store.Current()
+		if len(snapshot.Catalog.Programs) == 1 && snapshot.Health.EPGStatus == "ok" {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("expected async EPG refresh to populate programs, got %+v", store.Current())
 }
 
 func TestSyncXtreamSkipsPerChannelEPGWithTightDeadline(t *testing.T) {

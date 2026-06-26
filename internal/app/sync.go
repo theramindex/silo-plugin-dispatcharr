@@ -218,6 +218,9 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 	state.Health.LastSuccessUnix = nowUnix
 	state.ConfigKey = config.CatalogCacheKey(settings)
 	s.replaceSnapshot(state)
+	if tightDeadline || len(programs) == 0 {
+		s.StartAsyncEPGRefresh(settings)
+	}
 	return nil
 }
 

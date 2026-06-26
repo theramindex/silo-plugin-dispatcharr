@@ -525,6 +525,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.GuideStartsAtCurrentSlot {
 		t.Fatalf("expected guide window to start at the current half-hour slot: %+v", result)
 	}
+	if !result.ProgramSearchMatchesEPG {
+		t.Fatalf("expected global search to match channels by EPG program title: %+v", result)
+	}
 }
 
 func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
@@ -591,6 +594,7 @@ type virtualAliasResult struct {
 	ReplayPlayerTag          bool   `json:"replayPlayerTag"`
 	EPGOverlapResolved       bool   `json:"epgOverlapResolved"`
 	GuideStartsAtCurrentSlot bool   `json:"guideStartsAtCurrentSlot"`
+	ProgramSearchMatchesEPG  bool   `json:"programSearchMatchesEpg"`
 }
 
 func extractPlayerScript(t *testing.T) string {
@@ -708,7 +712,11 @@ JSON.stringify((function() {
 		return { left: Number(pieces[0]), width: Number(widthPart) };
 	});
 	const epgOverlapResolved = epgProgramCells.length >= 2 && epgProgramCells[1].left + 0.001 >= epgProgramCells[0].left + epgProgramCells[0].width;
-	const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(Date.now() / 1000) / 1800) * 1800;
+const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(Date.now() / 1000) / 1800) * 1800;
+	state.view = "home";
+	state.category = "";
+	state.query = "Second overlapping";
+	const programSearchMatchesEPG = visibleChannels(false).some(function(item) { return item.id === "channel:argentina-sports"; });
 	return {
     sourcePath: !!source,
     aliasPath: !!alias,
@@ -745,7 +753,8 @@ JSON.stringify((function() {
 		replayPlayerControls: replayPlayerView.indexOf('controls></video>') !== -1,
 		replayPlayerTag: replayPlayerView.indexOf(">Replay</span>") !== -1,
 		epgOverlapResolved: epgOverlapResolved,
-		guideStartsAtCurrentSlot: guideStartsAtCurrentSlot
+		guideStartsAtCurrentSlot: guideStartsAtCurrentSlot,
+		programSearchMatchesEpg: programSearchMatchesEPG
 	};
 })())
 `+"`"+`, sandbox);
