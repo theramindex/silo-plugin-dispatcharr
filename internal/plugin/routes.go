@@ -1180,7 +1180,8 @@ const playerPageHTMLTemplate = `<!doctype html>
       .view-toggle { display: inline-flex; align-items: center; gap: 0.2rem; padding: 0.18rem; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); }
       .view-toggle button { border: 0; border-radius: 999px; background: transparent; color: var(--muted); min-height: 1.95rem; padding: 0 0.62rem; font-size: 0.8rem; font-weight: 850; }
       .view-toggle button.active, .view-toggle button:hover { background: var(--panel-2); color: var(--text); }
-      .row-scroll { display: flex; align-items: flex-start; gap: 0.6rem; overflow-x: auto; padding-bottom: 0.3rem; }
+      .row-scroll { display: flex; align-items: flex-start; gap: 0.6rem; overflow-x: auto; padding-bottom: 0.3rem; scrollbar-width: none; -ms-overflow-style: none; }
+      .row-scroll::-webkit-scrollbar { display: none; }
       .continue-card { flex: 0 0 15.5rem; min-width: 0; border: 0; border-radius: 0.7rem; background: transparent; color: var(--text); text-align: left; display: grid; grid-template-rows: 8.7rem 0.28rem 2.25rem 1rem; align-content: start; }
       .continue-card strong { display: -webkit-box; min-width: 0; min-height: 2.15rem; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.08; }
       .continue-card .muted { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
