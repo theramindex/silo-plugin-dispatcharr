@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -166,6 +167,51 @@ func TestHTTPRoutesServerSportsUsesStaleCacheOnProviderError(t *testing.T) {
 	}
 	if payload.Error == "" || len(payload.Events) != 1 || payload.Events[0].ID != "event:cached" {
 		t.Fatalf("expected stale cached event with error, got %+v", payload)
+	}
+}
+
+func TestESPNSportsEventParsesStartWithoutSeconds(t *testing.T) {
+	t.Parallel()
+
+	event := espnEvent{
+		ID:        "401",
+		Name:      "Panama vs Croatia",
+		ShortName: "PAN vs CRO",
+		Date:      "2026-06-26T22:35Z",
+		Status:    espnStatus{Type: espnStatusType{State: "pre", Detail: "6:35 PM"}},
+	}
+	converted := event.sportsEvent(espnLeagueConfig{ID: "world-cup", Name: "World Cup"})
+	expected := time.Date(2026, 6, 26, 22, 35, 0, 0, time.UTC).Unix()
+	if converted.StartUnix != expected {
+		t.Fatalf("expected parsed start %d, got %d", expected, converted.StartUnix)
+	}
+}
+
+func TestESPNSportsProviderDoesNotFallbackToFetchTimeForUnknownStart(t *testing.T) {
+	t.Parallel()
+
+	handler := http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = response.Write([]byte(`{"events":[{"id":"402","name":"Time Unknown FC at TBD United","shortName":"TBD @ TBD","date":"not-a-date","status":{"type":{"state":"pre","detail":"TBD"}}}]}`))
+	})
+	testServer := httptest.NewServer(handler)
+	defer testServer.Close()
+
+	provider := espnSportsProvider{
+		client: testServer.Client(),
+		endpointBuilder: func(league espnLeagueConfig) string {
+			return testServer.URL
+		},
+	}
+	events, err := provider.leagueEvents(context.Background(), espnLeagueConfig{ID: "soccer", Sport: "soccer", League: "test", Name: "Test League"}, time.Date(2026, 6, 26, 20, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("league events: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected one event, got %+v", events)
+	}
+	if events[0].StartUnix != 0 {
+		t.Fatalf("unknown ESPN start should stay 0, got %d", events[0].StartUnix)
 	}
 }
 

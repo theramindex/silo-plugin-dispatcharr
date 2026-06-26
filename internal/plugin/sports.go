@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -127,8 +128,10 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 		if events[i].Live != events[j].Live {
 			return events[i].Live
 		}
-		if events[i].StartUnix != events[j].StartUnix {
-			return events[i].StartUnix < events[j].StartUnix
+		leftStart := sportsSortStartUnix(events[i])
+		rightStart := sportsSortStartUnix(events[j])
+		if leftStart != rightStart {
+			return leftStart < rightStart
 		}
 		return events[i].Name < events[j].Name
 	})
@@ -143,6 +146,13 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 		payload.Error = err.Error()
 	}
 	return payload
+}
+
+func sportsSortStartUnix(event SportsEvent) int64 {
+	if event.StartUnix > 0 {
+		return event.StartUnix
+	}
+	return 1<<62 - 1
 }
 
 func (s *HTTPRoutesServer) cachedSportsEvents(ctx context.Context, now time.Time, refresh bool) ([]SportsEvent, int64, string, error) {
@@ -462,7 +472,8 @@ func (noopSportsProvider) Source() string {
 }
 
 type espnSportsProvider struct {
-	client *http.Client
+	client          *http.Client
+	endpointBuilder func(espnLeagueConfig) string
 }
 
 type espnLeagueConfig struct {
@@ -514,7 +525,7 @@ func (p espnSportsProvider) Events(ctx context.Context, now time.Time) ([]Sports
 }
 
 func (p espnSportsProvider) leagueEvents(ctx context.Context, league espnLeagueConfig, now time.Time) ([]SportsEvent, error) {
-	endpoint := fmt.Sprintf("https://site.api.espn.com/apis/site/v2/sports/%s/%s/scoreboard?limit=100", url.PathEscape(league.Sport), url.PathEscape(league.League))
+	endpoint := p.scoreboardEndpoint(league)
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
@@ -541,12 +552,16 @@ func (p espnSportsProvider) leagueEvents(ctx context.Context, league espnLeagueC
 		if converted.ID == "" {
 			continue
 		}
-		if converted.StartUnix == 0 {
-			converted.StartUnix = now.Unix()
-		}
 		events = append(events, converted)
 	}
 	return events, nil
+}
+
+func (p espnSportsProvider) scoreboardEndpoint(league espnLeagueConfig) string {
+	if p.endpointBuilder != nil {
+		return p.endpointBuilder(league)
+	}
+	return fmt.Sprintf("https://site.api.espn.com/apis/site/v2/sports/%s/%s/scoreboard?limit=100", url.PathEscape(league.Sport), url.PathEscape(league.League))
 }
 
 type espnScoreboard struct {
@@ -611,7 +626,7 @@ func (event espnEvent) sportsEvent(league espnLeagueConfig) SportsEvent {
 		}
 	}
 	startUnix := int64(0)
-	if start, err := time.Parse(time.RFC3339, event.Date); err == nil {
+	if start, ok := parseESPNDate(event.Date); ok {
 		startUnix = start.Unix()
 	}
 	state := strings.ToLower(strings.TrimSpace(event.Status.Type.State))
@@ -631,4 +646,34 @@ func (event espnEvent) sportsEvent(league espnLeagueConfig) SportsEvent {
 		Live:       state == "in",
 		Completed:  event.Status.Type.Completed || state == "post",
 	}
+}
+
+func parseESPNDate(value string) (time.Time, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, false
+	}
+	if numeric, err := strconv.ParseInt(value, 10, 64); err == nil {
+		if numeric > 100000000000 {
+			return time.Unix(numeric/1000, (numeric%1000)*int64(time.Millisecond)).UTC(), true
+		}
+		return time.Unix(numeric, 0).UTC(), true
+	}
+	layouts := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02T15:04Z07:00",
+		"2006-01-02T15:04Z0700",
+		"2006-01-02T15:04:05Z0700",
+		"2006-01-02T15:04:05.999999999Z0700",
+	}
+	for _, layout := range layouts {
+		if parsed, err := time.Parse(layout, value); err == nil {
+			return parsed, true
+		}
+	}
+	if parsed, err := time.ParseInLocation("2006-01-02", value, time.UTC); err == nil {
+		return parsed, true
+	}
+	return time.Time{}, false
 }
