@@ -102,6 +102,7 @@ func (s *Store) Preferences() Preferences {
 
 	preferences := s.preferences
 	preferences.Favorites = cloneBoolMap(s.preferences.Favorites)
+	preferences.FavoriteOrder = append([]string(nil), s.preferences.FavoriteOrder...)
 	preferences.AutoFavorites = cloneBoolMap(s.preferences.AutoFavorites)
 	preferences.HiddenCategories = cloneBoolMap(s.preferences.HiddenCategories)
 	preferences.SportsFavoriteTeams = cloneBoolMap(s.preferences.SportsFavoriteTeams)
@@ -230,8 +231,10 @@ func (s *Store) SetFavorite(id string, enabled bool) Preferences {
 	s.ensurePreferences()
 	if enabled {
 		s.preferences.Favorites[id] = true
+		s.preferences.FavoriteOrder = appendUnique(s.preferences.FavoriteOrder, id, 256)
 	} else {
 		delete(s.preferences.Favorites, id)
+		s.preferences.FavoriteOrder = removeString(s.preferences.FavoriteOrder, id)
 	}
 	return s.preferencesSnapshotLocked()
 }
@@ -337,6 +340,9 @@ func (s *Store) ensurePreferences() {
 	if s.preferences.Favorites == nil {
 		s.preferences.Favorites = map[string]bool{}
 	}
+	if s.preferences.FavoriteOrder == nil {
+		s.preferences.FavoriteOrder = []string{}
+	}
 	if s.preferences.AutoFavorites == nil {
 		s.preferences.AutoFavorites = map[string]bool{}
 	}
@@ -381,6 +387,7 @@ func (s *Store) ensureSessions() {
 func (s *Store) preferencesSnapshotLocked() Preferences {
 	preferences := s.preferences
 	preferences.Favorites = cloneBoolMap(s.preferences.Favorites)
+	preferences.FavoriteOrder = append([]string(nil), s.preferences.FavoriteOrder...)
 	preferences.AutoFavorites = cloneBoolMap(s.preferences.AutoFavorites)
 	preferences.HiddenCategories = cloneBoolMap(s.preferences.HiddenCategories)
 	preferences.SportsFavoriteTeams = cloneBoolMap(s.preferences.SportsFavoriteTeams)
@@ -417,6 +424,33 @@ func cloneStringSliceMap(values map[string][]string) map[string][]string {
 		clone[key] = append([]string(nil), value...)
 	}
 	return clone
+}
+
+func appendUnique(values []string, value string, limit int) []string {
+	result := append([]string(nil), values...)
+	if value == "" {
+		return result
+	}
+	for _, existing := range result {
+		if existing == value {
+			return result
+		}
+	}
+	result = append(result, value)
+	if limit > 0 && len(result) > limit {
+		return result[len(result)-limit:]
+	}
+	return result
+}
+
+func removeString(values []string, value string) []string {
+	result := make([]string, 0, len(values))
+	for _, existing := range values {
+		if existing != value {
+			result = append(result, existing)
+		}
+	}
+	return result
 }
 
 func prependUnique(values []string, value string, limit int) []string {

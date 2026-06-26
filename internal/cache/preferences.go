@@ -23,6 +23,7 @@ type CustomGroup struct {
 
 type Preferences struct {
 	Favorites              map[string]bool         `json:"favorites"`
+	FavoriteOrder          []string                `json:"favoriteOrder"`
 	AutoFavorites          map[string]bool         `json:"autoFavorites"`
 	HiddenCategories       map[string]bool         `json:"hiddenCategories"`
 	SportsFavoriteTeams    map[string]bool         `json:"sportsFavoriteTeams"`
@@ -37,6 +38,7 @@ type Preferences struct {
 func defaultPreferences() Preferences {
 	return Preferences{
 		Favorites:              map[string]bool{},
+		FavoriteOrder:          []string{},
 		AutoFavorites:          map[string]bool{},
 		HiddenCategories:       map[string]bool{},
 		SportsFavoriteTeams:    map[string]bool{},

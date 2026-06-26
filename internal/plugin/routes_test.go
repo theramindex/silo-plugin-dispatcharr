@@ -268,7 +268,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if !strings.Contains(body, `const recent = recentChannels(10);`) {
 		t.Fatalf("expected home guide to be based on up to 10 continue-watching channels")
 	}
-	if !strings.Contains(body, `sectionHeader("Continue watching") + rowCards(recent.length ? recent : visibleChannels(false).slice(0, 6)) + renderHomeGuide(recent) + categoryGrid()`) {
+	if !strings.Contains(body, `sectionHeader("Recently watched") + rowCards(recent.length ? recent : visibleChannels(false).slice(0, 6)) + renderHomeGuide(recent) + categoryGrid()`) {
 		t.Fatalf("expected home page order to be continue watching, guide grid, then group sections")
 	}
 	virtualHeaderIndex := strings.Index(body, `byId("view").innerHTML = virtualFolderHeader(path, featured)`)
@@ -600,17 +600,11 @@ type virtualAliasResult struct {
 func extractPlayerScript(t *testing.T) string {
 	t.Helper()
 
-	response, err := NewHTTPRoutesServer(cache.NewStore()).Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/admin"})
-	if err != nil {
-		t.Fatalf("admin route: %v", err)
+	script := playerAppJavaScript()
+	if script == "" {
+		t.Fatal("expected embedded app script")
 	}
-	body := string(response.GetBody())
-	start := strings.Index(body, "<script>\n      const path")
-	end := strings.LastIndex(body, "</script>")
-	if start < 0 || end < 0 || end <= start {
-		t.Fatalf("expected embedded script in admin page")
-	}
-	return body[start+len("<script>") : end]
+	return script
 }
 
 func runVirtualAliasScript(t *testing.T, script string, context map[string]any) virtualAliasResult {
@@ -1043,7 +1037,7 @@ func TestHTTPRoutesServerPreferencesRoutePersistsFullPayload(t *testing.T) {
 	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
 		Method: "POST",
 		Path:   "/dispatcharr/api/preferences",
-		Body:   []byte(`{"favorites":{"channel:1":true},"autoFavorites":{"channel:2":true},"hiddenCategories":{"sports":true},"recentChannels":["channel:1"],"continueWatching":{"channel:1":{"plays":3}},"playback":{"streamMode":"redirect","outputFormat":"hls"},"categoryParsing":{"enabled":true,"mode":"delimiter","delimiter":"pipe","regex":"","output":""},"customGroups":[{"id":"group:spanish","name":"Spanish","order":10}],"customGroupMemberships":{"group:spanish":["channel:1","channel:2"]}}`),
+		Body:   []byte(`{"favorites":{"channel:1":true},"favoriteOrder":["channel:1","channel:3"],"autoFavorites":{"channel:2":true},"hiddenCategories":{"sports":true},"recentChannels":["channel:1"],"continueWatching":{"channel:1":{"plays":3}},"playback":{"streamMode":"redirect","outputFormat":"hls"},"categoryParsing":{"enabled":true,"mode":"delimiter","delimiter":"pipe","regex":"","output":""},"customGroups":[{"id":"group:spanish","name":"Spanish","order":10}],"customGroupMemberships":{"group:spanish":["channel:1","channel:2"]}}`),
 	})
 	if err != nil {
 		t.Fatalf("preferences route: %v", err)
@@ -1060,6 +1054,9 @@ func TestHTTPRoutesServerPreferencesRoutePersistsFullPayload(t *testing.T) {
 	}
 	if len(prefs.RecentChannels) != 1 || prefs.RecentChannels[0] != "channel:1" {
 		t.Fatalf("expected recent channel to persist: %+v", prefs)
+	}
+	if len(prefs.FavoriteOrder) != 2 || prefs.FavoriteOrder[0] != "channel:1" || prefs.FavoriteOrder[1] != "channel:3" {
+		t.Fatalf("expected favorite order to persist: %+v", prefs.FavoriteOrder)
 	}
 	if !prefs.CategoryParsing.Enabled || prefs.CategoryParsing.Delimiter != "pipe" {
 		t.Fatalf("expected category parsing settings to persist: %+v", prefs.CategoryParsing)
