@@ -1218,9 +1218,10 @@ function sportsTabButtonsHTML() {
 function renderSportsTopbarTabs() {
   const root = byId("sports-topbar-tabs");
   if (!root) return;
-  if (state.view === "sports") root.innerHTML = "<div class=\"view-toggle\" aria-label=\"Sports filter\">" + sportsTabButtonsHTML() + "</div>";
-  else if (state.view === "events") root.innerHTML = "<div class=\"view-toggle\" aria-label=\"Events filter\">" + eventTabButtonsHTML() + "</div>";
-  else root.innerHTML = "";
+  root.innerHTML = "";
+}
+function renderSportsTabFilters() {
+  return "<div class=\"sports-filter-row\"><div class=\"view-toggle\" aria-label=\"Sports filter\">" + sportsTabButtonsHTML() + "</div></div>";
 }
 function renderSportsPage() {
   const root = byId("view");
@@ -1228,7 +1229,7 @@ function renderSportsPage() {
   renderSportsTopbarTabs();
   const payload = state.sports || { events: [], leagues: [] };
   const events = filteredSportsEvents(payload);
-  root.innerHTML = "<div class=\"sports-page\"><div class=\"sports-pinned\">" + renderSportsLeagueFilters(payload)
+  root.innerHTML = "<div class=\"sports-page\"><div class=\"sports-pinned\">" + renderSportsTabFilters() + renderSportsLeagueFilters(payload)
     + (payload.error ? "<div class=\"sports-error\">" + escapeHTML(payload.error) + "</div>" : "")
     + (state.sportsLoading && !events.length ? "<div class=\"empty\">Loading sports...</div>" : "")
     + "</div><div class=\"sports-score-scroll\">"
@@ -1253,7 +1254,6 @@ function filteredSportsEvents(payload) {
     const startUnix = Number(event.startUnix || 0);
     if (state.sportsTab === "upcoming" && (event.completed || event.live || (startUnix > 0 && startUnix < now - 3600))) return false;
     if (state.sportsTab === "favorites" && !sportsEventHasFavoriteTeam(event)) return false;
-    if (state.query && !sportsEventMatchesQuery(event)) return false;
     return true;
   });
 }
@@ -1304,11 +1304,10 @@ function renderSportsMatchup(event, status) {
 }
 function renderSportsMatchTeam(team, score) {
   const name = team.name || team.abbreviation || "Team";
-  const abbr = sportsTeamAbbreviation(team);
   const favorite = !!sportsFavoriteTeamMap()[team.id];
   const logo = renderSportsTeamLogo(team, "sports-match-team-logo");
-  const favoriteControl = team.id ? "<button class=\"sports-team-favorite" + (favorite ? " active" : "") + "\" type=\"button\" data-sports-favorite-team=\"" + escapeHTML(team.id || "") + "\" data-sports-favorite-enabled=\"" + (favorite ? "false" : "true") + "\" aria-label=\"" + escapeHTML(favorite ? "Remove favorite team" : "Favorite team") + "\">&#9733;</button>" : "<span class=\"sports-team-favorite placeholder\" aria-hidden=\"true\"></span>";
-  return "<div class=\"sports-match-team\">" + logo + "<strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(name) + "</strong><small>" + escapeHTML(abbr) + "</small><span class=\"sports-match-team-score\">" + escapeHTML(score || "") + "</span>" + favoriteControl + "</div>";
+  const favoriteControl = team.id ? "<button class=\"sports-team-favorite" + (favorite ? " active" : "") + "\" type=\"button\" data-sports-favorite-team=\"" + escapeHTML(team.id || "") + "\" data-sports-favorite-enabled=\"" + (favorite ? "false" : "true") + "\" aria-label=\"" + escapeHTML(favorite ? "Remove favorite team" : "Favorite team") + "\">&#9733;<span>" + (favorite ? "Following" : "Follow") + "</span></button>" : "<span class=\"sports-team-favorite placeholder\" aria-hidden=\"true\"></span>";
+  return "<div class=\"sports-match-team\">" + logo + "<strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(name) + "</strong><span class=\"sports-match-team-score\">" + escapeHTML(score || "") + "</span>" + favoriteControl + "</div>";
 }
 function renderSportsChannels(event) {
   const channels = items(event.channels);
@@ -1319,7 +1318,7 @@ function renderSportsChannels(event) {
   const more = hiddenCount > 0 ? "<button class=\"sports-channel-more\" type=\"button\" data-sports-expand-event=\"" + escapeHTML(event.id || "") + "\">+" + hiddenCount + " more</button>" : (expanded && channels.length > 3 ? "<button class=\"sports-channel-more\" type=\"button\" data-sports-expand-event=\"" + escapeHTML(event.id || "") + "\">Show less</button>" : "");
   return "<div class=\"sports-channels\">" + visible.map(function(channel) {
     const meta = channel.categoryName || channel.reason || "Live TV";
-    return "<div class=\"sports-channel-wrap\"><button class=\"sports-channel\" type=\"button\" data-channel=\"" + escapeHTML(channel.id) + "\" title=\"" + escapeHTML(channel.reason || meta) + "\"><strong data-overflow-tooltip=\"" + escapeHTML(channel.name || "Channel") + "\">" + escapeHTML(channel.name || "Channel") + "</strong><small>" + escapeHTML(meta) + "</small></button><button class=\"sports-channel-multiview\" type=\"button\" data-multiview-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"Add " + escapeHTML(channel.name || "channel") + " to multiview\" title=\"Add to multiview\">" + icon("multiview") + "</button></div>";
+    return "<div class=\"sports-channel-wrap\"><button class=\"sports-channel\" type=\"button\" data-channel=\"" + escapeHTML(channel.id) + "\" title=\"" + escapeHTML(channel.reason || meta) + "\"><strong data-overflow-tooltip=\"" + escapeHTML(channel.name || "Channel") + "\">" + escapeHTML(channel.name || "Channel") + "</strong><small>" + escapeHTML(meta) + "</small></button><button class=\"sports-channel-multiview\" type=\"button\" data-multiview-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"Add " + escapeHTML(channel.name || "channel") + " to multiview\" title=\"Add to multiview\">" + icon("multiview") + "<span>Multiview</span></button></div>";
   }).join("") + more + "</div>";
 }
 function setSportsTab(tab) {
@@ -1374,13 +1373,16 @@ function eventTabButtonsHTML() {
     return "<button type=\"button\" data-event-tab=\"" + tab + "\" class=\"" + (state.eventsTab === tab ? "active" : "") + "\" aria-pressed=\"" + (state.eventsTab === tab ? "true" : "false") + "\">" + escapeHTML(eventTabLabel(tab)) + "</button>";
   }).join("");
 }
+function renderEventTabFilters() {
+  return "<div class=\"sports-filter-row\"><div class=\"view-toggle\" aria-label=\"Events filter\">" + eventTabButtonsHTML() + "</div></div>";
+}
 function renderEventsPage() {
   const root = byId("view");
   if (!state.events && !state.eventsLoading) loadEvents(false);
   renderSportsTopbarTabs();
   const payload = state.events || { events: [], categories: [] };
   const events = filteredBroadcastEvents(payload);
-  root.innerHTML = "<div class=\"sports-page\"><div class=\"sports-pinned\">" + renderEventCategoryFilters(payload)
+  root.innerHTML = "<div class=\"sports-page\"><div class=\"sports-pinned\">" + renderEventTabFilters() + renderEventCategoryFilters(payload)
     + (payload.error ? "<div class=\"sports-error\">" + escapeHTML(payload.error) + "</div>" : "")
     + (state.eventsLoading && !events.length ? "<div class=\"empty\">Loading events...</div>" : "")
     + "</div><div class=\"sports-score-scroll\">"
@@ -1404,7 +1406,6 @@ function filteredBroadcastEvents(payload) {
     if (state.eventsTab === "live" && !event.live) return false;
     const startUnix = Number(event.startUnix || 0);
     if (state.eventsTab === "upcoming" && (event.completed || event.live || (startUnix > 0 && startUnix < now - 3600))) return false;
-    if (state.query && !broadcastEventMatchesQuery(event)) return false;
     return true;
   });
 }
@@ -1438,7 +1439,7 @@ function renderBroadcastEventChannels(event) {
   const more = hiddenCount > 0 ? "<button class=\"sports-channel-more\" type=\"button\" data-event-expand=\"" + escapeHTML(event.id || "") + "\">+" + hiddenCount + " more</button>" : (expanded && channels.length > 3 ? "<button class=\"sports-channel-more\" type=\"button\" data-event-expand=\"" + escapeHTML(event.id || "") + "\">Show less</button>" : "");
   return "<div class=\"sports-channels\">" + visible.map(function(channel) {
     const meta = channel.categoryName || channel.reason || "Live TV";
-    return "<div class=\"sports-channel-wrap\"><button class=\"sports-channel\" type=\"button\" data-channel=\"" + escapeHTML(channel.id) + "\" title=\"" + escapeHTML(channel.reason || meta) + "\"><strong data-overflow-tooltip=\"" + escapeHTML(channel.name || "Channel") + "\">" + escapeHTML(channel.name || "Channel") + "</strong><small>" + escapeHTML(meta) + "</small></button><button class=\"sports-channel-multiview\" type=\"button\" data-multiview-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"Add " + escapeHTML(channel.name || "channel") + " to multiview\" title=\"Add to multiview\">" + icon("multiview") + "</button></div>";
+    return "<div class=\"sports-channel-wrap\"><button class=\"sports-channel\" type=\"button\" data-channel=\"" + escapeHTML(channel.id) + "\" title=\"" + escapeHTML(channel.reason || meta) + "\"><strong data-overflow-tooltip=\"" + escapeHTML(channel.name || "Channel") + "\">" + escapeHTML(channel.name || "Channel") + "</strong><small>" + escapeHTML(meta) + "</small></button><button class=\"sports-channel-multiview\" type=\"button\" data-multiview-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"Add " + escapeHTML(channel.name || "channel") + " to multiview\" title=\"Add to multiview\">" + icon("multiview") + "<span>Multiview</span></button></div>";
   }).join("") + more + "</div>";
 }
 function setEventTab(tab) {
