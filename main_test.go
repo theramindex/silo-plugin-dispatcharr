@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
@@ -194,7 +195,7 @@ func TestManifestExposesAdminSettingsAPIRoutes(t *testing.T) {
 	}
 }
 
-func TestManifestKeepsInternalRefreshTasksOffPluginCard(t *testing.T) {
+func TestManifestExposesRefreshTaskCapabilities(t *testing.T) {
 	t.Parallel()
 
 	manifest, err := loadManifest()
@@ -208,8 +209,9 @@ func TestManifestKeepsInternalRefreshTasksOffPluginCard(t *testing.T) {
 			scheduledTaskIDs = append(scheduledTaskIDs, capability.GetId())
 		}
 	}
-	if len(scheduledTaskIDs) != 1 || scheduledTaskIDs[0] != "dispatcharr-sync" {
-		t.Fatalf("expected only the public scheduled task capability, got %+v", scheduledTaskIDs)
+	want := []string{"dispatcharr-sync", "dispatcharr-refresh-channels", "dispatcharr-refresh-epg"}
+	if !reflect.DeepEqual(scheduledTaskIDs, want) {
+		t.Fatalf("expected scheduled task capabilities %+v, got %+v", want, scheduledTaskIDs)
 	}
 }
 
