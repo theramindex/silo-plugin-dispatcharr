@@ -268,7 +268,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if !strings.Contains(body, `const recent = recentChannels(10);`) {
 		t.Fatalf("expected home guide to be based on up to 10 continue-watching channels")
 	}
-	if !strings.Contains(body, `sectionHeader("Recently watched") + rowCards(recent.length ? recent : visibleChannels(false).slice(0, 6)) + renderHomeGuide(recent) + categoryGrid()`) {
+	if !strings.Contains(body, `const watched = recent.length ? recent : visibleChannels(false).slice(0, 6);`) ||
+		!strings.Contains(body, `sectionHeader("Recently watched") + rowCards(watched) + renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.") + categoryGrid()`) {
 		t.Fatalf("expected home page order to be continue watching, guide grid, then group sections")
 	}
 	virtualHeaderIndex := strings.Index(body, `byId("view").innerHTML = virtualFolderHeader(path, featured)`)
