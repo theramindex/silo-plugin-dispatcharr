@@ -9,7 +9,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
@@ -952,7 +954,7 @@ func TestHTTPRoutesServerAppRouteClearsStalePersistedSnapshotWhenCurrentSettings
 	}
 }
 
-func TestHTTPRoutesServerRefreshRouteForcesCatalogSync(t *testing.T) {
+func TestHTTPRoutesServerRefreshRouteStartsBackgroundCatalogSync(t *testing.T) {
 	t.Parallel()
 
 	store := cache.NewStore()
@@ -962,7 +964,9 @@ func TestHTTPRoutesServerRefreshRouteForcesCatalogSync(t *testing.T) {
 			Channels: []model.Channel{{ID: "dispatcharr:old", Name: "Old Channel"}},
 		},
 	})
-	syncer := &stubCatalogSyncer{store: store}
+	block := make(chan struct{})
+	done := make(chan struct{}, 1)
+	syncer := &stubCatalogSyncer{store: store, block: block, done: done}
 	server := NewHTTPRoutesServerWithSyncer(store, func() config.Settings {
 		return config.Settings{
 			SourceMode:      config.SourceModeDirectLogin,
@@ -978,19 +982,32 @@ func TestHTTPRoutesServerRefreshRouteForcesCatalogSync(t *testing.T) {
 	if err != nil {
 		t.Fatalf("refresh route: %v", err)
 	}
-	if response.GetStatusCode() != 200 {
-		t.Fatalf("expected 200, got %d", response.GetStatusCode())
-	}
-	if syncer.calls != 1 {
-		t.Fatalf("expected refresh to force one sync, got %d calls", syncer.calls)
+	if response.GetStatusCode() != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d", response.GetStatusCode())
 	}
 
 	var payload AppPayload
 	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
 		t.Fatalf("unmarshal app payload: %v", err)
 	}
-	if len(payload.Channels) != 1 || payload.Channels[0].ID != "dispatcharr:news" {
-		t.Fatalf("expected refreshed channel payload, got %+v", payload.Channels)
+	if len(payload.Channels) != 1 || payload.Channels[0].ID != "dispatcharr:old" {
+		t.Fatalf("expected current channel payload while sync runs, got %+v", payload.Channels)
+	}
+	if payload.Status.EPGStatus != "loading" {
+		t.Fatalf("expected loading EPG status while sync runs, got %+v", payload.Status)
+	}
+
+	close(block)
+	waitForStubSync(t, done)
+	if syncer.callCount() != 1 {
+		t.Fatalf("expected refresh to force one sync, got %d calls", syncer.callCount())
+	}
+	current := store.Current()
+	if len(current.Catalog.Channels) != 1 || current.Catalog.Channels[0].ID != "dispatcharr:news" {
+		t.Fatalf("expected refreshed channel payload, got %+v", current.Catalog.Channels)
+	}
+	if current.Health.EPGStatus != "ok" || current.Health.EPGProgramCount != 1 {
+		t.Fatalf("expected refreshed guide health, got %+v", current.Health)
 	}
 }
 
@@ -1021,10 +1038,18 @@ func TestHTTPRoutesServerFavoriteRouteUpdatesPreferences(t *testing.T) {
 type stubCatalogSyncer struct {
 	store *cache.Store
 	calls int
+	mu    sync.Mutex
+	block <-chan struct{}
+	done  chan<- struct{}
 }
 
 func (s *stubCatalogSyncer) SyncNow(_ context.Context, settings config.Settings, nowUnix int64) error {
+	if s.block != nil {
+		<-s.block
+	}
+	s.mu.Lock()
 	s.calls++
+	s.mu.Unlock()
 	s.store.Replace(cache.Snapshot{
 		ConfigKey: config.CatalogCacheKey(settings),
 		Catalog: model.CatalogState{
@@ -1034,7 +1059,28 @@ func (s *stubCatalogSyncer) SyncNow(_ context.Context, settings config.Settings,
 		},
 		Health: model.SyncHealth{LastSuccessUnix: nowUnix},
 	})
+	if s.done != nil {
+		select {
+		case s.done <- struct{}{}:
+		default:
+		}
+	}
 	return nil
+}
+
+func (s *stubCatalogSyncer) callCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.calls
+}
+
+func waitForStubSync(t *testing.T, done <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for background refresh")
+	}
 }
 
 func TestHTTPRoutesServerPreferencesRoutePersistsFullPayload(t *testing.T) {

@@ -38,6 +38,8 @@ type HTTPRoutesServer struct {
 	adminToken       string
 	syncer           catalogSyncer
 	hydrateMu        sync.Mutex
+	refreshMu        sync.Mutex
+	refreshRunning   bool
 	sportsProvider   sportsProvider
 	sportsCache      sportsEventCache
 	sportsMu         sync.Mutex
@@ -297,11 +299,40 @@ func (s *HTTPRoutesServer) handleRefresh(ctx context.Context, request *pluginv1.
 		s.store.RecordFailure(time.Now().Unix(), err.Error())
 		return textResponse(http.StatusBadRequest, err.Error()), nil
 	}
-	if err := s.syncer.SyncNow(ctx, settings, time.Now().Unix()); err != nil {
-		s.store.RecordFailure(time.Now().Unix(), err.Error())
-		return textResponse(http.StatusBadGateway, err.Error()), nil
+	started := s.startBackgroundRefresh(settings)
+	status := http.StatusAccepted
+	if !started {
+		status = http.StatusOK
 	}
-	return s.respondJSON(http.StatusOK, s.buildAppPayload())
+	return s.respondJSON(status, s.buildAppPayload())
+}
+
+func (s *HTTPRoutesServer) startBackgroundRefresh(settings config.Settings) bool {
+	s.refreshMu.Lock()
+	if s.refreshRunning {
+		s.refreshMu.Unlock()
+		return false
+	}
+	s.refreshRunning = true
+	s.refreshMu.Unlock()
+
+	s.store.MarkEPGLoading()
+	go func() {
+		defer func() {
+			s.refreshMu.Lock()
+			s.refreshRunning = false
+			s.refreshMu.Unlock()
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		if err := s.syncer.SyncNow(ctx, settings, time.Now().Unix()); err != nil {
+			now := time.Now().Unix()
+			s.store.RecordFailure(now, err.Error())
+			s.store.RecordEPGFailure(now, err.Error())
+		}
+	}()
+	return true
 }
 
 func (s *HTTPRoutesServer) buildAppPayload() AppPayload {
@@ -1024,4 +1055,3 @@ func textResponse(status int, message string) *pluginv1.HandleHTTPResponse {
 		Body: []byte(message),
 	}
 }
-

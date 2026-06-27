@@ -60,6 +60,14 @@ func (s *Store) Replace(snapshot Snapshot) {
 	}
 	snapshot.Health.LastFailureUnix = 0
 	snapshot.Health.LastError = ""
+	if snapshot.Health.EPGStatus == "" && snapshot.Health.LastSuccessUnix != 0 && len(snapshot.Catalog.Programs) > 0 {
+		snapshot.Catalog.Health.EPGStatus = "ok"
+		snapshot.Catalog.Health.EPGProgramCount = len(snapshot.Catalog.Programs)
+		snapshot.Catalog.Health.EPGLastSuccessUnix = snapshot.Health.LastSuccessUnix
+		snapshot.Health.EPGStatus = "ok"
+		snapshot.Health.EPGProgramCount = len(snapshot.Catalog.Programs)
+		snapshot.Health.EPGLastSuccessUnix = snapshot.Health.LastSuccessUnix
+	}
 	if snapshot.Health.EPGStatus == "" {
 		snapshot.Health.EPGStatus = s.snapshot.Health.EPGStatus
 		snapshot.Health.EPGProgramCount = s.snapshot.Health.EPGProgramCount
