@@ -353,6 +353,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`function renderAdminTopbarTabs()`,
 		`function renderAdminTopbarActions()`,
 		`function renderAdminSettingsTab()`,
+		`function renderAdminIntegrationsTab()`,
 		`Connection Status`,
 		`function adminStatusPanel()`,
 		`Credentials are stored in Silo settings and hidden here.`,
@@ -376,6 +377,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`ecm-url-row`,
 		`.settings-row.ecm-url-row input`,
 		`data-admin-tab=\"settings\"`,
+		`data-admin-tab=\"integrations\"`,
 		`data-admin-tab=\"manager\"`,
 		`data-admin-ecm-field=\"enabled\"`,
 		`data-admin-ecm-field=\"url\"`,
@@ -398,10 +400,14 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`state.adminCategorySettings = await loadAdminCategorySettings().catch(function()`,
 		`const adminSettingsToken = "`,
 		`x-dispatcharr-admin-token`,
+		`row.keywords.join("\n")`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected admin page to include category mapping marker %q", want)
 		}
+	}
+	if strings.Contains(body, `row.keywords.join("\\n")`) {
+		t.Fatal("expected event keyword textareas to render real line breaks, not escaped newline text")
 	}
 	if strings.Contains(body, `class="nav admin-nav"`) || strings.Contains(body, `function renderAdminSidebarTabs()`) {
 		t.Fatal("expected admin tabs to render in the topbar, not the sidebar")

@@ -74,6 +74,7 @@ function icon(name) {
     "search": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m20 20-4.5-4.5M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z'/></svg>",
     "copy": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M8 8h9.25A1.75 1.75 0 0 1 19 9.75v9.5A1.75 1.75 0 0 1 17.25 21h-9.5A1.75 1.75 0 0 1 6 19.25V10'/><path stroke-linecap='round' stroke-linejoin='round' d='M5.75 16H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v.75'/></svg>",
     "external": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M13.5 4.5H19.5V10.5M19.25 4.75 11 13M10.5 6H6.75A2.25 2.25 0 0 0 4.5 8.25v9A2.25 2.25 0 0 0 6.75 19.5h9A2.25 2.25 0 0 0 18 17.25V13.5'/></svg>",
+    "integrations": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M8.25 8.25h7.5v7.5h-7.5zM4.75 12h3.5M15.75 12h3.5M12 4.75v3.5M12 15.75v3.5'/><path stroke-linecap='round' stroke-linejoin='round' d='M6.25 6.25 8.5 8.5M17.75 6.25 15.5 8.5M6.25 17.75 8.5 15.5M17.75 17.75 15.5 15.5'/></svg>",
     "x": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M6 6l12 12M18 6 6 18'/></svg>"
   };
   return icons[name] || "";
@@ -217,7 +218,9 @@ function normalizeEventKeywordRows(value) {
   }).map(function(id) { return byID[id]; });
 }
 function normalizeKeywordList(value) {
-  const rows = Array.isArray(value) ? value : String(value || "").split(/[\n,]+/);
+  const rows = Array.isArray(value)
+    ? value.reduce(function(list, item) { return list.concat(String(item || "").split(/\\n|[\n,]+/)); }, [])
+    : String(value || "").split(/\\n|[\n,]+/);
   const seen = {};
   return rows.map(function(item) { return String(item || "").trim(); }).filter(function(item) {
     const key = lower(item);
@@ -2276,22 +2279,24 @@ function updateAdminECMField(field, target) {
   if (field === "url") settings.ecmURL = target.value;
   state.adminCategorySettings = settings;
   normalizeAdminCategorySettings();
-  if (!adminECMEnabled() && state.adminTab === "manager") state.adminTab = "settings";
+  if (!adminECMEnabled() && state.adminTab === "manager") state.adminTab = "integrations";
   markAdminSettingsDraft();
   renderAdminPage();
 }
 function renderAdminPage() {
   normalizeAdminCategorySettings();
-  if (!adminECMEnabled() && state.adminTab === "manager") state.adminTab = "settings";
+  if (!adminECMEnabled() && state.adminTab === "manager") state.adminTab = "integrations";
   renderAdminTopbarTabs();
   renderAdminTopbarActions();
   const shell = document.querySelector(".shell");
   if (shell) shell.classList.toggle("is-admin-manager", state.adminTab === "manager");
-  byId("view").innerHTML = state.adminTab === "manager" ? renderExternalChannelManager() : "<div class=\"settings-stack\">" + renderAdminSettingsTab() + "</div>";
-  if (state.adminTab !== "manager") {
+  byId("view").innerHTML = state.adminTab === "manager" ? renderExternalChannelManager() : "<div class=\"settings-stack\">" + (state.adminTab === "integrations" ? renderAdminIntegrationsTab() : renderAdminSettingsTab()) + "</div>";
+  if (state.adminTab === "settings") {
     renderAdminCategorySettings();
     renderAdminCategoryAliasSettings();
     renderAdminEventKeywordSettings();
+  }
+  if (state.adminTab === "integrations") {
     renderAdminECMSettings();
   }
 }
@@ -2299,12 +2304,13 @@ function renderAdminTopbarTabs() {
   const root = byId("admin-tabs");
   if (!root) return;
   root.innerHTML = "<button type=\"button\" data-admin-tab=\"settings\" class=\"" + (state.adminTab === "settings" ? "active" : "") + "\">" + icon("settings") + "<span>Settings</span></button>"
+    + "<button type=\"button\" data-admin-tab=\"integrations\" class=\"" + (state.adminTab === "integrations" ? "active" : "") + "\">" + icon("integrations") + "<span>Integrations</span></button>"
     + (adminECMEnabled() ? "<button type=\"button\" data-admin-tab=\"manager\" class=\"" + (state.adminTab === "manager" ? "active" : "") + "\">" + icon("external") + "<span>Channel Manager</span></button>" : "");
 }
 function renderAdminTopbarActions() {
   const root = byId("admin-actions");
   if (!root) return;
-  if (state.adminTab !== "settings") {
+  if (state.adminTab === "manager") {
     root.innerHTML = "";
     return;
   }
@@ -2313,7 +2319,9 @@ function renderAdminTopbarActions() {
   root.innerHTML = "<button data-admin-settings-action=\"save\"" + ((!dirty || saving) ? " disabled" : "") + ">Save</button><button data-admin-settings-action=\"discard\"" + ((!dirty || saving) ? " disabled" : "") + ">Discard</button>";
 }
 function setAdminTab(tab) {
-  state.adminTab = tab === "manager" ? "manager" : "settings";
+  if (tab === "manager" && adminECMEnabled()) state.adminTab = "manager";
+  else if (tab === "integrations") state.adminTab = "integrations";
+  else state.adminTab = "settings";
   renderAdminPage();
 }
 function renderAdminSettingsTab() {
@@ -2322,6 +2330,10 @@ function renderAdminSettingsTab() {
     + "<div class=\"settings-card\"><h2>Group method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card\"><h2>Presentation Overrides</h2><div class=\"settings-note admin-status-note\">Alternative Group Names add alternate virtual group paths without changing the original Dispatcharr groups. The original group remains visible.</div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card\"><h2>Event Keywords</h2><div class=\"settings-note admin-status-note\">Events are detected from the Dispatcharr guide. One keyword per line or comma-separated.</div><div id=\"admin-event-keyword-settings\" class=\"settings-list\"></div></div>"
+    + "";
+}
+function renderAdminIntegrationsTab() {
+  return ""
     + "<div class=\"settings-card\"><h2>ECM</h2><div id=\"admin-ecm-settings\" class=\"settings-list\"></div></div>"
     + "";
 }
@@ -2438,7 +2450,7 @@ function renderAdminEventKeywordSettings() {
   if (!root) return;
   const rows = normalizeEventKeywordRows(adminSettings().eventKeywords);
   root.innerHTML = rows.map(function(row, index) {
-    return "<div class=\"settings-row event-keyword-row\"><span>" + escapeHTML(row.categoryName || eventCategoryName(row.categoryId)) + "</span><textarea data-admin-event-keyword-index=\"" + index + "\" aria-label=\"" + escapeHTML((row.categoryName || row.categoryId) + " event keywords") + "\">" + escapeHTML(row.keywords.join("\\n")) + "</textarea></div>";
+    return "<div class=\"settings-row event-keyword-row\"><span>" + escapeHTML(row.categoryName || eventCategoryName(row.categoryId)) + "</span><textarea data-admin-event-keyword-index=\"" + index + "\" aria-label=\"" + escapeHTML((row.categoryName || row.categoryId) + " event keywords") + "\">" + escapeHTML(row.keywords.join("\n")) + "</textarea></div>";
   }).join("");
 }
 function updateAdminEventKeywords(index, value) {
