@@ -1015,7 +1015,8 @@ function render() {
 function renderHome() {
   const root = byId("view");
   const recent = recentChannels(10);
-  root.innerHTML = sectionHeader("Recently watched") + rowCards(recent.length ? recent : visibleChannels(false).slice(0, 6)) + renderHomeGuide(recent) + categoryGrid();
+  const watched = recent.length ? recent : visibleChannels(false).slice(0, 6);
+  root.innerHTML = sectionHeader("Recently watched") + rowCards(watched) + renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.") + categoryGrid();
 }
 function emptyStateHTML(title, detail) {
   detail = String(detail || "").trim();
@@ -1635,6 +1636,25 @@ function recentChannels(limit) {
     channels.push(channel);
   });
   return channels.slice(0, limit || channels.length);
+}
+function channelHasCurrentGuide(channel) {
+  if (!channel) return false;
+  const now = Math.floor(Date.now() / 1000);
+  return programsFor(channel.id).some(function(program) {
+    const start = program.startUnix || 0;
+    const end = program.endUnix || start + 1800;
+    return start <= now + 600 && end >= now;
+  });
+}
+function homeGuideChannels(watched) {
+  const seen = {};
+  const pool = [];
+  items(watched).concat(visibleChannels(false).slice(0, 120)).forEach(function(channel) {
+    if (!channel || seen[channel.id]) return;
+    seen[channel.id] = true;
+    pool.push(channel);
+  });
+  return pool.filter(channelHasCurrentGuide).slice(0, 10);
 }
 function renderHomeGuide(channels, emptyMessage) {
   if (!channels.length) return "<div class=\"empty\">" + escapeHTML(emptyMessage || "No recently watched channels yet.") + "</div>";
@@ -2886,8 +2906,7 @@ function handlePlayerAction(action, button) {
   if (action === "search-channel") {
     state.moreMenuOpen = false;
     renderPlayerMoreMenu();
-    const search = byId("global-search");
-    if (search) search.focus();
+    setView("search");
     return;
   }
   if (action === "add-multiview" && state.currentChannel) {
