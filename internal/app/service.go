@@ -113,6 +113,11 @@ func (s *Service) replacePrograms(programs []model.Program, atUnix int64) {
 	s.persistSnapshot()
 }
 
+func (s *Service) clearGuidePrograms(atUnix int64) {
+	s.store.ClearGuidePrograms(atUnix)
+	s.persistSnapshot()
+}
+
 func (s *Service) persistSnapshot() {
 	if s.snapshotStorage == nil {
 		return

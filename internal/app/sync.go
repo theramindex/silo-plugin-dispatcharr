@@ -73,7 +73,7 @@ func (s *Service) SyncNow(ctx context.Context, settings config.Settings, nowUnix
 				}
 			}
 		}
-		catalog := model.CatalogState{Source: model.LiveTVSource(model.SourceModeM3UXMLTV), Channels: channels, Programs: programs, Health: model.SyncHealth{LastSuccessUnix: nowUnix}}
+		catalog := model.CatalogState{Source: model.LiveTVSource(model.SourceModeM3UXMLTV), Channels: channels, Programs: programs, Health: syncHealth(nowUnix, len(programs))}
 		state := cache.SnapshotFromCatalog(catalog)
 		state.Health.LastSuccessUnix = nowUnix
 		state.ConfigKey = config.CatalogCacheKey(settings)
@@ -211,7 +211,7 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 		Source:   model.LiveTVSource(model.SourceModeDirectLogin),
 		Channels: channels,
 		Programs: programs,
-		Health:   model.SyncHealth{LastSuccessUnix: nowUnix},
+		Health:   syncHealth(nowUnix, len(programs)),
 		Content:  content,
 	}
 	state := cache.SnapshotFromCatalog(catalog)
@@ -283,7 +283,7 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 		Source:   model.LiveTVSource(sourceMode),
 		Channels: channels,
 		Programs: programs,
-		Health:   model.SyncHealth{LastSuccessUnix: nowUnix},
+		Health:   syncHealth(nowUnix, len(programs)),
 		Content:  content,
 	}
 	state := cache.SnapshotFromCatalog(catalog)
@@ -432,7 +432,38 @@ func hasTightDeadline(ctx context.Context) bool {
 }
 
 func (s *Service) StartAsyncEPGRefresh(settings config.Settings) {
-	if _, err := epgURL(settings); err != nil {
+	if !usesDispatcharrAPI(settings) {
+		if _, err := epgURL(settings); err != nil {
+			return
+		}
+	}
+
+	if usesDispatcharrAPI(settings) {
+		s.epgMu.Lock()
+		if s.epgRunning {
+			s.epgMu.Unlock()
+			return
+		}
+		s.epgRunning = true
+		s.epgMu.Unlock()
+
+		s.store.MarkEPGLoading()
+		s.persistSnapshot()
+		go func() {
+			defer func() {
+				s.epgMu.Lock()
+				s.epgRunning = false
+				s.epgMu.Unlock()
+			}()
+
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+			defer cancel()
+			now := time.Now().Unix()
+			if err := s.SyncNow(ctx, settings, now); err != nil {
+				s.store.RecordEPGFailure(now, err.Error())
+				s.persistSnapshot()
+			}
+		}()
 		return
 	}
 
@@ -445,6 +476,7 @@ func (s *Service) StartAsyncEPGRefresh(settings config.Settings) {
 	s.epgMu.Unlock()
 
 	s.store.MarkEPGLoading()
+	s.persistSnapshot()
 	go func() {
 		defer func() {
 			s.epgMu.Lock()
@@ -464,10 +496,51 @@ func (s *Service) RefreshEPGNow(ctx context.Context, settings config.Settings, n
 	if err := settings.Validate(); err != nil {
 		return err
 	}
+	s.clearGuidePrograms(nowUnix)
+	if usesDispatcharrAPI(settings) {
+		if err := s.SyncNow(ctx, settings, nowUnix); err != nil {
+			s.store.RecordEPGFailure(nowUnix, err.Error())
+			s.persistSnapshot()
+			return err
+		}
+		return nil
+	}
 	if _, err := epgURL(settings); err != nil {
 		return s.SyncNow(ctx, settings, nowUnix)
 	}
-	return s.refreshEPG(ctx, settings, nowUnix)
+	if err := s.refreshEPG(ctx, settings, nowUnix); err != nil {
+		s.store.RecordEPGFailure(nowUnix, err.Error())
+		s.persistSnapshot()
+		return err
+	}
+	return nil
+}
+
+func (s *Service) ForceSyncNow(ctx context.Context, settings config.Settings, nowUnix int64) error {
+	if err := settings.Validate(); err != nil {
+		return err
+	}
+	s.clearGuidePrograms(nowUnix)
+	if err := s.SyncNow(ctx, settings, nowUnix); err != nil {
+		s.store.RecordEPGFailure(nowUnix, err.Error())
+		s.persistSnapshot()
+		return err
+	}
+	return nil
+}
+
+func usesDispatcharrAPI(settings config.Settings) bool {
+	return settings.SourceMode == config.SourceModeDirectLogin || settings.SourceMode == config.SourceModeAPIKey
+}
+
+func syncHealth(nowUnix int64, programCount int) model.SyncHealth {
+	health := model.SyncHealth{LastSuccessUnix: nowUnix}
+	if programCount > 0 {
+		health.EPGStatus = "ok"
+		health.EPGProgramCount = programCount
+		health.EPGLastSuccessUnix = nowUnix
+	}
+	return health
 }
 
 func epgURL(settings config.Settings) (string, error) {

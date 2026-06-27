@@ -317,6 +317,24 @@ func (s *Store) MarkEPGLoading() {
 	s.snapshot.Health.EPGLastError = ""
 }
 
+func (s *Store) ClearGuidePrograms(atUnix int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.snapshot.Catalog.Programs = nil
+	s.snapshot.Catalog.Health.EPGStatus = "loading"
+	s.snapshot.Catalog.Health.EPGProgramCount = 0
+	s.snapshot.Catalog.Health.EPGLastSuccessUnix = 0
+	s.snapshot.Catalog.Health.EPGLastFailureUnix = 0
+	s.snapshot.Catalog.Health.EPGLastError = ""
+	s.snapshot.Health.EPGStatus = "loading"
+	s.snapshot.Health.EPGProgramCount = 0
+	s.snapshot.Health.EPGLastSuccessUnix = 0
+	s.snapshot.Health.EPGLastFailureUnix = 0
+	s.snapshot.Health.EPGLastError = ""
+	_ = atUnix
+}
+
 func (s *Store) ReplacePrograms(programs []model.Program, atUnix int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
