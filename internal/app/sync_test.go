@@ -280,6 +280,69 @@ func TestSyncDirectLoginDoesNotFallbackToXtream(t *testing.T) {
 	}
 }
 
+func TestRefreshEPGNowDirectPurgesStaleGuideBeforeDispatcharrSync(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+		Channels: []model.Channel{{ID: "dispatcharr:old", Name: "Old News"}},
+		Health:   model.SyncHealth{LastSuccessUnix: 100},
+	}})
+	store.ReplacePrograms([]model.Program{
+		{ID: "program:old-1", ChannelID: "dispatcharr:old", Title: "Old Morning"},
+		{ID: "program:old-2", ChannelID: "dispatcharr:old", Title: "Old Evening"},
+	}, 200)
+
+	service := NewService(Dependencies{
+		Store: store,
+		DispatcharrFactory: func(config.Settings) DispatcharrClient {
+			return &stubDispatcharrClient{
+				channels: []dispatcharr.Channel{{
+					ID:                     "1",
+					UUID:                   "11111111-1111-1111-1111-111111111111",
+					EffectiveName:          "News HD",
+					EffectiveChannelNumber: "12",
+					EffectiveTVGID:         "news.hd",
+					EffectiveGroupID:       "10",
+				}},
+				groups: []dispatcharr.ChannelGroup{{ID: "10", Name: "Local"}},
+				programs: []dispatcharr.Program{{
+					ID:        "program:fresh",
+					TVGID:     "news.hd",
+					Title:     "Fresh Morning",
+					StartTime: "2026-06-27T12:00:00Z",
+					EndTime:   "2026-06-27T13:00:00Z",
+				}},
+			}
+		},
+		FetchURL: func(context.Context, string) ([]byte, error) {
+			t.Fatal("direct guide refresh should use Dispatcharr API sync, not XMLTV fetch")
+			return nil, nil
+		},
+	})
+
+	err := service.RefreshEPGNow(context.Background(), config.Settings{
+		SourceMode:      config.SourceModeDirectLogin,
+		DispatcharrURL:  "https://dispatcharr.example.com",
+		DispatcharrUser: "demo",
+		DispatcharrPass: "secret",
+		ChannelRefreshH: 24,
+		EPGRefreshH:     24,
+	}, 700)
+	if err != nil {
+		t.Fatalf("expected direct guide refresh success, got %v", err)
+	}
+
+	snapshot := store.Current()
+	if len(snapshot.Catalog.Programs) != 1 || snapshot.Catalog.Programs[0].Title != "Fresh Morning" {
+		t.Fatalf("expected stale guide to be purged and replaced with fresh guide, got %+v", snapshot.Catalog.Programs)
+	}
+	if snapshot.Health.EPGStatus != "ok" || snapshot.Health.EPGProgramCount != 1 {
+		t.Fatalf("expected fresh epg health, got %+v", snapshot.Health)
+	}
+}
+
 func TestSyncDispatcharrSkipsVODWithTightDeadline(t *testing.T) {
 	t.Parallel()
 
@@ -341,10 +404,12 @@ func TestSyncDispatcharrTightDeadlineStartsAsyncEPGRefresh(t *testing.T) {
 	t.Parallel()
 
 	store := cache.NewStore()
+	factoryCalls := 0
 	service := NewService(Dependencies{
 		Store: store,
 		DispatcharrFactory: func(config.Settings) DispatcharrClient {
-			return &stubDispatcharrClient{
+			factoryCalls++
+			client := &stubDispatcharrClient{
 				channels: []dispatcharr.Channel{{
 					ID:                     "1",
 					UUID:                   "11111111-1111-1111-1111-111111111111",
@@ -356,12 +421,20 @@ func TestSyncDispatcharrTightDeadlineStartsAsyncEPGRefresh(t *testing.T) {
 				}},
 				groups: []dispatcharr.ChannelGroup{{ID: "10", Name: "Local"}},
 			}
+			if factoryCalls > 1 {
+				client.programs = []dispatcharr.Program{{
+					ID:        "epg-async",
+					TVGID:     "news.hd",
+					Title:     "Async Morning",
+					StartTime: "2026-06-18T12:00:00Z",
+					EndTime:   "2026-06-18T13:00:00Z",
+				}}
+			}
+			return client
 		},
 		FetchURL: func(_ context.Context, rawURL string) ([]byte, error) {
-			if rawURL == "" {
-				return nil, errors.New("missing epg url")
-			}
-			return []byte(`<?xml version="1.0"?><tv><programme start="20260619070000 +0000" stop="20260619080000 +0000" channel="news.hd"><title>Morning News</title></programme></tv>`), nil
+			t.Fatal("direct async EPG refresh should use Dispatcharr API sync, not XMLTV fetch")
+			return nil, nil
 		},
 	})
 

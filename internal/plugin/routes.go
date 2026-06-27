@@ -49,6 +49,10 @@ type catalogSyncer interface {
 	SyncNow(ctx context.Context, settings config.Settings, nowUnix int64) error
 }
 
+type forceCatalogSyncer interface {
+	ForceSyncNow(ctx context.Context, settings config.Settings, nowUnix int64) error
+}
+
 func NewHTTPRoutesServer(store *cache.Store) *HTTPRoutesServer {
 	return newHTTPRoutesServer(store, nil, nil)
 }
@@ -316,7 +320,7 @@ func (s *HTTPRoutesServer) startBackgroundRefresh(settings config.Settings) bool
 	s.refreshRunning = true
 	s.refreshMu.Unlock()
 
-	s.store.MarkEPGLoading()
+	s.store.ClearGuidePrograms(time.Now().Unix())
 	go func() {
 		defer func() {
 			s.refreshMu.Lock()
@@ -326,8 +330,14 @@ func (s *HTTPRoutesServer) startBackgroundRefresh(settings config.Settings) bool
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
-		if err := s.syncer.SyncNow(ctx, settings, time.Now().Unix()); err != nil {
-			now := time.Now().Unix()
+		now := time.Now().Unix()
+		var err error
+		if forceSyncer, ok := s.syncer.(forceCatalogSyncer); ok {
+			err = forceSyncer.ForceSyncNow(ctx, settings, now)
+		} else {
+			err = s.syncer.SyncNow(ctx, settings, now)
+		}
+		if err != nil {
 			s.store.RecordFailure(now, err.Error())
 			s.store.RecordEPGFailure(now, err.Error())
 		}

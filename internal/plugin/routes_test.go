@@ -964,6 +964,10 @@ func TestHTTPRoutesServerRefreshRouteStartsBackgroundCatalogSync(t *testing.T) {
 			Channels: []model.Channel{{ID: "dispatcharr:old", Name: "Old Channel"}},
 		},
 	})
+	store.ReplacePrograms([]model.Program{
+		{ID: "program:old-1", ChannelID: "dispatcharr:old", Title: "Old Morning"},
+		{ID: "program:old-2", ChannelID: "dispatcharr:old", Title: "Old Evening"},
+	}, 100)
 	block := make(chan struct{})
 	done := make(chan struct{}, 1)
 	syncer := &stubCatalogSyncer{store: store, block: block, done: done}
@@ -985,7 +989,6 @@ func TestHTTPRoutesServerRefreshRouteStartsBackgroundCatalogSync(t *testing.T) {
 	if response.GetStatusCode() != http.StatusAccepted {
 		t.Fatalf("expected 202, got %d", response.GetStatusCode())
 	}
-
 	var payload AppPayload
 	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
 		t.Fatalf("unmarshal app payload: %v", err)
@@ -996,9 +999,15 @@ func TestHTTPRoutesServerRefreshRouteStartsBackgroundCatalogSync(t *testing.T) {
 	if payload.Status.EPGStatus != "loading" {
 		t.Fatalf("expected loading EPG status while sync runs, got %+v", payload.Status)
 	}
+	if len(payload.Programs) != 0 {
+		t.Fatalf("expected stale guide to be purged while sync runs, got %+v", payload.Programs)
+	}
 
 	close(block)
 	waitForStubSync(t, done)
+	if syncer.forceCallCount() != 1 {
+		t.Fatalf("expected refresh route to force guide purge sync, got %d force calls", syncer.forceCallCount())
+	}
 	if syncer.callCount() != 1 {
 		t.Fatalf("expected refresh to force one sync, got %d calls", syncer.callCount())
 	}
@@ -1008,6 +1017,9 @@ func TestHTTPRoutesServerRefreshRouteStartsBackgroundCatalogSync(t *testing.T) {
 	}
 	if current.Health.EPGStatus != "ok" || current.Health.EPGProgramCount != 1 {
 		t.Fatalf("expected refreshed guide health, got %+v", current.Health)
+	}
+	if len(current.Catalog.Programs) != 1 || current.Catalog.Programs[0].ID != "program:1" {
+		t.Fatalf("expected refreshed guide programs, got %+v", current.Catalog.Programs)
 	}
 }
 
@@ -1036,11 +1048,20 @@ func TestHTTPRoutesServerFavoriteRouteUpdatesPreferences(t *testing.T) {
 }
 
 type stubCatalogSyncer struct {
-	store *cache.Store
-	calls int
-	mu    sync.Mutex
-	block <-chan struct{}
-	done  chan<- struct{}
+	store      *cache.Store
+	calls      int
+	forceCalls int
+	mu         sync.Mutex
+	block      <-chan struct{}
+	done       chan<- struct{}
+}
+
+func (s *stubCatalogSyncer) ForceSyncNow(ctx context.Context, settings config.Settings, nowUnix int64) error {
+	s.mu.Lock()
+	s.forceCalls++
+	s.mu.Unlock()
+	s.store.ClearGuidePrograms(nowUnix)
+	return s.SyncNow(ctx, settings, nowUnix)
 }
 
 func (s *stubCatalogSyncer) SyncNow(_ context.Context, settings config.Settings, nowUnix int64) error {
@@ -1072,6 +1093,12 @@ func (s *stubCatalogSyncer) callCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.calls
+}
+
+func (s *stubCatalogSyncer) forceCallCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.forceCalls
 }
 
 func waitForStubSync(t *testing.T, done <-chan struct{}) {
