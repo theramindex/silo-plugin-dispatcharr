@@ -975,6 +975,7 @@ async function loadApp() {
 async function refreshAppData() {
   if (state.refreshing) return;
   const buttons = Array.prototype.slice.call(document.querySelectorAll("[data-guide-refresh]"));
+  const previousEPGSuccess = epgLastSuccessUnix();
   state.refreshing = true;
   buttons.forEach(function(button) {
     button.classList.add("is-loading");
@@ -982,13 +983,13 @@ async function refreshAppData() {
   });
   try {
     await hydrateApp(await postJSON("/dispatcharr/api/refresh", {}));
-    if (guideNeedsFollowupRefresh()) {
+    if (guideNeedsFollowupRefresh(previousEPGSuccess)) {
       showAppToast("Guide refresh started. Waiting for EPG data...");
-      await pollGuideRefresh();
+      await pollGuideRefresh(previousEPGSuccess);
     }
     state.recordings = null;
     render();
-    showAppToast(guideHasPrograms() ? "Guide refreshed from Dispatcharr." : "Guide refreshed, but no EPG entries are available yet.");
+    showAppToast(guideRefreshAdvanced(previousEPGSuccess) ? "Guide refreshed from Dispatcharr." : "Guide refresh finished without newer EPG data.");
   } catch (error) {
     showAppToast("Dispatcharr refresh failed.");
   } finally {
@@ -1002,15 +1003,25 @@ async function refreshAppData() {
 function guideHasPrograms() {
   return items(state.app && state.app.programs).length > 0;
 }
-function guideNeedsFollowupRefresh() {
+function epgLastSuccessUnix() {
+  const status = state.app && state.app.status ? state.app.status : {};
+  return Number(status.epgLastSuccessUnix || 0);
+}
+function guideRefreshAdvanced(previousEPGSuccess) {
+  const previous = Number(previousEPGSuccess || 0);
+  return epgLastSuccessUnix() > previous || (!previous && guideHasPrograms());
+}
+function guideNeedsFollowupRefresh(previousEPGSuccess) {
   const status = state.app && state.app.status ? state.app.status : {};
   const epgStatus = String(status.epgStatus || "").toLowerCase();
-  return !guideHasPrograms() || epgStatus === "loading";
+  return epgStatus === "loading" || !guideRefreshAdvanced(previousEPGSuccess);
 }
-async function pollGuideRefresh() {
-  for (let attempt = 0; attempt < 4 && guideNeedsFollowupRefresh(); attempt++) {
-    await new Promise(function(resolve) { setTimeout(resolve, 1800); });
+async function pollGuideRefresh(previousEPGSuccess) {
+  for (let attempt = 0; attempt < 30 && guideNeedsFollowupRefresh(previousEPGSuccess); attempt++) {
+    await new Promise(function(resolve) { setTimeout(resolve, 2000); });
     await hydrateApp(await getJSON("/dispatcharr/api/app"));
+    const status = state.app && state.app.status ? state.app.status : {};
+    if (String(status.epgStatus || "").toLowerCase() === "failed") break;
   }
 }
 function renderRail() {
