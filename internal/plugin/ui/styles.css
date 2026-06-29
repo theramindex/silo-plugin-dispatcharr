@@ -209,6 +209,18 @@ button { cursor: pointer; }
 .search-result-record, .search-save-pass { border: 1px solid color-mix(in srgb, var(--accent) 48%, var(--line)); border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, var(--panel)); color: var(--text); min-height: 2.35rem; padding: 0 0.85rem; font-weight: 900; align-self: center; }
 .search-result-record:hover, .search-save-pass:hover { background: color-mix(in srgb, var(--accent) 24%, var(--panel)); }
 .search-pass-action { display: flex; justify-content: flex-end; }
+.on-later-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(22rem, 100%), 1fr)); gap: 0.7rem; }
+.search-result-card { min-width: 0; border: 1px solid color-mix(in srgb, var(--line) 88%, transparent); border-radius: 0.75rem; background: var(--panel); color: var(--text); display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; overflow: hidden; min-height: 7.2rem; }
+.search-result-card:hover { background: var(--panel-2); }
+.search-result-card-main { min-width: 0; border: 0; background: transparent; color: inherit; display: grid; grid-template-columns: 5.4rem minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; align-items: center; gap: 0.65rem 0.85rem; padding: 0.85rem; text-align: left; }
+.search-result-card-main[disabled] { cursor: default; opacity: 0.76; }
+.search-result-card-art { width: 5.1rem; height: 3.35rem; grid-row: 1 / span 2; display: grid; place-items: center; border-radius: 0.55rem; background: var(--rail); overflow: hidden; }
+.search-result-card-art .logo, .search-result-card-art img { width: 100%; height: 100%; object-fit: contain; border-radius: 0; background: transparent; }
+.search-result-card-copy { min-width: 0; align-self: end; display: grid; gap: 0.18rem; }
+.search-result-card-copy strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1rem; line-height: 1.08; }
+.search-result-card-copy small { min-width: 0; color: var(--muted); font-weight: 760; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.search-result-card-action { align-self: end; justify-self: start; border-radius: 999px; color: var(--muted); background: color-mix(in srgb, var(--text) 7%, transparent); min-height: 1.6rem; padding: 0.22rem 0.6rem; font-size: 0.74rem; font-weight: 900; }
+.search-result-card > .search-result-record { margin: 0.85rem 0.85rem 0.85rem 0; align-self: end; }
 .keyword-pass-list { display: grid; gap: 0.45rem; }
 .keyword-pass { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.45rem; align-items: stretch; }
 .keyword-pass > button { border: 1px solid var(--line); border-radius: 0.65rem; background: var(--panel); color: var(--text); min-height: 3.2rem; padding: 0.55rem 0.75rem; font-weight: 850; text-align: left; }
