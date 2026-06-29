@@ -2213,7 +2213,12 @@ function scheduleProgram(channelID, programID, button) {
     state.recordings = null;
     loadRecordings(true);
     showAppToast("Recording scheduled in Dispatcharr.");
-  }).catch(function() {
+  }).catch(function(error) {
+    const message = readableError(error);
+    if (message.indexOf("admin account or API key") >= 0) {
+      showAppToast("Dispatcharr requires an admin account or API key to schedule recordings.");
+      return;
+    }
     showAppToast("Dispatcharr could not schedule that recording.");
   }).finally(function() {
     if (button) button.disabled = false;

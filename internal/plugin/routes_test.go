@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -860,6 +861,67 @@ func TestHTTPRoutesServerRecordingsDisabledForXtream(t *testing.T) {
 	}
 	if response.GetStatusCode() != 409 {
 		t.Fatalf("expected 409, got %d", response.GetStatusCode())
+	}
+}
+
+func TestHTTPRoutesServerScheduleRecordingReportsDispatcharrPermission(t *testing.T) {
+	t.Parallel()
+
+	const channelUUID = "dispatcharr-channel-1"
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("content-type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/accounts/token/":
+			_, _ = w.Write([]byte(`{"access":"token","refresh":"refresh"}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/channels/channels/":
+			_, _ = w.Write([]byte(`[{"id":4131,"uuid":"` + channelUUID + `","name":"News HD","effective_name":"News HD","effective_tvg_id":"news.hd"}]`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/channels/recordings/":
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"detail":"You do not have permission to perform this action."}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"detail":"not found"}`))
+		}
+	}))
+	defer upstream.Close()
+
+	channel := model.Channel{
+		ID:        model.StableChannelID(model.SourceModeDirectLogin, model.ChannelIdentity{UpstreamID: channelUUID, GuideID: "news.hd", Name: "News HD", StreamURL: upstream.URL + "/proxy/ts/stream/" + channelUUID}),
+		Name:      "News HD",
+		GuideID:   "news.hd",
+		StreamURL: upstream.URL + "/proxy/ts/stream/" + channelUUID,
+	}
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{
+		Catalog: model.CatalogState{
+			Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+			Channels: []model.Channel{channel},
+		},
+	})
+	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings {
+		return config.Settings{
+			SourceMode:      config.SourceModeDirectLogin,
+			DispatcharrURL:  upstream.URL,
+			DispatcharrUser: "demo",
+			DispatcharrPass: "secret",
+			ChannelRefreshH: config.DefaultChannelRefreshHours,
+			EPGRefreshH:     config.DefaultEPGRefreshHours,
+		}
+	})
+
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/dispatcharr/api/recordings",
+		Body:   []byte(fmt.Sprintf(`{"channelId":%q,"title":"News","startUnix":1900000000,"endUnix":1900003600}`, channel.ID)),
+	})
+	if err != nil {
+		t.Fatalf("schedule route: %v", err)
+	}
+	if response.GetStatusCode() != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", response.GetStatusCode(), response.GetBody())
+	}
+	if !strings.Contains(string(response.GetBody()), "admin account or API key") {
+		t.Fatalf("expected actionable permission message, got %q", response.GetBody())
 	}
 }
 
