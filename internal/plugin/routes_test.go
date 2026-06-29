@@ -1035,8 +1035,8 @@ func TestHTTPRoutesServerRefreshRouteStartsBackgroundCatalogSync(t *testing.T) {
 	if payload.Status.EPGStatus != "loading" {
 		t.Fatalf("expected loading EPG status while sync runs, got %+v", payload.Status)
 	}
-	if len(payload.Programs) != 0 {
-		t.Fatalf("expected stale guide to be purged while sync runs, got %+v", payload.Programs)
+	if len(payload.Programs) != 2 {
+		t.Fatalf("expected current guide payload while sync runs, got %+v", payload.Programs)
 	}
 
 	close(block)
@@ -1057,6 +1057,58 @@ func TestHTTPRoutesServerRefreshRouteStartsBackgroundCatalogSync(t *testing.T) {
 	if len(current.Catalog.Programs) != 1 || current.Catalog.Programs[0].ID != "program:1" {
 		t.Fatalf("expected refreshed guide programs, got %+v", current.Catalog.Programs)
 	}
+}
+
+func TestHTTPRoutesServerGuidePingRefreshesWhenAnyCheckedChannelIsMissingGuide(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	now := time.Now().Unix()
+	settings := config.Settings{
+		SourceMode:      config.SourceModeDirectLogin,
+		DispatcharrURL:  "https://dispatcharr.example.com",
+		DispatcharrUser: "demo",
+		DispatcharrPass: "secret",
+		ChannelRefreshH: 24,
+		EPGRefreshH:     24,
+	}
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Source: model.LiveTVSource(model.SourceModeDirectLogin),
+		Channels: []model.Channel{
+			{ID: "dispatcharr:news", Name: "News HD"},
+			{ID: "dispatcharr:sports", Name: "Sports HD"},
+		},
+	}, ConfigKey: config.CatalogCacheKey(settings)})
+	store.ReplacePrograms([]model.Program{{
+		ID:        "program:news",
+		ChannelID: "dispatcharr:news",
+		Title:     "Current News",
+		StartUnix: now - 60,
+		EndUnix:   now + 1800,
+	}}, now)
+	done := make(chan struct{}, 1)
+	syncer := &stubCatalogSyncer{store: store, done: done}
+	server := NewHTTPRoutesServerWithSyncer(store, func() config.Settings { return settings }, syncer)
+
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/dispatcharr/api/guide/ping",
+		Body:   []byte(`{"channelIds":["dispatcharr:news","dispatcharr:sports"]}`),
+	})
+	if err != nil {
+		t.Fatalf("guide ping: %v", err)
+	}
+	if response.GetStatusCode() != http.StatusAccepted {
+		t.Fatalf("expected partial guide to start refresh, got %d", response.GetStatusCode())
+	}
+	var payload GuidePingPayload
+	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+		t.Fatalf("unmarshal guide ping payload: %v", err)
+	}
+	if payload.Status != "refreshing" || payload.CurrentPrograms != 1 {
+		t.Fatalf("expected one covered channel and refreshing status, got %+v", payload)
+	}
+	waitForStubSync(t, done)
 }
 
 func TestHTTPRoutesServerFavoriteRouteUpdatesPreferences(t *testing.T) {
@@ -1096,7 +1148,10 @@ func (s *stubCatalogSyncer) ForceSyncNow(ctx context.Context, settings config.Se
 	s.mu.Lock()
 	s.forceCalls++
 	s.mu.Unlock()
-	s.store.ClearGuidePrograms(nowUnix)
+	return s.SyncNow(ctx, settings, nowUnix)
+}
+
+func (s *stubCatalogSyncer) RefreshGuideOnlyNow(ctx context.Context, settings config.Settings, nowUnix int64) error {
 	return s.SyncNow(ctx, settings, nowUnix)
 }
 
