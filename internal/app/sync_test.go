@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -280,6 +281,73 @@ func TestSyncDirectLoginDoesNotFallbackToXtream(t *testing.T) {
 	}
 }
 
+func TestSyncDirectLoginScopesChannelsAndGuideToChannelProfile(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	service := NewService(Dependencies{
+		Store: store,
+		DispatcharrFactory: func(config.Settings) DispatcharrClient {
+			return &stubDispatcharrClient{
+				channels: []dispatcharr.Channel{
+					{ID: "1", UUID: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", Name: "Los Angeles ABC", EffectiveTVGID: "abc.la", EffectiveGroupID: "locals-ca"},
+					{ID: "2", UUID: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", Name: "New York ABC", EffectiveTVGID: "abc.ny", EffectiveGroupID: "locals-ny"},
+				},
+				groups: []dispatcharr.ChannelGroup{
+					{ID: "locals-ca", Name: "US TV | Locals | CA"},
+					{ID: "locals-ny", Name: "US TV | Locals | NY"},
+				},
+				profiles: []dispatcharr.ChannelProfile{
+					{ID: "10", Name: "The Ramindex - NYC", Channels: []dispatcharr.String{"2"}},
+				},
+				programs: []dispatcharr.Program{
+					{ID: "epg-la", Title: "LA Morning", TVGID: "abc.la", StartTime: "2026-06-18T12:00:00Z", EndTime: "2026-06-18T13:00:00Z"},
+					{ID: "epg-ny", Title: "NY Morning", TVGID: "abc.ny", StartTime: "2026-06-18T12:00:00Z", EndTime: "2026-06-18T13:00:00Z"},
+				},
+				searchPrograms: []dispatcharr.ProgramSearchResult{
+					{
+						Program:  dispatcharr.Program{ID: "search-la", Title: "LA Later", StartTime: "2026-06-18T14:00:00Z", EndTime: "2026-06-18T15:00:00Z"},
+						Channels: []dispatcharr.ProgramChannel{{ID: "1"}},
+					},
+					{
+						Program:  dispatcharr.Program{ID: "search-ny", Title: "NY Later", StartTime: "2026-06-18T14:00:00Z", EndTime: "2026-06-18T15:00:00Z"},
+						Channels: []dispatcharr.ProgramChannel{{ID: "2"}},
+					},
+				},
+			}
+		},
+	})
+
+	err := service.SyncNow(context.Background(), config.Settings{
+		SourceMode:      config.SourceModeDirectLogin,
+		DispatcharrURL:  "https://dispatcharr.example.com",
+		DispatcharrUser: "demo",
+		DispatcharrPass: "secret",
+		ChannelProfile:  "The Ramindex - NYC",
+		ChannelRefreshH: 24,
+		EPGRefreshH:     24,
+	}, 610)
+	if err != nil {
+		t.Fatalf("expected dispatcharr profile sync success, got %v", err)
+	}
+
+	snapshot := store.Current()
+	if len(snapshot.Catalog.Channels) != 1 || snapshot.Catalog.Channels[0].Name != "New York ABC" {
+		t.Fatalf("expected only NYC profile channel, got %+v", snapshot.Catalog.Channels)
+	}
+	if snapshot.Catalog.Source.ChannelProfile == nil || snapshot.Catalog.Source.ChannelProfile.Name != "The Ramindex - NYC" {
+		t.Fatalf("expected selected profile on source, got %+v", snapshot.Catalog.Source)
+	}
+	if len(snapshot.Catalog.Programs) != 2 {
+		t.Fatalf("expected two NYC guide programs, got %+v", snapshot.Catalog.Programs)
+	}
+	for _, program := range snapshot.Catalog.Programs {
+		if strings.HasPrefix(program.Title, "LA ") {
+			t.Fatalf("expected LA programs to be filtered out, got %+v", snapshot.Catalog.Programs)
+		}
+	}
+}
+
 func TestRefreshEPGNowDirectPurgesStaleGuideBeforeDispatcharrSync(t *testing.T) {
 	t.Parallel()
 
@@ -337,6 +405,103 @@ func TestRefreshEPGNowDirectPurgesStaleGuideBeforeDispatcharrSync(t *testing.T) 
 	snapshot := store.Current()
 	if len(snapshot.Catalog.Programs) != 1 || snapshot.Catalog.Programs[0].Title != "Fresh Morning" {
 		t.Fatalf("expected stale guide to be purged and replaced with fresh guide, got %+v", snapshot.Catalog.Programs)
+	}
+	if snapshot.Health.EPGStatus != "ok" || snapshot.Health.EPGProgramCount != 1 {
+		t.Fatalf("expected fresh epg health, got %+v", snapshot.Health)
+	}
+}
+
+func TestRefreshGuideOnlyNowDirectKeepsExistingGuideOnFailure(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+		Channels: []model.Channel{{ID: "dispatcharr:old", Name: "Old News"}},
+		Health:   model.SyncHealth{LastSuccessUnix: 100},
+	}})
+	store.ReplacePrograms([]model.Program{{ID: "program:old-1", ChannelID: "dispatcharr:old", Title: "Old Morning"}}, 200)
+
+	service := NewService(Dependencies{
+		Store: store,
+		DispatcharrFactory: func(config.Settings) DispatcharrClient {
+			return &stubDispatcharrClient{channelsErr: errors.New("dispatcharr unavailable")}
+		},
+	})
+
+	err := service.RefreshGuideOnlyNow(context.Background(), config.Settings{
+		SourceMode:      config.SourceModeDirectLogin,
+		DispatcharrURL:  "https://dispatcharr.example.com",
+		DispatcharrUser: "demo",
+		DispatcharrPass: "secret",
+		ChannelRefreshH: 24,
+		EPGRefreshH:     24,
+	}, 700)
+	if err == nil {
+		t.Fatal("expected direct guide-only refresh failure")
+	}
+
+	snapshot := store.Current()
+	if len(snapshot.Catalog.Programs) != 1 || snapshot.Catalog.Programs[0].Title != "Old Morning" {
+		t.Fatalf("expected existing guide to remain after guide-only failure, got %+v", snapshot.Catalog.Programs)
+	}
+	if snapshot.Health.EPGStatus != "failed" || snapshot.Health.EPGLastError == "" {
+		t.Fatalf("expected failed epg health, got %+v", snapshot.Health)
+	}
+}
+
+func TestRefreshGuideOnlyNowDirectReplacesStaleGuideWithoutPurgingFirst(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+		Channels: []model.Channel{{ID: "dispatcharr:old", Name: "Old News"}},
+		Health:   model.SyncHealth{LastSuccessUnix: 100},
+	}})
+	store.ReplacePrograms([]model.Program{
+		{ID: "program:old-1", ChannelID: "dispatcharr:old", Title: "Old Morning"},
+		{ID: "program:old-2", ChannelID: "dispatcharr:old", Title: "Old Evening"},
+	}, 200)
+
+	service := NewService(Dependencies{
+		Store: store,
+		DispatcharrFactory: func(config.Settings) DispatcharrClient {
+			return &stubDispatcharrClient{
+				channels: []dispatcharr.Channel{{
+					ID:                     "1",
+					UUID:                   "11111111-1111-1111-1111-111111111111",
+					EffectiveName:          "News HD",
+					EffectiveChannelNumber: "12",
+					EffectiveTVGID:         "news.hd",
+					EffectiveGroupID:       "10",
+				}},
+				programs: []dispatcharr.Program{{
+					ID:        "program:fresh",
+					TVGID:     "news.hd",
+					Title:     "Fresh Morning",
+					StartTime: "2026-06-27T12:00:00Z",
+					EndTime:   "2026-06-27T13:00:00Z",
+				}},
+			}
+		},
+	})
+
+	err := service.RefreshGuideOnlyNow(context.Background(), config.Settings{
+		SourceMode:      config.SourceModeDirectLogin,
+		DispatcharrURL:  "https://dispatcharr.example.com",
+		DispatcharrUser: "demo",
+		DispatcharrPass: "secret",
+		ChannelRefreshH: 24,
+		EPGRefreshH:     24,
+	}, 700)
+	if err != nil {
+		t.Fatalf("expected direct guide-only refresh success, got %v", err)
+	}
+
+	snapshot := store.Current()
+	if len(snapshot.Catalog.Programs) != 1 || snapshot.Catalog.Programs[0].Title != "Fresh Morning" {
+		t.Fatalf("expected guide-only refresh to replace stale guide, got %+v", snapshot.Catalog.Programs)
 	}
 	if snapshot.Health.EPGStatus != "ok" || snapshot.Health.EPGProgramCount != 1 {
 		t.Fatalf("expected fresh epg health, got %+v", snapshot.Health)
@@ -570,9 +735,11 @@ func TestSyncM3UXMLTVBuildsFallbackCatalog(t *testing.T) {
 
 type stubDispatcharrClient struct {
 	testErr        error
+	version        dispatcharr.VersionInfo
 	channels       []dispatcharr.Channel
 	channelsErr    error
 	groups         []dispatcharr.ChannelGroup
+	profiles       []dispatcharr.ChannelProfile
 	programs       []dispatcharr.Program
 	searchPrograms []dispatcharr.ProgramSearchResult
 	vodCategories  []dispatcharr.VODCategory
@@ -582,6 +749,12 @@ type stubDispatcharrClient struct {
 }
 
 func (s *stubDispatcharrClient) TestConnection(context.Context) error { return s.testErr }
+func (s *stubDispatcharrClient) Version(context.Context) (dispatcharr.VersionInfo, error) {
+	if s.version.Version == "" {
+		return dispatcharr.VersionInfo{Version: dispatcharr.String(config.MinimumDispatcharrVersion)}, nil
+	}
+	return s.version, nil
+}
 func (s *stubDispatcharrClient) Channels(context.Context) ([]dispatcharr.Channel, error) {
 	if s.channelsErr != nil {
 		return nil, s.channelsErr
@@ -590,6 +763,9 @@ func (s *stubDispatcharrClient) Channels(context.Context) ([]dispatcharr.Channel
 }
 func (s *stubDispatcharrClient) ChannelGroups(context.Context) ([]dispatcharr.ChannelGroup, error) {
 	return s.groups, nil
+}
+func (s *stubDispatcharrClient) ChannelProfiles(context.Context) ([]dispatcharr.ChannelProfile, error) {
+	return s.profiles, nil
 }
 func (s *stubDispatcharrClient) Programs(context.Context) ([]dispatcharr.Program, error) {
 	return s.programs, nil

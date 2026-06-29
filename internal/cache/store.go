@@ -79,7 +79,7 @@ func (s *Store) Replace(snapshot Snapshot) {
 }
 
 func shouldPreserveGuide(current, next Snapshot) bool {
-	if current.Catalog.Source != next.Catalog.Source {
+	if !sameCatalogSource(current.Catalog.Source, next.Catalog.Source) {
 		return false
 	}
 	if current.Health.EPGStatus != "ok" || len(current.Catalog.Programs) == 0 {
@@ -89,6 +89,16 @@ func shouldPreserveGuide(current, next Snapshot) bool {
 		return false
 	}
 	return haveProgramChannels(next.Catalog.Channels, current.Catalog.Programs)
+}
+
+func sameCatalogSource(current, next model.Source) bool {
+	if current.ID != next.ID || current.Name != next.Name || current.Mode != next.Mode {
+		return false
+	}
+	if current.ChannelProfile == nil || next.ChannelProfile == nil {
+		return current.ChannelProfile == nil && next.ChannelProfile == nil
+	}
+	return current.ChannelProfile.ID == next.ChannelProfile.ID && current.ChannelProfile.Name == next.ChannelProfile.Name
 }
 
 func haveProgramChannels(channels []model.Channel, programs []model.Program) bool {
@@ -378,6 +388,9 @@ func (s *Store) ensurePreferences() {
 	if s.preferences.SportsFavoriteTeams == nil {
 		s.preferences.SportsFavoriteTeams = map[string]bool{}
 	}
+	if s.preferences.KeywordPasses == nil {
+		s.preferences.KeywordPasses = []KeywordPass{}
+	}
 	if s.preferences.RecentChannels == nil {
 		s.preferences.RecentChannels = []string{}
 	}
@@ -417,6 +430,7 @@ func (s *Store) preferencesSnapshotLocked() Preferences {
 	preferences.AutoFavorites = cloneBoolMap(s.preferences.AutoFavorites)
 	preferences.HiddenCategories = cloneBoolMap(s.preferences.HiddenCategories)
 	preferences.SportsFavoriteTeams = cloneBoolMap(s.preferences.SportsFavoriteTeams)
+	preferences.KeywordPasses = append([]KeywordPass(nil), s.preferences.KeywordPasses...)
 	preferences.RecentChannels = append([]string(nil), s.preferences.RecentChannels...)
 	preferences.ContinueWatching = cloneAnyMap(s.preferences.ContinueWatching)
 	preferences.CustomGroups = cloneCustomGroups(s.preferences.CustomGroups)

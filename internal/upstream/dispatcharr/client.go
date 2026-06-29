@@ -41,6 +41,11 @@ func (c *Client) TestConnection(ctx context.Context) error {
 	return c.getJSON(ctx, "/api/accounts/users/me/", &target)
 }
 
+func (c *Client) Version(ctx context.Context) (VersionInfo, error) {
+	var version VersionInfo
+	return version, c.getJSON(ctx, "/api/core/version/", &version)
+}
+
 func (c *Client) Channels(ctx context.Context) ([]Channel, error) {
 	var channels []Channel
 	return channels, c.getList(ctx, "/api/channels/channels/", &channels)
@@ -49,6 +54,11 @@ func (c *Client) Channels(ctx context.Context) ([]Channel, error) {
 func (c *Client) ChannelGroups(ctx context.Context) ([]ChannelGroup, error) {
 	var groups []ChannelGroup
 	return groups, c.getList(ctx, "/api/channels/groups/", &groups)
+}
+
+func (c *Client) ChannelProfiles(ctx context.Context) ([]ChannelProfile, error) {
+	var profiles []ChannelProfile
+	return profiles, c.getList(ctx, "/api/channels/profiles/", &profiles)
 }
 
 func (c *Client) Programs(ctx context.Context) ([]Program, error) {
@@ -185,6 +195,12 @@ func appendJSONList(raw []byte, target any) error {
 		*values = append(*values, next...)
 	case *[]ChannelGroup:
 		var next []ChannelGroup
+		if err := json.Unmarshal(out, &next); err != nil {
+			return err
+		}
+		*values = append(*values, next...)
+	case *[]ChannelProfile:
+		var next []ChannelProfile
 		if err := json.Unmarshal(out, &next); err != nil {
 			return err
 		}

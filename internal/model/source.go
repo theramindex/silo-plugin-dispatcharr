@@ -11,9 +11,17 @@ const (
 )
 
 type Source struct {
-	ID   string     `json:"id"`
-	Name string     `json:"name"`
-	Mode SourceMode `json:"mode"`
+	ID             string           `json:"id"`
+	Name           string           `json:"name"`
+	Mode           SourceMode       `json:"mode"`
+	ChannelProfile *ChannelProfile  `json:"channelProfile,omitempty"`
+	Profiles       []ChannelProfile `json:"profiles,omitempty"`
+}
+
+type ChannelProfile struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	ChannelCount int    `json:"channelCount"`
 }
 
 func LiveTVSource(mode SourceMode) Source {

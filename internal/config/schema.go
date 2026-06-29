@@ -23,6 +23,9 @@ const connectionJSONSchema = `{
       "type": "string",
       "writeOnly": true
     },
+    "channel_profile": {
+      "type": "string"
+    },
     "username": {
       "type": "string"
     },
@@ -125,6 +128,29 @@ const categorySettingsJSONSchema = `{
       "type": "string",
       "default": ""
     },
+    "allowRecordingsByDefault": {
+      "type": "boolean",
+      "default": true
+    },
+    "categoryRenames": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sourcePath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["sourcePath", "displayName"],
+        "additionalProperties": false
+      },
+      "default": []
+    },
     "categoryAliases": {
       "type": "array",
       "items": {
@@ -150,7 +176,7 @@ const categorySettingsJSONSchema = `{
 
 func GlobalConfigSchema() []*ConfigSchema {
 	return []*ConfigSchema{
-		objectSchema("connection", "Dispatcharr for Silo", "Pick one source type. Silo shows every field in this form, so fill only the fields named by the selected source type.", connectionJSONSchema, true, []*pluginv1.AdminFormField{
+		objectSchema("connection", "Dispatcharr for Silo", "Pick one source type. Dispatcharr Direct requires Dispatcharr "+MinimumDispatcharrVersion+" or newer. Silo shows every field in this form, so fill only the fields named by the selected source type.", connectionJSONSchema, true, []*pluginv1.AdminFormField{
 			{Key: "source_mode", Label: "Source Type", Description: "This controls which fields are required. Direct and Xtream both use Server URL, Username, and Password.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_SELECT, DefaultValue: structpb.NewStringValue(string(SourceModeDirectLogin)), Options: []*pluginv1.AdminFormOption{
 				{Value: string(SourceModeDirectLogin), Label: "Dispatcharr Direct Connect", Description: "Use Dispatcharr REST. Fill Server URL, Username, and Password with your Dispatcharr dashboard login."},
 				{Value: string(SourceModeAPIKey), Label: "Dispatcharr Direct: API Key", Description: "Use Dispatcharr REST without saving a password. Fill Server URL and Admin API Key."},
@@ -159,6 +185,7 @@ func GlobalConfigSchema() []*ConfigSchema {
 			}},
 			{Key: "base_url", Label: "Server URL", Description: "Required for Direct Connect, API Key, and Xtream Codes. For Dispatcharr Xtream, use the Dispatcharr base URL, not the full player_api.php URL.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_TEXT, Placeholder: "https://dispatcharr.example.com", Required: true},
 			{Key: "api_key", Label: "Admin API Key", Description: "Only used by Dispatcharr Direct: API Key. Find it in Dispatcharr under System > Users > Edit User > API & XC.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_PASSWORD, Secret: true},
+			{Key: "channel_profile", Label: "Channel Profile", Description: "Optional for Dispatcharr Direct. Enter a Dispatcharr channel profile ID or exact profile name to scope the Silo lineup.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_TEXT, Placeholder: "The Ramindex - NYC"},
 			{Key: "username", Label: "Username", Description: "Required for Direct Connect and Xtream Codes. Use your Dispatcharr dashboard username for Direct Connect, or the XC username from Dispatcharr user settings for Xtream.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_TEXT},
 			{Key: "password", Label: "Password", Description: "Required for Direct Connect and Xtream Codes. Use your Dispatcharr dashboard password for Direct Connect, or the XC password from Dispatcharr user settings for Xtream.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_PASSWORD, Secret: true},
 			{Key: "m3u_url", Label: "M3U Playlist URL", Description: "Only used by M3U + XMLTV. Leave this blank for Direct Connect, API Key, and Xtream Codes.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_TEXT, Placeholder: "https://provider.example.com/playlist.m3u"},
@@ -173,7 +200,7 @@ func GlobalConfigSchema() []*ConfigSchema {
 
 func UserConfigSchema() []*ConfigSchema {
 	return []*ConfigSchema{
-		objectSchema("preferences", "Preferences", "Per-user Dispatcharr plugin preferences stored by Silo.", `{"type":"object","properties":{"favorites":{"type":"object","additionalProperties":{"type":"boolean"}},"favoriteOrder":{"type":"array","items":{"type":"string"}},"autoFavorites":{"type":"object","additionalProperties":{"type":"boolean"}},"hiddenCategories":{"type":"object","additionalProperties":{"type":"boolean"}},"sportsFavoriteTeams":{"type":"object","additionalProperties":{"type":"boolean"}},"recentChannels":{"type":"array","items":{"type":"string"}},"continueWatching":{"type":"object","additionalProperties":true},"playback":{"type":"object","additionalProperties":true},"categoryParsing":{"type":"object","properties":{"enabled":{"type":"boolean"},"mode":{"type":"string","enum":["off","delimiter","regex"]},"delimiter":{"type":"string","enum":["dash","pipe"]},"regex":{"type":"string"},"output":{"type":"string"}},"additionalProperties":false},"customGroups":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"order":{"type":"integer"}},"required":["id","name"],"additionalProperties":false}},"customGroupMemberships":{"type":"object","additionalProperties":{"type":"array","items":{"type":"string"}}}},"additionalProperties":false}`, false, []*pluginv1.AdminFormField{}, "Save preferences"),
+		objectSchema("preferences", "Preferences", "Per-user Dispatcharr plugin preferences stored by Silo.", `{"type":"object","properties":{"favorites":{"type":"object","additionalProperties":{"type":"boolean"}},"favoriteOrder":{"type":"array","items":{"type":"string"}},"autoFavorites":{"type":"object","additionalProperties":{"type":"boolean"}},"hiddenCategories":{"type":"object","additionalProperties":{"type":"boolean"}},"sportsFavoriteTeams":{"type":"object","additionalProperties":{"type":"boolean"}},"keywordPasses":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"keyword":{"type":"string"},"createdAt":{"type":"integer"}},"required":["id","keyword"],"additionalProperties":false}},"recentChannels":{"type":"array","items":{"type":"string"}},"continueWatching":{"type":"object","additionalProperties":true},"playback":{"type":"object","additionalProperties":true},"categoryParsing":{"type":"object","properties":{"enabled":{"type":"boolean"},"mode":{"type":"string","enum":["off","delimiter","regex"]},"delimiter":{"type":"string","enum":["dash","pipe"]},"regex":{"type":"string"},"output":{"type":"string"}},"additionalProperties":false},"customGroups":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"order":{"type":"integer"}},"required":["id","name"],"additionalProperties":false}},"customGroupMemberships":{"type":"object","additionalProperties":{"type":"array","items":{"type":"string"}}}},"additionalProperties":false}`, false, []*pluginv1.AdminFormField{}, "Save preferences"),
 		objectSchema("adminCategorySettings", "Admin Category Settings", "Admin-managed Live TV category mode saved through Silo plugin settings.", categorySettingsJSONSchema, false, []*pluginv1.AdminFormField{}, "Save category settings"),
 	}
 }

@@ -43,7 +43,7 @@ func (s *ScheduledTaskServer) Run(ctx context.Context, request *pluginv1.RunSche
 		}
 	case isTaskKey(taskKey, EPGRefreshTaskKey):
 		taskKind = "epg"
-		if err := s.service.RefreshEPGNow(ctx, s.settingsProvider(), now); err != nil {
+		if err := s.service.RefreshGuideOnlyNow(ctx, s.settingsProvider(), now); err != nil {
 			return nil, err
 		}
 	}

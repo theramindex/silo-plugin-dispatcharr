@@ -24,8 +24,10 @@ type XtreamClient interface {
 
 type DispatcharrClient interface {
 	TestConnection(ctx context.Context) error
+	Version(ctx context.Context) (dispatcharr.VersionInfo, error)
 	Channels(ctx context.Context) ([]dispatcharr.Channel, error)
 	ChannelGroups(ctx context.Context) ([]dispatcharr.ChannelGroup, error)
+	ChannelProfiles(ctx context.Context) ([]dispatcharr.ChannelProfile, error)
 	Programs(ctx context.Context) ([]dispatcharr.Program, error)
 	SearchPrograms(ctx context.Context, start, end time.Time) ([]dispatcharr.ProgramSearchResult, error)
 	VODCategories(ctx context.Context) ([]dispatcharr.VODCategory, error)
