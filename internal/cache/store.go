@@ -47,10 +47,18 @@ func (s *Store) Current() Snapshot {
 }
 
 func (s *Store) Replace(snapshot Snapshot) {
+	s.replace(snapshot, true)
+}
+
+func (s *Store) ReplaceExact(snapshot Snapshot) {
+	s.replace(snapshot, false)
+}
+
+func (s *Store) replace(snapshot Snapshot, preserveGuide bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if shouldPreserveGuide(s.snapshot, snapshot) {
+	if preserveGuide && shouldPreserveGuide(s.snapshot, snapshot) {
 		snapshot.Catalog.Programs = append([]model.Program(nil), s.snapshot.Catalog.Programs...)
 		snapshot.Catalog.Health.EPGStatus = s.snapshot.Health.EPGStatus
 		snapshot.Catalog.Health.EPGProgramCount = s.snapshot.Health.EPGProgramCount

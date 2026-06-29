@@ -29,15 +29,19 @@ type xtreamAppCatalogClient interface {
 }
 
 func (s *Service) SyncNow(ctx context.Context, settings config.Settings, nowUnix int64) error {
+	return s.syncNow(ctx, settings, nowUnix, false)
+}
+
+func (s *Service) syncNow(ctx context.Context, settings config.Settings, nowUnix int64, exactGuide bool) error {
 	if err := settings.Validate(); err != nil {
 		return err
 	}
 
 	switch settings.SourceMode {
 	case config.SourceModeDirectLogin, config.SourceModeAPIKey:
-		return s.syncDispatcharr(ctx, settings, nowUnix)
+		return s.syncDispatcharr(ctx, settings, nowUnix, exactGuide)
 	case config.SourceModeXtream:
-		return s.syncXtream(ctx, settings, model.SourceModeXtream, nowUnix)
+		return s.syncXtream(ctx, settings, model.SourceModeXtream, nowUnix, exactGuide)
 	case config.SourceModeM3UXMLTV:
 		playlistData, err := s.fetchURL(ctx, settings.M3UURL)
 		if err != nil {
@@ -78,14 +82,14 @@ func (s *Service) SyncNow(ctx context.Context, settings config.Settings, nowUnix
 		state := cache.SnapshotFromCatalog(catalog)
 		state.Health.LastSuccessUnix = nowUnix
 		state.ConfigKey = config.CatalogCacheKey(settings)
-		s.replaceSnapshot(state)
+		s.replaceSnapshotAfterSync(state, exactGuide)
 		return nil
 	default:
 		return fmt.Errorf("source mode %q not implemented", settings.SourceMode)
 	}
 }
 
-func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings, nowUnix int64) error {
+func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings, nowUnix int64, exactGuide bool) error {
 	client := s.dispatcharrFactory(settings)
 	tightDeadline := hasTightDeadline(ctx)
 	if err := requireDispatcharrMinimumVersion(ctx, client); err != nil {
@@ -239,14 +243,14 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 	state := cache.SnapshotFromCatalog(catalog)
 	state.Health.LastSuccessUnix = nowUnix
 	state.ConfigKey = config.CatalogCacheKey(settings)
-	s.replaceSnapshot(state)
+	s.replaceSnapshotAfterSync(state, exactGuide)
 	if tightDeadline || len(programs) == 0 {
 		s.StartAsyncEPGRefresh(settings)
 	}
 	return nil
 }
 
-func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sourceMode model.SourceMode, nowUnix int64) error {
+func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sourceMode model.SourceMode, nowUnix int64, exactGuide bool) error {
 	baseURL, username, password := xtreamConnectionSettings(settings)
 	client := s.xtreamFactory(baseURL, username, password)
 	streams, err := client.LiveStreams(ctx)
@@ -311,7 +315,7 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 	state := cache.SnapshotFromCatalog(catalog)
 	state.Health.LastSuccessUnix = nowUnix
 	state.ConfigKey = config.CatalogCacheKey(settings)
-	s.replaceSnapshot(state)
+	s.replaceSnapshotAfterSync(state, exactGuide)
 	if tightDeadline {
 		s.StartAsyncEPGRefresh(settings)
 	}
@@ -572,9 +576,8 @@ func (s *Service) RefreshEPGNow(ctx context.Context, settings config.Settings, n
 	if err := settings.Validate(); err != nil {
 		return err
 	}
-	s.clearGuidePrograms(nowUnix)
 	if usesDispatcharrAPI(settings) {
-		if err := s.SyncNow(ctx, settings, nowUnix); err != nil {
+		if err := s.syncNow(ctx, settings, nowUnix, true); err != nil {
 			s.store.RecordEPGFailure(nowUnix, err.Error())
 			s.persistSnapshot()
 			return err
@@ -582,7 +585,7 @@ func (s *Service) RefreshEPGNow(ctx context.Context, settings config.Settings, n
 		return nil
 	}
 	if _, err := epgURL(settings); err != nil {
-		return s.SyncNow(ctx, settings, nowUnix)
+		return s.syncNow(ctx, settings, nowUnix, true)
 	}
 	if err := s.refreshEPG(ctx, settings, nowUnix); err != nil {
 		s.store.RecordEPGFailure(nowUnix, err.Error())
@@ -621,8 +624,7 @@ func (s *Service) ForceSyncNow(ctx context.Context, settings config.Settings, no
 	if err := settings.Validate(); err != nil {
 		return err
 	}
-	s.clearGuidePrograms(nowUnix)
-	if err := s.SyncNow(ctx, settings, nowUnix); err != nil {
+	if err := s.syncNow(ctx, settings, nowUnix, true); err != nil {
 		s.store.RecordEPGFailure(nowUnix, err.Error())
 		s.persistSnapshot()
 		return err

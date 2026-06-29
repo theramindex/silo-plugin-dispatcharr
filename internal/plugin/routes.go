@@ -347,7 +347,7 @@ func (s *HTTPRoutesServer) handleGuidePing(ctx context.Context, request *pluginv
 	s.ensureCatalogHydrated(ctx)
 	channelIDs := normalizeChannelIDs(payload.ChannelIDs)
 	currentPrograms := currentProgramCountForChannels(s.store.Current().Catalog.Programs, channelIDs, time.Now().Unix())
-	if len(channelIDs) == 0 || currentPrograms > 0 {
+	if len(channelIDs) == 0 || currentPrograms >= len(channelIDs) {
 		return s.respondJSON(http.StatusOK, GuidePingPayload{Status: "fresh", CheckedChannels: len(channelIDs), CurrentPrograms: currentPrograms})
 	}
 
@@ -378,7 +378,7 @@ func (s *HTTPRoutesServer) startBackgroundRefresh(settings config.Settings) bool
 	s.refreshRunning = true
 	s.refreshMu.Unlock()
 
-	s.store.ClearGuidePrograms(time.Now().Unix())
+	s.store.MarkEPGLoading()
 	go func() {
 		defer func() {
 			s.refreshMu.Lock()
@@ -1084,7 +1084,7 @@ func currentProgramCountForChannels(programs []model.Program, channelIDs []strin
 	for _, id := range channelIDs {
 		channelSet[id] = true
 	}
-	count := 0
+	channelsWithPrograms := map[string]bool{}
 	for _, program := range programs {
 		if !channelSet[program.ChannelID] {
 			continue
@@ -1095,10 +1095,10 @@ func currentProgramCountForChannels(programs []model.Program, channelIDs []strin
 			end = start + 1800
 		}
 		if start <= nowUnix+1800 && end >= nowUnix-300 {
-			count++
+			channelsWithPrograms[program.ChannelID] = true
 		}
 	}
-	return count
+	return len(channelsWithPrograms)
 }
 
 func liveCategories(snapshot cache.Snapshot) []model.Category {

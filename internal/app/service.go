@@ -110,6 +110,19 @@ func (s *Service) replaceSnapshot(snapshot cache.Snapshot) {
 	s.persistSnapshot()
 }
 
+func (s *Service) replaceSnapshotExact(snapshot cache.Snapshot) {
+	s.store.ReplaceExact(snapshot)
+	s.persistSnapshot()
+}
+
+func (s *Service) replaceSnapshotAfterSync(snapshot cache.Snapshot, exactGuide bool) {
+	if exactGuide && len(snapshot.Catalog.Programs) > 0 {
+		s.replaceSnapshotExact(snapshot)
+		return
+	}
+	s.replaceSnapshot(snapshot)
+}
+
 func (s *Service) replacePrograms(programs []model.Program, atUnix int64) {
 	s.store.ReplacePrograms(programs, atUnix)
 	s.persistSnapshot()

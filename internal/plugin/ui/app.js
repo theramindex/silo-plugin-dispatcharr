@@ -2012,7 +2012,7 @@ function channelHasNearGuide(channel) {
 }
 function maybeWarmGuideForChannels(channels, key) {
   if (!state.app || state.appLoadedFromCache || !items(channels).length) return;
-  if (items(channels).some(channelHasNearGuide)) return;
+  if (items(channels).every(channelHasNearGuide)) return;
   const channelIds = items(channels).map(function(channel) { return channel && channel.id; }).filter(Boolean);
   if (!channelIds.length) return;
   const warmKey = String(key || channelIds.slice(0, 20).join("|"));
@@ -2530,7 +2530,7 @@ function renderGuidePage() {
   byId("category-select").onchange = function(event) { state.category = event.target.value; renderGuidePage(); };
   byId("guide-search").oninput = function(event) { state.query = event.target.value; resetGuideRows(); renderEPG(); };
   resetGuideRows();
-  if (state.category) maybeWarmGuideForChannels(state.guideChannels, "guide:" + state.category);
+  maybeWarmGuideForChannels(state.guideChannels.slice(0, guideBatchSize()), "guide:" + (state.category || "all"));
   renderEPG();
 }
 function guideBatchSize() { return 40; }
