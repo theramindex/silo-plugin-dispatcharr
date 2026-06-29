@@ -93,7 +93,7 @@ function defaultEventKeywordRules() {
   ];
 }
 function defaultAdminCategorySettings() {
-  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Virtual Groups", allowRecordingsByDefault: true, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
+  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", allowRecordingsByDefault: true, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
 }
 function cloneAdminCategorySettings(settings) {
   try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -188,11 +188,11 @@ function normalizeAdminCategorySettings() {
   if (["normal", "delimiter"].indexOf(state.adminCategorySettings.mode) === -1) state.adminCategorySettings.mode = "normal";
   if (!state.adminCategorySettings.delimiter) state.adminCategorySettings.delimiter = "pipe";
   if (state.adminCategorySettings.delimiter !== "pipe" && state.adminCategorySettings.delimiter !== "dash") state.adminCategorySettings.delimiter = "pipe";
-  state.adminCategorySettings.virtualGroupLabel = String(state.adminCategorySettings.virtualGroupLabel || "").trim() || "Virtual Groups";
+  state.adminCategorySettings.virtualGroupLabel = virtualGroupLabelSuffix(state.adminCategorySettings.virtualGroupLabel);
   state.adminCategorySettings.allowRecordingsByDefault = state.adminCategorySettings.allowRecordingsByDefault !== false;
   state.adminCategorySettings.ecmEnabled = state.adminCategorySettings.ecmEnabled === true;
   state.adminCategorySettings.ecmURL = normalizeAdminECMURL(state.adminCategorySettings.ecmURL);
-  state.adminCategorySettings.categoryRenames = normalizeCategoryRenames(state.adminCategorySettings.categoryRenames);
+  state.adminCategorySettings.categoryRenames = [];
   state.adminCategorySettings.categoryAliases = normalizeCategoryAliases(state.adminCategorySettings.categoryAliases);
   state.adminCategorySettings.eventKeywords = normalizeEventKeywordRows(state.adminCategorySettings.eventKeywords);
   delete state.adminCategorySettings.groupAliases;
@@ -276,17 +276,8 @@ function eventCategoryName(categoryId) {
 function categoryAliases() {
   return normalizeCategoryAliases(adminSettings().categoryAliases);
 }
-function categoryRenames() {
-  return normalizeCategoryRenames(adminSettings().categoryRenames);
-}
 function renamedCategoryDisplayName(rawName) {
-  const original = categoryDisplayName(rawName);
-  const originalKey = lower(original);
-  const rawKey = lower(String(rawName || "").trim());
-  const rename = categoryRenames().find(function(item) {
-    return lower(item.sourcePath) === originalKey || lower(item.sourcePath) === rawKey;
-  });
-  return rename ? categoryDisplayName(rename.displayName) : original;
+  return categoryDisplayName(rawName);
 }
 function normalizeAdminECMURL(value) {
   const fallback = "";
@@ -779,6 +770,18 @@ function dateTimeLabel(unix) {
   if (!unix) return "Never";
   return new Date(unix * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
+function relativeUpdatedLabel(unix) {
+  unix = Number(unix || 0);
+  if (!unix) return "Updated time unknown";
+  const seconds = Math.max(0, Math.floor(Date.now() / 1000) - unix);
+  if (seconds < 60) return "Updated just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return "Updated " + minutes + " minute" + (minutes === 1 ? "" : "s") + " ago";
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return "Updated " + hours + " hour" + (hours === 1 ? "" : "s") + " ago";
+  const days = Math.floor(hours / 24);
+  return "Updated " + days + " day" + (days === 1 ? "" : "s") + " ago";
+}
 function sourceModeLabel(mode) {
   mode = String(mode || sourceMode() || "");
   if (mode === "direct_login") return "Dispatcharr Direct";
@@ -1006,6 +1009,15 @@ function guideHasPrograms() {
 function epgLastSuccessUnix() {
   const status = state.app && state.app.status ? state.app.status : {};
   return Number(status.epgLastSuccessUnix || 0);
+}
+function guideUpdatedUnix() {
+  const status = state.app && state.app.status ? state.app.status : {};
+  return epgLastSuccessUnix() || Number(status.lastSuccessUnix || 0);
+}
+function guideFreshnessHTML() {
+  const unix = guideUpdatedUnix();
+  const title = unix ? dateTimeLabel(unix) : "Guide has not synced yet";
+  return "<span class=\"guide-freshness\" title=\"" + escapeHTML(title) + "\">" + escapeHTML(relativeUpdatedLabel(unix)) + "</span>";
 }
 function guideRefreshAdvanced(previousEPGSuccess) {
   const previous = Number(previousEPGSuccess || 0);
@@ -1995,7 +2007,11 @@ function adminListingTitle() {
   return "Channel Groups";
 }
 function virtualGroupLabel() {
-  return String(adminSettings().virtualGroupLabel || "").trim() || "Virtual Groups";
+  return "Virtual " + virtualGroupLabelSuffix(adminSettings().virtualGroupLabel);
+}
+function virtualGroupLabelSuffix(value) {
+  value = String(value || "").trim().replace(/^virtual\s+/i, "").trim();
+  return value || "Groups";
 }
 function adminListingCategories(parentPath, includeChannel) {
   const hidden = hiddenMap();
@@ -2070,9 +2086,9 @@ function homeGuideChannels(watched) {
   return pool.filter(channelHasCurrentGuide).slice(0, 5);
 }
 function renderHomeGuide(channels, emptyMessage) {
-  if (!channels.length) return "<div class=\"empty\">" + escapeHTML(emptyMessage || "No recently watched channels yet.") + "</div>";
+  if (!channels.length) return "<div class=\"guide-meta-row\">" + guideFreshnessHTML() + "</div><div class=\"empty\">" + escapeHTML(emptyMessage || "No recently watched channels yet.") + "</div>";
   const slots = guideSlots();
-  return "<div class=\"home-guide guide-scroll\"><div class=\"guide-page guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div>" + channels.map(function(channel, channelIndex) {
+  return "<div class=\"guide-meta-row\">" + guideFreshnessHTML() + "</div><div class=\"home-guide guide-scroll\"><div class=\"guide-page guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div>" + channels.map(function(channel, channelIndex) {
     return "<div class=\"epg-row\">" + renderGuideChannelButton(channel) + "<div class=\"epg-programs\">" + renderEPGCells(channel, channelIndex) + "</div></div>";
   }).join("") + "</div></div>";
 }
@@ -2559,7 +2575,7 @@ function renderGuidePage() {
   const categories = guideFilterCategories();
   const slots = guideSlots();
   state.guideLastSlotStart = guideSlotStart();
-  byId("view").innerHTML = "<div class=\"guide-page\"><div class=\"guide-tools\"><select id=\"category-select\" class=\"select\"><option value=\"\">All groups</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select><button id=\"guide-inline-refresh\" class=\"refresh-button\" type=\"button\" data-guide-refresh=\"true\" aria-label=\"Refresh guide\" title=\"Refresh guide\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" aria-hidden=\"true\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M20 12a8 8 0 0 1-14.1 5.15M4 12A8 8 0 0 1 18.1 6.85\"/><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M6 17.25H3.75V19.5M18 6.75h2.25V4.5\"/></svg></button><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program or channel\" value=\"" + escapeHTML(state.query) + "\"></div><div class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div></div></div>";
+  byId("view").innerHTML = "<div class=\"guide-page\"><div class=\"guide-tools\"><select id=\"category-select\" class=\"select\"><option value=\"\">All groups</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select><button id=\"guide-inline-refresh\" class=\"refresh-button\" type=\"button\" data-guide-refresh=\"true\" aria-label=\"Refresh guide\" title=\"Refresh guide\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" aria-hidden=\"true\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M20 12a8 8 0 0 1-14.1 5.15M4 12A8 8 0 0 1 18.1 6.85\"/><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M6 17.25H3.75V19.5M18 6.75h2.25V4.5\"/></svg></button>" + guideFreshnessHTML() + "<input id=\"guide-search\" class=\"search\" placeholder=\"Search by program or channel\" value=\"" + escapeHTML(state.query) + "\"></div><div class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div></div></div>";
   byId("category-select").onchange = function(event) { state.category = event.target.value; renderGuidePage(); };
   byId("guide-search").oninput = function(event) { state.query = event.target.value; resetGuideRows(); renderEPG(); };
   resetGuideRows();
@@ -2722,7 +2738,6 @@ function renderAdminPage() {
   if (state.adminTab === "settings") {
     renderAdminRecordingSettings();
     renderAdminCategorySettings();
-    renderAdminCategoryRenameSettings();
     renderAdminCategoryAliasSettings();
     renderAdminEventKeywordSettings();
   }
@@ -2759,8 +2774,7 @@ function renderAdminSettingsTab() {
     + "<div class=\"settings-card\"><h2>Connection Status</h2>" + adminStatusPanel() + "</div>"
     + "<div class=\"settings-card\"><h2>Recordings</h2><div id=\"admin-recording-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card\"><h2>Group method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
-    + "<div class=\"settings-card\"><h2>Group Renames</h2><div class=\"settings-note admin-status-note\">Rename Dispatcharr groups for Silo without changing the source group or creating extra virtual paths.</div><div id=\"admin-category-rename-settings\" class=\"settings-list\"></div></div>"
-    + "<div class=\"settings-card\"><h2>Presentation Overrides</h2><div class=\"settings-note admin-status-note\">Alternative Group Names add alternate virtual group paths without changing the original Dispatcharr groups. The original group remains visible.</div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>"
+    + "<div class=\"settings-card\"><h2>Presentation Overrides</h2><div class=\"settings-note admin-status-note\">Add alternate virtual group paths without changing the original Dispatcharr groups.</div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card\"><h2>Event Keywords</h2><div class=\"settings-note admin-status-note\">Events are detected from the Dispatcharr guide. One keyword per line or comma-separated.</div><div id=\"admin-event-keyword-settings\" class=\"settings-list\"></div></div>"
     + "";
 }
@@ -2818,7 +2832,7 @@ function renderAdminCategorySettings() {
   root.innerHTML = adminSaveStatusHTML()
     + "<div class=\"settings-row\"><span>Mode</span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Normal</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">By delimiter</option></select></div>"
     + (settings.mode !== "normal" ? "<div class=\"settings-row\"><span>Delimiter</span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Sports - NHL Teams</option></select></div>" : "")
-    + (settings.mode !== "normal" ? "<div class=\"settings-row\"><span>Virtual label</span><input data-admin-category-field=\"virtualGroupLabel\" value=\"" + escapeHTML(virtualGroupLabel()) + "\" placeholder=\"Virtual Groups\"></div>" : "")
+    + (settings.mode !== "normal" ? "<div class=\"settings-row virtual-label-row\"><span>Virtual label</span><div class=\"virtual-label-control\"><span>Virtual</span><input data-admin-category-field=\"virtualGroupLabel\" value=\"" + escapeHTML(virtualGroupLabelSuffix(settings.virtualGroupLabel)) + "\" placeholder=\"Groups\"></div></div>" : "")
     + (settings.mode === "normal" ? "<div class=\"settings-note\">Channel groups are shown as provided, without remapping or resorting.</div>" : "")
     + (settings.mode === "delimiter" ? "<div class=\"settings-note\">Channel group names are split into virtual groups using the selected delimiter.</div>" : "");
 }
@@ -2838,58 +2852,6 @@ function adminSourceGroupCount(sourcePath) {
     return item.sourcePath === sourcePath || configuredCategoryPath(item.sourcePath) === path;
   });
   return group ? group.count : 0;
-}
-function addAdminCategoryRename() {
-  const source = byId("admin-rename-source");
-  const display = byId("admin-rename-display");
-  const sourcePath = source ? String(source.value || "").trim() : "";
-  const displayName = display ? String(display.value || "").trim() : "";
-  if (!sourcePath || !displayName) return;
-  const settings = state.adminCategorySettings || defaultAdminCategorySettings();
-  const existing = normalizeCategoryRenames(settings.categoryRenames).filter(function(rename) {
-    return lower(rename.sourcePath) !== lower(sourcePath);
-  });
-  settings.categoryRenames = normalizeCategoryRenames(existing.concat([{ sourcePath: sourcePath, displayName: displayName }]));
-  state.adminCategorySettings = settings;
-  markAdminSettingsDraft();
-  renderAdminPage();
-}
-function removeAdminCategoryRename(index) {
-  const settings = state.adminCategorySettings || defaultAdminCategorySettings();
-  settings.categoryRenames = items(settings.categoryRenames).filter(function(_, rowIndex) { return rowIndex !== index; });
-  state.adminCategorySettings = settings;
-  normalizeAdminCategorySettings();
-  markAdminSettingsDraft();
-  renderAdminPage();
-}
-function updateAdminCategoryRename(index, field, value) {
-  const settings = state.adminCategorySettings || defaultAdminCategorySettings();
-  const renames = items(settings.categoryRenames).slice();
-  renames[index] = Object.assign({}, renames[index] || {});
-  renames[index][field] = value;
-  settings.categoryRenames = renames;
-  state.adminCategorySettings = settings;
-  markAdminSettingsDraft();
-}
-function renderAdminCategoryRenameSettings() {
-  const root = byId("admin-category-rename-settings");
-  if (!root) return;
-  const sourceGroups = adminSourceGroups();
-  const renames = categoryRenames();
-  const renamed = {};
-  renames.forEach(function(rename) { renamed[lower(rename.sourcePath)] = true; });
-  const sourceOptions = sourceGroups.map(function(group) {
-    return "<option value=\"" + escapeHTML(group.sourcePath) + "\">" + escapeHTML(group.sourcePath) + " (" + escapeHTML(String(group.count)) + ")</option>";
-  }).join("");
-  const addRow = "<div class=\"settings-row alias-add-row\"><span>Source group</span><select id=\"admin-rename-source\"" + (!sourceGroups.length ? " disabled" : "") + ">" + sourceOptions + "</select><input id=\"admin-rename-display\" placeholder=\"International Sports\"" + (!sourceGroups.length ? " disabled" : "") + "><button data-admin-rename-action=\"add\"" + (!sourceGroups.length ? " disabled" : "") + ">Add</button></div>";
-  const rows = renames.map(function(rename, index) {
-    const count = adminSourceGroupCount(rename.sourcePath);
-    return "<div class=\"alias-table-row" + (!count ? " stale" : "") + "\"><div class=\"alias-table-source\" title=\"" + escapeHTML(rename.sourcePath) + "\"><strong>" + escapeHTML(rename.sourcePath) + "</strong>" + (!count ? "<small>Source not found</small>" : "") + "</div><span class=\"alias-table-count\">" + escapeHTML(String(count)) + "</span><input data-admin-rename-index=\"" + index + "\" data-admin-rename-field=\"displayName\" value=\"" + escapeHTML(rename.displayName) + "\" title=\"" + escapeHTML(rename.displayName) + "\" aria-label=\"Display group name\"><div class=\"alias-table-actions\"><button data-admin-rename-action=\"remove\" data-admin-rename-index=\"" + index + "\">Remove</button></div></div>";
-  }).join("");
-  const unusedCount = sourceGroups.filter(function(group) { return !renamed[lower(group.sourcePath)]; }).length;
-  root.innerHTML = addRow
-    + "<div class=\"settings-note\">" + escapeHTML(renames.length ? renames.length + " renamed groups. " + unusedCount + " groups still use their Dispatcharr names." : "No group renames yet.") + "</div>"
-    + "<div class=\"alias-table\"><div class=\"alias-table-head\"><span>Source group</span><span>Channels</span><span>Display group name</span><span>Actions</span></div>" + (rows || "<div class=\"empty\">No renamed groups yet.</div>") + "</div>";
 }
 function addAdminCategoryAlias() {
   const source = byId("admin-alias-source");
@@ -2929,14 +2891,14 @@ function renderAdminCategoryAliasSettings() {
   const sourceOptions = sourceGroups.map(function(group) {
     return "<option value=\"" + escapeHTML(group.sourcePath) + "\">" + escapeHTML(group.sourcePath) + " (" + escapeHTML(String(group.count)) + ")</option>";
   }).join("");
-  const addRow = "<div class=\"settings-row alias-add-row\"><span>Source group</span><select id=\"admin-alias-source\"" + (!sourceGroups.length ? " disabled" : "") + ">" + sourceOptions + "</select><input id=\"admin-alias-path\" placeholder=\"Sports | Arabic\"" + (!sourceGroups.length ? " disabled" : "") + "><button data-admin-alias-action=\"add\"" + (!sourceGroups.length ? " disabled" : "") + ">Add</button></div>";
+  const addRow = "<div class=\"alias-builder\"><label><span>Source group</span><select id=\"admin-alias-source\"" + (!sourceGroups.length ? " disabled" : "") + ">" + sourceOptions + "</select></label><label><span>Also show as</span><input id=\"admin-alias-path\" placeholder=\"Sports | Arabic\"" + (!sourceGroups.length ? " disabled" : "") + "></label><button data-admin-alias-action=\"add\"" + (!sourceGroups.length ? " disabled" : "") + ">Add</button></div>";
   const rows = aliases.map(function(alias, index) {
     const count = adminSourceGroupCount(alias.sourcePath);
-    return "<div class=\"alias-table-row" + (!count ? " stale" : "") + "\"><div class=\"alias-table-source\" title=\"" + escapeHTML(alias.sourcePath) + "\"><strong>" + escapeHTML(alias.sourcePath) + "</strong>" + (!count ? "<small>Source not found</small>" : "") + "</div><span class=\"alias-table-count\">" + escapeHTML(String(count)) + "</span><input data-admin-alias-index=\"" + index + "\" data-admin-alias-field=\"aliasPath\" value=\"" + escapeHTML(alias.aliasPath) + "\" title=\"" + escapeHTML(alias.aliasPath) + "\" aria-label=\"Alternative group name\"><div class=\"alias-table-actions\"><button data-admin-alias-action=\"remove\" data-admin-alias-index=\"" + index + "\">Remove</button></div></div>";
+    return "<div class=\"alias-card" + (!count ? " stale" : "") + "\"><div class=\"alias-card-main\"><div class=\"alias-path\"><span>Source</span><strong title=\"" + escapeHTML(alias.sourcePath) + "\">" + escapeHTML(alias.sourcePath) + "</strong>" + (!count ? "<small>Source not found</small>" : "") + "</div><div class=\"alias-arrow\">&rarr;</div><label class=\"alias-path alias-target\"><span>Also show as</span><input data-admin-alias-index=\"" + index + "\" data-admin-alias-field=\"aliasPath\" value=\"" + escapeHTML(alias.aliasPath) + "\" title=\"" + escapeHTML(alias.aliasPath) + "\" aria-label=\"Alternative group name\"></label></div><div class=\"alias-card-meta\"><span>" + escapeHTML(String(count)) + " channels</span><button data-admin-alias-action=\"remove\" data-admin-alias-index=\"" + index + "\">Remove</button></div></div>";
   }).join("");
   root.innerHTML = (settings.mode !== "delimiter" ? "<div class=\"settings-note settings-warning\">Alternative group names apply when category mode is By delimiter.</div>" : "")
     + addRow
-    + "<div class=\"alias-table\"><div class=\"alias-table-head\"><span>Source group</span><span>Channels</span><span>Alternative group name</span><span>Actions</span></div>" + (rows || "<div class=\"empty\">No alternative group names yet.</div>") + "</div>";
+    + "<div class=\"alias-list\">" + (rows || "<div class=\"empty\">No alternative group names yet.</div>") + "</div>";
 }
 function renderAdminEventKeywordSettings() {
   const root = byId("admin-event-keyword-settings");
@@ -3691,14 +3653,6 @@ document.addEventListener("click", function(event) {
     selectCustomGroupChannel(customGroupChannelOption.getAttribute("data-custom-group-channel-option"));
     return;
   }
-  const adminRenameAction = event.target.closest("[data-admin-rename-action]");
-  if (adminRenameAction) {
-    event.preventDefault();
-    const action = adminRenameAction.getAttribute("data-admin-rename-action");
-    if (action === "add") addAdminCategoryRename();
-    if (action === "remove") removeAdminCategoryRename(Number(adminRenameAction.getAttribute("data-admin-rename-index")));
-    return;
-  }
   const adminAliasAction = event.target.closest("[data-admin-alias-action]");
   if (adminAliasAction) {
     event.preventDefault();
@@ -3836,11 +3790,6 @@ document.addEventListener("change", function(event) {
   const adminAliasField = event.target.getAttribute("data-admin-alias-field");
   if (adminAliasField) {
     updateAdminCategoryAlias(Number(event.target.getAttribute("data-admin-alias-index")), adminAliasField, event.target.value || "");
-    return;
-  }
-  const adminRenameField = event.target.getAttribute("data-admin-rename-field");
-  if (adminRenameField) {
-    updateAdminCategoryRename(Number(event.target.getAttribute("data-admin-rename-index")), adminRenameField, event.target.value || "");
     return;
   }
   if (event.target && event.target.id === "custom-group-select") {
