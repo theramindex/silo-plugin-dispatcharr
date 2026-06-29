@@ -1019,6 +1019,18 @@ function guideFreshnessHTML() {
   const title = unix ? dateTimeLabel(unix) : "Guide has not synced yet";
   return "<span class=\"guide-freshness\" title=\"" + escapeHTML(title) + "\">" + escapeHTML(relativeUpdatedLabel(unix)) + "</span>";
 }
+function setSettingsMenuOpen(open) {
+  const menu = byId("settings-menu");
+  const button = byId("settings-menu-button");
+  if (!menu || !button) return;
+  const shell = menu.closest(".settings-menu");
+  if (shell) shell.classList.toggle("open", !!open);
+  button.setAttribute("aria-expanded", open ? "true" : "false");
+}
+function settingsMenuOpen() {
+  const menu = byId("settings-menu");
+  return !!(menu && menu.closest(".settings-menu") && menu.closest(".settings-menu").classList.contains("open"));
+}
 function guideRefreshAdvanced(previousEPGSuccess) {
   const previous = Number(previousEPGSuccess || 0);
   return epgLastSuccessUnix() > previous || (!previous && guideHasPrograms());
@@ -1135,6 +1147,7 @@ function renderHome() {
   root.innerHTML = sectionHeader("Recently watched")
     + rowCards(watched)
     + (favorites.length ? sectionHeader("Favorites") + favoriteHomeCards(favorites) : "")
+    + sectionHeader("TV Guide")
     + renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.")
     + categoryGrid();
 }
@@ -3438,6 +3451,13 @@ function handlePlayerAction(action, button) {
   }
 }
 document.addEventListener("click", function(event) {
+  const settingsMenuButton = event.target.closest("#settings-menu-button");
+  if (settingsMenuButton) {
+    event.preventDefault();
+    setSettingsMenuOpen(!settingsMenuOpen());
+    return;
+  }
+  if (!event.target.closest(".settings-menu")) setSettingsMenuOpen(false);
   const playerTarget = event.target.closest("[data-player-action]");
   if (playerTarget) {
     event.preventDefault();
@@ -3455,6 +3475,7 @@ document.addEventListener("click", function(event) {
   const guideRefresh = event.target.closest("[data-guide-refresh]");
   if (guideRefresh) {
     event.preventDefault();
+    setSettingsMenuOpen(false);
     if (state.view === "sports") {
       const buttons = Array.prototype.slice.call(document.querySelectorAll("[data-guide-refresh]"));
       buttons.forEach(function(button) {
@@ -3834,8 +3855,14 @@ document.addEventListener("input", function(event) {
     }
   }
 });
+document.addEventListener("keydown", function(event) {
+  if (event.key === "Escape") setSettingsMenuOpen(false);
+});
 document.querySelectorAll("[data-view]").forEach(function(button) {
-  button.onclick = function() { setView(button.dataset.view); };
+  button.onclick = function() {
+    setSettingsMenuOpen(false);
+    setView(button.dataset.view);
+  };
 });
 const appSearchButton = byId("app-search-button");
 if (appSearchButton) appSearchButton.onclick = function() { setView("search"); };
