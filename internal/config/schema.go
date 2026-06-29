@@ -120,6 +120,10 @@ const categorySettingsJSONSchema = `{
       "enum": ["pipe", "dash"],
       "default": "pipe"
     },
+    "virtualGroupLabel": {
+      "type": "string",
+      "default": "Virtual Groups"
+    },
     "ecmEnabled": {
       "type": "boolean",
       "default": false

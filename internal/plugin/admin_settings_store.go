@@ -99,6 +99,10 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	if delimiter != "pipe" && delimiter != "dash" {
 		delimiter = "pipe"
 	}
+	virtualGroupLabel := strings.TrimSpace(asStringValue(payload["virtualGroupLabel"]))
+	if virtualGroupLabel == "" {
+		virtualGroupLabel = "Virtual Groups"
+	}
 
 	ecmEnabled := false
 	if enabled, ok := payload["ecmEnabled"].(bool); ok {
@@ -120,6 +124,7 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	return map[string]any{
 		"mode":                     mode,
 		"delimiter":                delimiter,
+		"virtualGroupLabel":        virtualGroupLabel,
 		"ecmEnabled":               ecmEnabled,
 		"ecmURL":                   ecmURL,
 		"allowRecordingsByDefault": allowRecordingsByDefault,

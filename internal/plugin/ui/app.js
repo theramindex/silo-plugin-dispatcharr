@@ -93,7 +93,7 @@ function defaultEventKeywordRules() {
   ];
 }
 function defaultAdminCategorySettings() {
-  return { mode: "normal", delimiter: "pipe", allowRecordingsByDefault: true, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
+  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Virtual Groups", allowRecordingsByDefault: true, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
 }
 function cloneAdminCategorySettings(settings) {
   try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -188,6 +188,7 @@ function normalizeAdminCategorySettings() {
   if (["normal", "delimiter"].indexOf(state.adminCategorySettings.mode) === -1) state.adminCategorySettings.mode = "normal";
   if (!state.adminCategorySettings.delimiter) state.adminCategorySettings.delimiter = "pipe";
   if (state.adminCategorySettings.delimiter !== "pipe" && state.adminCategorySettings.delimiter !== "dash") state.adminCategorySettings.delimiter = "pipe";
+  state.adminCategorySettings.virtualGroupLabel = String(state.adminCategorySettings.virtualGroupLabel || "").trim() || "Virtual Groups";
   state.adminCategorySettings.allowRecordingsByDefault = state.adminCategorySettings.allowRecordingsByDefault !== false;
   state.adminCategorySettings.ecmEnabled = state.adminCategorySettings.ecmEnabled === true;
   state.adminCategorySettings.ecmURL = normalizeAdminECMURL(state.adminCategorySettings.ecmURL);
@@ -1842,7 +1843,7 @@ function virtualFolderHeader(path, featured) {
 }
 function virtualFolderBreadcrumbs(path, featured) {
   const parts = path.split(" / ").filter(Boolean);
-  const rootLabel = featured ? "Featured Groups" : "Virtual Categories";
+  const rootLabel = featured ? "Featured Groups" : virtualGroupLabel();
   const crumbs = ["<button data-category=\"\">" + escapeHTML(rootLabel) + "</button>"];
   parts.forEach(function(part, index) {
     const crumbPath = parts.slice(0, index + 1).join(" / ");
@@ -1962,8 +1963,11 @@ function guideFilterCategories() {
 }
 function adminListingTitle() {
   const mode = adminSettings().mode || "normal";
-  if (mode === "delimiter") return "Virtual Categories";
+  if (mode === "delimiter") return virtualGroupLabel();
   return "Channel Groups";
+}
+function virtualGroupLabel() {
+  return String(adminSettings().virtualGroupLabel || "").trim() || "Virtual Groups";
 }
 function adminListingCategories(parentPath, includeChannel) {
   const hidden = hiddenMap();
@@ -2781,6 +2785,7 @@ function renderAdminCategorySettings() {
   root.innerHTML = adminSaveStatusHTML()
     + "<div class=\"settings-row\"><span>Mode</span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Normal</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">By delimiter</option></select></div>"
     + (settings.mode !== "normal" ? "<div class=\"settings-row\"><span>Delimiter</span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Sports - NHL Teams</option></select></div>" : "")
+    + (settings.mode !== "normal" ? "<div class=\"settings-row\"><span>Virtual label</span><input data-admin-category-field=\"virtualGroupLabel\" value=\"" + escapeHTML(virtualGroupLabel()) + "\" placeholder=\"Virtual Groups\"></div>" : "")
     + (settings.mode === "normal" ? "<div class=\"settings-note\">Channel groups are shown as provided, without remapping or resorting.</div>" : "")
     + (settings.mode === "delimiter" ? "<div class=\"settings-note\">Channel group names are split into virtual groups using the selected delimiter.</div>" : "");
 }
