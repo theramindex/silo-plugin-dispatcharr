@@ -187,7 +187,6 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`<span>My Stuff</span>`,
 		`<span>Sports</span>`,
 		`<span>Events</span>`,
-		`<span>Multiview</span>`,
 		`aria-label="Preferences"`,
 		`id="sports-topbar-tabs"`,
 		`id="app-search-button"`,
@@ -286,6 +285,9 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	}
 	if strings.Contains(body, `data-sports-refresh`) {
 		t.Fatalf("expected sports refresh to use the shared topbar refresh button")
+	}
+	if strings.Contains(body, `<span>Multiview</span>`) || strings.Contains(body, `sports-channel-multiview`) {
+		t.Fatalf("expected multiview controls to be hidden from navigation and sports cards")
 	}
 	if strings.Contains(body, `postJSON("/dispatcharr/api/sports/favorites"`) {
 		t.Fatalf("expected sports favorite teams to save through user profile preferences")
