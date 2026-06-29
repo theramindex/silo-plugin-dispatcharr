@@ -568,9 +568,18 @@ func (s *HTTPRoutesServer) handleScheduleRecording(ctx context.Context, request 
 		},
 	})
 	if err != nil {
-		return textResponse(http.StatusBadGateway, err.Error()), nil
+		return scheduleRecordingErrorResponse(err), nil
 	}
 	return s.respondJSON(http.StatusOK, map[string]any{"ok": true, "recording": enrichRecording(client, recording)})
+}
+
+func scheduleRecordingErrorResponse(err error) *pluginv1.HandleHTTPResponse {
+	message := err.Error()
+	lower := strings.ToLower(message)
+	if strings.Contains(lower, "unexpected status 403") || strings.Contains(lower, "permission") {
+		return textResponse(http.StatusForbidden, "Dispatcharr requires an admin account or API key to schedule recordings.")
+	}
+	return textResponse(http.StatusBadGateway, message)
 }
 
 func (s *HTTPRoutesServer) handlePreferences(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
