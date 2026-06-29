@@ -9,7 +9,7 @@ const localCacheSuffix = pluginInstallationID || "default";
 const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuffix;
 const adminSettingsLocalKey = "silo.ramindex.dispatcharr.adminSettings.v1." + localCacheSuffix;
 const adminSettingsToken = "__ADMIN_SETTINGS_TOKEN__";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsTab: "live", sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsTab: "live", sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
 
 function applySiloTheme() {
   const params = new URLSearchParams(window.location.search);
@@ -81,7 +81,7 @@ function icon(name) {
 }
 function menuIcon(name) { return "<span class=\"menu-icon\">" + icon(name) + "</span>"; }
 function defaultPrefs() {
-  return { favorites: {}, favoriteOrder: [], autoFavorites: {}, hiddenCategories: {}, sportsFavoriteTeams: {}, recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, customGroups: [], customGroupMemberships: {} };
+  return { favorites: {}, favoriteOrder: [], autoFavorites: {}, hiddenCategories: {}, sportsFavoriteTeams: {}, keywordPasses: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, customGroups: [], customGroupMemberships: {} };
 }
 function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
 function defaultEventKeywordRules() {
@@ -93,7 +93,7 @@ function defaultEventKeywordRules() {
   ];
 }
 function defaultAdminCategorySettings() {
-  return { mode: "normal", delimiter: "pipe", ecmEnabled: false, ecmURL: "", categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
+  return { mode: "normal", delimiter: "pipe", allowRecordingsByDefault: true, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
 }
 function cloneAdminCategorySettings(settings) {
   try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -121,12 +121,26 @@ function adminSettings() {
 }
 function sourceMode() { return state.app && state.app.source ? String(state.app.source.mode || "") : ""; }
 function dvrEnabled() {
-  return !!(state.app && state.app.capabilities && state.app.capabilities.recordings && sourceMode() === "direct_login");
+  return !!(state.app && state.app.capabilities && state.app.capabilities.recordings && sourceMode() === "direct_login" && adminSettings().allowRecordingsByDefault !== false);
 }
 function favoriteMap() { return prefs().favorites || {}; }
 function autoFavoriteMap() { return prefs().autoFavorites || {}; }
 function hiddenMap() { return prefs().hiddenCategories || {}; }
 function sportsFavoriteTeamMap() { return prefs().sportsFavoriteTeams || {}; }
+function normalizeKeywordPasses(value) {
+  const seen = {};
+  return items(value).map(function(pass) {
+    pass = pass || {};
+    const keyword = String(pass.keyword || pass.name || "").trim();
+    if (!keyword) return null;
+    const id = String(pass.id || ("keyword:" + lower(keyword).replace(/[^a-z0-9]+/g, "-"))).replace(/^-+|-+$/g, "");
+    const key = lower(keyword);
+    if (!id || seen[key]) return null;
+    seen[key] = true;
+    return { id: id, keyword: keyword, createdAt: Number(pass.createdAt || Date.now()) };
+  }).filter(Boolean).slice(0, 24);
+}
+function keywordPasses() { return normalizeKeywordPasses(prefs().keywordPasses); }
 function mergePrefs(remote, local) {
   remote = Object.assign(defaultPrefs(), remote || {});
   local = Object.assign(defaultPrefs(), local || {});
@@ -136,6 +150,7 @@ function mergePrefs(remote, local) {
     autoFavorites: Object.assign({}, remote.autoFavorites, local.autoFavorites),
     hiddenCategories: Object.assign({}, remote.hiddenCategories, local.hiddenCategories),
     sportsFavoriteTeams: Object.assign({}, remote.sportsFavoriteTeams, local.sportsFavoriteTeams),
+    keywordPasses: normalizeKeywordPasses(items(local.keywordPasses).length ? local.keywordPasses : remote.keywordPasses),
     recentChannels: uniqueIDs(items(remote.recentChannels).concat(items(local.recentChannels))).slice(0, 24),
     continueWatching: Object.assign({}, remote.continueWatching, local.continueWatching),
     playback: Object.assign({}, remote.playback, local.playback),
@@ -149,6 +164,7 @@ function normalizePreferences() {
   state.app.preferences = Object.assign(defaultPrefs(), state.app.preferences || {});
   state.app.preferences.categoryParsing = Object.assign(defaultPrefs().categoryParsing, state.app.preferences.categoryParsing || {});
   state.app.preferences.sportsFavoriteTeams = state.app.preferences.sportsFavoriteTeams || {};
+  state.app.preferences.keywordPasses = normalizeKeywordPasses(state.app.preferences.keywordPasses);
   state.app.preferences.customGroups = items(state.app.preferences.customGroups);
   state.app.preferences.customGroupMemberships = state.app.preferences.customGroupMemberships || {};
   const valid = {};
@@ -172,14 +188,30 @@ function normalizeAdminCategorySettings() {
   if (["normal", "delimiter"].indexOf(state.adminCategorySettings.mode) === -1) state.adminCategorySettings.mode = "normal";
   if (!state.adminCategorySettings.delimiter) state.adminCategorySettings.delimiter = "pipe";
   if (state.adminCategorySettings.delimiter !== "pipe" && state.adminCategorySettings.delimiter !== "dash") state.adminCategorySettings.delimiter = "pipe";
+  state.adminCategorySettings.allowRecordingsByDefault = state.adminCategorySettings.allowRecordingsByDefault !== false;
   state.adminCategorySettings.ecmEnabled = state.adminCategorySettings.ecmEnabled === true;
   state.adminCategorySettings.ecmURL = normalizeAdminECMURL(state.adminCategorySettings.ecmURL);
+  state.adminCategorySettings.categoryRenames = normalizeCategoryRenames(state.adminCategorySettings.categoryRenames);
   state.adminCategorySettings.categoryAliases = normalizeCategoryAliases(state.adminCategorySettings.categoryAliases);
   state.adminCategorySettings.eventKeywords = normalizeEventKeywordRows(state.adminCategorySettings.eventKeywords);
   delete state.adminCategorySettings.groupAliases;
   delete state.adminCategorySettings.adminGroups;
   delete state.adminCategorySettings.adminGroupMemberships;
   delete state.adminCategorySettings.presentationOverrides;
+}
+function normalizeCategoryRenames(value) {
+  const seen = {};
+  return items(value).map(function(rename) {
+    return {
+      sourcePath: String((rename && rename.sourcePath) || "").trim(),
+      displayName: String((rename && (rename.displayName || rename.aliasPath)) || "").trim()
+    };
+  }).filter(function(rename) {
+    const key = lower(rename.sourcePath);
+    if (!rename.sourcePath || !rename.displayName || seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
 }
 function normalizeCategoryAliases(value) {
   const seen = {};
@@ -242,6 +274,18 @@ function eventCategoryName(categoryId) {
 }
 function categoryAliases() {
   return normalizeCategoryAliases(adminSettings().categoryAliases);
+}
+function categoryRenames() {
+  return normalizeCategoryRenames(adminSettings().categoryRenames);
+}
+function renamedCategoryDisplayName(rawName) {
+  const original = categoryDisplayName(rawName);
+  const originalKey = lower(original);
+  const rawKey = lower(String(rawName || "").trim());
+  const rename = categoryRenames().find(function(item) {
+    return lower(item.sourcePath) === originalKey || lower(item.sourcePath) === rawKey;
+  });
+  return rename ? categoryDisplayName(rename.displayName) : original;
 }
 function normalizeAdminECMURL(value) {
   const fallback = "";
@@ -546,12 +590,15 @@ function sourceCategoryRawName(id) {
   return category ? category.name : "";
 }
 function sourceCategoryName(id) {
-  return categoryDisplayName(sourceCategoryRawName(id));
+  return renamedCategoryDisplayName(sourceCategoryRawName(id));
 }
 function sourceCategoryRawLabel(channel) {
   return sourceCategoryRawName(channel.categoryId) || channel.categoryName || "";
 }
 function sourceCategoryLabel(channel) {
+  return renamedCategoryDisplayName(sourceCategoryRawLabel(channel));
+}
+function sourceCategoryOriginalLabel(channel) {
   return categoryDisplayName(sourceCategoryRawLabel(channel));
 }
 function normalizedGroupName(value) {
@@ -603,7 +650,7 @@ function sourceVirtualPathForChannel(channel) {
 }
 function featuredPathForSourceName(name) {
   if (!categoryStartsFeatured(name)) return "";
-  return categoryPathFromDisplayName(name);
+  return categoryPathFromDisplayName(renamedCategoryDisplayName(name));
 }
 function featuredPathsForChannel(channel) {
   const path = featuredPathForSourceName(sourceCategoryRawLabel(channel));
@@ -860,7 +907,8 @@ function setView(view) {
   }
   if (view !== "multiview" && state.view === "multiview") stopAllMultiview("leave_multiview");
   state.view = view;
-  if (view === "favorites") state.category = "";
+  if (view === "favorites" || view === "onlater") state.category = "";
+  if ((view === "search" || view === "onlater") && dvrEnabled()) loadRecordings(false);
   if (view === "sports") {
     state.category = "";
     loadSports(false);
@@ -1001,6 +1049,7 @@ function render() {
   document.querySelector(".shell").classList.toggle("is-events", state.view === "events");
   document.querySelector(".shell").classList.toggle("is-multiview", state.view === "multiview");
   document.querySelector(".shell").classList.toggle("is-search", state.view === "search");
+  document.querySelector(".shell").classList.toggle("is-onlater", state.view === "onlater");
   renderRail();
   renderSportsTopbarTabs();
   if (state.view === "guide") renderGuidePage();
@@ -1009,17 +1058,61 @@ function render() {
   else if (state.view === "live" || state.view === "favorites") renderLivePage();
   else if (state.view === "sports") renderSportsPage();
   else if (state.view === "events") renderEventsPage();
+  else if (state.view === "onlater") renderOnLaterPage();
   else if (state.view === "search") renderSearchPage();
   else if (state.view === "recordings") renderRecordingsPage();
   else if (state.view === "admin") renderAdminPage();
   else if (state.view === "settings") renderSettings();
   else renderHome();
 }
+function guideSearchFocused() {
+  return document.activeElement && document.activeElement.id === "guide-search";
+}
+function startGuideAutoRefresh() {
+  if (isAdminRoute || state.guideAutoTimer) return;
+  state.guideAutoTimer = setInterval(tickGuideAutoRefresh, 60000);
+  document.addEventListener("visibilitychange", function() {
+    if (!document.hidden) tickGuideAutoRefresh();
+  });
+}
+async function tickGuideAutoRefresh() {
+  if (!state.app || state.view !== "guide" || document.hidden) return;
+  const slotStart = guideSlotStart();
+  if (!state.guideLastSlotStart) state.guideLastSlotStart = slotStart;
+  if (slotStart !== state.guideLastSlotStart && !guideSearchFocused()) {
+    state.guideLastSlotStart = slotStart;
+    renderGuidePage();
+  }
+
+  const now = Date.now();
+  if (state.guideAutoFetching || state.refreshing || now - state.guideLastAutoFetchAt < 5 * 60 * 1000) return;
+  state.guideAutoFetching = true;
+  state.guideLastAutoFetchAt = now;
+  try {
+    await hydrateApp(await getJSON("/dispatcharr/api/app"));
+    if (state.view !== "guide") return;
+    if (guideSearchFocused()) {
+      resetGuideRows();
+      renderEPG();
+    } else {
+      renderGuidePage();
+    }
+  } catch (error) {
+    try { console.warn("Dispatcharr guide auto-refresh failed", error); } catch (_) {}
+  } finally {
+    state.guideAutoFetching = false;
+  }
+}
 function renderHome() {
   const root = byId("view");
-  const recent = recentChannels(10);
-  const watched = recent.length ? recent : visibleChannels(false).slice(0, 6);
-  root.innerHTML = sectionHeader("Recently watched") + rowCards(watched) + renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.") + categoryGrid();
+  const recent = recentChannels(5);
+  const watched = recent.length ? recent : visibleChannels(false).slice(0, 5);
+  const favorites = homeFavoriteChannels();
+  root.innerHTML = sectionHeader("Recently watched")
+    + rowCards(watched)
+    + (favorites.length ? sectionHeader("Favorites") + favoriteHomeCards(favorites) : "")
+    + renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.")
+    + categoryGrid();
 }
 function emptyStateHTML(title, detail) {
   detail = String(detail || "").trim();
@@ -1045,6 +1138,16 @@ function rowCards(channels) {
   if (!channels.length) return emptyStateHTML("No channels yet.", catalogEmptyDetail());
   return "<div class=\"row-scroll\">" + channels.map(function(channel) {
     return "<button class=\"continue-card\" data-channel=\"" + escapeHTML(channel.id) + "\"><div class=\"poster-box\">" + (channel.logoUrl ? "<img src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">" : "<span>" + escapeHTML((channel.name || "TV").slice(0, 5)) + "</span>") + "</div><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><div class=\"muted\">" + escapeHTML(channel.categoryName || "Live TV") + "</div></button>";
+  }).join("") + "</div>";
+}
+function homeFavoriteChannels() {
+  return orderedFavoriteChannels(visibleChannels(true)).filter(function(channel) {
+    return !!(favoriteMap()[channel.id] || autoFavoriteMap()[channel.id]);
+  }).slice(0, 10);
+}
+function favoriteHomeCards(channels) {
+  return "<div class=\"row-scroll favorites-row\">" + channels.map(function(channel) {
+    return "<button class=\"continue-card home-favorite-card\" data-channel=\"" + escapeHTML(channel.id) + "\"><div class=\"poster-box\">" + (channel.logoUrl ? "<img src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">" : "<span>" + escapeHTML((channel.name || "TV").slice(0, 5)) + "</span>") + "</div><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><div class=\"muted\">" + escapeHTML(channel.categoryName || "Live TV") + "</div></button>";
   }).join("") + "</div>";
 }
 function searchNeedle() {
@@ -1074,13 +1177,73 @@ function contentMatchesSearch(kind, item, query) {
   const haystack = [item.name, item.title, item.description, item.rating, contentCategoryName(kind, item)].join(" ");
   return lower(haystack).indexOf(query) !== -1;
 }
+function allDiscoveryGroups() {
+  const hidden = hiddenMap();
+  const includeChannel = function(channel) { return !(channel.categoryId && hidden[channel.categoryId]); };
+  return customGroupCategories()
+    .concat(featuredCategoriesFromPaths("", includeChannel, true))
+    .concat(virtualCategoriesFromPaths("", includeChannel, true))
+    .concat(sourceCategoriesWithChannels(includeChannel))
+    .sort(compareCategoryDisplayName);
+}
+function groupMatchesSearch(group, query) {
+  return lower([group.name, group.id, group.kind].join(" ")).indexOf(query) !== -1;
+}
+function normalizeProgramTitle(title) {
+  return lower(title).replace(/\s+/g, " ").replace(/\s+\(\d{4}\)$/, "").trim();
+}
+function programSearchText(program) {
+  const channel = channelByID(program.channelId) || {};
+  return [program.title, program.summary, program.description, channel.name, channel.categoryName].join(" ");
+}
+function recordingMatchesSearch(recording, query) {
+  const haystack = [recordingTitle(recording), recordingChannelName(recording), recordingStatus(recording)].join(" ");
+  return lower(haystack).indexOf(query) !== -1;
+}
+function programIsLive(program) {
+  const now = Math.floor(Date.now() / 1000);
+  return (program.startUnix || 0) <= now && (program.endUnix || 0) > now;
+}
+function programIsUpcoming(program) {
+  return (program.startUnix || 0) > Math.floor(Date.now() / 1000);
+}
+function programLooksSports(program) {
+  return /\b(vs\.?|@|game|match|cup|league|racing|football|baseball|basketball|soccer|hockey|f1|formula|mlb|nba|nfl|nhl|mls|wnba|premier)\b/i.test(programSearchText(program));
+}
+function programLooksMovie(program) {
+  return /\b(movie|film|premiere|cinema|starring)\b/i.test(programSearchText(program));
+}
+function programLooksEvent(program) {
+  return /\b(awards|parade|special|ceremony|debate|concert|festival|live)\b/i.test(programSearchText(program));
+}
+function groupedUpcomingAirings(programs, query) {
+  const groups = {};
+  items(programs).filter(programIsUpcoming).forEach(function(program) {
+    const key = normalizeProgramTitle(program.title);
+    if (!key || (query && key.indexOf(query) === -1 && lower(programSearchText(program)).indexOf(query) === -1)) return;
+    groups[key] = groups[key] || { key: key, title: program.title || "Untitled", programs: [] };
+    groups[key].programs.push(program);
+  });
+  return Object.keys(groups).map(function(key) {
+    const group = groups[key];
+    group.programs.sort(function(left, right) { return (left.startUnix || 0) - (right.startUnix || 0); });
+    return group;
+  }).sort(function(left, right) {
+    return (left.programs[0].startUnix || 0) - (right.programs[0].startUnix || 0);
+  });
+}
 function searchFilters() {
   return [
     { id: "all", label: "All" },
     { id: "channels", label: "Channels" },
+    { id: "groups", label: "Groups" },
     { id: "programs", label: "Programs" },
+    { id: "airings", label: "Upcoming Airings" },
+    { id: "sports", label: "Sports" },
+    { id: "events", label: "Events" },
     { id: "movies", label: "Movies" },
-    { id: "shows", label: "Shows" }
+    { id: "shows", label: "Shows" },
+    { id: "recordings", label: "Recordings" }
   ];
 }
 function searchResultSections(query) {
@@ -1099,22 +1262,78 @@ function searchResultSections(query) {
       };
     }) });
   }
+  if (include("groups")) {
+    const groups = allDiscoveryGroups().filter(function(group) { return groupMatchesSearch(group, query); }).slice(0, 18);
+    sections.push({ id: "groups", title: "Groups", rows: groups.map(function(group) {
+      return {
+        attrs: "data-search-category=\"" + escapeHTML(group.id) + "\"",
+        art: "<span class=\"logo logo-fallback\">GRP</span>",
+        title: group.name || "Untitled group",
+        meta: [(group.kind === "custom" ? "My Group" : "Group"), group.count ? group.count + " channels" : ""].filter(Boolean).join(" - "),
+        action: "Open"
+      };
+    }) });
+  }
   if (include("programs")) {
     const programs = programsFor("").filter(function(program) { return programMatchesSearch(program, query); }).slice(0, 18);
     sections.push({ id: "programs", title: "Guide Programs", rows: programs.map(function(program) {
       const channel = channelByID(program.channelId) || {};
       return {
-        attrs: "data-search-channel=\"" + escapeHTML(program.channelId || "") + "\"",
+        attrs: "data-search-program-channel=\"" + escapeHTML(program.channelId || "") + "\" data-search-program=\"" + escapeHTML(program.id || "") + "\"",
         art: logoHTML(channel),
         title: program.title || "Untitled program",
-        meta: [timeLabel(program.startUnix), channel.name || "Live TV"].filter(Boolean).join(" - "),
-        action: "Watch"
+        meta: [(programIsLive(program) ? "Live now" : dateTimeLabel(program.startUnix)), channel.name || "Live TV"].filter(Boolean).join(" - "),
+        action: programIsLive(program) ? "Watch" : "Guide",
+        recordable: dvrEnabled() && programIsUpcoming(program),
+        channelId: program.channelId,
+        programId: program.id || ""
+      };
+    }) });
+  }
+  if (include("airings")) {
+    const airings = groupedUpcomingAirings(programsFor(""), query).slice(0, 12);
+    sections.push({ id: "airings", title: "Upcoming Airings", rows: airings.map(function(group) {
+      const first = group.programs[0] || {};
+      const channel = channelByID(first.channelId) || {};
+      return {
+        attrs: "data-search-airing=\"" + escapeHTML(group.key) + "\"",
+        art: logoHTML(channel),
+        title: group.title,
+        meta: [group.programs.length + " airings", dateTimeLabel(first.startUnix), channel.name || ""].filter(Boolean).join(" - "),
+        action: "Show"
+      };
+    }) });
+  }
+  if (include("sports")) {
+    const programs = programsFor("").filter(function(program) { return programLooksSports(program) && programMatchesSearch(program, query); }).slice(0, 12);
+    sections.push({ id: "sports", title: "Sports From Guide", rows: programs.map(function(program) {
+      const channel = channelByID(program.channelId) || {};
+      return {
+        attrs: "data-search-program-channel=\"" + escapeHTML(program.channelId || "") + "\" data-search-program=\"" + escapeHTML(program.id || "") + "\"",
+        art: logoHTML(channel),
+        title: program.title || "Sports",
+        meta: [(programIsLive(program) ? "Live now" : dateTimeLabel(program.startUnix)), channel.name || ""].filter(Boolean).join(" - "),
+        action: programIsLive(program) ? "Watch" : "Guide"
+      };
+    }) });
+  }
+  if (include("events")) {
+    const programs = programsFor("").filter(function(program) { return programLooksEvent(program) && programMatchesSearch(program, query); }).slice(0, 12);
+    sections.push({ id: "events", title: "Events From Guide", rows: programs.map(function(program) {
+      const channel = channelByID(program.channelId) || {};
+      return {
+        attrs: "data-search-program-channel=\"" + escapeHTML(program.channelId || "") + "\" data-search-program=\"" + escapeHTML(program.id || "") + "\"",
+        art: logoHTML(channel),
+        title: program.title || "Event",
+        meta: [(programIsLive(program) ? "Live now" : dateTimeLabel(program.startUnix)), channel.name || ""].filter(Boolean).join(" - "),
+        action: programIsLive(program) ? "Watch" : "Guide"
       };
     }) });
   }
   if (include("movies")) {
-    const movies = items(state.app && state.app.vod && state.app.vod.items).filter(function(item) { return contentMatchesSearch("vod", item, query); }).slice(0, 12);
-    sections.push({ id: "movies", title: "Movies", rows: movies.map(function(item) {
+    const vodMovies = items(state.app && state.app.vod && state.app.vod.items).filter(function(item) { return contentMatchesSearch("vod", item, query); }).slice(0, 8);
+    const guideMovies = programsFor("").filter(function(program) { return programLooksMovie(program) && programMatchesSearch(program, query); }).slice(0, 8);
+    sections.push({ id: "movies", title: "Movies", rows: vodMovies.map(function(item) {
       return {
         attrs: "",
         disabled: true,
@@ -1123,7 +1342,16 @@ function searchResultSections(query) {
         meta: ["Movie", contentCategoryName("vod", item), item.rating].filter(Boolean).join(" - "),
         action: "On Demand"
       };
-    }) });
+    }).concat(guideMovies.map(function(program) {
+      const channel = channelByID(program.channelId) || {};
+      return {
+        attrs: "data-search-program-channel=\"" + escapeHTML(program.channelId || "") + "\" data-search-program=\"" + escapeHTML(program.id || "") + "\"",
+        art: logoHTML(channel),
+        title: program.title || "Movie",
+        meta: ["Guide", dateTimeLabel(program.startUnix), channel.name || ""].filter(Boolean).join(" - "),
+        action: programIsLive(program) ? "Watch" : "Guide"
+      };
+    })) });
   }
   if (include("shows")) {
     const shows = items(state.app && state.app.series && state.app.series.items).filter(function(item) { return contentMatchesSearch("series", item, query); }).slice(0, 12);
@@ -1138,15 +1366,31 @@ function searchResultSections(query) {
       };
     }) });
   }
+  if (include("recordings") && state.recordings && state.recordings.available) {
+    const recordings = normalizeRecordings(state.recordings).filter(function(recording) { return recordingMatchesSearch(recording, query); }).slice(0, 12);
+    sections.push({ id: "recordings", title: "Recordings", rows: recordings.map(function(recording) {
+      const playbackURL = recordingPlaybackURL(recording);
+      return {
+        attrs: playbackURL ? "data-recording-playback=\"" + escapeHTML(playbackURL) + "\"" : "",
+        disabled: !playbackURL,
+        art: "<span class=\"logo logo-fallback\">REC</span>",
+        title: recordingTitle(recording),
+        meta: [recordingChannelName(recording), recordingWindow(recording), recordingStatus(recording)].filter(Boolean).join(" - "),
+        action: playbackURL ? "Play" : "Saved"
+      };
+    }) });
+  }
   return sections.filter(function(section) { return section.rows.length; });
 }
 function renderSearchResultRow(row) {
-  return "<button class=\"search-result\" type=\"button\" " + (row.attrs || "") + (row.disabled ? " disabled" : "") + "><span class=\"search-result-art\">" + row.art + "</span><span class=\"search-result-main\"><strong>" + escapeHTML(row.title) + "</strong><small>" + escapeHTML(row.meta || "") + "</small></span><span class=\"search-result-action\">" + escapeHTML(row.action || "") + "</span></button>";
+  const record = row.recordable ? "<button class=\"search-result-record\" type=\"button\" data-schedule-channel=\"" + escapeHTML(row.channelId || "") + "\" data-schedule-program=\"" + escapeHTML(row.programId || "") + "\">Record</button>" : "";
+  return "<div class=\"search-result-row\"><button class=\"search-result\" type=\"button\" " + (row.attrs || "") + (row.disabled ? " disabled" : "") + "><span class=\"search-result-art\">" + row.art + "</span><span class=\"search-result-main\"><strong>" + escapeHTML(row.title) + "</strong><small>" + escapeHTML(row.meta || "") + "</small></span><span class=\"search-result-action\">" + escapeHTML(row.action || "") + "</span></button>" + record + "</div>";
 }
 function renderSearchResults(query) {
   const sections = searchResultSections(query);
-  if (!sections.length) return "<div class=\"search-empty\">No matches found.</div>";
-  return "<div class=\"search-results\">" + sections.map(function(section) {
+  const savePass = query && !keywordPasses().some(function(pass) { return lower(pass.keyword) === lower(query); }) ? "<button class=\"search-save-pass\" type=\"button\" data-keyword-pass-add=\"" + escapeHTML(query) + "\">Save Keyword Pass</button>" : "";
+  if (!sections.length) return "<div class=\"search-empty\">No matches found." + savePass + "</div>";
+  return (savePass ? "<div class=\"search-pass-action\">" + savePass + "</div>" : "") + "<div class=\"search-results\">" + sections.map(function(section) {
     return sectionHeader(section.title) + "<div class=\"search-result-list\">" + section.rows.map(renderSearchResultRow).join("") + "</div>";
   }).join("") + "</div>";
 }
@@ -1155,9 +1399,17 @@ function renderSearchStart() {
   const recentHTML = recent.length ? sectionHeaderWithActions("Recent searches", "<button class=\"search-clear\" type=\"button\" data-search-clear=\"true\">Clear All</button>") + "<div class=\"search-chip-row\">" + recent.map(function(value) {
     return "<button class=\"search-chip\" type=\"button\" data-search-recent=\"" + escapeHTML(value) + "\">" + escapeHTML(value) + "</button>";
   }).join("") + "</div>" : "";
+  const passes = keywordPasses();
+  const passHTML = passes.length ? sectionHeader("Keyword Passes") + "<div class=\"search-chip-row\">" + passes.map(function(pass) {
+    return "<button class=\"search-chip\" type=\"button\" data-search-recent=\"" + escapeHTML(pass.keyword) + "\">" + escapeHTML(pass.keyword) + "</button>";
+  }).join("") + "</div>" : "";
   const categoryHTML = sectionHeader("Categories") + "<div class=\"search-category-grid\">" + [
     { id: "channels", label: "Channels", icon: "guide" },
+    { id: "groups", label: "Groups", icon: "multiview" },
     { id: "programs", label: "Programs", icon: "search" },
+    { id: "airings", label: "Upcoming Airings", icon: "guide" },
+    { id: "sports", label: "Sports", icon: "search" },
+    { id: "events", label: "Events", icon: "guide" },
     { id: "movies", label: "Movies", icon: "play" },
     { id: "shows", label: "Shows", icon: "multiview" }
   ].map(function(item) {
@@ -1165,7 +1417,7 @@ function renderSearchStart() {
   }).join("") + "</div>";
   const browsed = recentChannels(10);
   const browsedHTML = browsed.length ? sectionHeader("Recently browsed") + rowCards(browsed) : "";
-  return recentHTML + categoryHTML + browsedHTML;
+  return recentHTML + passHTML + categoryHTML + browsedHTML;
 }
 function renderSearchPage() {
   const root = byId("view");
@@ -1185,6 +1437,86 @@ function renderSearchPage() {
       }
     }, 0);
   }
+}
+function addKeywordPass(keyword) {
+  keyword = String(keyword || "").trim();
+  if (!keyword || !state.app || !state.app.preferences) return;
+  state.app.preferences.keywordPasses = normalizeKeywordPasses(keywordPasses().concat([{ keyword: keyword, createdAt: Date.now() }]));
+  savePrefs();
+  showAppToast("Keyword Pass saved.");
+  renderSearchPage();
+}
+function removeKeywordPass(id) {
+  id = String(id || "");
+  if (!state.app || !state.app.preferences) return;
+  state.app.preferences.keywordPasses = keywordPasses().filter(function(pass) { return pass.id !== id; });
+  savePrefs();
+  renderOnLaterPage();
+}
+function onLaterFilters() {
+  return [
+    { id: "all", label: "All" },
+    { id: "live", label: "Live Now" },
+    { id: "today", label: "Today" },
+    { id: "sports", label: "Sports" },
+    { id: "events", label: "Events" },
+    { id: "movies", label: "Movies" },
+    { id: "passes", label: "Passes" }
+  ];
+}
+function onLaterPrograms() {
+  const now = Math.floor(Date.now() / 1000);
+  const endOfToday = new Date();
+  endOfToday.setHours(23, 59, 59, 999);
+  const todayEnd = Math.floor(endOfToday.getTime() / 1000);
+  const type = state.onLaterType || "all";
+  return programsFor("").filter(function(program) {
+    if (type === "live") return programIsLive(program);
+    if (type === "today") return (program.startUnix || 0) >= now - 3600 && (program.startUnix || 0) <= todayEnd;
+    if (type === "sports") return programLooksSports(program);
+    if (type === "events") return programLooksEvent(program);
+    if (type === "movies") return programLooksMovie(program);
+    if (type === "passes") return keywordPasses().some(function(pass) { return lower(programSearchText(program)).indexOf(lower(pass.keyword)) !== -1; });
+    return (program.endUnix || 0) >= now;
+  }).sort(function(left, right) {
+    return (left.startUnix || 0) - (right.startUnix || 0);
+  });
+}
+function renderProgramDiscoveryRow(program) {
+  const channel = channelByID(program.channelId) || {};
+  return renderSearchResultRow({
+    attrs: "data-search-program-channel=\"" + escapeHTML(program.channelId || "") + "\" data-search-program=\"" + escapeHTML(program.id || "") + "\"",
+    art: logoHTML(channel),
+    title: program.title || "Untitled program",
+    meta: [(programIsLive(program) ? "Live now" : dateTimeLabel(program.startUnix)), channel.name || ""].filter(Boolean).join(" - "),
+    action: programIsLive(program) ? "Watch" : "Guide",
+    recordable: dvrEnabled() && programIsUpcoming(program),
+    channelId: program.channelId,
+    programId: program.id || ""
+  });
+}
+function renderOnLaterPage() {
+  const root = byId("view");
+  const type = state.onLaterType || "all";
+  const filters = "<div class=\"search-chip-row\">" + onLaterFilters().map(function(item) {
+    return "<button class=\"search-chip" + (type === item.id ? " active" : "") + "\" type=\"button\" data-onlater-type=\"" + escapeHTML(item.id) + "\">" + escapeHTML(item.label) + "</button>";
+  }).join("") + "</div>";
+  const programs = onLaterPrograms();
+  const airings = groupedUpcomingAirings(programs, "").slice(0, 16);
+  const passes = keywordPasses();
+  const passHTML = passes.length ? sectionHeader("Keyword Passes") + "<div class=\"keyword-pass-list\">" + passes.map(function(pass) {
+    return "<div class=\"keyword-pass\"><button type=\"button\" data-search-recent=\"" + escapeHTML(pass.keyword) + "\"><strong>" + escapeHTML(pass.keyword) + "</strong><small>" + escapeHTML(String(onLaterPrograms().filter(function(program) { return lower(programSearchText(program)).indexOf(lower(pass.keyword)) !== -1; }).length)) + " matches</small></button><button type=\"button\" data-keyword-pass-remove=\"" + escapeHTML(pass.id) + "\">Remove</button></div>";
+  }).join("") + "</div>" : "";
+  root.innerHTML = "<div class=\"search-page on-later-page\"><div class=\"search-hero\"><h2>On Later</h2><p>Upcoming guide content organized for watching and recording.</p></div>" + filters
+    + (passHTML && (type === "all" || type === "passes") ? passHTML : "")
+    + (airings.length && type !== "live" ? sectionHeader("Upcoming Airings") + "<div class=\"search-result-list\">" + airings.map(function(group) {
+      const first = group.programs[0] || {};
+      const channel = channelByID(first.channelId) || {};
+      return renderSearchResultRow({ attrs: "data-search-airing=\"" + escapeHTML(group.key) + "\"", art: logoHTML(channel), title: group.title, meta: [group.programs.length + " airings", dateTimeLabel(first.startUnix), channel.name || ""].filter(Boolean).join(" - "), action: "Show" });
+    }).join("") + "</div>" : "")
+    + sectionHeader(type === "all" ? "Guide Picks" : onLaterFilters().find(function(item) { return item.id === type; }).label)
+    + (programs.length ? "<div class=\"search-result-list\">" + programs.slice(0, 60).map(renderProgramDiscoveryRow).join("") + "</div>" : "<div class=\"empty\">No matching guide entries.</div>")
+    + "</div>";
 }
 function loadSports(force) {
   if (state.sportsLoading) return Promise.resolve(state.sports || { events: [], leagues: [] });
@@ -1350,7 +1682,6 @@ function toggleSportsTeamFavorite(teamID, enabled) {
   applySportsFavoritesToPayload();
   savePrefs();
   renderSportsPage();
-  postJSON("/dispatcharr/api/sports/favorites", { teamId: teamID, enabled: !!enabled }).catch(function() {});
 }
 function loadEvents(force) {
   if (state.eventsLoading) return Promise.resolve(state.events || { events: [], categories: [] });
@@ -1511,7 +1842,7 @@ function virtualFolderHeader(path, featured) {
 }
 function virtualFolderBreadcrumbs(path, featured) {
   const parts = path.split(" / ").filter(Boolean);
-  const rootLabel = featured ? "Featured Groups" : "Virtual Groups";
+  const rootLabel = featured ? "Featured Groups" : "Virtual Categories";
   const crumbs = ["<button data-category=\"\">" + escapeHTML(rootLabel) + "</button>"];
   parts.forEach(function(part, index) {
     const crumbPath = parts.slice(0, index + 1).join(" / ");
@@ -1529,7 +1860,7 @@ function sourceCategoriesWithChannels(includeChannel) {
     return !!categoryCounts[category.id];
   }).map(function(category) {
     const rawName = category.name || category.id;
-    const name = categoryDisplayName(rawName);
+    const name = renamedCategoryDisplayName(rawName);
     const featured = categoryStartsFeatured(rawName);
     const featuredPath = featured ? featuredPathForSourceName(rawName) : "";
     return { id: featuredPath ? featuredCategoryID(featuredPath) : sourceCategoryID(category.id), sourceID: category.id, name: name, featured: featured, kind: featuredPath ? "featured" : "source", count: categoryCounts[category.id] || 0 };
@@ -1543,14 +1874,20 @@ function customGroupCategories() {
   });
 }
 function virtualGroupCategories(includeChannel) {
-  return virtualCategoriesFromPaths("", includeChannel, true);
+  return categoriesFromChannelPaths("", includeChannel, virtualPathsForChannel, virtualCategoryID, "virtual", true);
 }
 function virtualCategoriesFromPaths(parentPath, includeChannel, includeAllDescendants) {
+  return categoriesFromChannelPaths(parentPath, includeChannel, virtualPathsForChannel, virtualCategoryID, "virtual", includeAllDescendants);
+}
+function featuredCategoriesFromPaths(parentPath, includeChannel, includeAllDescendants) {
+  return categoriesFromChannelPaths(parentPath, includeChannel, featuredPathsForChannel, featuredCategoryID, "featured", includeAllDescendants);
+}
+function categoriesFromChannelPaths(parentPath, includeChannel, pathsForChannel, categoryIDForPath, kind, includeAllDescendants) {
   parentPath = String(parentPath || "");
   const groups = {};
   effectiveChannels(false).forEach(function(channel) {
     if (includeChannel && !includeChannel(channel)) return;
-    virtualPathsForChannel(channel).forEach(function(path) {
+    pathsForChannel(channel).forEach(function(path) {
       const parts = path.split(" / ").filter(Boolean);
       const parentParts = parentPath ? parentPath.split(" / ").filter(Boolean) : [];
       if (parts.length <= parentParts.length) return;
@@ -1560,7 +1897,7 @@ function virtualCategoriesFromPaths(parentPath, includeChannel, includeAllDescen
       const limit = includeAllDescendants ? parts.length : parentParts.length + 1;
       for (let index = parentParts.length; index < limit; index++) {
         const childPath = parts.slice(0, index + 1).join(" / ");
-        groups[childPath] = groups[childPath] || { id: virtualCategoryID(childPath), name: includeAllDescendants ? childPath : parts[index], kind: "virtual", count: 0, channelIDs: {} };
+        groups[childPath] = groups[childPath] || { id: categoryIDForPath(childPath), name: includeAllDescendants ? childPath : parts[index], kind: kind, count: 0, channelIDs: {} };
         groups[childPath].channelIDs[channel.id] = true;
       }
     });
@@ -1612,9 +1949,20 @@ function allFilterCategories() {
   const hidden = hiddenMap();
   return customGroupCategories().concat(adminListingCategories("", function(channel) { return !(channel.categoryId && hidden[channel.categoryId]); }));
 }
+function guideFilterCategories() {
+  const hidden = hiddenMap();
+  const includeChannel = function(channel) { return !(channel.categoryId && hidden[channel.categoryId]); };
+  const mode = adminSettings().mode || "normal";
+  const custom = customGroupCategories();
+  if (mode !== "delimiter") return custom.concat(sourceCategoriesWithChannels(includeChannel));
+  return custom
+    .concat(featuredCategoriesFromPaths("", includeChannel, true))
+    .concat(virtualCategoriesFromPaths("", includeChannel, true))
+    .sort(compareCategoryDisplayName);
+}
 function adminListingTitle() {
   const mode = adminSettings().mode || "normal";
-  if (mode === "delimiter") return "Virtual Groups";
+  if (mode === "delimiter") return "Virtual Categories";
   return "Channel Groups";
 }
 function adminListingCategories(parentPath, includeChannel) {
@@ -1649,6 +1997,36 @@ function channelHasCurrentGuide(channel) {
     return start <= now + 600 && end >= now;
   });
 }
+function channelHasNearGuide(channel) {
+  if (!channel) return false;
+  const now = Math.floor(Date.now() / 1000);
+  return programsFor(channel.id).some(function(program) {
+    const start = program.startUnix || 0;
+    const end = program.endUnix || start + 1800;
+    return start <= now + 1800 && end >= now - 300;
+  });
+}
+function maybeWarmGuideForChannels(channels, key) {
+  if (!state.app || state.appLoadedFromCache || !items(channels).length) return;
+  if (items(channels).some(channelHasNearGuide)) return;
+  const channelIds = items(channels).map(function(channel) { return channel && channel.id; }).filter(Boolean);
+  if (!channelIds.length) return;
+  const warmKey = String(key || channelIds.slice(0, 20).join("|"));
+  const now = Date.now();
+  if (state.guideWarmPings[warmKey] && now - state.guideWarmPings[warmKey] < 5 * 60 * 1000) return;
+  state.guideWarmPings[warmKey] = now;
+  postJSON("/dispatcharr/api/guide/ping", { channelIds: channelIds }).then(function(result) {
+    if (result && result.refreshing) {
+      setTimeout(function() {
+        getJSON("/dispatcharr/api/app").then(function(payload) {
+          hydrateApp(payload).then(render).catch(function() {});
+        }).catch(function() {});
+      }, 12000);
+    }
+  }).catch(function(error) {
+    try { console.warn("Dispatcharr guide warm ping failed", error); } catch (_) {}
+  });
+}
 function homeGuideChannels(watched) {
   const seen = {};
   const pool = [];
@@ -1657,7 +2035,7 @@ function homeGuideChannels(watched) {
     seen[channel.id] = true;
     pool.push(channel);
   });
-  return pool.filter(channelHasCurrentGuide).slice(0, 10);
+  return pool.filter(channelHasCurrentGuide).slice(0, 5);
 }
 function renderHomeGuide(channels, emptyMessage) {
   if (!channels.length) return "<div class=\"empty\">" + escapeHTML(emptyMessage || "No recently watched channels yet.") + "</div>";
@@ -1707,9 +2085,11 @@ function renderLivePage() {
     byId("view").innerHTML = virtualFolderHeader(path, featured)
       + (children.length ? "<div class=\"category-grid\">" + children.map(categoryTileHTML).join("") + "</div>" : "")
       + renderVirtualCategoryContent(channels);
+    maybeWarmGuideForChannels(channels, state.category);
     return;
   }
   byId("view").innerHTML = categoryGrid() + sectionHeader(categoryName(state.category) || "Channels") + rowCards(channels.slice(0, 24));
+  if (state.category) maybeWarmGuideForChannels(channels, state.category);
 }
 function recordingCustom(recording) {
   return recording && recording.custom_properties && typeof recording.custom_properties === "object" ? recording.custom_properties : {};
@@ -1789,7 +2169,7 @@ function loadRecordings(force) {
     state.recordings = { available: false, reason: "Unable to load Dispatcharr recordings.", items: [] };
   }).finally(function() {
     state.recordingsLoading = false;
-    if (state.view === "recordings") render();
+    if (state.view === "recordings" || state.view === "search" || state.view === "onlater") render();
   });
 }
 function programByID(channelID, programID) {
@@ -1797,7 +2177,7 @@ function programByID(channelID, programID) {
 }
 function scheduleProgram(channelID, programID, button) {
   if (!dvrEnabled()) {
-    showAppToast("Recordings require Dispatcharr Direct Connect.");
+    showAppToast(sourceMode() === "direct_login" ? "Recordings are turned off by the Live TV admin." : "Recordings require Dispatcharr Direct Connect.");
     return;
   }
   const channel = channelByID(channelID);
@@ -2139,12 +2519,14 @@ function hideOverflowTooltip() {
   if (tooltip) tooltip.classList.remove("visible");
 }
 function renderGuidePage() {
-  const categories = allFilterCategories();
+  const categories = guideFilterCategories();
   const slots = guideSlots();
+  state.guideLastSlotStart = guideSlotStart();
   byId("view").innerHTML = "<div class=\"guide-page\"><div class=\"guide-tools\"><select id=\"category-select\" class=\"select\"><option value=\"\">All groups</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select><button id=\"guide-inline-refresh\" class=\"refresh-button\" type=\"button\" data-guide-refresh=\"true\" aria-label=\"Refresh guide\" title=\"Refresh guide\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" aria-hidden=\"true\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M20 12a8 8 0 0 1-14.1 5.15M4 12A8 8 0 0 1 18.1 6.85\"/><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M6 17.25H3.75V19.5M18 6.75h2.25V4.5\"/></svg></button><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program or channel\" value=\"" + escapeHTML(state.query) + "\"></div><div class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div></div></div>";
   byId("category-select").onchange = function(event) { state.category = event.target.value; renderGuidePage(); };
   byId("guide-search").oninput = function(event) { state.query = event.target.value; resetGuideRows(); renderEPG(); };
   resetGuideRows();
+  if (state.category) maybeWarmGuideForChannels(state.guideChannels, "guide:" + state.category);
   renderEPG();
 }
 function guideBatchSize() { return 40; }
@@ -2178,16 +2560,17 @@ function renderEPGCells(channel, channelIndex) {
   }
   const cells = [];
   let cursor = windowStart;
-  programs.forEach(function(entry, index) {
+  programs.forEach(function(entry) {
     const program = entry.program;
     const start = Math.max(entry.start, cursor);
     const end = entry.end;
     if (end <= start) return;
     if (start > cursor) cells.push(renderEPGGapCell(channel, cursor, start, windowInfo));
     const canSchedule = dvrEnabled() && (program.endUnix || 0) > now;
+    const isLive = start <= now && end > now;
     const programTitle = program.title || "Data not available";
     const programTime = epgVisibleTime(start, windowStart);
-    cells.push("<div class=\"epg-cell program " + colorClass(index + channelIndex) + "\" style=\"" + epgCellStyle(start, end, windowInfo) + "\"><button class=\"epg-play\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(programTime + " " + programTitle) + "\"><time>" + escapeHTML(programTime) + "</time><strong data-overflow-tooltip=\"" + escapeHTML(programTime + " " + programTitle) + "\">" + escapeHTML(programTitle) + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>");
+    cells.push("<div class=\"epg-cell program" + (isLive ? " live" : "") + "\" style=\"" + epgCellStyle(start, end, windowInfo) + "\"><button class=\"epg-play\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(programTime + " " + programTitle) + "\"><time>" + escapeHTML(programTime) + "</time><strong data-overflow-tooltip=\"" + escapeHTML(programTime + " " + programTitle) + "\">" + escapeHTML(programTitle) + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>");
     cursor = end;
   });
   if (cursor < windowEnd) cells.push(renderEPGGapCell(channel, cursor, windowEnd, windowInfo));
@@ -2200,7 +2583,7 @@ function renderEPGGapCell(channel, startUnix, endUnix, windowInfo) {
   if (endUnix <= startUnix) return "";
   const emptyTitle = "Data not available";
   const emptyTime = timeLabel(startUnix);
-  return "<button class=\"epg-cell program gray epg-gap\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(emptyTime + " " + emptyTitle) + "\" style=\"" + epgCellStyle(startUnix, endUnix, windowInfo) + "\"><time>" + escapeHTML(emptyTime) + "</time><strong>" + escapeHTML(emptyTitle) + "</strong></button>";
+  return "<button class=\"epg-cell program epg-gap\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(emptyTime + " " + emptyTitle) + "\" style=\"" + epgCellStyle(startUnix, endUnix, windowInfo) + "\"><time>" + escapeHTML(emptyTime) + "</time><strong>" + escapeHTML(emptyTitle) + "</strong></button>";
 }
 function renderEPGRow(channel, channelIndex) {
   return "<div class=\"epg-row\">" + renderGuideChannelButton(channel) + "<div class=\"epg-programs\">" + renderEPGCells(channel, channelIndex) + "</div></div>";
@@ -2237,7 +2620,7 @@ function renderSettings() {
   ensureSelectedCustomGroup();
   const showSourceCategorySettings = !virtualCategoriesActive();
   byId("view").innerHTML = "<div class=\"settings-stack\">"
-    + "<div class=\"settings-card\"><h2>Custom groups</h2><div id=\"custom-group-settings\" class=\"settings-list\"></div></div>"
+    + "<div class=\"settings-card custom-groups-card\"><h2>Custom groups</h2><div id=\"custom-group-settings\"></div></div>"
     + (showSourceCategorySettings ? "<div class=\"settings-card\"><h2>Hidden channel groups</h2><div id=\"settings-list\" class=\"settings-list\"></div></div>" : "")
     + "</div>";
   renderCustomGroupSettings();
@@ -2283,6 +2666,14 @@ function updateAdminECMField(field, target) {
   markAdminSettingsDraft();
   renderAdminPage();
 }
+function updateAdminRecordingField(field, target) {
+  const settings = state.adminCategorySettings || defaultAdminCategorySettings();
+  if (field === "default") settings.allowRecordingsByDefault = !!target.checked;
+  state.adminCategorySettings = settings;
+  normalizeAdminCategorySettings();
+  markAdminSettingsDraft();
+  renderAdminPage();
+}
 function renderAdminPage() {
   normalizeAdminCategorySettings();
   if (!adminECMEnabled() && state.adminTab === "manager") state.adminTab = "integrations";
@@ -2292,7 +2683,9 @@ function renderAdminPage() {
   if (shell) shell.classList.toggle("is-admin-manager", state.adminTab === "manager");
   byId("view").innerHTML = state.adminTab === "manager" ? renderExternalChannelManager() : "<div class=\"settings-stack\">" + (state.adminTab === "integrations" ? renderAdminIntegrationsTab() : renderAdminSettingsTab()) + "</div>";
   if (state.adminTab === "settings") {
+    renderAdminRecordingSettings();
     renderAdminCategorySettings();
+    renderAdminCategoryRenameSettings();
     renderAdminCategoryAliasSettings();
     renderAdminEventKeywordSettings();
   }
@@ -2327,10 +2720,20 @@ function setAdminTab(tab) {
 function renderAdminSettingsTab() {
   return ""
     + "<div class=\"settings-card\"><h2>Connection Status</h2>" + adminStatusPanel() + "</div>"
+    + "<div class=\"settings-card\"><h2>Recordings</h2><div id=\"admin-recording-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card\"><h2>Group method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
+    + "<div class=\"settings-card\"><h2>Group Renames</h2><div class=\"settings-note admin-status-note\">Rename Dispatcharr groups for Silo without changing the source group or creating extra virtual paths.</div><div id=\"admin-category-rename-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card\"><h2>Presentation Overrides</h2><div class=\"settings-note admin-status-note\">Alternative Group Names add alternate virtual group paths without changing the original Dispatcharr groups. The original group remains visible.</div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card\"><h2>Event Keywords</h2><div class=\"settings-note admin-status-note\">Events are detected from the Dispatcharr guide. One keyword per line or comma-separated.</div><div id=\"admin-event-keyword-settings\" class=\"settings-list\"></div></div>"
     + "";
+}
+function renderAdminRecordingSettings() {
+  const root = byId("admin-recording-settings");
+  if (!root) return;
+  const settings = adminSettings();
+  const available = !!(state.app && state.app.capabilities && state.app.capabilities.recordings && sourceMode() === "direct_login");
+  root.innerHTML = "<label><span>Allow recordings by default</span><input type=\"checkbox\" data-admin-recording-field=\"default\"" + (settings.allowRecordingsByDefault !== false ? " checked" : "") + (available ? "" : " disabled") + "></label>"
+    + "<div class=\"settings-note\">" + (available ? "Dispatcharr Direct can schedule recordings. This controls whether recording UI is shown by default." : "Recordings require Dispatcharr Direct Connect.") + "</div>";
 }
 function renderAdminIntegrationsTab() {
   return ""
@@ -2384,7 +2787,7 @@ function renderAdminCategorySettings() {
 function adminSourceGroups() {
   const groups = {};
   effectiveChannels(false).forEach(function(channel) {
-    const sourcePath = sourceCategoryLabel(channel);
+    const sourcePath = sourceCategoryOriginalLabel(channel);
     if (!sourcePath) return;
     groups[sourcePath] = groups[sourcePath] || { sourcePath: sourcePath, count: 0 };
     groups[sourcePath].count++;
@@ -2397,6 +2800,58 @@ function adminSourceGroupCount(sourcePath) {
     return item.sourcePath === sourcePath || configuredCategoryPath(item.sourcePath) === path;
   });
   return group ? group.count : 0;
+}
+function addAdminCategoryRename() {
+  const source = byId("admin-rename-source");
+  const display = byId("admin-rename-display");
+  const sourcePath = source ? String(source.value || "").trim() : "";
+  const displayName = display ? String(display.value || "").trim() : "";
+  if (!sourcePath || !displayName) return;
+  const settings = state.adminCategorySettings || defaultAdminCategorySettings();
+  const existing = normalizeCategoryRenames(settings.categoryRenames).filter(function(rename) {
+    return lower(rename.sourcePath) !== lower(sourcePath);
+  });
+  settings.categoryRenames = normalizeCategoryRenames(existing.concat([{ sourcePath: sourcePath, displayName: displayName }]));
+  state.adminCategorySettings = settings;
+  markAdminSettingsDraft();
+  renderAdminPage();
+}
+function removeAdminCategoryRename(index) {
+  const settings = state.adminCategorySettings || defaultAdminCategorySettings();
+  settings.categoryRenames = items(settings.categoryRenames).filter(function(_, rowIndex) { return rowIndex !== index; });
+  state.adminCategorySettings = settings;
+  normalizeAdminCategorySettings();
+  markAdminSettingsDraft();
+  renderAdminPage();
+}
+function updateAdminCategoryRename(index, field, value) {
+  const settings = state.adminCategorySettings || defaultAdminCategorySettings();
+  const renames = items(settings.categoryRenames).slice();
+  renames[index] = Object.assign({}, renames[index] || {});
+  renames[index][field] = value;
+  settings.categoryRenames = renames;
+  state.adminCategorySettings = settings;
+  markAdminSettingsDraft();
+}
+function renderAdminCategoryRenameSettings() {
+  const root = byId("admin-category-rename-settings");
+  if (!root) return;
+  const sourceGroups = adminSourceGroups();
+  const renames = categoryRenames();
+  const renamed = {};
+  renames.forEach(function(rename) { renamed[lower(rename.sourcePath)] = true; });
+  const sourceOptions = sourceGroups.map(function(group) {
+    return "<option value=\"" + escapeHTML(group.sourcePath) + "\">" + escapeHTML(group.sourcePath) + " (" + escapeHTML(String(group.count)) + ")</option>";
+  }).join("");
+  const addRow = "<div class=\"settings-row alias-add-row\"><span>Source group</span><select id=\"admin-rename-source\"" + (!sourceGroups.length ? " disabled" : "") + ">" + sourceOptions + "</select><input id=\"admin-rename-display\" placeholder=\"International Sports\"" + (!sourceGroups.length ? " disabled" : "") + "><button data-admin-rename-action=\"add\"" + (!sourceGroups.length ? " disabled" : "") + ">Add</button></div>";
+  const rows = renames.map(function(rename, index) {
+    const count = adminSourceGroupCount(rename.sourcePath);
+    return "<div class=\"alias-table-row" + (!count ? " stale" : "") + "\"><div class=\"alias-table-source\" title=\"" + escapeHTML(rename.sourcePath) + "\"><strong>" + escapeHTML(rename.sourcePath) + "</strong>" + (!count ? "<small>Source not found</small>" : "") + "</div><span class=\"alias-table-count\">" + escapeHTML(String(count)) + "</span><input data-admin-rename-index=\"" + index + "\" data-admin-rename-field=\"displayName\" value=\"" + escapeHTML(rename.displayName) + "\" title=\"" + escapeHTML(rename.displayName) + "\" aria-label=\"Display group name\"><div class=\"alias-table-actions\"><button data-admin-rename-action=\"remove\" data-admin-rename-index=\"" + index + "\">Remove</button></div></div>";
+  }).join("");
+  const unusedCount = sourceGroups.filter(function(group) { return !renamed[lower(group.sourcePath)]; }).length;
+  root.innerHTML = addRow
+    + "<div class=\"settings-note\">" + escapeHTML(renames.length ? renames.length + " renamed groups. " + unusedCount + " groups still use their Dispatcharr names." : "No group renames yet.") + "</div>"
+    + "<div class=\"alias-table\"><div class=\"alias-table-head\"><span>Source group</span><span>Channels</span><span>Display group name</span><span>Actions</span></div>" + (rows || "<div class=\"empty\">No renamed groups yet.</div>") + "</div>";
 }
 function addAdminCategoryAlias() {
   const source = byId("admin-alias-source");
@@ -2474,6 +2929,7 @@ function selectedCustomGroup() {
 }
 function renderCustomGroupSettings() {
   const root = byId("custom-group-settings");
+  if (!root) return;
   const groups = customGroups();
   const selected = selectedCustomGroup();
   const memberships = selected ? customMemberships(selected.id) : [];
@@ -2484,12 +2940,34 @@ function renderCustomGroupSettings() {
     return lower(channel.name || channel.id).indexOf(query) !== -1 || lower(sourceCategoryLabel(channel)).indexOf(query) !== -1;
   });
   if (!availableChannels.some(function(channel) { return channel.id === state.customGroupChannelID; })) state.customGroupChannelID = availableChannels.length ? availableChannels[0].id : "";
-  const pickerChannels = availableChannels.slice(0, 12);
-  root.innerHTML = "<div class=\"settings-row\"><span>New group</span><input id=\"custom-group-name\" placeholder=\"Spanish\"><button data-custom-group-action=\"create\">Create</button></div>"
-    + (groups.length ? "<div class=\"settings-row\"><span>Edit group</span><select id=\"custom-group-select\">" + groups.map(function(group) { return "<option value=\"" + escapeHTML(group.id) + "\"" + (selected && selected.id === group.id ? " selected" : "") + ">" + escapeHTML(group.name) + "</option>"; }).join("") + "</select><button data-custom-group-action=\"delete\">Delete</button></div>" : "<div class=\"empty\">Create a group to build your own channel lineup.</div>")
-    + (selected ? "<div class=\"settings-row custom-channel-picker\"><span>Add channel</span><div class=\"custom-channel-combobox\"><input id=\"custom-group-channel-search\" role=\"combobox\" aria-controls=\"custom-group-channel-options\" aria-expanded=\"true\" aria-autocomplete=\"list\" placeholder=\"Search by name or group\" value=\"" + escapeHTML(state.customGroupQuery) + "\"><div id=\"custom-group-channel-options\" class=\"custom-channel-options\" role=\"listbox\">" + (pickerChannels.length ? pickerChannels.map(function(channel) { const active = channel.id === state.customGroupChannelID; return "<button class=\"custom-channel-option" + (active ? " selected" : "") + "\" type=\"button\" role=\"option\" aria-selected=\"" + (active ? "true" : "false") + "\" data-custom-group-channel-option=\"" + escapeHTML(channel.id) + "\"><strong>" + escapeHTML(channel.name || channel.id) + "</strong><small>" + escapeHTML(sourceCategoryLabel(channel) || "Live TV") + "</small></button>"; }).join("") : "<div class=\"empty\">No matching channels.</div>") + "</div><button data-custom-group-action=\"add-channel\"" + (!state.customGroupChannelID ? " disabled" : "") + ">Add</button></div></div>"
-    + "<div class=\"settings-note\">" + escapeHTML(availableChannels.length ? "Showing " + Math.min(availableChannels.length, 12) + " of " + availableChannels.length + " matching channels. Keep typing to narrow it down." : "No matching channels.") + "</div>"
-    + "<div class=\"settings-preview\">" + (memberships.length ? memberships.map(function(id) { const channel = channelByID(id); return "<div>" + escapeHTML((channel && channel.name) || id) + " <button data-custom-group-action=\"remove-channel\" data-channel-id=\"" + escapeHTML(id) + "\">Remove</button></div>"; }).join("") : "<div>No channels in this group yet.</div>") + "</div>" : "");
+  const pickerChannels = availableChannels.slice(0, 24);
+  const createControl = "<div class=\"custom-group-control\"><label for=\"custom-group-name\">New group</label><div class=\"custom-group-field\"><input id=\"custom-group-name\" placeholder=\"Spanish\"><button data-custom-group-action=\"create\">Create</button></div></div>";
+  const manageControl = groups.length
+    ? "<div class=\"custom-group-control\"><label for=\"custom-group-select\">Edit group</label><div class=\"custom-group-field\"><select id=\"custom-group-select\">" + groups.map(function(group) { return "<option value=\"" + escapeHTML(group.id) + "\"" + (selected && selected.id === group.id ? " selected" : "") + ">" + escapeHTML(group.name) + "</option>"; }).join("") + "</select><button data-custom-group-action=\"delete\">Delete</button></div></div>"
+    : "";
+  const searchStatus = availableChannels.length
+    ? "Showing " + pickerChannels.length + " of " + availableChannels.length + " matching channels."
+    : "No matching channels.";
+  const resultRows = pickerChannels.length ? pickerChannels.map(function(channel) {
+    const active = channel.id === state.customGroupChannelID;
+    return "<div class=\"custom-channel-result" + (active ? " selected" : "") + "\">"
+      + "<button class=\"custom-channel-option\" type=\"button\" role=\"option\" aria-selected=\"" + (active ? "true" : "false") + "\" data-custom-group-channel-option=\"" + escapeHTML(channel.id) + "\"><strong>" + escapeHTML(channel.name || channel.id) + "</strong><small>" + escapeHTML(sourceCategoryLabel(channel) || "Live TV") + "</small></button>"
+      + "<button class=\"custom-channel-add\" type=\"button\" data-custom-group-add-channel=\"" + escapeHTML(channel.id) + "\">Add</button>"
+      + "</div>";
+  }).join("") : "<div class=\"custom-group-empty\">No channels match that search.</div>";
+  const memberRows = memberships.length ? memberships.map(function(id) {
+    const channel = channelByID(id);
+    return "<div class=\"custom-member-row\"><div><strong>" + escapeHTML((channel && channel.name) || id) + "</strong><small>" + escapeHTML((channel && sourceCategoryLabel(channel)) || "Missing from current lineup") + "</small></div><button data-custom-group-action=\"remove-channel\" data-channel-id=\"" + escapeHTML(id) + "\">Remove</button></div>";
+  }).join("") : "<div class=\"custom-group-empty\">No channels in this group yet.</div>";
+  root.innerHTML = "<div class=\"custom-groups-panel\">"
+    + "<div class=\"custom-groups-controls\">" + createControl + manageControl + "</div>"
+    + (selected ? "<div class=\"custom-group-meta\"><strong>" + escapeHTML(selected.name) + "</strong><span>" + memberships.length + " channels</span></div>"
+      + "<div class=\"custom-group-workspace\">"
+      + "<section class=\"custom-group-browser\"><div class=\"custom-group-section-head\"><strong>Add channels</strong><span>" + escapeHTML(searchStatus) + "</span></div><input class=\"custom-channel-search\" id=\"custom-group-channel-search\" role=\"combobox\" aria-controls=\"custom-group-channel-options\" aria-expanded=\"true\" aria-autocomplete=\"list\" placeholder=\"Search channels or groups\" value=\"" + escapeHTML(state.customGroupQuery) + "\"><div id=\"custom-group-channel-options\" class=\"custom-channel-options\" role=\"listbox\">" + resultRows + "</div></section>"
+      + "<section class=\"custom-group-members\"><div class=\"custom-group-section-head\"><strong>Group channels</strong><span>" + memberships.length + " saved</span></div><div class=\"custom-member-list\">" + memberRows + "</div></section>"
+      + "</div>"
+      : "<div class=\"custom-group-empty\"><strong>Create a group</strong><span>Build a personal channel lineup by adding channels from the current Dispatcharr catalog.</span></div>")
+    + "</div>";
 }
 function selectCustomGroupChannel(channelID) {
   state.customGroupChannelID = channelID || "";
@@ -2534,9 +3012,6 @@ function removeChannelFromSelectedGroup(channelID) {
   state.app.preferences.customGroupMemberships[selected.id] = customMemberships(selected.id).filter(function(id) { return id !== channelID; });
   savePrefs();
   render();
-}
-function colorClass(index) {
-  return ["purple", "green", "red", "gray", "blue"][index % 5];
 }
 function audioTrackList() {
   const video = byId("player");
@@ -3049,6 +3524,57 @@ document.addEventListener("click", function(event) {
     if (channel) playChannel(channel);
     return;
   }
+  const searchCategory = event.target.closest("[data-search-category]");
+  if (searchCategory) {
+    event.preventDefault();
+    rememberSearch(state.searchQuery);
+    setCategory(searchCategory.getAttribute("data-search-category"));
+    return;
+  }
+  const searchProgram = event.target.closest("[data-search-program-channel]");
+  if (searchProgram) {
+    event.preventDefault();
+    rememberSearch(state.searchQuery);
+    const channelID = searchProgram.getAttribute("data-search-program-channel");
+    const programID = searchProgram.getAttribute("data-search-program");
+    const program = programByID(channelID, programID);
+    const channel = channelByID(channelID);
+    if (program && channel && programIsLive(program)) playChannel(channel);
+    else if (channel) {
+      state.view = "guide";
+      state.category = channel.categoryId || "";
+      render();
+    }
+    return;
+  }
+  const searchAiring = event.target.closest("[data-search-airing]");
+  if (searchAiring) {
+    event.preventDefault();
+    rememberSearch(state.searchQuery);
+    state.searchQuery = searchAiring.getAttribute("data-search-airing") || state.searchQuery;
+    state.searchType = "programs";
+    setView("search");
+    return;
+  }
+  const keywordPassAdd = event.target.closest("[data-keyword-pass-add]");
+  if (keywordPassAdd) {
+    event.preventDefault();
+    addKeywordPass(keywordPassAdd.getAttribute("data-keyword-pass-add"));
+    return;
+  }
+  const keywordPassRemove = event.target.closest("[data-keyword-pass-remove]");
+  if (keywordPassRemove) {
+    event.preventDefault();
+    removeKeywordPass(keywordPassRemove.getAttribute("data-keyword-pass-remove"));
+    return;
+  }
+  const onLaterType = event.target.closest("[data-onlater-type]");
+  if (onLaterType) {
+    event.preventDefault();
+    state.onLaterType = onLaterType.getAttribute("data-onlater-type") || "all";
+    renderOnLaterPage();
+    return;
+  }
   const sportsTab = event.target.closest("[data-sports-tab]");
   if (sportsTab) {
     event.preventDefault();
@@ -3115,10 +3641,24 @@ document.addEventListener("click", function(event) {
     if (action === "remove-channel") removeChannelFromSelectedGroup(customGroupAction.getAttribute("data-channel-id"));
     return;
   }
+  const customGroupAddChannel = event.target.closest("[data-custom-group-add-channel]");
+  if (customGroupAddChannel) {
+    event.preventDefault();
+    addChannelToSelectedGroup(customGroupAddChannel.getAttribute("data-custom-group-add-channel"));
+    return;
+  }
   const customGroupChannelOption = event.target.closest("[data-custom-group-channel-option]");
   if (customGroupChannelOption) {
     event.preventDefault();
     selectCustomGroupChannel(customGroupChannelOption.getAttribute("data-custom-group-channel-option"));
+    return;
+  }
+  const adminRenameAction = event.target.closest("[data-admin-rename-action]");
+  if (adminRenameAction) {
+    event.preventDefault();
+    const action = adminRenameAction.getAttribute("data-admin-rename-action");
+    if (action === "add") addAdminCategoryRename();
+    if (action === "remove") removeAdminCategoryRename(Number(adminRenameAction.getAttribute("data-admin-rename-index")));
     return;
   }
   const adminAliasAction = event.target.closest("[data-admin-alias-action]");
@@ -3250,9 +3790,19 @@ document.addEventListener("change", function(event) {
     updateAdminECMField(adminECMField, event.target);
     return;
   }
+  const adminRecordingField = event.target.getAttribute("data-admin-recording-field");
+  if (adminRecordingField) {
+    updateAdminRecordingField(adminRecordingField, event.target);
+    return;
+  }
   const adminAliasField = event.target.getAttribute("data-admin-alias-field");
   if (adminAliasField) {
     updateAdminCategoryAlias(Number(event.target.getAttribute("data-admin-alias-index")), adminAliasField, event.target.value || "");
+    return;
+  }
+  const adminRenameField = event.target.getAttribute("data-admin-rename-field");
+  if (adminRenameField) {
+    updateAdminCategoryRename(Number(event.target.getAttribute("data-admin-rename-index")), adminRenameField, event.target.value || "");
     return;
   }
   if (event.target && event.target.id === "custom-group-select") {
@@ -3321,6 +3871,7 @@ window.addEventListener("beforeunload", function() {
     if (tile.session) navigator.sendBeacon(route("/dispatcharr/api/watch/stop"), JSON.stringify({ sessionId: tile.session.id, reason: "page_unload" }));
   });
 });
+startGuideAutoRefresh();
 loadApp().catch(function() {
   byId("view").innerHTML = emptyStateHTML("Unable to load Live TV.", "Check your Dispatcharr connection in Live TV Admin, then refresh this page.");
 });

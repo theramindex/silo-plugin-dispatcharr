@@ -143,7 +143,7 @@ func TestUserConfigSchema_DeclaresCurrentPreferenceShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected preferences schema properties, got %q", preferences.GetJsonSchema())
 	}
-	for _, key := range []string{"favorites", "autoFavorites", "hiddenCategories", "sportsFavoriteTeams", "recentChannels", "continueWatching", "playback", "categoryParsing", "customGroups", "customGroupMemberships"} {
+	for _, key := range []string{"favorites", "autoFavorites", "hiddenCategories", "sportsFavoriteTeams", "keywordPasses", "recentChannels", "continueWatching", "playback", "categoryParsing", "customGroups", "customGroupMemberships"} {
 		if _, ok := properties[key]; !ok {
 			t.Fatalf("expected preferences schema to declare %q", key)
 		}
@@ -165,7 +165,7 @@ func TestUserConfigSchema_DeclaresAdminCategorySettingsShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected admin category settings schema properties, got %q", adminSettings.GetJsonSchema())
 	}
-	for _, key := range []string{"mode", "delimiter"} {
+	for _, key := range []string{"mode", "delimiter", "ecmEnabled", "ecmURL", "allowRecordingsByDefault", "categoryRenames", "categoryAliases"} {
 		if _, ok := properties[key]; !ok {
 			t.Fatalf("expected admin category settings schema to declare %q", key)
 		}
@@ -205,7 +205,7 @@ func TestGlobalConfigSchema_UsesObjectSchemasForConfigurePayloads(t *testing.T) 
 	if !ok {
 		t.Fatalf("expected connection schema properties, got %q", connection.GetJsonSchema())
 	}
-	for _, key := range []string{"source_mode", "base_url", "api_key", "username", "password", "m3u_url", "epg_xml_url"} {
+	for _, key := range []string{"source_mode", "base_url", "api_key", "channel_profile", "username", "password", "m3u_url", "epg_xml_url"} {
 		if _, ok := properties[key]; !ok {
 			t.Fatalf("expected connection schema property %q", key)
 		}
@@ -217,7 +217,7 @@ func TestGlobalConfigSchema_ProvidesAdminFormsForSiloUI(t *testing.T) {
 
 	connection := mustFindSchema(t, GlobalConfigSchema(), "connection")
 
-	if connection.GetAdminForm() == nil || len(connection.GetAdminForm().GetFields()) != 10 {
+	if connection.GetAdminForm() == nil || len(connection.GetAdminForm().GetFields()) != 11 {
 		t.Fatalf("expected connection admin form fields, got %+v", connection.GetAdminForm())
 	}
 
@@ -234,7 +234,7 @@ func TestGlobalConfigSchema_ProvidesAdminFormsForSiloUI(t *testing.T) {
 	for _, field := range connection.GetAdminForm().GetFields() {
 		fieldKeys[field.GetKey()] = true
 	}
-	for _, key := range []string{"base_url", "username", "password", "m3u_url", "epg_xml_url"} {
+	for _, key := range []string{"base_url", "channel_profile", "username", "password", "m3u_url", "epg_xml_url"} {
 		if !fieldKeys[key] {
 			t.Fatalf("expected admin form field %q", key)
 		}

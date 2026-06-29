@@ -3,9 +3,12 @@ package app
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/matching"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/dispatcharr"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/m3u"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xmltv"
 )
@@ -17,7 +20,7 @@ func (s *Service) TestConnection(ctx context.Context, settings config.Settings) 
 
 	switch settings.SourceMode {
 	case config.SourceModeDirectLogin, config.SourceModeAPIKey:
-		return s.dispatcharrFactory(settings).TestConnection(ctx)
+		return testDispatcharrDirectConnection(ctx, s.dispatcharrFactory(settings))
 	case config.SourceModeXtream:
 		client := s.xtreamFactory(settings.XtreamBaseURL, settings.XtreamUsername, settings.XtreamPassword)
 		return testXtreamConnection(ctx, client)
@@ -51,6 +54,56 @@ func (s *Service) TestConnection(ctx context.Context, settings config.Settings) 
 	default:
 		return fmt.Errorf("source mode %q not implemented", settings.SourceMode)
 	}
+}
+
+func testDispatcharrDirectConnection(ctx context.Context, client DispatcharrClient) error {
+	if err := client.TestConnection(ctx); err != nil {
+		return err
+	}
+	version, err := client.Version(ctx)
+	if err != nil {
+		return fmt.Errorf("dispatcharr version check failed: %w", err)
+	}
+	if !dispatcharrVersionAtLeast(version, config.MinimumDispatcharrVersion) {
+		return fmt.Errorf("dispatcharr %s or newer is required; connected server is %s", config.MinimumDispatcharrVersion, strings.TrimSpace(version.Version.String()))
+	}
+	return nil
+}
+
+func dispatcharrVersionAtLeast(version dispatcharr.VersionInfo, minimum string) bool {
+	return compareVersionStrings(version.Version.String(), minimum) >= 0
+}
+
+func compareVersionStrings(current, minimum string) int {
+	currentParts := versionParts(current)
+	minimumParts := versionParts(minimum)
+	for i := 0; i < 3; i++ {
+		if currentParts[i] > minimumParts[i] {
+			return 1
+		}
+		if currentParts[i] < minimumParts[i] {
+			return -1
+		}
+	}
+	return 0
+}
+
+func versionParts(value string) [3]int {
+	value = strings.TrimSpace(strings.TrimPrefix(value, "v"))
+	pieces := strings.Split(value, ".")
+	var parts [3]int
+	for i := 0; i < len(pieces) && i < len(parts); i++ {
+		numeric := strings.Builder{}
+		for _, r := range pieces[i] {
+			if r < '0' || r > '9' {
+				break
+			}
+			numeric.WriteRune(r)
+		}
+		parsed, _ := strconv.Atoi(numeric.String())
+		parts[i] = parsed
+	}
+	return parts
 }
 
 func testXtreamConnection(ctx context.Context, client XtreamClient) error {

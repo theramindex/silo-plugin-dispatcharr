@@ -61,6 +61,7 @@ func (s *runtimeServer) Configure(_ context.Context, request *pluginv1.Configure
 			current.DispatcharrUser = asString(values["username"])
 			current.DispatcharrPass = asString(values["password"])
 			current.DispatcharrAPIKey = asString(values["api_key"])
+			current.ChannelProfile = asString(values["channel_profile"])
 			current.XtreamBaseURL = firstString(values["xtream_base_url"], values["base_url"])
 			current.XtreamUsername = firstString(values["xtream_username"], values["username"])
 			current.XtreamPassword = firstString(values["xtream_password"], values["password"])
@@ -98,6 +99,7 @@ func (s *runtimeServer) Configure(_ context.Context, request *pluginv1.Configure
 			current.DispatcharrUser = asString(values["username"])
 			current.DispatcharrPass = asString(values["password"])
 			current.DispatcharrAPIKey = asString(values["api_key"])
+			current.ChannelProfile = asString(values["channel_profile"])
 		case "xtream":
 			current.XtreamBaseURL = asString(values["base_url"])
 			current.XtreamUsername = asString(values["username"])

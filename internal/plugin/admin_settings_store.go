@@ -104,8 +104,13 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	if enabled, ok := payload["ecmEnabled"].(bool); ok {
 		ecmEnabled = enabled
 	}
+	allowRecordingsByDefault := true
+	if enabled, ok := payload["allowRecordingsByDefault"].(bool); ok {
+		allowRecordingsByDefault = enabled
+	}
 	ecmURL, _ := payload["ecmURL"].(string)
 	ecmURL = normalizeAdminECMURL(ecmURL)
+	categoryRenames := normalizeCategoryRenames(payload["categoryRenames"])
 	categoryAliases := normalizeCategoryAliases(payload["categoryAliases"])
 	eventKeywords := normalizeEventKeywordRules(payload["eventKeywords"])
 	if len(eventKeywords) == 0 {
@@ -113,12 +118,14 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	}
 
 	return map[string]any{
-		"mode":            mode,
-		"delimiter":       delimiter,
-		"ecmEnabled":      ecmEnabled,
-		"ecmURL":          ecmURL,
-		"categoryAliases": categoryAliases,
-		"eventKeywords":   eventKeywords,
+		"mode":                     mode,
+		"delimiter":                delimiter,
+		"ecmEnabled":               ecmEnabled,
+		"ecmURL":                   ecmURL,
+		"allowRecordingsByDefault": allowRecordingsByDefault,
+		"categoryRenames":          categoryRenames,
+		"categoryAliases":          categoryAliases,
+		"eventKeywords":            eventKeywords,
 	}
 }
 
@@ -159,6 +166,36 @@ func normalizeCategoryAliases(value any) []map[string]string {
 		})
 	}
 	return aliases
+}
+
+func normalizeCategoryRenames(value any) []map[string]string {
+	items, ok := value.([]any)
+	if !ok {
+		return []map[string]string{}
+	}
+	seen := map[string]bool{}
+	renames := make([]map[string]string, 0, len(items))
+	for _, item := range items {
+		row, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		sourcePath := strings.TrimSpace(asStringValue(row["sourcePath"]))
+		displayName := strings.TrimSpace(asStringValue(row["displayName"]))
+		if displayName == "" {
+			displayName = strings.TrimSpace(asStringValue(row["aliasPath"]))
+		}
+		key := strings.ToLower(sourcePath)
+		if sourcePath == "" || displayName == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		renames = append(renames, map[string]string{
+			"sourcePath":  sourcePath,
+			"displayName": displayName,
+		})
+	}
+	return renames
 }
 
 func asStringValue(value any) string {

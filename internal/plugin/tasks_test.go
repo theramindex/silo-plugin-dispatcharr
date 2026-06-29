@@ -2,13 +2,16 @@ package plugin
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/app"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/dispatcharr"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
 )
 
@@ -131,6 +134,45 @@ func TestScheduledTaskServerRunsEPGRefreshTask(t *testing.T) {
 	}
 }
 
+func TestScheduledTaskServerEPGRefreshKeepsGuideOnDirectFailure(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+		Channels: []model.Channel{{ID: "dispatcharr:old", Name: "Old News"}},
+		Health:   model.SyncHealth{LastSuccessUnix: 100},
+	}})
+	store.ReplacePrograms([]model.Program{{ID: "program:old-1", ChannelID: "dispatcharr:old", Title: "Old Morning"}}, 200)
+	service := app.NewService(app.Dependencies{
+		Store: store,
+		DispatcharrFactory: func(config.Settings) app.DispatcharrClient {
+			return &scheduledDispatcharrFailureClient{}
+		},
+	})
+	server := NewScheduledTaskServer(service, config.Settings{
+		SourceMode:      config.SourceModeDirectLogin,
+		DispatcharrURL:  "https://dispatcharr.example.com",
+		DispatcharrUser: "demo",
+		DispatcharrPass: "secret",
+		ChannelRefreshH: 24,
+		EPGRefreshH:     6,
+	})
+
+	_, err := server.Run(context.Background(), &pluginv1.RunScheduledTaskRequest{TaskKey: EPGRefreshTaskKey})
+	if err == nil {
+		t.Fatal("expected direct EPG refresh failure")
+	}
+
+	snapshot := store.Current()
+	if len(snapshot.Catalog.Programs) != 1 || snapshot.Catalog.Programs[0].Title != "Old Morning" {
+		t.Fatalf("expected scheduled EPG failure to keep existing guide, got %+v", snapshot.Catalog.Programs)
+	}
+	if snapshot.Health.EPGStatus != "failed" || snapshot.Health.EPGLastError == "" {
+		t.Fatalf("expected failed epg health, got %+v", snapshot.Health)
+	}
+}
+
 type scheduledStubClient struct {
 	streams []xtream.LiveStream
 	epg     xtream.ShortEPGResponse
@@ -146,3 +188,43 @@ func (s *scheduledStubClient) ShortEPG(context.Context, int64) (xtream.ShortEPGR
 func (s *scheduledStubClient) ResolveLiveStreamURL(streamID int64) string {
 	return "https://dispatcharr.example.com/live/demo/secret/" + "1001.m3u8"
 }
+
+type scheduledDispatcharrFailureClient struct{}
+
+func (s *scheduledDispatcharrFailureClient) TestConnection(context.Context) error { return nil }
+func (s *scheduledDispatcharrFailureClient) Version(context.Context) (dispatcharr.VersionInfo, error) {
+	return dispatcharr.VersionInfo{Version: dispatcharr.String(config.MinimumDispatcharrVersion)}, nil
+}
+func (s *scheduledDispatcharrFailureClient) Channels(context.Context) ([]dispatcharr.Channel, error) {
+	return nil, errors.New("dispatcharr unavailable")
+}
+func (s *scheduledDispatcharrFailureClient) ChannelGroups(context.Context) ([]dispatcharr.ChannelGroup, error) {
+	return nil, nil
+}
+func (s *scheduledDispatcharrFailureClient) ChannelProfiles(context.Context) ([]dispatcharr.ChannelProfile, error) {
+	return nil, nil
+}
+func (s *scheduledDispatcharrFailureClient) Programs(context.Context) ([]dispatcharr.Program, error) {
+	return nil, nil
+}
+func (s *scheduledDispatcharrFailureClient) SearchPrograms(context.Context, time.Time, time.Time) ([]dispatcharr.ProgramSearchResult, error) {
+	return nil, nil
+}
+func (s *scheduledDispatcharrFailureClient) VODCategories(context.Context) ([]dispatcharr.VODCategory, error) {
+	return nil, nil
+}
+func (s *scheduledDispatcharrFailureClient) Movies(context.Context) ([]dispatcharr.Movie, error) {
+	return nil, nil
+}
+func (s *scheduledDispatcharrFailureClient) Series(context.Context) ([]dispatcharr.Series, error) {
+	return nil, nil
+}
+func (s *scheduledDispatcharrFailureClient) LiveStreamURL(string) string { return "" }
+func (s *scheduledDispatcharrFailureClient) LogoCacheURL(string) string  { return "" }
+func (s *scheduledDispatcharrFailureClient) MovieStreamURL(string) string {
+	return ""
+}
+func (s *scheduledDispatcharrFailureClient) SeriesStreamURL(string) string {
+	return ""
+}
+func (s *scheduledDispatcharrFailureClient) AbsoluteURL(raw string) string { return raw }

@@ -3,9 +3,11 @@ package app
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/dispatcharr"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
 )
 
@@ -36,6 +38,28 @@ func TestServiceTestConnectionReturnsValidationError(t *testing.T) {
 	err := service.TestConnection(context.Background(), config.Settings{SourceMode: config.SourceModeXtream})
 	if err == nil {
 		t.Fatal("expected validation error")
+	}
+}
+
+func TestServiceTestConnectionRejectsOldDispatcharrDirectVersion(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(Dependencies{
+		DispatcharrFactory: func(config.Settings) DispatcharrClient {
+			return &stubDispatcharrClient{version: dispatcharr.VersionInfo{Version: "0.26.9"}}
+		},
+	})
+
+	err := service.TestConnection(context.Background(), config.Settings{
+		SourceMode:      config.SourceModeDirectLogin,
+		DispatcharrURL:  "https://dispatcharr.example.com",
+		DispatcharrUser: "demo",
+		DispatcharrPass: "secret",
+		ChannelRefreshH: 24,
+		EPGRefreshH:     6,
+	})
+	if err == nil || !strings.Contains(err.Error(), config.MinimumDispatcharrVersion) {
+		t.Fatalf("expected minimum version error, got %v", err)
 	}
 }
 

@@ -31,18 +31,19 @@ var playerAssets embed.FS
 
 type HTTPRoutesServer struct {
 	pluginv1.UnimplementedHttpRoutesServer
-	store            *cache.Store
-	settingsProvider func() config.Settings
-	adminPersister   func(context.Context, map[string]any) error
-	adminStorage     adminSettingsStorage
-	adminToken       string
-	syncer           catalogSyncer
-	hydrateMu        sync.Mutex
-	refreshMu        sync.Mutex
-	refreshRunning   bool
-	sportsProvider   sportsProvider
-	sportsCache      sportsEventCache
-	sportsMu         sync.Mutex
+	store             *cache.Store
+	settingsProvider  func() config.Settings
+	adminPersister    func(context.Context, map[string]any) error
+	adminStorage      adminSettingsStorage
+	adminToken        string
+	syncer            catalogSyncer
+	hydrateMu         sync.Mutex
+	refreshMu         sync.Mutex
+	refreshRunning    bool
+	guideWarmLastUnix int64
+	sportsProvider    sportsProvider
+	sportsCache       sportsEventCache
+	sportsMu          sync.Mutex
 }
 
 type catalogSyncer interface {
@@ -51,6 +52,10 @@ type catalogSyncer interface {
 
 type forceCatalogSyncer interface {
 	ForceSyncNow(ctx context.Context, settings config.Settings, nowUnix int64) error
+}
+
+type guideOnlySyncer interface {
+	RefreshGuideOnlyNow(ctx context.Context, settings config.Settings, nowUnix int64) error
 }
 
 func NewHTTPRoutesServer(store *cache.Store) *HTTPRoutesServer {
@@ -83,6 +88,17 @@ type ChannelsPayload struct {
 
 type GuidePayload struct {
 	Programs []model.Program `json:"programs"`
+}
+
+type guidePingRequest struct {
+	ChannelIDs []string `json:"channelIds"`
+}
+
+type GuidePingPayload struct {
+	Status          string `json:"status"`
+	CheckedChannels int    `json:"checkedChannels"`
+	CurrentPrograms int    `json:"currentPrograms"`
+	Refreshing      bool   `json:"refreshing"`
 }
 
 type ContentPayload struct {
@@ -173,6 +189,8 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 			return programs[i].StartUnix < programs[j].StartUnix
 		})
 		return s.respondJSON(http.StatusOK, GuidePayload{Programs: programs})
+	case "/dispatcharr/api/guide/ping":
+		return s.handleGuidePing(ctx, request)
 	case "/dispatcharr/api/categories":
 		s.ensureCatalogHydrated(ctx)
 		return s.respondJSON(http.StatusOK, s.categoriesPayload())
@@ -311,6 +329,46 @@ func (s *HTTPRoutesServer) handleRefresh(ctx context.Context, request *pluginv1.
 	return s.respondJSON(status, s.buildAppPayload())
 }
 
+func (s *HTTPRoutesServer) handleGuidePing(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if request.GetMethod() != http.MethodPost {
+		return textResponse(http.StatusMethodNotAllowed, "guide ping requires POST"), nil
+	}
+	if s.syncer == nil || s.settingsProvider == nil {
+		return textResponse(http.StatusServiceUnavailable, "catalog sync is not available"), nil
+	}
+
+	var payload guidePingRequest
+	if len(request.GetBody()) > 0 {
+		if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
+			return textResponse(http.StatusBadRequest, "invalid guide ping payload"), nil
+		}
+	}
+
+	s.ensureCatalogHydrated(ctx)
+	channelIDs := normalizeChannelIDs(payload.ChannelIDs)
+	currentPrograms := currentProgramCountForChannels(s.store.Current().Catalog.Programs, channelIDs, time.Now().Unix())
+	if len(channelIDs) == 0 || currentPrograms > 0 {
+		return s.respondJSON(http.StatusOK, GuidePingPayload{Status: "fresh", CheckedChannels: len(channelIDs), CurrentPrograms: currentPrograms})
+	}
+
+	settings := s.settingsProvider()
+	if err := settings.Validate(); err != nil {
+		s.store.RecordFailure(time.Now().Unix(), err.Error())
+		return textResponse(http.StatusBadRequest, err.Error()), nil
+	}
+	started, status := s.startBackgroundGuideWarm(settings)
+	responseStatus := http.StatusOK
+	if started {
+		responseStatus = http.StatusAccepted
+	}
+	return s.respondJSON(responseStatus, GuidePingPayload{
+		Status:          status,
+		CheckedChannels: len(channelIDs),
+		CurrentPrograms: currentPrograms,
+		Refreshing:      started,
+	})
+}
+
 func (s *HTTPRoutesServer) startBackgroundRefresh(settings config.Settings) bool {
 	s.refreshMu.Lock()
 	if s.refreshRunning {
@@ -343,6 +401,44 @@ func (s *HTTPRoutesServer) startBackgroundRefresh(settings config.Settings) bool
 		}
 	}()
 	return true
+}
+
+func (s *HTTPRoutesServer) startBackgroundGuideWarm(settings config.Settings) (bool, string) {
+	refresher, ok := s.syncer.(guideOnlySyncer)
+	if !ok {
+		return false, "unavailable"
+	}
+
+	now := time.Now().Unix()
+	s.refreshMu.Lock()
+	if s.refreshRunning {
+		s.refreshMu.Unlock()
+		return false, "refreshing"
+	}
+	if s.guideWarmLastUnix > 0 && now-s.guideWarmLastUnix < 300 {
+		s.refreshMu.Unlock()
+		return false, "cooldown"
+	}
+	s.refreshRunning = true
+	s.guideWarmLastUnix = now
+	s.refreshMu.Unlock()
+
+	s.store.MarkEPGLoading()
+	go func() {
+		defer func() {
+			s.refreshMu.Lock()
+			s.refreshRunning = false
+			s.refreshMu.Unlock()
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		now := time.Now().Unix()
+		if err := refresher.RefreshGuideOnlyNow(ctx, settings, now); err != nil {
+			s.store.RecordEPGFailure(now, err.Error())
+		}
+	}()
+	return true, "refreshing"
 }
 
 func (s *HTTPRoutesServer) buildAppPayload() AppPayload {
@@ -964,6 +1060,45 @@ func programsForChannel(programs []model.Program, channelID string) []model.Prog
 		}
 	}
 	return filtered
+}
+
+func normalizeChannelIDs(ids []string) []string {
+	seen := map[string]bool{}
+	normalized := make([]string, 0, len(ids))
+	for _, id := range ids {
+		value := strings.TrimSpace(id)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		normalized = append(normalized, value)
+	}
+	return normalized
+}
+
+func currentProgramCountForChannels(programs []model.Program, channelIDs []string, nowUnix int64) int {
+	if len(channelIDs) == 0 {
+		return 0
+	}
+	channelSet := make(map[string]bool, len(channelIDs))
+	for _, id := range channelIDs {
+		channelSet[id] = true
+	}
+	count := 0
+	for _, program := range programs {
+		if !channelSet[program.ChannelID] {
+			continue
+		}
+		start := program.StartUnix
+		end := program.EndUnix
+		if end == 0 {
+			end = start + 1800
+		}
+		if start <= nowUnix+1800 && end >= nowUnix-300 {
+			count++
+		}
+	}
+	return count
 }
 
 func liveCategories(snapshot cache.Snapshot) []model.Category {

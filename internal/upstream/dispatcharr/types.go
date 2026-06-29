@@ -47,6 +47,17 @@ type ChannelGroup struct {
 	Name String `json:"name"`
 }
 
+type ChannelProfile struct {
+	ID       String   `json:"id"`
+	Name     String   `json:"name"`
+	Channels []String `json:"channels"`
+}
+
+type VersionInfo struct {
+	Version   String `json:"version"`
+	Timestamp String `json:"timestamp"`
+}
+
 type Program struct {
 	ID          String `json:"id"`
 	Title       String `json:"title"`

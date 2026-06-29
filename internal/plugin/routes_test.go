@@ -168,14 +168,20 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`function sourceVirtualChildCategories(parentPath, includeChannel)`,
 		`function featuredChildCategories(parentPath, includeChannel)`,
 		`function virtualCategoriesFromPaths(parentPath, includeChannel, includeAllDescendants)`,
+		`function featuredCategoriesFromPaths(parentPath, includeChannel, includeAllDescendants)`,
+		`function guideFilterCategories()`,
+		`featuredCategoriesFromPaths("", includeChannel, true)`,
+		`virtualCategoriesFromPaths("", includeChannel, true)`,
+		`const categories = guideFilterCategories();`,
 		`if (state.category.indexOf("virtual:") === 0 || state.category.indexOf("featured:") === 0)`,
 		`const children = (featured ? featuredChildCategories : virtualChildCategories)(path,`,
 		`virtualFolderBreadcrumbs(path, featured)`,
-		`const rootLabel = featured ? "Featured Groups" : "Virtual Groups"`,
+		`const rootLabel = featured ? "Featured Groups" : "Virtual Categories"`,
 		`const showSourceCategorySettings = !virtualCategoriesActive()`,
 		`Saved on this device, but not to your Silo profile.`,
 		`aria-label="Live TV sections"`,
 		`<span>Guide</span>`,
+		`<span>On Later</span>`,
 		`<span>My Stuff</span>`,
 		`<span>Sports</span>`,
 		`<span>Events</span>`,
@@ -187,10 +193,18 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`const searchHistoryKey = "silo.ramindex.dispatcharr.searchHistory.v1"`,
 		`function renderSearchPage()`,
 		`function renderSearchResults(query)`,
+		`function renderOnLaterPage()`,
+		`function groupedUpcomingAirings(programs, query)`,
 		`function rememberSearch(value)`,
+		`onLaterType`,
 		`data-search-recent=`,
 		`data-search-type=`,
 		`data-search-channel=`,
+		`data-search-category=`,
+		`data-search-program-channel=`,
+		`data-keyword-pass-add=`,
+		`keywordPasses`,
+		`allowRecordingsByDefault`,
 		`Search movies, tv shows, channels and more`,
 		`function renderSportsPage()`,
 		`function renderSportsTopbarTabs()`,
@@ -249,13 +263,17 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`.epg-channel:hover::after`,
 		`.epg-channel:focus-visible::after`,
 		`function renderEPGGapCell(channel, startUnix, endUnix, windowInfo)`,
-		`class=\"epg-cell program gray epg-gap\"`,
+		`class=\"epg-cell program epg-gap\"`,
+		`program" + (isLive ? " live" : "")`,
 		`if (start > cursor) cells.push(renderEPGGapCell(channel, cursor, start, windowInfo));`,
 		`customGroupChannelID`,
 		`role=\"combobox\"`,
 		`role=\"listbox\"`,
 		`data-custom-group-channel-option=`,
 		`function selectCustomGroupChannel(channelID)`,
+		`function tickGuideAutoRefresh()`,
+		`state.guideAutoTimer = setInterval(tickGuideAutoRefresh, 60000);`,
+		`now - state.guideLastAutoFetchAt < 5 * 60 * 1000`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected app page to include virtual folder drilldown marker %q", want)
@@ -267,12 +285,23 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if strings.Contains(body, `data-sports-refresh`) {
 		t.Fatalf("expected sports refresh to use the shared topbar refresh button")
 	}
-	if !strings.Contains(body, `const recent = recentChannels(10);`) {
-		t.Fatalf("expected home guide to be based on up to 10 continue-watching channels")
+	if strings.Contains(body, `postJSON("/dispatcharr/api/sports/favorites"`) {
+		t.Fatalf("expected sports favorite teams to save through user profile preferences")
 	}
-	if !strings.Contains(body, `const watched = recent.length ? recent : visibleChannels(false).slice(0, 6);`) ||
-		!strings.Contains(body, `sectionHeader("Recently watched") + rowCards(watched) + renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.") + categoryGrid()`) {
-		t.Fatalf("expected home page order to be continue watching, guide grid, then group sections")
+	if strings.Contains(body, `colorClass(`) {
+		t.Fatalf("expected guide colors to be semantic, not rotated by position")
+	}
+	if !strings.Contains(body, `const recent = recentChannels(5);`) {
+		t.Fatalf("expected home guide to be based on up to 5 continue-watching channels")
+	}
+	if !strings.Contains(body, `return pool.filter(channelHasCurrentGuide).slice(0, 5);`) {
+		t.Fatalf("expected home guide preview to be capped at 5 channels")
+	}
+	if !strings.Contains(body, `const watched = recent.length ? recent : visibleChannels(false).slice(0, 5);`) ||
+		!strings.Contains(body, `+ (favorites.length ? sectionHeader("Favorites") + favoriteHomeCards(favorites) : "")`) ||
+		!strings.Contains(body, `+ renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.")`) ||
+		!strings.Contains(body, `+ categoryGrid();`) {
+		t.Fatalf("expected home page order to be continue watching, favorites, guide grid, then group sections")
 	}
 	virtualHeaderIndex := strings.Index(body, `byId("view").innerHTML = virtualFolderHeader(path, featured)`)
 	virtualChildrenIndex := strings.Index(body, `+ (children.length ? "<div class=\"category-grid\">`)
@@ -367,6 +396,12 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`state.adminCategorySettings.ecmEnabled = state.adminCategorySettings.ecmEnabled === true`,
 		`return adminSettings().ecmEnabled === true && !!adminECMURL();`,
 		`Group method`,
+		`Group Renames`,
+		`Rename Dispatcharr groups for Silo`,
+		`function renderAdminCategoryRenameSettings()`,
+		`data-admin-rename-action=\"add\"`,
+		`data-admin-rename-action=\"remove\"`,
+		`data-admin-rename-field=\"displayName\"`,
 		`Alternative Group Names`,
 		`Alternative group name`,
 		`alias-table-source`,
@@ -745,8 +780,8 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     simpleFeaturedCategory: grid.indexOf('data-category="featured:Admin Favorites"') !== -1,
     simpleFeaturedGuide: simpleFeaturedView.indexOf(">Featured Groups</button>") !== -1 && simpleFeaturedView.indexOf(">Admin Favorites</button>") !== -1 && simpleFeaturedView.indexOf('data-channel="channel:admin-favorites"') !== -1,
     simpleFeaturedViewToggle: simpleFeaturedView.indexOf('data-virtual-category-view="guide"') !== -1 && simpleFeaturedView.indexOf('data-virtual-category-view="list"') !== -1,
-    simpleFeaturedSourcePage: simpleFeaturedView.indexOf(">Featured Groups<") !== -1 && simpleFeaturedView.indexOf(">Virtual Groups<") !== -1 && simpleFeaturedView.indexOf(">Admin Favorites<") !== -1,
-    virtualBreadcrumbRoot: virtualView.indexOf(">Virtual Groups</button>") !== -1,
+    simpleFeaturedSourcePage: simpleFeaturedView.indexOf(">Featured Groups<") !== -1 && simpleFeaturedView.indexOf(">Virtual Categories<") !== -1 && simpleFeaturedView.indexOf(">Admin Favorites<") !== -1,
+    virtualBreadcrumbRoot: virtualView.indexOf(">Virtual Categories</button>") !== -1,
     virtualGuideHeading: virtualView.indexOf(">TV Guide<") !== -1,
     virtualBackButton: virtualView.indexOf(">Back</button>") !== -1,
     channelCategoryName: channel ? channel.categoryName : "",
@@ -1117,7 +1152,7 @@ func TestHTTPRoutesServerPreferencesRoutePersistsFullPayload(t *testing.T) {
 	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
 		Method: "POST",
 		Path:   "/dispatcharr/api/preferences",
-		Body:   []byte(`{"favorites":{"channel:1":true},"favoriteOrder":["channel:1","channel:3"],"autoFavorites":{"channel:2":true},"hiddenCategories":{"sports":true},"recentChannels":["channel:1"],"continueWatching":{"channel:1":{"plays":3}},"playback":{"streamMode":"redirect","outputFormat":"hls"},"categoryParsing":{"enabled":true,"mode":"delimiter","delimiter":"pipe","regex":"","output":""},"customGroups":[{"id":"group:spanish","name":"Spanish","order":10}],"customGroupMemberships":{"group:spanish":["channel:1","channel:2"]}}`),
+		Body:   []byte(`{"favorites":{"channel:1":true},"favoriteOrder":["channel:1","channel:3"],"autoFavorites":{"channel:2":true},"hiddenCategories":{"sports":true},"sportsFavoriteTeams":{"mlb:cin":true},"keywordPasses":[{"id":"keyword:world-cup","keyword":"World Cup","createdAt":1234}],"recentChannels":["channel:1"],"continueWatching":{"channel:1":{"plays":3}},"playback":{"streamMode":"redirect","outputFormat":"hls"},"categoryParsing":{"enabled":true,"mode":"delimiter","delimiter":"pipe","regex":"","output":""},"customGroups":[{"id":"group:spanish","name":"Spanish","order":10}],"customGroupMemberships":{"group:spanish":["channel:1","channel:2"]}}`),
 	})
 	if err != nil {
 		t.Fatalf("preferences route: %v", err)
@@ -1137,6 +1172,12 @@ func TestHTTPRoutesServerPreferencesRoutePersistsFullPayload(t *testing.T) {
 	}
 	if len(prefs.FavoriteOrder) != 2 || prefs.FavoriteOrder[0] != "channel:1" || prefs.FavoriteOrder[1] != "channel:3" {
 		t.Fatalf("expected favorite order to persist: %+v", prefs.FavoriteOrder)
+	}
+	if !prefs.SportsFavoriteTeams["mlb:cin"] {
+		t.Fatalf("expected sports favorite team to persist: %+v", prefs.SportsFavoriteTeams)
+	}
+	if len(prefs.KeywordPasses) != 1 || prefs.KeywordPasses[0].Keyword != "World Cup" {
+		t.Fatalf("expected keyword passes to persist: %+v", prefs.KeywordPasses)
 	}
 	if !prefs.CategoryParsing.Enabled || prefs.CategoryParsing.Delimiter != "pipe" {
 		t.Fatalf("expected category parsing settings to persist: %+v", prefs.CategoryParsing)
@@ -1162,7 +1203,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 		Method:  "POST",
 		Path:    "/dispatcharr/api/admin-settings",
 		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
-		Body:    []byte(`{"mode":"delimiter","delimiter":"pipe","categoryAliases":[{"sourcePath":" International | Arabic | Sports ","aliasPath":" Sports | Arabic "},{"sourcePath":"International | Arabic | Sports","aliasPath":"Sports | Arabic"},{"sourcePath":"International | Arabic | Sports","aliasPath":"World Cup | Arabic"},{"sourcePath":"","aliasPath":"Nowhere"},{"sourcePath":"International | Arabic | Sports","aliasPath":""}]}`),
+		Body:    []byte(`{"mode":"delimiter","delimiter":"pipe","allowRecordingsByDefault":false,"categoryRenames":[{"sourcePath":" International | Arabic | Sports ","displayName":" International Sports "},{"sourcePath":"International | Arabic | Sports","displayName":"Duplicate Ignored"},{"sourcePath":"","displayName":"Nowhere"},{"sourcePath":"International | TV","displayName":""}],"categoryAliases":[{"sourcePath":" International | Arabic | Sports ","aliasPath":" Sports | Arabic "},{"sourcePath":"International | Arabic | Sports","aliasPath":"Sports | Arabic"},{"sourcePath":"International | Arabic | Sports","aliasPath":"World Cup | Arabic"},{"sourcePath":"","aliasPath":"Nowhere"},{"sourcePath":"International | Arabic | Sports","aliasPath":""}]}`),
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
@@ -1186,6 +1227,17 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	if payload["mode"] != "delimiter" || payload["delimiter"] != "pipe" {
 		t.Fatalf("expected admin settings to persist: %+v", payload)
 	}
+	if payload["allowRecordingsByDefault"] != false {
+		t.Fatalf("expected admin recording default to persist: %+v", payload)
+	}
+	renames, ok := payload["categoryRenames"].([]any)
+	if !ok || len(renames) != 1 {
+		t.Fatalf("expected one normalized category rename, got %+v", payload["categoryRenames"])
+	}
+	firstRename, _ := renames[0].(map[string]any)
+	if firstRename["sourcePath"] != "International | Arabic | Sports" || firstRename["displayName"] != "International Sports" {
+		t.Fatalf("expected category rename to be trimmed and preserved, got %+v", firstRename)
+	}
 	aliases, ok := payload["categoryAliases"].([]any)
 	if !ok || len(aliases) != 2 {
 		t.Fatalf("expected two normalized category aliases, got %+v", payload["categoryAliases"])
@@ -1200,6 +1252,13 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	}
 	if persisted["mode"] != "delimiter" || persisted["delimiter"] != "pipe" {
 		t.Fatalf("expected admin settings to write through to host config: %+v", persisted)
+	}
+	if persisted["allowRecordingsByDefault"] != false {
+		t.Fatalf("expected admin recording default to write through to host config: %+v", persisted)
+	}
+	persistedRenames, ok := persisted["categoryRenames"].([]map[string]string)
+	if !ok || len(persistedRenames) != 1 {
+		t.Fatalf("expected category renames to write through to host config: %+v", persisted)
 	}
 	persistedAliases, ok := persisted["categoryAliases"].([]map[string]string)
 	if !ok || len(persistedAliases) != 2 {

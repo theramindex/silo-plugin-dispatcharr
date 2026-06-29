@@ -14,6 +14,7 @@ import (
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/mapping"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/matching"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/dispatcharr"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/m3u"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xmltv"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
@@ -87,6 +88,10 @@ func (s *Service) SyncNow(ctx context.Context, settings config.Settings, nowUnix
 func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings, nowUnix int64) error {
 	client := s.dispatcharrFactory(settings)
 	tightDeadline := hasTightDeadline(ctx)
+	if err := requireDispatcharrMinimumVersion(ctx, client); err != nil {
+		s.store.RecordFailure(nowUnix, err.Error())
+		return err
+	}
 
 	upstreamChannels, err := client.Channels(ctx)
 	if err != nil {
@@ -95,6 +100,20 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 	}
 
 	groups, err := client.ChannelGroups(ctx)
+	if err != nil {
+		s.store.RecordFailure(nowUnix, err.Error())
+		return err
+	}
+	profiles, profilesErr := client.ChannelProfiles(ctx)
+	if profilesErr != nil {
+		if strings.TrimSpace(settings.ChannelProfile) != "" {
+			err := fmt.Errorf("dispatcharr channel profiles unavailable: %w", profilesErr)
+			s.store.RecordFailure(nowUnix, err.Error())
+			return err
+		}
+		profiles = nil
+	}
+	profile, allowedChannels, err := selectedChannelProfile(settings.ChannelProfile, profiles)
 	if err != nil {
 		s.store.RecordFailure(nowUnix, err.Error())
 		return err
@@ -116,6 +135,9 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 	channelByUpstreamID := map[string]string{}
 	for _, upstream := range upstreamChannels {
 		if upstream.HiddenFromOutput {
+			continue
+		}
+		if allowedChannels != nil && !allowedChannels[upstream.ID.String()] {
 			continue
 		}
 		channel := mapping.MapDispatcharrChannel(upstream, client.LiveStreamURL(upstream.UUID.String()))
@@ -208,7 +230,7 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 	}
 
 	catalog := model.CatalogState{
-		Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+		Source:   directSourceWithProfiles(profiles, profile),
 		Channels: channels,
 		Programs: programs,
 		Health:   syncHealth(nowUnix, len(programs)),
@@ -296,11 +318,65 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 	return nil
 }
 
+func requireDispatcharrMinimumVersion(ctx context.Context, client DispatcharrClient) error {
+	version, err := client.Version(ctx)
+	if err != nil {
+		return fmt.Errorf("dispatcharr version check failed: %w", err)
+	}
+	if !dispatcharrVersionAtLeast(version, config.MinimumDispatcharrVersion) {
+		return fmt.Errorf("dispatcharr %s or newer is required; connected server is %s", config.MinimumDispatcharrVersion, strings.TrimSpace(version.Version.String()))
+	}
+	return nil
+}
+
 func xtreamConnectionSettings(settings config.Settings) (string, string, string) {
 	if settings.SourceMode == config.SourceModeDirectLogin {
 		return settings.DispatcharrURL, settings.DispatcharrUser, settings.DispatcharrPass
 	}
 	return settings.XtreamBaseURL, settings.XtreamUsername, settings.XtreamPassword
+}
+
+func selectedChannelProfile(selection string, profiles []dispatcharr.ChannelProfile) (*dispatcharr.ChannelProfile, map[string]bool, error) {
+	selection = strings.TrimSpace(selection)
+	if selection == "" {
+		return nil, nil, nil
+	}
+	for _, profile := range profiles {
+		if profile.ID.String() != selection && !strings.EqualFold(strings.TrimSpace(profile.Name.String()), selection) {
+			continue
+		}
+		allowed := make(map[string]bool, len(profile.Channels))
+		for _, channelID := range profile.Channels {
+			if value := strings.TrimSpace(channelID.String()); value != "" {
+				allowed[value] = true
+			}
+		}
+		matched := profile
+		return &matched, allowed, nil
+	}
+	return nil, nil, fmt.Errorf("dispatcharr channel profile %q was not found", selection)
+}
+
+func directSourceWithProfiles(profiles []dispatcharr.ChannelProfile, selected *dispatcharr.ChannelProfile) model.Source {
+	source := model.LiveTVSource(model.SourceModeDirectLogin)
+	if len(profiles) > 0 {
+		source.Profiles = make([]model.ChannelProfile, 0, len(profiles))
+		for _, profile := range profiles {
+			source.Profiles = append(source.Profiles, model.ChannelProfile{
+				ID:           profile.ID.String(),
+				Name:         profile.Name.String(),
+				ChannelCount: len(profile.Channels),
+			})
+		}
+	}
+	if selected != nil {
+		source.ChannelProfile = &model.ChannelProfile{
+			ID:           selected.ID.String(),
+			Name:         selected.Name.String(),
+			ChannelCount: len(selected.Channels),
+		}
+	}
+	return source
 }
 
 func (s *Service) xmltvProgramsForChannels(ctx context.Context, rawURL string, channels []model.Channel) ([]model.Program, error) {
@@ -516,6 +592,31 @@ func (s *Service) RefreshEPGNow(ctx context.Context, settings config.Settings, n
 	return nil
 }
 
+func (s *Service) RefreshGuideOnlyNow(ctx context.Context, settings config.Settings, nowUnix int64) error {
+	if err := settings.Validate(); err != nil {
+		return err
+	}
+	if usesDispatcharrAPI(settings) {
+		programs, err := s.dispatcharrGuidePrograms(ctx, settings, nowUnix)
+		if err != nil {
+			s.store.RecordEPGFailure(nowUnix, err.Error())
+			s.persistSnapshot()
+			return err
+		}
+		s.replacePrograms(programs, nowUnix)
+		return nil
+	}
+	if _, err := epgURL(settings); err != nil {
+		return s.SyncNow(ctx, settings, nowUnix)
+	}
+	if err := s.refreshEPG(ctx, settings, nowUnix); err != nil {
+		s.store.RecordEPGFailure(nowUnix, err.Error())
+		s.persistSnapshot()
+		return err
+	}
+	return nil
+}
+
 func (s *Service) ForceSyncNow(ctx context.Context, settings config.Settings, nowUnix int64) error {
 	if err := settings.Validate(); err != nil {
 		return err
@@ -527,6 +628,94 @@ func (s *Service) ForceSyncNow(ctx context.Context, settings config.Settings, no
 		return err
 	}
 	return nil
+}
+
+func (s *Service) dispatcharrGuidePrograms(ctx context.Context, settings config.Settings, nowUnix int64) ([]model.Program, error) {
+	client := s.dispatcharrFactory(settings)
+	if err := requireDispatcharrMinimumVersion(ctx, client); err != nil {
+		return nil, err
+	}
+	upstreamChannels, err := client.Channels(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profiles, _ := client.ChannelProfiles(ctx)
+	_, allowedChannels, err := selectedChannelProfile(settings.ChannelProfile, profiles)
+	if err != nil {
+		return nil, err
+	}
+
+	channelByGuideID := map[string]string{}
+	channelByUpstreamID := map[string]string{}
+	for _, upstream := range upstreamChannels {
+		if upstream.HiddenFromOutput {
+			continue
+		}
+		if allowedChannels != nil && !allowedChannels[upstream.ID.String()] {
+			continue
+		}
+		channel := mapping.MapDispatcharrChannel(upstream, client.LiveStreamURL(upstream.UUID.String()))
+		if channel.GuideID != "" {
+			channelByGuideID[channel.GuideID] = channel.ID
+		}
+		if upstream.EffectiveEPGDataID.String() != "" {
+			channelByGuideID[upstream.EffectiveEPGDataID.String()] = channel.ID
+		}
+		if upstream.UUID.String() != "" {
+			channelByGuideID[upstream.UUID.String()] = channel.ID
+		}
+		if upstream.ID.String() != "" {
+			channelByUpstreamID[upstream.ID.String()] = channel.ID
+		}
+	}
+
+	programs := make([]model.Program, 0)
+	programIDs := map[string]struct{}{}
+	var guideErr error
+	if upstreamPrograms, err := client.Programs(ctx); err == nil {
+		for _, upstream := range upstreamPrograms {
+			channelID := channelByGuideID[upstream.TVGID.String()]
+			if channelID == "" {
+				continue
+			}
+			program := mapping.MapDispatcharrProgram(channelID, upstream)
+			programs = append(programs, program)
+			programIDs[program.ID] = struct{}{}
+		}
+	} else {
+		guideErr = err
+	}
+
+	if !hasTightDeadline(ctx) {
+		start := time.Unix(nowUnix, 0).Add(-1 * time.Hour)
+		end := time.Unix(nowUnix, 0).Add(24 * time.Hour)
+		if upstreamPrograms, err := client.SearchPrograms(ctx, start, end); err == nil {
+			for _, upstream := range upstreamPrograms {
+				channelID := ""
+				for _, channel := range upstream.Channels {
+					if mapped := channelByUpstreamID[channel.ID.String()]; mapped != "" {
+						channelID = mapped
+						break
+					}
+				}
+				if channelID == "" {
+					continue
+				}
+				program := mapping.MapDispatcharrProgram(channelID, upstream.Program)
+				if _, ok := programIDs[program.ID]; ok {
+					continue
+				}
+				programs = append(programs, program)
+				programIDs[program.ID] = struct{}{}
+			}
+		} else if guideErr == nil {
+			guideErr = err
+		}
+	}
+	if len(programs) == 0 && guideErr != nil {
+		return nil, guideErr
+	}
+	return programs, nil
 }
 
 func usesDispatcharrAPI(settings config.Settings) bool {

@@ -11,6 +11,7 @@ import (
 const (
 	DefaultChannelRefreshHours = 24
 	DefaultEPGRefreshHours     = 24
+	MinimumDispatcharrVersion  = "0.27.1"
 )
 
 type SourceMode string
@@ -28,6 +29,7 @@ type Settings struct {
 	DispatcharrUser   string
 	DispatcharrPass   string
 	DispatcharrAPIKey string
+	ChannelProfile    string
 	XtreamBaseURL     string
 	XtreamUsername    string
 	XtreamPassword    string
@@ -109,6 +111,7 @@ func CatalogCacheKey(settings Settings) string {
 		strings.TrimSpace(settings.DispatcharrURL),
 		strings.TrimSpace(settings.DispatcharrUser),
 		strings.TrimSpace(settings.DispatcharrAPIKey),
+		strings.TrimSpace(settings.ChannelProfile),
 		strings.TrimSpace(settings.XtreamBaseURL),
 		strings.TrimSpace(settings.XtreamUsername),
 		strings.TrimSpace(settings.M3UURL),
