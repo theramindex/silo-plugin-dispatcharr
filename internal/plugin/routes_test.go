@@ -176,7 +176,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`if (state.category.indexOf("virtual:") === 0 || state.category.indexOf("featured:") === 0)`,
 		`const children = (featured ? featuredChildCategories : virtualChildCategories)(path,`,
 		`virtualFolderBreadcrumbs(path, featured)`,
-		`const rootLabel = featured ? "Featured Groups" : "Virtual Categories"`,
+		`const rootLabel = featured ? "Featured Groups" : virtualGroupLabel()`,
+		`data-admin-category-field=\"virtualGroupLabel\"`,
 		`const showSourceCategorySettings = !virtualCategoriesActive()`,
 		`Saved on this device, but not to your Silo profile.`,
 		`aria-label="Live TV sections"`,
@@ -780,8 +781,8 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     simpleFeaturedCategory: grid.indexOf('data-category="featured:Admin Favorites"') !== -1,
     simpleFeaturedGuide: simpleFeaturedView.indexOf(">Featured Groups</button>") !== -1 && simpleFeaturedView.indexOf(">Admin Favorites</button>") !== -1 && simpleFeaturedView.indexOf('data-channel="channel:admin-favorites"') !== -1,
     simpleFeaturedViewToggle: simpleFeaturedView.indexOf('data-virtual-category-view="guide"') !== -1 && simpleFeaturedView.indexOf('data-virtual-category-view="list"') !== -1,
-    simpleFeaturedSourcePage: simpleFeaturedView.indexOf(">Featured Groups<") !== -1 && simpleFeaturedView.indexOf(">Virtual Categories<") !== -1 && simpleFeaturedView.indexOf(">Admin Favorites<") !== -1,
-    virtualBreadcrumbRoot: virtualView.indexOf(">Virtual Categories</button>") !== -1,
+    simpleFeaturedSourcePage: simpleFeaturedView.indexOf(">Featured Groups<") !== -1 && simpleFeaturedView.indexOf(">Virtual Groups<") !== -1 && simpleFeaturedView.indexOf(">Admin Favorites<") !== -1,
+    virtualBreadcrumbRoot: virtualView.indexOf(">Virtual Groups</button>") !== -1,
     virtualGuideHeading: virtualView.indexOf(">TV Guide<") !== -1,
     virtualBackButton: virtualView.indexOf(">Back</button>") !== -1,
     channelCategoryName: channel ? channel.categoryName : "",
@@ -1203,7 +1204,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 		Method:  "POST",
 		Path:    "/dispatcharr/api/admin-settings",
 		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
-		Body:    []byte(`{"mode":"delimiter","delimiter":"pipe","allowRecordingsByDefault":false,"categoryRenames":[{"sourcePath":" International | Arabic | Sports ","displayName":" International Sports "},{"sourcePath":"International | Arabic | Sports","displayName":"Duplicate Ignored"},{"sourcePath":"","displayName":"Nowhere"},{"sourcePath":"International | TV","displayName":""}],"categoryAliases":[{"sourcePath":" International | Arabic | Sports ","aliasPath":" Sports | Arabic "},{"sourcePath":"International | Arabic | Sports","aliasPath":"Sports | Arabic"},{"sourcePath":"International | Arabic | Sports","aliasPath":"World Cup | Arabic"},{"sourcePath":"","aliasPath":"Nowhere"},{"sourcePath":"International | Arabic | Sports","aliasPath":""}]}`),
+		Body:    []byte(`{"mode":"delimiter","delimiter":"pipe","virtualGroupLabel":" Virtual Categories ","allowRecordingsByDefault":false,"categoryRenames":[{"sourcePath":" International | Arabic | Sports ","displayName":" International Sports "},{"sourcePath":"International | Arabic | Sports","displayName":"Duplicate Ignored"},{"sourcePath":"","displayName":"Nowhere"},{"sourcePath":"International | TV","displayName":""}],"categoryAliases":[{"sourcePath":" International | Arabic | Sports ","aliasPath":" Sports | Arabic "},{"sourcePath":"International | Arabic | Sports","aliasPath":"Sports | Arabic"},{"sourcePath":"International | Arabic | Sports","aliasPath":"World Cup | Arabic"},{"sourcePath":"","aliasPath":"Nowhere"},{"sourcePath":"International | Arabic | Sports","aliasPath":""}]}`),
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
@@ -1226,6 +1227,9 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	}
 	if payload["mode"] != "delimiter" || payload["delimiter"] != "pipe" {
 		t.Fatalf("expected admin settings to persist: %+v", payload)
+	}
+	if payload["virtualGroupLabel"] != "Virtual Categories" {
+		t.Fatalf("expected virtual group label to persist: %+v", payload)
 	}
 	if payload["allowRecordingsByDefault"] != false {
 		t.Fatalf("expected admin recording default to persist: %+v", payload)
@@ -1252,6 +1256,9 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	}
 	if persisted["mode"] != "delimiter" || persisted["delimiter"] != "pipe" {
 		t.Fatalf("expected admin settings to write through to host config: %+v", persisted)
+	}
+	if persisted["virtualGroupLabel"] != "Virtual Categories" {
+		t.Fatalf("expected virtual group label to write through to host config: %+v", persisted)
 	}
 	if persisted["allowRecordingsByDefault"] != false {
 		t.Fatalf("expected admin recording default to write through to host config: %+v", persisted)
