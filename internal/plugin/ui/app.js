@@ -1398,6 +1398,10 @@ function renderSearchResultRow(row) {
   const record = row.recordable ? "<button class=\"search-result-record\" type=\"button\" data-schedule-channel=\"" + escapeHTML(row.channelId || "") + "\" data-schedule-program=\"" + escapeHTML(row.programId || "") + "\">Record</button>" : "";
   return "<div class=\"search-result-row\"><button class=\"search-result\" type=\"button\" " + (row.attrs || "") + (row.disabled ? " disabled" : "") + "><span class=\"search-result-art\">" + row.art + "</span><span class=\"search-result-main\"><strong>" + escapeHTML(row.title) + "</strong><small>" + escapeHTML(row.meta || "") + "</small></span><span class=\"search-result-action\">" + escapeHTML(row.action || "") + "</span></button>" + record + "</div>";
 }
+function renderSearchResultCard(row) {
+  const record = row.recordable ? "<button class=\"search-result-record\" type=\"button\" data-schedule-channel=\"" + escapeHTML(row.channelId || "") + "\" data-schedule-program=\"" + escapeHTML(row.programId || "") + "\">Record</button>" : "";
+  return "<div class=\"search-result-card\"><button class=\"search-result-card-main\" type=\"button\" " + (row.attrs || "") + (row.disabled ? " disabled" : "") + "><span class=\"search-result-card-art\">" + row.art + "</span><span class=\"search-result-card-copy\"><strong>" + escapeHTML(row.title) + "</strong><small>" + escapeHTML(row.meta || "") + "</small></span><span class=\"search-result-card-action\">" + escapeHTML(row.action || "") + "</span></button>" + record + "</div>";
+}
 function renderSearchResults(query) {
   const sections = searchResultSections(query);
   const savePass = query && !keywordPasses().some(function(pass) { return lower(pass.keyword) === lower(query); }) ? "<button class=\"search-save-pass\" type=\"button\" data-keyword-pass-add=\"" + escapeHTML(query) + "\">Save Keyword Pass</button>" : "";
@@ -1507,6 +1511,19 @@ function renderProgramDiscoveryRow(program) {
     programId: program.id || ""
   });
 }
+function renderProgramDiscoveryCard(program) {
+  const channel = channelByID(program.channelId) || {};
+  return renderSearchResultCard({
+    attrs: "data-search-program-channel=\"" + escapeHTML(program.channelId || "") + "\" data-search-program=\"" + escapeHTML(program.id || "") + "\"",
+    art: logoHTML(channel),
+    title: program.title || "Untitled program",
+    meta: [(programIsLive(program) ? "Live now" : dateTimeLabel(program.startUnix)), channel.name || ""].filter(Boolean).join(" - "),
+    action: programIsLive(program) ? "Watch" : "Guide",
+    recordable: dvrEnabled() && programIsUpcoming(program),
+    channelId: program.channelId,
+    programId: program.id || ""
+  });
+}
 function renderOnLaterPage() {
   const root = byId("view");
   const type = state.onLaterType || "all";
@@ -1521,13 +1538,13 @@ function renderOnLaterPage() {
   }).join("") + "</div>" : "";
   root.innerHTML = "<div class=\"search-page on-later-page\"><div class=\"search-hero\"><h2>On Later</h2><p>Upcoming guide content organized for watching and recording.</p></div>" + filters
     + (passHTML && (type === "all" || type === "passes") ? passHTML : "")
-    + (airings.length && type !== "live" ? sectionHeader("Upcoming Airings") + "<div class=\"search-result-list\">" + airings.map(function(group) {
+    + (airings.length && type !== "live" ? sectionHeader("Upcoming Airings") + "<div class=\"on-later-card-grid\">" + airings.map(function(group) {
       const first = group.programs[0] || {};
       const channel = channelByID(first.channelId) || {};
-      return renderSearchResultRow({ attrs: "data-search-airing=\"" + escapeHTML(group.key) + "\"", art: logoHTML(channel), title: group.title, meta: [group.programs.length + " airings", dateTimeLabel(first.startUnix), channel.name || ""].filter(Boolean).join(" - "), action: "Show" });
+      return renderSearchResultCard({ attrs: "data-search-airing=\"" + escapeHTML(group.key) + "\"", art: logoHTML(channel), title: group.title, meta: [group.programs.length + " airings", dateTimeLabel(first.startUnix), channel.name || ""].filter(Boolean).join(" - "), action: "Show" });
     }).join("") + "</div>" : "")
     + sectionHeader(type === "all" ? "Guide Picks" : onLaterFilters().find(function(item) { return item.id === type; }).label)
-    + (programs.length ? "<div class=\"search-result-list\">" + programs.slice(0, 60).map(renderProgramDiscoveryRow).join("") + "</div>" : "<div class=\"empty\">No matching guide entries.</div>")
+    + (programs.length ? "<div class=\"on-later-card-grid\">" + programs.slice(0, 60).map(renderProgramDiscoveryCard).join("") + "</div>" : "<div class=\"empty\">No matching guide entries.</div>")
     + "</div>";
 }
 function loadSports(force) {
