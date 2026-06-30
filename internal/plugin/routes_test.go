@@ -180,6 +180,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`virtualFolderBreadcrumbs(path, featured)`,
 		`const rootLabel = featured ? featuredGroupLabel() : virtualGroupLabel()`,
 		`function featuredGroupLabel()`,
+		`function allGroupLabel()`,
 		`data-admin-category-field=\"virtualGroupLabel\"`,
 		`const showSourceCategorySettings = !virtualCategoriesActive()`,
 		`Saved on this device, but not to your Silo profile.`,
@@ -536,6 +537,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.FeaturedRenamedSection {
 		t.Fatalf("expected featured section label to follow the virtual label suffix: %+v", result)
 	}
+	if !result.GuideRenamedAllOption {
+		t.Fatalf("expected guide filter all option to follow the virtual label suffix: %+v", result)
+	}
 	if !result.FeaturedAlphabetical {
 		t.Fatalf("expected featured categories to render alphabetically by display name: %+v", result)
 	}
@@ -624,6 +628,7 @@ type virtualAliasResult struct {
 	StringParsedMode         string `json:"stringParsedMode"`
 	FeaturedSection          bool   `json:"featuredSection"`
 	FeaturedRenamedSection   bool   `json:"featuredRenamedSection"`
+	GuideRenamedAllOption    bool   `json:"guideRenamedAllOption"`
 	FeaturedCategory         bool   `json:"featuredCategory"`
 	FeaturedAlphabetical     bool   `json:"featuredAlphabetical"`
 	FeaturedVirtualCategory  bool   `json:"featuredVirtualCategory"`
@@ -739,6 +744,8 @@ JSON.stringify((function() {
   const grid = categoryGrid();
   state.adminCategorySettings.virtualGroupLabel = "Things";
   const renamedGrid = categoryGrid();
+  renderGuidePage();
+  const renamedGuideView = document.elements.view ? document.elements.view.innerHTML : "";
   state.adminCategorySettings.virtualGroupLabel = "Groups";
   const channel = channelByID("channel:argentina-sports");
   state.category = "featured:International / Argentina / Sports";
@@ -782,6 +789,7 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     stringParsedMode: readAdminSettingsValue(JSON.stringify({ mode: "delimiter", delimiter: "pipe" })).mode,
     featuredSection: grid.indexOf(">Featured Groups<") !== -1,
     featuredRenamedSection: renamedGrid.indexOf(">Featured Things<") !== -1 && renamedGrid.indexOf(">Featured Groups<") === -1,
+    guideRenamedAllOption: renamedGuideView.indexOf(">All things</option>") !== -1 && renamedGuideView.indexOf(">All groups</option>") === -1,
     featuredCategory: grid.indexOf("International | Argentina | Sports") !== -1,
     featuredAlphabetical: grid.indexOf(">Admin Favorites</strong>") !== -1 && grid.indexOf(">World Cup</strong>") !== -1 && grid.indexOf(">Admin Favorites</strong>") < grid.indexOf(">World Cup</strong>"),
     featuredVirtualCategory: grid.indexOf('data-category="featured:International / Argentina / Sports"') !== -1,
