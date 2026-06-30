@@ -79,6 +79,23 @@ func TestValidate_ExplicitSourceModeWinsOverLegacyAPIKey(t *testing.T) {
 	}
 }
 
+func TestValidate_LegacyAPIKeyInfersAPIKeyBeforeDirectLogin(t *testing.T) {
+	t.Parallel()
+
+	cfg := Settings{
+		DispatcharrURL:    "https://dispatcharr.example.com",
+		DispatcharrAPIKey: "admin-api-key",
+		ChannelRefreshH:   DefaultChannelRefreshHours,
+		EPGRefreshH:       DefaultEPGRefreshHours,
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("expected valid API key settings, got %v", err)
+	}
+	if cfg.SourceMode != SourceModeAPIKey {
+		t.Fatalf("expected API key source mode, got %q", cfg.SourceMode)
+	}
+}
+
 func TestValidate_DirectLoginConfigPasses(t *testing.T) {
 	t.Parallel()
 
