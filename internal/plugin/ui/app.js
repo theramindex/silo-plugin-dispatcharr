@@ -1715,7 +1715,7 @@ function renderSportsMatchTeam(team, score) {
 }
 function renderSportsChannels(event) {
   const channels = items(event.channels);
-  if (!channels.length) return "<div class=\"muted\">No matching channels.</div>";
+  if (!channels.length) return "<div class=\"sports-channel-empty muted\">No matching channels.</div>";
   const expanded = !!state.sportsExpandedEvents[event.id];
   const visible = expanded ? channels : channels.slice(0, 3);
   const hiddenCount = channels.length - visible.length;
@@ -1837,7 +1837,7 @@ function eventStatusLabel(event) {
 }
 function renderBroadcastEventChannels(event) {
   const channels = items(event.channels);
-  if (!channels.length) return "<div class=\"muted\">No matching channels.</div>";
+  if (!channels.length) return "<div class=\"sports-channel-empty muted\">No matching channels.</div>";
   const expanded = !!state.expandedEvents[event.id];
   const visible = expanded ? channels : channels.slice(0, 3);
   const hiddenCount = channels.length - visible.length;
