@@ -1704,14 +1704,16 @@ function renderSportsTeamLogo(team, className) {
 function renderSportsMatchup(event, status) {
   const center = event.live ? "Live" : (event.completed ? "Final" : "VS");
   const detail = event.live || event.completed ? status : "";
-  return "<div class=\"sports-matchup\">" + renderSportsMatchTeam(event.away || {}, event.awayScore) + "<div class=\"sports-versus\"><strong>" + escapeHTML(center) + "</strong>" + (detail ? "<span>" + escapeHTML(detail) + "</span>" : "") + "</div>" + renderSportsMatchTeam(event.home || {}, event.homeScore) + "</div>";
+  const showScore = !!(event.live || event.completed);
+  return "<div class=\"sports-matchup\">" + renderSportsMatchTeam(event.away || {}, event.awayScore, showScore) + "<div class=\"sports-versus\"><strong>" + escapeHTML(center) + "</strong>" + (detail ? "<span>" + escapeHTML(detail) + "</span>" : "") + "</div>" + renderSportsMatchTeam(event.home || {}, event.homeScore, showScore) + "</div>";
 }
-function renderSportsMatchTeam(team, score) {
+function renderSportsMatchTeam(team, score, showScore) {
   const name = team.name || team.abbreviation || "Team";
   const favorite = !!sportsFavoriteTeamMap()[team.id];
   const logo = renderSportsTeamLogo(team, "sports-match-team-logo");
   const favoriteControl = team.id ? "<button class=\"sports-team-favorite" + (favorite ? " active" : "") + "\" type=\"button\" data-sports-favorite-team=\"" + escapeHTML(team.id || "") + "\" data-sports-favorite-enabled=\"" + (favorite ? "false" : "true") + "\" aria-label=\"" + escapeHTML(favorite ? "Remove favorite team" : "Favorite team") + "\">&#9733;<span>" + (favorite ? "Following" : "Follow") + "</span></button>" : "<span class=\"sports-team-favorite placeholder\" aria-hidden=\"true\"></span>";
-  return "<div class=\"sports-match-team\">" + logo + "<strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(name) + "</strong><span class=\"sports-match-team-score\">" + escapeHTML(score || "") + "</span>" + favoriteControl + "</div>";
+  const scoreHTML = showScore ? "<span class=\"sports-match-team-score\">" + escapeHTML(score || "0") + "</span>" : "";
+  return "<div class=\"sports-match-team\">" + logo + "<strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(name) + "</strong>" + scoreHTML + favoriteControl + "</div>";
 }
 function renderSportsChannels(event) {
   const channels = items(event.channels);
