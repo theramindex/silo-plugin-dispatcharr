@@ -2261,7 +2261,14 @@ function scheduleProgram(channelID, programID, button) {
     showAppToast("Recording scheduled in Dispatcharr.");
   }).catch(function(error) {
     const message = readableError(error);
-    if (message.indexOf("admin account or API key") >= 0) {
+    const lowerMessage = message.toLowerCase();
+    if (lowerMessage.indexOf("admin account or api key") >= 0
+      || lowerMessage.indexOf("request failed (401)") >= 0
+      || lowerMessage.indexOf("request failed (403)") >= 0
+      || lowerMessage.indexOf("unexpected status 401") >= 0
+      || lowerMessage.indexOf("unexpected status 403") >= 0
+      || lowerMessage.indexOf("unauthorized") >= 0
+      || lowerMessage.indexOf("permission") >= 0) {
       showAppToast("Dispatcharr requires an admin account or API key to schedule recordings.");
       return;
     }

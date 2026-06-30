@@ -576,7 +576,10 @@ func (s *HTTPRoutesServer) handleScheduleRecording(ctx context.Context, request 
 func scheduleRecordingErrorResponse(err error) *pluginv1.HandleHTTPResponse {
 	message := err.Error()
 	lower := strings.ToLower(message)
-	if strings.Contains(lower, "unexpected status 403") || strings.Contains(lower, "permission") {
+	if strings.Contains(lower, "unexpected status 401") ||
+		strings.Contains(lower, "unexpected status 403") ||
+		strings.Contains(lower, "unauthorized") ||
+		strings.Contains(lower, "permission") {
 		return textResponse(http.StatusForbidden, "Dispatcharr requires an admin account or API key to schedule recordings.")
 	}
 	return textResponse(http.StatusBadGateway, message)
