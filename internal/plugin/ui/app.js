@@ -1720,10 +1720,12 @@ function renderSportsChannels(event) {
   const visible = expanded ? channels : channels.slice(0, 3);
   const hiddenCount = channels.length - visible.length;
   const more = hiddenCount > 0 ? "<button class=\"sports-channel-more\" type=\"button\" data-sports-expand-event=\"" + escapeHTML(event.id || "") + "\">+" + hiddenCount + " more</button>" : (expanded && channels.length > 3 ? "<button class=\"sports-channel-more\" type=\"button\" data-sports-expand-event=\"" + escapeHTML(event.id || "") + "\">Show less</button>" : "");
-  return "<div class=\"sports-channels\">" + visible.map(function(channel) {
-    const meta = channel.categoryName || channel.reason || "Live TV";
-    return "<div class=\"sports-channel-wrap\"><button class=\"sports-channel\" type=\"button\" data-channel=\"" + escapeHTML(channel.id) + "\" title=\"" + escapeHTML(channel.reason || meta) + "\"><strong data-overflow-tooltip=\"" + escapeHTML(channel.name || "Channel") + "\">" + escapeHTML(channel.name || "Channel") + "</strong><small>" + escapeHTML(meta) + "</small></button></div>";
-  }).join("") + more + "</div>";
+  return "<div class=\"sports-channels\">" + visible.map(renderSportsChannelChip).join("") + more + "</div>";
+}
+function renderSportsChannelChip(channel) {
+  const meta = channel.categoryName || channel.reason || "Live TV";
+  const name = channel.name || "Channel";
+  return "<div class=\"sports-channel-wrap\"><button class=\"sports-channel\" type=\"button\" data-channel=\"" + escapeHTML(channel.id) + "\" title=\"" + escapeHTML(channel.reason || meta) + "\"><span class=\"sports-channel-logo\">" + logoHTML(channel) + "</span><span class=\"sports-channel-copy\"><strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(name) + "</strong><small>" + escapeHTML(meta) + "</small></span></button></div>";
 }
 function setSportsTab(tab) {
   state.sportsTab = tab || "live";
@@ -1840,10 +1842,7 @@ function renderBroadcastEventChannels(event) {
   const visible = expanded ? channels : channels.slice(0, 3);
   const hiddenCount = channels.length - visible.length;
   const more = hiddenCount > 0 ? "<button class=\"sports-channel-more\" type=\"button\" data-event-expand=\"" + escapeHTML(event.id || "") + "\">+" + hiddenCount + " more</button>" : (expanded && channels.length > 3 ? "<button class=\"sports-channel-more\" type=\"button\" data-event-expand=\"" + escapeHTML(event.id || "") + "\">Show less</button>" : "");
-  return "<div class=\"sports-channels\">" + visible.map(function(channel) {
-    const meta = channel.categoryName || channel.reason || "Live TV";
-    return "<div class=\"sports-channel-wrap\"><button class=\"sports-channel\" type=\"button\" data-channel=\"" + escapeHTML(channel.id) + "\" title=\"" + escapeHTML(channel.reason || meta) + "\"><strong data-overflow-tooltip=\"" + escapeHTML(channel.name || "Channel") + "\">" + escapeHTML(channel.name || "Channel") + "</strong><small>" + escapeHTML(meta) + "</small></button></div>";
-  }).join("") + more + "</div>";
+  return "<div class=\"sports-channels\">" + visible.map(renderSportsChannelChip).join("") + more + "</div>";
 }
 function setEventTab(tab) {
   state.eventsTab = tab || "live";

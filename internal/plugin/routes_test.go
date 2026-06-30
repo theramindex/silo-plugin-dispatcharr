@@ -216,6 +216,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`Search movies, tv shows, channels and more`,
 		`function renderSportsPage()`,
 		`function renderSportsTopbarTabs()`,
+		`sports-channel-logo`,
 		`function renderEventsPage()`,
 		`/dispatcharr/api/events`,
 		`data-event-tab=`,
