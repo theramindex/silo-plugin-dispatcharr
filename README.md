@@ -1,22 +1,46 @@
 # Dispatcharr Silo Plugin
 
-Dispatcharr-specific Silo plugin that runs as a Silo-hosted IPTV app.
+Dispatcharr-specific Silo plugin that runs as a Silo-hosted Live TV app.
 
-The plugin owns the IPTV experience directly instead of trying to create fake
-Silo media items. Native Jellyfin `/LiveTv/*` export can be added later if
-Silo exposes a first-class Live TV provider capability.
+> **Important:** This app does **not** manage IPTV streams. It must be used
+> with Dispatcharr, and production installs should connect with a Dispatcharr
+> **Admin API Key**.
+
+The plugin owns the Silo presentation layer for Live TV. It does not ingest,
+host, remux, transcode, or manage IPTV streams. Dispatcharr remains the required
+stream, channel, guide, proxy/output, and recording system.
+
+## Requirements and ownership boundaries
+
+- **Dispatcharr is required.** This plugin is designed to be used with a
+  Dispatcharr-backed Live TV environment and should be configured with a
+  Dispatcharr Admin API key.
+- **Dispatcharr manages streams.** Stream health, stream ordering, channel
+  mapping, logos, guide IDs, output profiles, proxy/output URLs, and recording
+  behavior are Dispatcharr responsibilities.
+- **Silo presents and plays.** This plugin reads Dispatcharr-backed catalog data,
+  renders the Silo Live TV UI, stores Silo/user presentation preferences, and
+  redirects playback to Dispatcharr/provider-owned stream URLs.
+- **No server-side transcoding.** The plugin does not invoke ffmpeg or perform
+  GPU/CPU video conversion. Browser playback uses the bundled client-side
+  HLS/mpegts players when the stream format is compatible.
+- **ECM is recommended.** Use Enhanced Channel Manager (ECM) with Dispatcharr for
+  channel/group curation, lineup cleanup, and operational channel management.
+
+Native Jellyfin `/LiveTv/*` export can be added later if Silo exposes a
+first-class Live TV provider capability.
 
 ## Supported source modes
 
-- **Dispatcharr Direct Connect** (default/recommended)
+- **Dispatcharr Direct: API Key** (required/recommended)
+  - Dispatcharr URL
+  - Admin API key from `System > Users > Edit User > API & XC`
+  - Uses Dispatcharr REST APIs for catalog data and Dispatcharr proxy/output routes for playback
+- **Dispatcharr Direct Connect** (legacy/manual login)
   - Dispatcharr URL
   - Username
   - Password
   - Uses Dispatcharr REST APIs for catalog data and Dispatcharr proxy/output routes for playback
-- **Dispatcharr Direct: API Key**
-  - Dispatcharr URL
-  - Admin API key from `System > Users > Edit User > API & XC`
-  - Uses the same Dispatcharr REST catalog client without storing a password
 - **Xtream Codes**
   - Base URL
   - Username

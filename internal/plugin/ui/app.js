@@ -2774,7 +2774,7 @@ function renderAdminTopbarActions() {
   }
   const dirty = adminSettingsDirty();
   const saving = state.adminSaveStatus === "saving";
-  root.innerHTML = "<button data-admin-settings-action=\"save\"" + ((!dirty || saving) ? " disabled" : "") + ">Save</button><button data-admin-settings-action=\"discard\"" + ((!dirty || saving) ? " disabled" : "") + ">Discard</button>";
+  root.innerHTML = "<button class=\"admin-save\" data-admin-settings-action=\"save\"" + ((!dirty || saving) ? " disabled" : "") + ">Save</button><button class=\"admin-discard\" data-admin-settings-action=\"discard\"" + ((!dirty || saving) ? " disabled" : "") + ">Discard</button>";
 }
 function setAdminTab(tab) {
   if (tab === "manager" && adminECMEnabled()) state.adminTab = "manager";
@@ -2784,7 +2784,7 @@ function setAdminTab(tab) {
 }
 function renderAdminSettingsTab() {
   return ""
-    + "<div class=\"settings-card\"><h2>Connection Status</h2>" + adminStatusPanel() + "</div>"
+    + adminStatusPanel()
     + "<div class=\"settings-card\"><h2>Recordings</h2><div id=\"admin-recording-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card\"><h2>Group method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card\"><h2>Presentation Overrides</h2><div class=\"settings-note admin-status-note\">Add alternate virtual group paths without changing the original Dispatcharr groups.</div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>"
@@ -2796,8 +2796,7 @@ function renderAdminRecordingSettings() {
   if (!root) return;
   const settings = adminSettings();
   const available = !!(state.app && state.app.capabilities && state.app.capabilities.recordings && sourceMode() === "direct_login");
-  root.innerHTML = "<label><span>Allow recordings by default</span><input type=\"checkbox\" data-admin-recording-field=\"default\"" + (settings.allowRecordingsByDefault !== false ? " checked" : "") + (available ? "" : " disabled") + "></label>"
-    + "<div class=\"settings-note\">" + (available ? "Dispatcharr Direct can schedule recordings. This controls whether recording UI is shown by default." : "Recordings require Dispatcharr Direct Connect.") + "</div>";
+  root.innerHTML = "<label class=\"settings-row compact-row\"><span><strong>Allow recordings by default</strong><small>" + (available ? "Show recording controls for Dispatcharr Direct users." : "Recordings require Dispatcharr Direct Connect.") + "</small></span><input type=\"checkbox\" data-admin-recording-field=\"default\"" + (settings.allowRecordingsByDefault !== false ? " checked" : "") + (available ? "" : " disabled") + "></label>";
 }
 function renderAdminIntegrationsTab() {
   return ""
@@ -2810,22 +2809,24 @@ function adminStatusPill(status) {
   const cls = status === "loading" ? " loading" : ((status === "error" || status === "failed") ? " error" : "");
   return "<span class=\"admin-status-pill" + cls + "\">" + escapeHTML(label) + "</span>";
 }
+function plainTextFromHTML(value) {
+  return String(value || "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+}
 function adminStatusItem(label, value, detail) {
-  return "<div class=\"admin-status-item\"><span>" + escapeHTML(label) + "</span><strong title=\"" + escapeHTML(value) + "\">" + value + "</strong>" + (detail ? "<small title=\"" + escapeHTML(detail) + "\">" + escapeHTML(detail) + "</small>" : "") + "</div>";
+  return "<div class=\"admin-status-item\" title=\"" + escapeHTML((label ? label + ": " : "") + (detail || plainTextFromHTML(value))) + "\"><span>" + escapeHTML(label) + "</span><strong>" + value + "</strong>" + (detail ? "<small>" + escapeHTML(detail) + "</small>" : "") + "</div>";
 }
 function adminStatusPanel() {
   const status = state.app && state.app.status ? state.app.status : {};
   const source = state.app && state.app.source ? state.app.source : {};
   const guideStatus = String(status.epgStatus || (status.epgProgramCount ? "ok" : "unknown"));
-  const sourceLabel = source.name || source.sourceName || "Dispatcharr";
   const error = status.lastError || status.epgLastError || "";
-  return "<div class=\"admin-status-grid\">"
+  return "<div class=\"admin-status-strip\" aria-label=\"Connection Status\"><div class=\"admin-status-grid\">"
     + adminStatusItem("Connection", adminStatusPill(status.status || "ok"), sourceModeLabel(source.mode))
-    + adminStatusItem("Source", escapeHTML(sourceLabel), "Credentials are stored in Silo settings and hidden here.")
     + adminStatusItem("Channels", escapeHTML(String(status.channelCount || items(state.app.channels).length || 0)), "Last catalog sync: " + dateTimeLabel(status.lastSuccessUnix))
     + adminStatusItem("Guide", adminStatusPill(guideStatus), String(status.epgProgramCount || items(state.app.programs).length || 0) + " programs · " + dateTimeLabel(status.epgLastSuccessUnix))
     + "</div>"
-    + (error ? "<div class=\"settings-note settings-warning admin-status-note\">" + escapeHTML(error) + "</div>" : "");
+    + (error ? "<div class=\"settings-note settings-warning admin-status-note\">" + escapeHTML(error) + "</div>" : "")
+    + "</div>";
 }
 function renderExternalChannelManager() {
   const managerURL = adminECMURL();
@@ -2842,10 +2843,13 @@ function renderAdminECMSettings() {
 function renderAdminCategorySettings() {
   const settings = adminSettings();
   const root = byId("admin-category-settings");
+  const nested = settings.mode !== "normal" ? "<div class=\"settings-list-nested\">"
+    + "<div class=\"settings-row\"><span>Delimiter</span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Sports - NHL Teams</option></select></div>"
+    + "<div class=\"settings-row virtual-label-row\"><span>Virtual label</span><div class=\"virtual-label-control\"><span>Virtual</span><input data-admin-category-field=\"virtualGroupLabel\" value=\"" + escapeHTML(virtualGroupLabelSuffix(settings.virtualGroupLabel)) + "\" placeholder=\"Groups\"></div></div>"
+    + "</div>" : "";
   root.innerHTML = adminSaveStatusHTML()
     + "<div class=\"settings-row\"><span>Mode</span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Normal</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">By delimiter</option></select></div>"
-    + (settings.mode !== "normal" ? "<div class=\"settings-row\"><span>Delimiter</span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Sports - NHL Teams</option></select></div>" : "")
-    + (settings.mode !== "normal" ? "<div class=\"settings-row virtual-label-row\"><span>Virtual label</span><div class=\"virtual-label-control\"><span>Virtual</span><input data-admin-category-field=\"virtualGroupLabel\" value=\"" + escapeHTML(virtualGroupLabelSuffix(settings.virtualGroupLabel)) + "\" placeholder=\"Groups\"></div></div>" : "")
+    + nested
     + (settings.mode === "normal" ? "<div class=\"settings-note\">Channel groups are shown as provided, without remapping or resorting.</div>" : "")
     + (settings.mode === "delimiter" ? "<div class=\"settings-note\">Channel group names are split into virtual groups using the selected delimiter.</div>" : "");
 }
@@ -2907,11 +2911,11 @@ function renderAdminCategoryAliasSettings() {
   const addRow = "<div class=\"alias-builder\"><label><span>Source group</span><select id=\"admin-alias-source\"" + (!sourceGroups.length ? " disabled" : "") + ">" + sourceOptions + "</select></label><label><span>Also show as</span><input id=\"admin-alias-path\" placeholder=\"Sports | Arabic\"" + (!sourceGroups.length ? " disabled" : "") + "></label><button data-admin-alias-action=\"add\"" + (!sourceGroups.length ? " disabled" : "") + ">Add</button></div>";
   const rows = aliases.map(function(alias, index) {
     const count = adminSourceGroupCount(alias.sourcePath);
-    return "<div class=\"alias-card" + (!count ? " stale" : "") + "\"><div class=\"alias-card-main\"><div class=\"alias-path\"><span>Source</span><strong title=\"" + escapeHTML(alias.sourcePath) + "\">" + escapeHTML(alias.sourcePath) + "</strong>" + (!count ? "<small>Source not found</small>" : "") + "</div><div class=\"alias-arrow\">&rarr;</div><label class=\"alias-path alias-target\"><span>Also show as</span><input data-admin-alias-index=\"" + index + "\" data-admin-alias-field=\"aliasPath\" value=\"" + escapeHTML(alias.aliasPath) + "\" title=\"" + escapeHTML(alias.aliasPath) + "\" aria-label=\"Alternative group name\"></label></div><div class=\"alias-card-meta\"><span>" + escapeHTML(String(count)) + " channels</span><button data-admin-alias-action=\"remove\" data-admin-alias-index=\"" + index + "\">Remove</button></div></div>";
+    return "<div class=\"alias-table-row" + (!count ? " stale" : "") + "\"><div class=\"alias-table-source\"><strong title=\"" + escapeHTML(alias.sourcePath) + "\">" + escapeHTML(alias.sourcePath) + "</strong>" + (!count ? "<small>Source not found</small>" : "") + "</div><span class=\"alias-table-arrow\">&rarr;</span><label><input data-admin-alias-index=\"" + index + "\" data-admin-alias-field=\"aliasPath\" value=\"" + escapeHTML(alias.aliasPath) + "\" title=\"" + escapeHTML(alias.aliasPath) + "\" aria-label=\"Alternative group name\"></label><span class=\"alias-table-count\">" + escapeHTML(String(count)) + "</span><span class=\"alias-table-actions\"><button data-admin-alias-action=\"remove\" data-admin-alias-index=\"" + index + "\">Remove</button></span></div>";
   }).join("");
   root.innerHTML = (settings.mode !== "delimiter" ? "<div class=\"settings-note settings-warning\">Alternative group names apply when category mode is By delimiter.</div>" : "")
     + addRow
-    + "<div class=\"alias-list\">" + (rows || "<div class=\"empty\">No alternative group names yet.</div>") + "</div>";
+    + "<div class=\"alias-table\"><div class=\"alias-table-head\"><span>Source group</span><span></span><span>Also show as</span><span>Channels</span><span>Actions</span></div>" + (rows || "<div class=\"empty\">No alternative group names yet.</div>") + "</div>";
 }
 function renderAdminEventKeywordSettings() {
   const root = byId("admin-event-keyword-settings");
