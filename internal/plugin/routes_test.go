@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -926,6 +927,25 @@ func TestHTTPRoutesServerScheduleRecordingReportsDispatcharrPermission(t *testin
 	}
 	if !strings.Contains(string(response.GetBody()), "admin account or API key") {
 		t.Fatalf("expected actionable permission message, got %q", response.GetBody())
+	}
+}
+
+func TestScheduleRecordingErrorResponseMapsDispatcharrAuthFailures(t *testing.T) {
+	t.Parallel()
+
+	for _, message := range []string{
+		"unexpected status 401: {\"detail\":\"Authentication credentials were not provided.\"}",
+		"unexpected status 403: {\"detail\":\"You do not have permission to perform this action.\"}",
+		"unauthorized",
+		"permission denied",
+	} {
+		response := scheduleRecordingErrorResponse(errors.New(message))
+		if response.GetStatusCode() != http.StatusForbidden {
+			t.Fatalf("expected auth failure %q to map to 403, got %d", message, response.GetStatusCode())
+		}
+		if !strings.Contains(string(response.GetBody()), "admin account or API key") {
+			t.Fatalf("expected actionable auth message for %q, got %q", message, response.GetBody())
+		}
 	}
 }
 
