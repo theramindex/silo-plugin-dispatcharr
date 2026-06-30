@@ -1151,8 +1151,8 @@ function renderHome() {
   root.innerHTML = sectionHeader("Recently watched")
     + rowCards(watched)
     + (favorites.length ? sectionHeader("Favorites") + favoriteHomeCards(favorites) : "")
-    + sectionHeader("TV Guide")
-    + renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.")
+    + sectionHeaderWithActions("TV Guide", guideFreshnessHTML())
+    + renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true })
     + categoryGrid();
 }
 function emptyStateHTML(title, detail) {
@@ -1878,7 +1878,7 @@ function categoryGrid() {
     return !(category.kind === "source" && featuredSourceIDs[category.sourceID]);
   });
   const sections = [];
-  if (featured.length) sections.push(categoryGridSection("Featured Groups", featured));
+  if (featured.length) sections.push(categoryGridSection(featuredGroupLabel(), featured));
   if (custom.length) sections.push(categoryGridSection("My Groups", custom));
   if (regularListing.length) sections.push(categoryGridSection(adminListingTitle(), regularListing));
   if (!listing.length && sourceCategories.length) sections.push(categoryGridSection("Channel Groups", sourceCategories));
@@ -1900,7 +1900,7 @@ function virtualFolderHeader(path, featured) {
 }
 function virtualFolderBreadcrumbs(path, featured) {
   const parts = path.split(" / ").filter(Boolean);
-  const rootLabel = featured ? "Featured Groups" : virtualGroupLabel();
+  const rootLabel = featured ? featuredGroupLabel() : virtualGroupLabel();
   const crumbs = ["<button data-category=\"\">" + escapeHTML(rootLabel) + "</button>"];
   parts.forEach(function(part, index) {
     const crumbPath = parts.slice(0, index + 1).join(" / ");
@@ -2026,6 +2026,9 @@ function adminListingTitle() {
 function virtualGroupLabel() {
   return "Virtual " + virtualGroupLabelSuffix(adminSettings().virtualGroupLabel);
 }
+function featuredGroupLabel() {
+  return "Featured " + virtualGroupLabelSuffix(adminSettings().virtualGroupLabel);
+}
 function virtualGroupLabelSuffix(value) {
   value = String(value || "").trim().replace(/^virtual\s+/i, "").trim();
   return value || "Groups";
@@ -2102,10 +2105,11 @@ function homeGuideChannels(watched) {
   });
   return pool.filter(channelHasCurrentGuide).slice(0, 5);
 }
-function renderHomeGuide(channels, emptyMessage) {
-  if (!channels.length) return "<div class=\"guide-meta-row\">" + guideFreshnessHTML() + "</div><div class=\"empty\">" + escapeHTML(emptyMessage || "No recently watched channels yet.") + "</div>";
+function renderHomeGuide(channels, emptyMessage, options) {
+  const meta = options && options.hideFreshness ? "" : "<div class=\"guide-meta-row\">" + guideFreshnessHTML() + "</div>";
+  if (!channels.length) return meta + "<div class=\"empty\">" + escapeHTML(emptyMessage || "No recently watched channels yet.") + "</div>";
   const slots = guideSlots();
-  return "<div class=\"guide-meta-row\">" + guideFreshnessHTML() + "</div><div class=\"home-guide guide-scroll\"><div class=\"guide-page guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div>" + channels.map(function(channel, channelIndex) {
+  return meta + "<div class=\"home-guide guide-scroll\"><div class=\"guide-page guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div>" + channels.map(function(channel, channelIndex) {
     return "<div class=\"epg-row\">" + renderGuideChannelButton(channel) + "<div class=\"epg-programs\">" + renderEPGCells(channel, channelIndex) + "</div></div>";
   }).join("") + "</div></div>";
 }
