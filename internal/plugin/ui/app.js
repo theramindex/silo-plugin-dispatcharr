@@ -1205,6 +1205,7 @@ function channelMatchesSearch(channel, query) {
   return lower(haystack).indexOf(query) !== -1;
 }
 function programMatchesSearch(program, query) {
+  if (programIsGuidePlaceholder(program)) return false;
   const channel = channelByID(program.channelId) || {};
   const haystack = [program.title, program.summary, program.description, channel.name, channel.categoryName].join(" ");
   return lower(haystack).indexOf(query) !== -1;
@@ -1233,6 +1234,10 @@ function groupMatchesSearch(group, query) {
 function normalizeProgramTitle(title) {
   return lower(title).replace(/\s+/g, " ").replace(/\s+\(\d{4}\)$/, "").trim();
 }
+function programIsGuidePlaceholder(program) {
+  const title = normalizeProgramTitle(program && program.title);
+  return /^(no games? today|data not available|no (guide )?(data|information|programming)( available)?|programming unavailable|information not available)$/.test(title);
+}
 function programSearchText(program) {
   const channel = channelByID(program.channelId) || {};
   return [program.title, program.summary, program.description, channel.name, channel.categoryName].join(" ");
@@ -1249,17 +1254,21 @@ function programIsUpcoming(program) {
   return (program.startUnix || 0) > Math.floor(Date.now() / 1000);
 }
 function programLooksSports(program) {
+  if (programIsGuidePlaceholder(program)) return false;
   return /\b(vs\.?|@|game|match|cup|league|racing|football|baseball|basketball|soccer|hockey|f1|formula|mlb|nba|nfl|nhl|mls|wnba|premier)\b/i.test(programSearchText(program));
 }
 function programLooksMovie(program) {
+  if (programIsGuidePlaceholder(program)) return false;
   return /\b(movie|film|premiere|cinema|starring)\b/i.test(programSearchText(program));
 }
 function programLooksEvent(program) {
+  if (programIsGuidePlaceholder(program)) return false;
   return /\b(awards|parade|special|ceremony|debate|concert|festival|live)\b/i.test(programSearchText(program));
 }
 function groupedUpcomingAirings(programs, query) {
   const groups = {};
   items(programs).filter(programIsUpcoming).forEach(function(program) {
+    if (programIsGuidePlaceholder(program)) return;
     const key = normalizeProgramTitle(program.title);
     if (!key || (query && key.indexOf(query) === -1 && lower(programSearchText(program)).indexOf(query) === -1)) return;
     groups[key] = groups[key] || { key: key, title: program.title || "Untitled", programs: [] };
@@ -1516,6 +1525,7 @@ function onLaterPrograms() {
   const todayEnd = Math.floor(endOfToday.getTime() / 1000);
   const type = state.onLaterType || "all";
   return programsFor("").filter(function(program) {
+    if (programIsGuidePlaceholder(program)) return false;
     if (type === "live") return programIsLive(program);
     if (type === "today") return (program.startUnix || 0) >= now - 3600 && (program.startUnix || 0) <= todayEnd;
     if (type === "sports") return programLooksSports(program);
