@@ -42,13 +42,21 @@ type Settings struct {
 	AdminSettings     json.RawMessage
 }
 
-func (s Settings) Validate() error {
-	if s.SourceMode == "" && strings.TrimSpace(s.DispatcharrURL) != "" {
-		s.SourceMode = SourceModeDirectLogin
+func (s Settings) EffectiveSourceMode() SourceMode {
+	if s.SourceMode != "" {
+		return s.SourceMode
 	}
-	if s.SourceMode == "" && strings.TrimSpace(s.DispatcharrAPIKey) != "" {
-		s.SourceMode = SourceModeAPIKey
+	if strings.TrimSpace(s.DispatcharrAPIKey) != "" {
+		return SourceModeAPIKey
 	}
+	if strings.TrimSpace(s.DispatcharrURL) != "" {
+		return SourceModeDirectLogin
+	}
+	return ""
+}
+
+func (s *Settings) Validate() error {
+	s.SourceMode = s.EffectiveSourceMode()
 
 	switch s.SourceMode {
 	case SourceModeDirectLogin:
@@ -107,7 +115,7 @@ func (s Settings) Validate() error {
 
 func CatalogCacheKey(settings Settings) string {
 	parts := []string{
-		string(settings.SourceMode),
+		string(settings.EffectiveSourceMode()),
 		strings.TrimSpace(settings.DispatcharrURL),
 		strings.TrimSpace(settings.DispatcharrUser),
 		strings.TrimSpace(settings.DispatcharrAPIKey),

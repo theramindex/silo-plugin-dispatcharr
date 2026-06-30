@@ -295,7 +295,9 @@ func catalogSnapshotMatchesSettings(snapshot cache.Snapshot, settings config.Set
 }
 
 func modelSourceModeForSettings(settings config.Settings) model.SourceMode {
-	switch settings.SourceMode {
+	switch settings.EffectiveSourceMode() {
+	case config.SourceModeAPIKey:
+		return model.SourceModeAPIKey
 	case config.SourceModeXtream:
 		return model.SourceModeXtream
 	case config.SourceModeM3UXMLTV:
@@ -940,7 +942,7 @@ func (s *HTTPRoutesServer) dispatcharrClient() (*dispatcharr.Client, error) {
 		return nil, fmt.Errorf("dispatcharr settings are unavailable")
 	}
 	settings := s.settingsProvider()
-	switch settings.SourceMode {
+	switch settings.EffectiveSourceMode() {
 	case config.SourceModeDirectLogin:
 		if strings.TrimSpace(settings.DispatcharrURL) == "" || strings.TrimSpace(settings.DispatcharrUser) == "" || strings.TrimSpace(settings.DispatcharrPass) == "" {
 			return nil, fmt.Errorf("dispatcharr direct login settings are incomplete")
@@ -1152,7 +1154,7 @@ func appCapabilities(sourceMode model.SourceMode, preferences cache.Preferences)
 }
 
 func dvrEnabledForSource(sourceMode model.SourceMode) bool {
-	return sourceMode == model.SourceModeDirectLogin
+	return sourceMode == model.SourceModeDirectLogin || sourceMode == model.SourceModeAPIKey
 }
 
 func queryValue(request *pluginv1.HandleHTTPRequest, key string) string {

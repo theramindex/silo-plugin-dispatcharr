@@ -120,8 +120,12 @@ function adminSettings() {
   return Object.assign(defaultAdminCategorySettings(), state.adminCategorySettings || {});
 }
 function sourceMode() { return state.app && state.app.source ? String(state.app.source.mode || "") : ""; }
+function isDispatcharrDirectSource() {
+  const mode = sourceMode();
+  return mode === "direct_login" || mode === "api_key";
+}
 function dvrEnabled() {
-  return !!(state.app && state.app.capabilities && state.app.capabilities.recordings && sourceMode() === "direct_login" && adminSettings().allowRecordingsByDefault !== false);
+  return !!(state.app && state.app.capabilities && state.app.capabilities.recordings && isDispatcharrDirectSource() && adminSettings().allowRecordingsByDefault !== false);
 }
 function favoriteMap() { return prefs().favorites || {}; }
 function autoFavoriteMap() { return prefs().autoFavorites || {}; }
@@ -2802,7 +2806,7 @@ function renderAdminRecordingSettings() {
   const root = byId("admin-recording-settings");
   if (!root) return;
   const settings = adminSettings();
-  const available = !!(state.app && state.app.capabilities && state.app.capabilities.recordings && sourceMode() === "direct_login");
+  const available = !!(state.app && state.app.capabilities && state.app.capabilities.recordings && isDispatcharrDirectSource());
   root.innerHTML = "<label class=\"settings-row compact-row\"><span><strong>Allow recordings by default</strong><small>" + (available ? "Show recording controls for Dispatcharr Direct users." : "Recordings require Dispatcharr Direct Connect.") + "</small></span><input type=\"checkbox\" data-admin-recording-field=\"default\"" + (settings.allowRecordingsByDefault !== false ? " checked" : "") + (available ? "" : " disabled") + "></label>";
 }
 function renderAdminIntegrationsTab() {

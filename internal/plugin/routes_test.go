@@ -869,6 +869,30 @@ func TestHTTPRoutesServerRecordingsDisabledForXtream(t *testing.T) {
 	}
 }
 
+func TestDvrEnabledForSourceAllowsDispatcharrDirectModes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		sourceMode model.SourceMode
+		want       bool
+	}{
+		{name: "direct login", sourceMode: model.SourceModeDirectLogin, want: true},
+		{name: "api key", sourceMode: model.SourceModeAPIKey, want: true},
+		{name: "xtream", sourceMode: model.SourceModeXtream, want: false},
+		{name: "m3u xmltv", sourceMode: model.SourceModeM3UXMLTV, want: false},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := dvrEnabledForSource(tt.sourceMode); got != tt.want {
+				t.Fatalf("dvrEnabledForSource(%q) = %t, want %t", tt.sourceMode, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestHTTPRoutesServerScheduleRecordingReportsDispatcharrPermission(t *testing.T) {
 	t.Parallel()
 

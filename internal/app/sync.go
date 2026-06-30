@@ -721,7 +721,8 @@ func (s *Service) dispatcharrGuidePrograms(ctx context.Context, settings config.
 }
 
 func usesDispatcharrAPI(settings config.Settings) bool {
-	return settings.SourceMode == config.SourceModeDirectLogin || settings.SourceMode == config.SourceModeAPIKey
+	mode := settings.EffectiveSourceMode()
+	return mode == config.SourceModeDirectLogin || mode == config.SourceModeAPIKey
 }
 
 func syncHealth(nowUnix int64, programCount int) model.SyncHealth {

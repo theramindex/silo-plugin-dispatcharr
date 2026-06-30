@@ -75,7 +75,7 @@ func NewService(deps Dependencies) *Service {
 	dispatcharrFactory := deps.DispatcharrFactory
 	if dispatcharrFactory == nil {
 		dispatcharrFactory = func(settings config.Settings) DispatcharrClient {
-			if settings.SourceMode == config.SourceModeAPIKey {
+			if settings.EffectiveSourceMode() == config.SourceModeAPIKey {
 				return dispatcharr.NewAPIKeyClient(settings.DispatcharrURL, settings.DispatcharrAPIKey)
 			}
 			return dispatcharr.NewLoginClient(settings.DispatcharrURL, settings.DispatcharrUser, settings.DispatcharrPass)
