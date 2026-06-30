@@ -201,6 +201,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`function renderSearchResults(query)`,
 		`function renderOnLaterPage()`,
 		`function groupedUpcomingAirings(programs, query)`,
+		`function programIsGuidePlaceholder(program)`,
+		`no games? today`,
 		`function rememberSearch(value)`,
 		`onLaterType`,
 		`data-search-recent=`,
