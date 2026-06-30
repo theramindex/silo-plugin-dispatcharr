@@ -178,7 +178,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`if (state.category.indexOf("virtual:") === 0 || state.category.indexOf("featured:") === 0)`,
 		`const children = (featured ? featuredChildCategories : virtualChildCategories)(path,`,
 		`virtualFolderBreadcrumbs(path, featured)`,
-		`const rootLabel = featured ? "Featured Groups" : virtualGroupLabel()`,
+		`const rootLabel = featured ? featuredGroupLabel() : virtualGroupLabel()`,
+		`function featuredGroupLabel()`,
 		`data-admin-category-field=\"virtualGroupLabel\"`,
 		`const showSourceCategorySettings = !virtualCategoriesActive()`,
 		`Saved on this device, but not to your Silo profile.`,
@@ -306,7 +307,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	}
 	if !strings.Contains(body, `const watched = recent.length ? recent : visibleChannels(false).slice(0, 5);`) ||
 		!strings.Contains(body, `+ (favorites.length ? sectionHeader("Favorites") + favoriteHomeCards(favorites) : "")`) ||
-		!strings.Contains(body, `+ renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.")`) ||
+		!strings.Contains(body, `+ sectionHeaderWithActions("TV Guide", guideFreshnessHTML())`) ||
+		!strings.Contains(body, `+ renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true })`) ||
 		!strings.Contains(body, `+ categoryGrid();`) {
 		t.Fatalf("expected home page order to be continue watching, favorites, guide grid, then group sections")
 	}
@@ -531,6 +533,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.FeaturedSection || !result.FeaturedCategory {
 		t.Fatalf("expected starred source category to render in featured section: %+v", result)
 	}
+	if !result.FeaturedRenamedSection {
+		t.Fatalf("expected featured section label to follow the virtual label suffix: %+v", result)
+	}
 	if !result.FeaturedAlphabetical {
 		t.Fatalf("expected featured categories to render alphabetically by display name: %+v", result)
 	}
@@ -618,6 +623,7 @@ type virtualAliasResult struct {
 	ObjectParsedMode         string `json:"objectParsedMode"`
 	StringParsedMode         string `json:"stringParsedMode"`
 	FeaturedSection          bool   `json:"featuredSection"`
+	FeaturedRenamedSection   bool   `json:"featuredRenamedSection"`
 	FeaturedCategory         bool   `json:"featuredCategory"`
 	FeaturedAlphabetical     bool   `json:"featuredAlphabetical"`
 	FeaturedVirtualCategory  bool   `json:"featuredVirtualCategory"`
@@ -731,6 +737,9 @@ JSON.stringify((function() {
     return virtualPathsForChannel(channel).indexOf("World Cup / Argentina") !== -1;
   });
   const grid = categoryGrid();
+  state.adminCategorySettings.virtualGroupLabel = "Things";
+  const renamedGrid = categoryGrid();
+  state.adminCategorySettings.virtualGroupLabel = "Groups";
   const channel = channelByID("channel:argentina-sports");
   state.category = "featured:International / Argentina / Sports";
   renderLivePage();
@@ -772,6 +781,7 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     objectParsedMode: readAdminSettingsValue({ mode: "delimiter", delimiter: "pipe" }).mode,
     stringParsedMode: readAdminSettingsValue(JSON.stringify({ mode: "delimiter", delimiter: "pipe" })).mode,
     featuredSection: grid.indexOf(">Featured Groups<") !== -1,
+    featuredRenamedSection: renamedGrid.indexOf(">Featured Things<") !== -1 && renamedGrid.indexOf(">Featured Groups<") === -1,
     featuredCategory: grid.indexOf("International | Argentina | Sports") !== -1,
     featuredAlphabetical: grid.indexOf(">Admin Favorites</strong>") !== -1 && grid.indexOf(">World Cup</strong>") !== -1 && grid.indexOf(">Admin Favorites</strong>") < grid.indexOf(">World Cup</strong>"),
     featuredVirtualCategory: grid.indexOf('data-category="featured:International / Argentina / Sports"') !== -1,
