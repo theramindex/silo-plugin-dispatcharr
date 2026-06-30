@@ -282,14 +282,19 @@ button { cursor: pointer; }
 .sports-team-favorite.active, .sports-team-favorite:hover { background: var(--panel-2); color: var(--warn); }
 .sports-team-favorite.placeholder { opacity: 0; pointer-events: none; }
 .sports-channels { grid-area: channels; display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 0.3rem; min-width: 0; }
-.sports-channel-wrap { display: grid; grid-template-columns: minmax(0, 1fr); max-width: min(13rem, 100%); min-width: min(10.5rem, 100%); }
-.sports-channel, .sports-channel-more { border: 1px solid var(--line); border-radius: 0.55rem; background: var(--rail-2); color: var(--text); padding: 0.32rem 0.44rem; display: grid; gap: 0.08rem; max-width: min(11rem, 100%); text-align: left; }
+.sports-channel-wrap { display: grid; grid-template-columns: minmax(0, 1fr); max-width: min(13.5rem, 100%); min-width: min(11.25rem, 100%); }
+.sports-channel, .sports-channel-more { border: 1px solid var(--line); border-radius: 0.55rem; background: var(--rail-2); color: var(--text); padding: 0.28rem 0.42rem; display: grid; gap: 0.08rem; max-width: min(11rem, 100%); text-align: left; }
 .sports-channel { max-width: none; min-width: 0; }
+.sports-channel { grid-template-columns: 2.25rem minmax(0, 1fr); align-items: center; column-gap: 0.44rem; min-height: 2.6rem; }
 .sports-channel:hover { background: var(--panel-2); }
+.sports-channel-logo { width: 2.25rem; height: 1.55rem; min-width: 0; display: grid; place-items: center; overflow: hidden; }
+.sports-channel-logo .logo { width: 100%; height: 100%; object-fit: contain; border-radius: 0.28rem; background: transparent; }
+.sports-channel-logo .logo-fallback { width: 100%; height: 100%; padding: 0 0.2rem; border: 1px solid var(--line); background: var(--panel); font-size: 0.56rem; line-height: 1; }
+.sports-channel-copy { display: grid; gap: 0.04rem; min-width: 0; }
 .sports-channel strong, .sports-channel small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sports-channel strong { font-size: 0.74rem; }
 .sports-channel small { font-size: 0.64rem; }
-.sports-channel-more { place-items: center; color: var(--muted); font-size: 0.74rem; font-weight: 850; white-space: nowrap; }
+.sports-channel-more { min-height: 2.6rem; place-items: center; color: var(--muted); font-size: 0.74rem; font-weight: 850; white-space: nowrap; }
 .sports-channel-more:hover { background: var(--panel-2); color: var(--text); }
 .sports-error { color: var(--warn); font-size: 0.85rem; font-weight: 780; }
 @media (max-width: 900px) {
