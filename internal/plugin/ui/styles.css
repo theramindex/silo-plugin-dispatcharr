@@ -281,7 +281,7 @@ button { cursor: pointer; }
 .sports-team-favorite span { max-width: 4.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sports-team-favorite.active, .sports-team-favorite:hover { background: var(--panel-2); color: var(--warn); }
 .sports-team-favorite.placeholder { opacity: 0; pointer-events: none; }
-.sports-channels { grid-area: channels; display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 0.3rem; min-width: 0; }
+.sports-channels { grid-area: channels; display: flex; flex-wrap: wrap; justify-content: center; gap: 0.3rem; min-width: 0; }
 .sports-channel-empty { grid-area: channels; min-height: 2.6rem; border: 1px dashed var(--line); border-radius: 0.55rem; background: color-mix(in srgb, var(--rail-2) 58%, transparent); display: grid; place-items: center; text-align: center; font-size: 0.78rem; font-weight: 850; }
 .sports-channel-wrap { display: grid; grid-template-columns: minmax(0, 1fr); max-width: min(13.5rem, 100%); min-width: min(11.25rem, 100%); }
 .sports-channel, .sports-channel-more { border: 1px solid var(--line); border-radius: 0.55rem; background: var(--rail-2); color: var(--text); padding: 0.28rem 0.42rem; display: grid; gap: 0.08rem; max-width: min(11rem, 100%); text-align: left; }
