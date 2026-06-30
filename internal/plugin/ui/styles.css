@@ -224,9 +224,9 @@ button { cursor: pointer; }
 .search-result-card:hover { background: var(--panel-2); }
 .search-result-card-main { min-width: 0; border: 0; background: transparent; color: inherit; display: grid; grid-template-columns: 5.4rem minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; align-items: center; gap: 0.65rem 0.85rem; padding: 0.85rem; text-align: left; }
 .search-result-card-main[disabled] { cursor: default; opacity: 0.76; }
-.search-result-card-art { width: 5.1rem; height: 3.35rem; grid-row: 1 / span 2; display: grid; place-items: center; border-radius: 0.55rem; background: var(--rail); overflow: hidden; }
+.search-result-card-art { width: 5.1rem; height: 3.35rem; grid-row: 1 / span 2; display: grid; place-items: center; border-radius: 0.55rem; background: transparent; overflow: hidden; }
 .search-result-card-art img { display: block; width: 100%; height: 100%; object-position: center; border-radius: 0; background: transparent; }
-.search-result-card-art img.logo { object-fit: contain; transform: scale(1.12); transform-origin: center; }
+.search-result-card-art img.logo { object-fit: contain; transform: none; transform-origin: center; }
 .search-result-card-art img:not(.logo) { object-fit: cover; }
 .search-result-card-art .logo-fallback { width: 100%; height: 100%; border-radius: 0; background: transparent; }
 .search-result-card-copy { min-width: 0; align-self: end; display: grid; gap: 0.18rem; }
