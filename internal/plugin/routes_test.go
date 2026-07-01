@@ -291,8 +291,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if strings.Contains(body, `id=\"custom-group-channel\"><option`) {
 		t.Fatalf("expected custom group channel picker not to render a native select")
 	}
-	if strings.Contains(body, `data-sports-refresh`) {
-		t.Fatalf("expected sports refresh to use the shared topbar refresh button")
+	if !strings.Contains(body, `data-sports-refresh`) {
+		t.Fatalf("expected sports scores to have a dedicated refresh action")
 	}
 	if strings.Contains(body, `<span>Multiview</span>`) || strings.Contains(body, `sports-channel-multiview`) {
 		t.Fatalf("expected multiview controls to be hidden from navigation and sports cards")

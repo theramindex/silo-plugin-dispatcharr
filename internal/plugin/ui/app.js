@@ -9,7 +9,7 @@ const localCacheSuffix = pluginInstallationID || "default";
 const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuffix;
 const adminSettingsLocalKey = "silo.ramindex.dispatcharr.adminSettings.v1." + localCacheSuffix;
 const adminSettingsToken = "__ADMIN_SETTINGS_TOKEN__";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsTab: "live", sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsTab: "live", sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
 
 function applySiloTheme() {
   const params = new URLSearchParams(window.location.search);
@@ -1625,7 +1625,10 @@ function renderSportsTopbarTabs() {
   root.innerHTML = "";
 }
 function renderSportsTabFilters() {
-  return "<div class=\"sports-filter-row\"><div class=\"view-toggle\" aria-label=\"Sports filter\">" + sportsTabButtonsHTML() + "</div></div>";
+  const refreshClass = "sports-refresh" + (state.sportsLoading ? " is-loading" : "");
+  const refreshDisabled = state.sportsLoading ? " disabled aria-busy=\"true\"" : "";
+  return "<div class=\"sports-filter-row\"><div class=\"view-toggle\" aria-label=\"Sports filter\">" + sportsTabButtonsHTML() + "</div>"
+    + "<button type=\"button\" class=\"" + refreshClass + "\" data-sports-refresh=\"true\"" + refreshDisabled + ">" + icon("loader") + "<span>Refresh scores</span></button></div>";
 }
 function renderSportsPage() {
   const root = byId("view");
@@ -2331,6 +2334,55 @@ function currentProgram(channel) {
     return (!program.startUnix || program.startUnix <= now + 600) && (!program.endUnix || program.endUnix >= now);
   }) || programsFor(channel.id)[0] || null;
 }
+function liveProgram(channel) {
+  if (!channel) return null;
+  const now = Math.floor(Date.now() / 1000);
+  return programsFor(channel.id).find(function(program) {
+    return (!program.startUnix || program.startUnix <= now) && (!program.endUnix || program.endUnix >= now);
+  }) || null;
+}
+function nextProgram(channel) {
+  if (!channel) return null;
+  const now = Math.floor(Date.now() / 1000);
+  return programsFor(channel.id).find(function(program) {
+    return (program.startUnix || 0) > now;
+  }) || null;
+}
+function playerGuideProgramLines(channel) {
+  const current = liveProgram(channel);
+  const next = nextProgram(channel);
+  const currentTitle = current && current.title ? current.title : "";
+  const nextTitle = next && next.title ? next.title : "";
+  if (currentTitle) {
+    return {
+      primary: (timeLabel(current.startUnix) || "Live") + " - " + currentTitle,
+      secondary: nextTitle ? "Next " + (timeLabel(next.startUnix) || "Soon") + " - " + nextTitle : ""
+    };
+  }
+  if (nextTitle) {
+    return { primary: "Next " + (timeLabel(next.startUnix) || "Soon") + " - " + nextTitle, secondary: "" };
+  }
+  return { primary: "No guide data", secondary: "" };
+}
+function playerGuideMatches(channel, query) {
+  query = lower(query).trim();
+  if (!query) return true;
+  const current = liveProgram(channel) || {};
+  const next = nextProgram(channel) || {};
+  const lines = playerGuideProgramLines(channel);
+  const haystack = [
+    channel && channel.name,
+    channel && channel.categoryName,
+    sourceCategoryLabel(channel || {}),
+    current.title,
+    current.description,
+    next.title,
+    next.description,
+    lines.primary,
+    lines.secondary
+  ].map(lower).join(" ");
+  return haystack.indexOf(query) !== -1;
+}
 function playerLogoHTML(channel) {
   if (channel && channel.logoUrl) return "<img class=\"player-logo\" src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">";
   return "<div class=\"player-logo player-logo-fallback\">" + escapeHTML(((channel && channel.name) || "TV").slice(0, 5)) + "</div>";
@@ -2353,7 +2405,7 @@ function renderPlayerPage() {
   const videoAttributes = replayMode ? " autoplay playsinline controls" : " autoplay playsinline";
   const modeTag = replayMode ? "Replay" : "AV";
   const timelineEnd = replayMode ? escapeHTML(end) : "<span class=\"live-dot\"></span>LIVE&nbsp;&nbsp;" + escapeHTML(end);
-  byId("view").innerHTML = "<section class=\"" + playbackShellClass + "\"><div class=\"playback-stage\"><video id=\"player\" class=\"playback-video\"" + videoAttributes + "></video><div class=\"playback-scrim\"></div><button id=\"player-center-button\" class=\"player-center-button hidden\" data-player-action=\"play-toggle\" aria-label=\"Play\">" + icon("play") + "</button><div class=\"player-top\"><button class=\"player-exit\" data-player-action=\"back\" aria-label=\"Back to Live TV browse\"><span class=\"player-icon\">" + icon("x") + "</span><span>Exit</span></button><div class=\"player-top-actions\"><div class=\"player-audio\"><button id=\"player-audio-button\" class=\"player-chip\" data-player-action=\"audio-menu\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "<span>Audio</span>" + icon("chevron-down") + "</button><div id=\"player-audio-menu\" class=\"player-menu\" role=\"menu\"></div></div><div class=\"player-volume\"><button id=\"player-volume-button\" class=\"player-icon\" data-player-action=\"volume-menu\" aria-label=\"Volume\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("speaker") + "</button><div id=\"player-volume-popover\" class=\"volume-popover\"><span>VOL</span><input id=\"player-volume-slider\" type=\"range\" min=\"0\" max=\"100\" step=\"1\" value=\"" + Math.round(state.volume * 100) + "\" aria-label=\"Volume\"><span id=\"player-volume-value\" class=\"volume-value\"></span></div></div><button class=\"player-icon\" data-player-action=\"cast\" aria-label=\"AirPlay or Cast\">" + icon("airplay") + "</button><button id=\"player-guide-button\" class=\"player-icon player-guide-button\" data-player-action=\"guide\" aria-label=\"Guide\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("guide") + "</button><button id=\"player-fullscreen-button\" class=\"player-icon\" data-player-action=\"fullscreen\" aria-label=\"Fullscreen\" aria-pressed=\"false\">" + icon("fullscreen") + "</button><div class=\"player-more\"><button id=\"player-more-button\" class=\"player-icon\" data-player-action=\"more\" aria-label=\"More\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("ellipsis") + "</button><div id=\"player-more-menu\" class=\"player-more-menu\"></div></div></div></div><div id=\"player-toast\" class=\"player-toast\" role=\"status\"></div><div id=\"player-guide-panel\" class=\"player-guide-panel\"></div><div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel) + "<div class=\"player-kicker\">" + escapeHTML(channelName) + "</div><h2 class=\"player-title\">" + escapeHTML(title) + "</h2><p class=\"player-description\" data-overflow-description=\"true\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span class=\"player-tag\">" + escapeHTML(modeTag) + "</span></div></div><div class=\"player-bottom-actions\">" + playerFavoriteButtonHTML(channel) + "<button class=\"player-icon\" data-player-action=\"pip\" aria-label=\"Picture in Picture\">" + icon("pip") + "</button><button id=\"player-subtitles-button\" class=\"player-icon\" data-player-action=\"subtitles\" aria-label=\"Subtitles\" aria-pressed=\"false\">" + icon("captions") + "</button><button id=\"player-language-button\" class=\"player-icon\" data-player-action=\"language-menu\" aria-label=\"Audio language\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "</button></div></div><div class=\"timeline\"><span>" + escapeHTML(start) + "</span><div class=\"timeline-bar\"><div class=\"timeline-fill\"></div><div class=\"timeline-knob\"></div></div><span>" + timelineEnd + "</span></div></div></div></section>";
+  byId("view").innerHTML = "<section class=\"" + playbackShellClass + "\"><div class=\"playback-stage\"><video id=\"player\" class=\"playback-video\"" + videoAttributes + "></video><div class=\"playback-scrim\"></div><button id=\"player-center-button\" class=\"player-center-button hidden\" data-player-action=\"play-toggle\" aria-label=\"Play\">" + icon("play") + "</button><div class=\"player-top\"><button class=\"player-exit\" data-player-action=\"back\" aria-label=\"Back to Live TV browse\"><span class=\"player-icon\">" + icon("x") + "</span><span>Exit</span></button><div class=\"player-top-actions\"><div class=\"player-audio\"><button id=\"player-audio-button\" class=\"player-chip\" data-player-action=\"audio-menu\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "<span>Audio</span>" + icon("chevron-down") + "</button><div id=\"player-audio-menu\" class=\"player-menu\" role=\"menu\"></div></div><div class=\"player-volume\"><button id=\"player-volume-button\" class=\"player-icon\" data-player-action=\"volume-menu\" aria-label=\"Volume\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("speaker") + "</button><div id=\"player-volume-popover\" class=\"volume-popover\"><span>VOL</span><input id=\"player-volume-slider\" type=\"range\" min=\"0\" max=\"100\" step=\"1\" value=\"" + Math.round(state.volume * 100) + "\" aria-label=\"Volume\"><span id=\"player-volume-value\" class=\"volume-value\"></span></div></div><button class=\"player-icon\" data-player-action=\"cast\" aria-label=\"AirPlay or Cast\">" + icon("airplay") + "</button><button id=\"player-guide-button\" class=\"player-icon player-guide-button\" data-player-action=\"guide\" aria-label=\"Guide\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("guide") + "</button><button class=\"player-icon\" data-player-action=\"add-multiview\" aria-label=\"Add current channel to multiview\">" + icon("multiview") + "</button><button id=\"player-fullscreen-button\" class=\"player-icon\" data-player-action=\"fullscreen\" aria-label=\"Fullscreen\" aria-pressed=\"false\">" + icon("fullscreen") + "</button><div class=\"player-more\"><button id=\"player-more-button\" class=\"player-icon\" data-player-action=\"more\" aria-label=\"More\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("ellipsis") + "</button><div id=\"player-more-menu\" class=\"player-more-menu\"></div></div></div></div><div id=\"player-toast\" class=\"player-toast\" role=\"status\"></div><div id=\"player-guide-panel\" class=\"player-guide-panel\"></div><div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel) + "<div class=\"player-kicker\">" + escapeHTML(channelName) + "</div><h2 class=\"player-title\">" + escapeHTML(title) + "</h2><p class=\"player-description\" data-overflow-description=\"true\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span class=\"player-tag\">" + escapeHTML(modeTag) + "</span></div></div><div class=\"player-bottom-actions\">" + playerFavoriteButtonHTML(channel) + "<button class=\"player-icon\" data-player-action=\"pip\" aria-label=\"Picture in Picture\">" + icon("pip") + "</button><button id=\"player-subtitles-button\" class=\"player-icon\" data-player-action=\"subtitles\" aria-label=\"Subtitles\" aria-pressed=\"false\">" + icon("captions") + "</button><button id=\"player-language-button\" class=\"player-icon\" data-player-action=\"language-menu\" aria-label=\"Audio language\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "</button></div></div><div class=\"timeline\"><span>" + escapeHTML(start) + "</span><div class=\"timeline-bar\"><div class=\"timeline-fill\"></div><div class=\"timeline-knob\"></div></div><span>" + timelineEnd + "</span></div></div></div></section>";
   updateAudioMenu();
   updateVolumeMenu();
   renderPlayerGuidePanel();
@@ -2491,7 +2543,8 @@ function renderPlayerGuidePanel() {
   const panel = byId("player-guide-panel");
   const button = byId("player-guide-button");
   if (!panel) return;
-  const channels = visibleChannels(true).slice(0, 42);
+  const query = state.playerGuideQuery || "";
+  const channels = visibleChannels(true).filter(function(channel) { return playerGuideMatches(channel, query); }).slice(0, 60);
   panel.classList.toggle("open", state.playerGuideOpen);
   if (button) {
     button.classList.toggle("active", state.playerGuideOpen);
@@ -2499,12 +2552,10 @@ function renderPlayerGuidePanel() {
   }
   updatePlayerChrome();
   if (!state.playerGuideOpen) return;
-  panel.innerHTML = "<div class=\"player-guide-head\"><div><strong>Channel Guide</strong><span>" + escapeHTML(categoryName(state.category) || "Live TV") + "</span></div><button class=\"player-icon\" data-player-action=\"guide-close\" aria-label=\"Close guide\">" + icon("x") + "</button></div><div class=\"player-guide-list\">" + channels.map(function(channel) {
-    const program = currentProgram(channel) || {};
-    const title = program.title || "Data not available";
-    const time = timeLabel(program.startUnix) || "Live";
-    return "<button class=\"player-guide-row" + (state.currentChannel && state.currentChannel.id === channel.id ? " active" : "") + "\" data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<span><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><small>" + escapeHTML(time + " - " + title) + "</small></span></button>";
-  }).join("") + "</div>";
+  panel.innerHTML = "<div class=\"player-guide-head\"><div class=\"player-guide-title\"><strong>Channel Guide</strong><span>" + escapeHTML(categoryName(state.category) || "Live TV") + "</span></div><button class=\"player-icon\" data-player-action=\"guide-close\" aria-label=\"Close guide\">" + icon("x") + "</button><label class=\"player-guide-search\"><span>" + icon("search") + "</span><input id=\"player-guide-search\" value=\"" + escapeHTML(query) + "\" placeholder=\"Search channels or programs\" autocomplete=\"off\" aria-label=\"Search channel guide\"></label></div><div class=\"player-guide-list\">" + (channels.length ? channels.map(function(channel) {
+    const lines = playerGuideProgramLines(channel);
+    return "<div class=\"player-guide-row" + (state.currentChannel && state.currentChannel.id === channel.id ? " active" : "") + "\"><button class=\"player-guide-select\" type=\"button\" data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<span><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><small>" + escapeHTML(lines.primary) + "</small>" + (lines.secondary ? "<small>" + escapeHTML(lines.secondary) + "</small>" : "") + "</span></button><button class=\"player-guide-add\" type=\"button\" data-player-guide-multiview=\"" + escapeHTML(channel.id) + "\" aria-label=\"Add " + escapeHTML(channel.name || "channel") + " to multiview\">" + icon("multiview") + "</button></div>";
+  }).join("") : "<div class=\"player-guide-empty\">No matching channels.</div>") + "</div>";
 }
 function currentStreamURL() {
   return state.currentChannel ? route("/dispatcharr/stream?channel_id=" + encodeURIComponent(state.currentChannel.id)) : "";
@@ -3641,6 +3692,13 @@ document.addEventListener("click", function(event) {
     setSportsLeague(sportsLeague.getAttribute("data-sports-league"));
     return;
   }
+  const sportsRefresh = event.target.closest("[data-sports-refresh]");
+  if (sportsRefresh) {
+    event.preventDefault();
+    loadSports(true);
+    renderSportsPage();
+    return;
+  }
   const sportsExpand = event.target.closest("[data-sports-expand-event]");
   if (sportsExpand) {
     event.preventDefault();
@@ -3753,6 +3811,14 @@ document.addEventListener("click", function(event) {
     event.preventDefault();
     event.stopPropagation();
     const channel = channelByID(multiviewChannel.getAttribute("data-multiview-channel"));
+    if (channel) addChannelToMultiview(channel);
+    return;
+  }
+  const playerGuideMultiview = event.target.closest("[data-player-guide-multiview]");
+  if (playerGuideMultiview) {
+    event.preventDefault();
+    event.stopPropagation();
+    const channel = channelByID(playerGuideMultiview.getAttribute("data-player-guide-multiview"));
     if (channel) addChannelToMultiview(channel);
     return;
   }
@@ -3870,6 +3936,16 @@ document.addEventListener("input", function(event) {
   if (event.target && event.target.id === "search-page-input") {
     state.searchQuery = event.target.value || "";
     renderSearchPage();
+    return;
+  }
+  if (event.target && event.target.id === "player-guide-search") {
+    state.playerGuideQuery = event.target.value || "";
+    renderPlayerGuidePanel();
+    const input = byId("player-guide-search");
+    if (input) {
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
     return;
   }
   const adminEventKeywordIndex = event.target.getAttribute("data-admin-event-keyword-index");

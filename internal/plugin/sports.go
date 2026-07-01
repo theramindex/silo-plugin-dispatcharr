@@ -369,16 +369,20 @@ func sportsMatchTerms(event SportsEvent) []sportsTerm {
 
 func scoreSportsChannel(channel model.Channel, categoryName string, programs []model.Program, event SportsEvent, terms []sportsTerm) (int, string) {
 	score := 0
+	structuralMatch := false
+	strongGuideMatch := false
 	reasons := map[string]bool{}
 	channelText := normalizeMatchText(strings.Join([]string{channel.Name, channel.Number}, " "))
 	categoryText := normalizeMatchText(strings.Join([]string{categoryName, channel.CategoryName}, " "))
 	for _, term := range terms {
 		if containsMatchTerm(channelText, term.Text) {
 			score += term.Weight
+			structuralMatch = true
 			reasons["channel: "+term.Reason] = true
 		}
 		if containsMatchTerm(categoryText, term.Text) {
 			score += term.Weight / 2
+			structuralMatch = true
 			reasons["group: "+term.Reason] = true
 		}
 	}
@@ -387,6 +391,9 @@ func scoreSportsChannel(channel model.Channel, categoryName string, programs []m
 			continue
 		}
 		programText := normalizeMatchText(strings.Join([]string{program.Title, program.Summary}, " "))
+		if strongSportsGuideMatch(programText, event) {
+			strongGuideMatch = true
+		}
 		for _, term := range terms {
 			if containsMatchTerm(programText, term.Text) {
 				score += term.Weight + 20
@@ -397,7 +404,31 @@ func scoreSportsChannel(channel model.Channel, categoryName string, programs []m
 	if score == 0 {
 		return 0, ""
 	}
+	if !structuralMatch && !strongGuideMatch {
+		return 0, ""
+	}
 	return score, joinMatchReasons(reasons)
+}
+
+func strongSportsGuideMatch(programText string, event SportsEvent) bool {
+	if containsMatchTerm(programText, event.Name) || containsMatchTerm(programText, event.ShortName) {
+		return true
+	}
+	homeName := containsMatchTerm(programText, event.Home.Name)
+	awayName := containsMatchTerm(programText, event.Away.Name)
+	if homeName && awayName {
+		return true
+	}
+	homeAbbr := containsMatchTerm(programText, event.Home.Abbreviation)
+	awayAbbr := containsMatchTerm(programText, event.Away.Abbreviation)
+	if (homeName || homeAbbr) && (awayName || awayAbbr) {
+		return true
+	}
+	leagueName := strings.TrimSpace(event.LeagueName)
+	if leagueName != "" && containsMatchTerm(programText, leagueName) && (homeName || awayName || homeAbbr || awayAbbr) {
+		return true
+	}
+	return false
 }
 
 func programNearSportsEvent(program model.Program, event SportsEvent) bool {

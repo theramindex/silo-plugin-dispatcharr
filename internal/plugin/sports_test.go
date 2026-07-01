@@ -142,6 +142,47 @@ func TestMatchSportsChannelsDoesNotUseLeagueOnlyGroups(t *testing.T) {
 	assertNoSportsMatch(t, matches, "ch:nfl")
 }
 
+func TestMatchSportsChannelsRejectsWeakGuideOnlyMatches(t *testing.T) {
+	t.Parallel()
+
+	snapshot := cache.Snapshot{
+		Catalog: model.CatalogState{
+			Channels: []model.Channel{
+				{ID: "ch:sport", Name: "Sport1", CategoryID: "sports", CategoryName: "International Sports | Germany"},
+				{ID: "ch:fox", Name: "FOX 7", CategoryID: "fox", CategoryName: "US | Locals | FOX"},
+				{ID: "ch:starz", Name: "Starz Encore Westerns", CategoryID: "movies", CategoryName: "US | Movies"},
+			},
+			Programs: []model.Program{
+				{ID: "p:sport", ChannelID: "ch:sport", Title: "Ecuador vs Mexico", StartUnix: 1700000000, EndUnix: 1700007200},
+				{ID: "p:fox", ChannelID: "ch:fox", Title: "FIFA World Cup 2026: Ecuador vs. Mexico", StartUnix: 1700000000, EndUnix: 1700007200},
+				{ID: "p:starz", ChannelID: "ch:starz", Title: "Western Movie", Summary: "A classic adventure near Mexico.", StartUnix: 1700000000, EndUnix: 1700007200},
+			},
+			Content: model.ContentState{
+				LiveCategories: []model.Category{
+					{ID: "sports", Name: "International Sports | Germany", Kind: "live"},
+					{ID: "fox", Name: "US | Locals | FOX", Kind: "live"},
+					{ID: "movies", Name: "US | Movies", Kind: "live"},
+				},
+			},
+		},
+	}
+	event := SportsEvent{
+		ID:         "event:world-cup",
+		LeagueID:   "world-cup",
+		LeagueName: "World Cup",
+		Name:       "Ecuador vs Mexico",
+		ShortName:  "ECU @ MEX",
+		StartUnix:  1700000000,
+		Home:       SportsTeam{ID: "team:mex", Name: "Mexico", Abbreviation: "MEX"},
+		Away:       SportsTeam{ID: "team:ecu", Name: "Ecuador", Abbreviation: "ECU"},
+	}
+
+	matches := matchSportsChannels(event, snapshot)
+	assertSportsMatch(t, matches, "ch:sport")
+	assertSportsMatch(t, matches, "ch:fox")
+	assertNoSportsMatch(t, matches, "ch:starz")
+}
+
 func TestHTTPRoutesServerSportsUsesStaleCacheOnProviderError(t *testing.T) {
 	t.Parallel()
 
