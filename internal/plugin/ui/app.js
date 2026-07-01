@@ -9,7 +9,7 @@ const localCacheSuffix = pluginInstallationID || "default";
 const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuffix;
 const adminSettingsLocalKey = "silo.ramindex.dispatcharr.adminSettings.v1." + localCacheSuffix;
 const adminSettingsToken = "__ADMIN_SETTINGS_TOKEN__";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsTab: "live", sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsTab: "live", sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
 
 function applySiloTheme() {
   const params = new URLSearchParams(window.location.search);
@@ -732,6 +732,21 @@ function moveFavorite(channelID, direction) {
   state.app.preferences.favoriteOrder = order;
   savePrefs();
   render();
+}
+function setChannelFavorite(channelID, enabled) {
+  const id = String(channelID || "");
+  if (!id || !state.app || !state.app.preferences) return false;
+  if (enabled) {
+    state.app.preferences.favorites[id] = true;
+    state.app.preferences.favoriteOrder = uniqueIDs(items(state.app.preferences.favoriteOrder).concat([id]));
+  } else {
+    delete state.app.preferences.favorites[id];
+    state.app.preferences.favoriteOrder = items(state.app.preferences.favoriteOrder).filter(function(item) { return item !== id; });
+  }
+  normalizePreferences();
+  savePrefs();
+  postJSON("/dispatcharr/api/favorites", { id: id, enabled: !!favoriteMap()[id] }).catch(function() {});
+  return !!favoriteMap()[id];
 }
 function channelMatchesQuery(channel) {
   if (!state.query) return true;
@@ -1662,7 +1677,25 @@ function filteredSportsEvents(payload) {
     if (state.sportsTab === "upcoming" && (event.completed || event.live || (startUnix > 0 && startUnix < now - 3600))) return false;
     if (state.sportsTab === "favorites" && !sportsEventHasFavoriteTeam(event)) return false;
     return true;
-  });
+  }).sort(compareSportsEventsForTab);
+}
+function compareSportsEventsForTab(left, right) {
+  const tab = state.sportsTab || "live";
+  if (left.live !== right.live) return left.live ? -1 : 1;
+  if (tab === "upcoming") {
+    const leftStart = sportsEventStartSort(left, 1);
+    const rightStart = sportsEventStartSort(right, 1);
+    if (leftStart !== rightStart) return leftStart - rightStart;
+  } else {
+    const leftRecent = sportsEventStartSort(left, 0);
+    const rightRecent = sportsEventStartSort(right, 0);
+    if (leftRecent !== rightRecent) return rightRecent - leftRecent;
+  }
+  return String(left.name || left.shortName || "").localeCompare(String(right.name || right.shortName || ""));
+}
+function sportsEventStartSort(event, fallback) {
+  const start = Number(event && event.startUnix || 0);
+  return start > 0 ? start : fallback;
 }
 function sportsEventHasFavoriteTeam(event) {
   const favorites = sportsFavoriteTeamMap();
@@ -2424,8 +2457,9 @@ function renderMultiviewPage() {
   if (state.multiviewActiveTileID && !tiles.some(function(tile) { return tile.id === state.multiviewActiveTileID; })) state.multiviewActiveTileID = tiles[0] ? tiles[0].id : "";
   const countClass = "count-" + Math.max(tiles.length, 1);
   const title = tiles.length ? tiles.length + " channel" + (tiles.length === 1 ? "" : "s") : "Choose channels";
-  byId("view").innerHTML = "<section class=\"multiview-page\"><div class=\"multiview-toolbar\"><div><h2>Multiview</h2><p>" + escapeHTML(title) + " · focused tile owns audio</p></div><div class=\"multiview-actions\">" + (tiles.length ? "<button class=\"chip\" type=\"button\" data-multiview-action=\"clear\">Clear</button>" : "") + "</div></div>"
+  byId("view").innerHTML = "<section class=\"multiview-page\"><div class=\"multiview-toolbar\"><div><h2>Multiview</h2><p>" + escapeHTML(title) + " · focused tile owns audio</p></div><div class=\"multiview-actions\"><span class=\"multiview-count\">" + escapeHTML(String(tiles.length)) + "/4</span>" + (tiles.length ? "<button class=\"chip\" type=\"button\" data-multiview-action=\"clear\">Clear</button>" : "") + "</div></div>"
     + (tiles.length ? "<div class=\"multiview-grid " + countClass + "\">" + tiles.map(renderMultiviewTile).join("") + "</div>" : renderMultiviewEmpty())
+    + (tiles.length && tiles.length < 4 ? renderMultiviewPicker() : "")
     + "</section>";
   attachMultiviewPlayers();
 }
@@ -2439,17 +2473,39 @@ function renderMultiviewTile(tile) {
   return "<article class=\"multiview-tile" + (active ? " active" : "") + "\" data-multiview-tile=\"" + escapeHTML(tile.id) + "\" data-multiview-focus=\"" + escapeHTML(tile.id) + "\"><video id=\"" + escapeHTML(tile.videoID) + "\" class=\"multiview-video\" autoplay playsinline" + (active ? "" : " muted") + "></video><div class=\"multiview-tile-controls\"><button type=\"button\" data-multiview-action=\"focus\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-label=\"Use audio from this tile\">" + icon("speaker") + "</button><button type=\"button\" data-multiview-action=\"single\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-label=\"Open channel player\">" + icon("external") + "</button><button type=\"button\" data-multiview-action=\"remove\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-label=\"Remove from multiview\">" + icon("x") + "</button></div><div class=\"multiview-tile-meta\"><div><strong data-overflow-tooltip=\"" + escapeHTML(title) + "\">" + escapeHTML(title) + "</strong><small data-overflow-tooltip=\"" + escapeHTML(channel.name || subtitle) + "\">" + escapeHTML(channel.name || subtitle) + "</small></div><span class=\"multiview-audio-badge\">" + escapeHTML(muted) + "</span></div></article>";
 }
 function renderMultiviewEmpty() {
-  const picks = recentChannels(8).concat(visibleChannels(false).slice(0, 8)).filter(Boolean);
+  return "<div class=\"multiview-empty\"><div class=\"empty\">Add up to four live channels. The active tile is the only one with audio.</div>" + renderMultiviewPicker() + "</div>";
+}
+function multiviewChannelMatchesQuery(channel, query) {
+  if (!query) return true;
+  const program = currentProgram(channel) || {};
+  return lower(channel.name).indexOf(query) !== -1
+    || lower(channel.categoryName).indexOf(query) !== -1
+    || lower(program.title).indexOf(query) !== -1;
+}
+function multiviewCandidateChannels(limit) {
+  const selected = {};
+  items(state.multiviewTiles).forEach(function(tile) {
+    const id = (tile.channel || {}).id || tile.channelID;
+    if (id) selected[id] = true;
+  });
+  const query = lower(state.multiviewQuery);
+  const picks = recentChannels(12).concat(orderedFavoriteChannels(effectiveChannels(false))).concat(visibleChannels(false)).filter(Boolean);
   const unique = [];
   const seen = {};
   picks.forEach(function(channel) {
-    if (!channel || seen[channel.id]) return;
+    if (!channel || seen[channel.id] || selected[channel.id]) return;
+    if (!multiviewChannelMatchesQuery(channel, query)) return;
     seen[channel.id] = true;
     unique.push(channel);
   });
-  return "<div class=\"multiview-empty\"><div class=\"empty\">Add up to four live channels. The active tile is the only one with audio.</div><div class=\"multiview-channel-grid\">" + unique.slice(0, 12).map(function(channel) {
+  return unique.slice(0, limit || 12);
+}
+function renderMultiviewPicker() {
+  const unique = multiviewCandidateChannels(12);
+  const summary = state.multiviewQuery ? unique.length + " matching channel" + (unique.length === 1 ? "" : "s") : "Recent and favorite channels";
+  return "<div id=\"multiview-picker\" class=\"multiview-picker\"><div class=\"multiview-picker-head\"><strong>Add channel</strong><span>" + escapeHTML(summary) + "</span></div><label class=\"multiview-search\"><span>" + icon("search") + "</span><input id=\"multiview-search\" placeholder=\"Search channels or programs\" value=\"" + escapeHTML(state.multiviewQuery) + "\" autocomplete=\"off\"></label><div class=\"multiview-channel-grid\">" + (unique.length ? unique.map(function(channel) {
     return "<button class=\"multiview-channel-add\" type=\"button\" data-multiview-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<span><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><small>" + escapeHTML(channel.categoryName || "Live TV") + "</small></span></button>";
-  }).join("") + "</div></div>";
+  }).join("") : "<div class=\"multiview-no-results\">No matching channels.</div>") + "</div></div>";
 }
 function attachMultiviewPlayers() {
   items(state.multiviewTiles).forEach(function(tile) {
@@ -3515,22 +3571,13 @@ function handlePlayerAction(action, button) {
   }
   if (action === "favorite" && state.currentChannel) {
     const id = state.currentChannel.id;
-    if (favoriteMap()[id]) {
-      delete state.app.preferences.favorites[id];
-      state.app.preferences.favoriteOrder = items(state.app.preferences.favoriteOrder).filter(function(item) { return item !== id; });
-    } else {
-      state.app.preferences.favorites[id] = true;
-      state.app.preferences.favoriteOrder = uniqueIDs(items(state.app.preferences.favoriteOrder).concat([id]));
-    }
+    const isFavorite = setChannelFavorite(id, !favoriteMap()[id]);
     if (button) {
-      const isFavorite = !!favoriteMap()[id];
       button.innerHTML = icon(isFavorite ? "heart-solid" : "heart");
       button.classList.toggle("active", isFavorite);
       button.setAttribute("aria-pressed", isFavorite ? "true" : "false");
       button.setAttribute("aria-label", isFavorite ? "Remove channel from favorites" : "Favorite channel");
     }
-    savePrefs();
-    postJSON("/dispatcharr/api/favorites", { id: id, enabled: !!favoriteMap()[id] }).catch(function() {});
     renderRail();
   }
 }
@@ -3942,6 +3989,17 @@ document.addEventListener("input", function(event) {
     state.playerGuideQuery = event.target.value || "";
     renderPlayerGuidePanel();
     const input = byId("player-guide-search");
+    if (input) {
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+    return;
+  }
+  if (event.target && event.target.id === "multiview-search") {
+    state.multiviewQuery = event.target.value || "";
+    const picker = byId("multiview-picker");
+    if (picker) picker.outerHTML = renderMultiviewPicker();
+    const input = byId("multiview-search");
     if (input) {
       input.focus();
       input.setSelectionRange(input.value.length, input.value.length);

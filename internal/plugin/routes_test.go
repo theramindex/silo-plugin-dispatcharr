@@ -216,6 +216,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`Search movies, tv shows, channels and more`,
 		`function renderSportsPage()`,
 		`function renderSportsTopbarTabs()`,
+		`function compareSportsEventsForTab(left, right)`,
+		`return rightRecent - leftRecent;`,
 		`sports-channel-logo`,
 		`function renderEventsPage()`,
 		`/dispatcharr/api/events`,
@@ -223,6 +225,11 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`function renderMultiviewPage()`,
 		`function addChannelToMultiview(channel)`,
 		`function syncMultiviewAudio()`,
+		`multiviewQuery`,
+		`function multiviewCandidateChannels(limit)`,
+		`id=\"multiview-picker\"`,
+		`Search channels or programs`,
+		`picker.outerHTML = renderMultiviewPicker()`,
 		`data-multiview-channel=`,
 		`data-player-action=\"add-multiview\"`,
 		`/dispatcharr/api/sports`,
@@ -608,6 +615,8 @@ func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
 		`favoriteOrder: []`,
 		`function orderedFavoriteChannels(`,
 		`function moveFavorite(channelID, direction)`,
+		`function setChannelFavorite(channelID, enabled)`,
+		`const isFavorite = setChannelFavorite(id, !favoriteMap()[id]);`,
 		`data-favorite-move=\"up\"`,
 		`data-favorite-move=\"down\"`,
 		`clip-path: inset(0);`,
@@ -617,6 +626,19 @@ func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected app page to include UI marker %q", want)
 		}
+	}
+	helperIndex := strings.Index(body, `function setChannelFavorite(channelID, enabled)`)
+	if helperIndex == -1 {
+		t.Fatalf("expected app page to include channel favorite helper")
+	}
+	helperBody := body[helperIndex:]
+	saveIndex := strings.Index(helperBody, `savePrefs();`)
+	cacheIndex := strings.Index(helperBody, `postJSON("/dispatcharr/api/favorites"`)
+	if saveIndex == -1 || cacheIndex == -1 {
+		t.Fatalf("expected channel favorite helper to save Silo profile preferences and sync plugin cache")
+	}
+	if saveIndex > cacheIndex {
+		t.Fatalf("expected channel favorite helper to save Silo profile preferences before syncing plugin cache")
 	}
 }
 
