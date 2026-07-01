@@ -248,6 +248,11 @@ button { cursor: pointer; }
 .sports-page { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 0.7rem; min-height: 0; height: 100%; max-width: min(92rem, 100%); }
 .sports-pinned { display: grid; gap: 0.6rem; min-width: 0; }
 .sports-filter-row { display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; min-width: 0; }
+.sports-refresh { margin-left: auto; min-height: 2.1rem; display: inline-flex; align-items: center; gap: 0.35rem; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2); color: var(--text); padding: 0.34rem 0.7rem; font-weight: 900; }
+.sports-refresh svg { width: 1rem; height: 1rem; }
+.sports-refresh:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 12%, var(--panel-2)); }
+.sports-refresh:disabled { opacity: 0.65; cursor: wait; }
+.sports-refresh.is-loading svg { animation: spin 0.9s linear infinite; }
 .sports-leagues { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; overflow: visible; padding-bottom: 0; }
 .sports-leagues .chip { flex: 0 1 auto; }
 .sports-leagues .chip.active { background: var(--panel-2); color: var(--text); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
@@ -288,11 +293,11 @@ button { cursor: pointer; }
 .sports-channel-wrap { display: grid; grid-template-columns: minmax(0, 1fr); justify-self: center; max-width: min(13.5rem, 100%); min-width: min(11.25rem, 100%); }
 .sports-channel, .sports-channel-more { border: 1px solid var(--line); border-radius: 0.55rem; background: var(--rail-2); color: var(--text); padding: 0.28rem 0.42rem; display: grid; gap: 0.08rem; max-width: min(11rem, 100%); text-align: left; }
 .sports-channel { max-width: none; min-width: 0; }
-.sports-channel { grid-template-columns: 2.25rem minmax(0, 1fr); align-items: center; column-gap: 0.44rem; min-height: 2.6rem; }
+.sports-channel { grid-template-columns: 2rem minmax(0, 1fr); align-items: center; column-gap: 0.44rem; min-height: 2.6rem; }
 .sports-channel:hover { background: var(--panel-2); }
-.sports-channel-logo { width: 2.25rem; height: 1.55rem; min-width: 2.25rem; display: grid; place-items: center; overflow: hidden; }
-.sports-channel-logo img.logo { display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; object-fit: contain; object-position: center; border-radius: 0; background: transparent; }
-.sports-channel-logo .logo-fallback { width: 100%; height: 100%; padding: 0 0.2rem; border: 0; background: transparent; font-size: 0.56rem; line-height: 1; }
+.sports-channel-logo { width: 2rem; height: 2rem; min-width: 2rem; display: grid; place-items: center; overflow: hidden; }
+.sports-channel-logo img.logo { display: block; width: 1.65rem; height: 1.65rem; max-width: 82%; max-height: 82%; object-fit: contain; object-position: center; border-radius: 0; background: transparent; }
+.sports-channel-logo .logo-fallback { width: 1.65rem; height: 1.65rem; max-width: 82%; max-height: 82%; padding: 0 0.12rem; border: 0; background: transparent; font-size: 0.52rem; line-height: 1; }
 .sports-channel-copy { display: grid; gap: 0.04rem; min-width: 0; }
 .sports-channel strong, .sports-channel small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sports-channel strong { font-size: 0.74rem; }
@@ -440,16 +445,27 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .player-guide-button.active { background: rgba(255,255,255,0.18); }
 .player-guide-panel { position: absolute; top: 5rem; right: 1.25rem; bottom: 8.5rem; z-index: 3; display: none; width: min(30rem, calc(100vw - 3rem)); overflow: hidden; border: 1px solid rgba(255,255,255,0.13); border-radius: 1rem; background: rgba(17,17,18,0.88); box-shadow: 0 1.2rem 2.4rem rgba(0,0,0,0.42); backdrop-filter: blur(22px); }
 .player-guide-panel.open { display: grid; grid-template-rows: auto minmax(0, 1fr); }
-.player-guide-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.85rem 0.95rem; border-bottom: 1px solid rgba(255,255,255,0.08); color: white; }
+.player-guide-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.75rem 1rem; align-items: center; padding: 0.85rem 0.95rem; border-bottom: 1px solid rgba(255,255,255,0.08); color: white; }
 .player-guide-head strong { display: block; font-size: 0.92rem; }
 .player-guide-head span { display: block; color: rgba(255,255,255,0.58); font-size: 0.75rem; font-weight: 750; }
+.player-guide-search { grid-column: 1 / -1; min-width: 0; display: grid; grid-template-columns: 1rem minmax(0, 1fr); align-items: center; gap: 0.5rem; padding: 0.48rem 0.65rem; border: 1px solid rgba(255,255,255,0.12); border-radius: 999px; background: rgba(255,255,255,0.08); }
+.player-guide-search span { display: grid; place-items: center; color: rgba(255,255,255,0.62); }
+.player-guide-search svg { width: 0.95rem; height: 0.95rem; }
+.player-guide-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: white; font: inherit; font-size: 0.82rem; font-weight: 760; }
+.player-guide-search input::placeholder { color: rgba(255,255,255,0.45); }
 .player-guide-list { overflow: auto; padding: 0.45rem; }
-.player-guide-row { width: 100%; border: 0; border-radius: 0.75rem; background: transparent; color: white; display: grid; grid-template-columns: 3.6rem minmax(0, 1fr); gap: 0.7rem; align-items: center; padding: 0.5rem; text-align: left; }
+.player-guide-row { width: 100%; border: 0; border-radius: 0.75rem; background: transparent; color: white; display: grid; grid-template-columns: minmax(0, 1fr) 2.35rem; gap: 0.35rem; align-items: center; padding: 0.3rem; text-align: left; }
 .player-guide-row:hover, .player-guide-row.active { background: rgba(255,255,255,0.1); }
+.player-guide-select { min-width: 0; border: 0; border-radius: 0.6rem; background: transparent; color: inherit; display: grid; grid-template-columns: 3.6rem minmax(0, 1fr); gap: 0.7rem; align-items: center; padding: 0.25rem; text-align: left; }
+.player-guide-select:hover { background: rgba(255,255,255,0.06); }
+.player-guide-add { width: 2.1rem; height: 2.1rem; border: 1px solid rgba(255,255,255,0.12); border-radius: 999px; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.72); display: grid; place-items: center; }
+.player-guide-add:hover { background: rgba(255,255,255,0.16); color: white; }
+.player-guide-add svg { width: 1rem; height: 1rem; }
 .player-guide-row .logo { width: 3.2rem; height: 2.15rem; border-radius: 0.42rem; }
 .player-guide-row strong, .player-guide-row small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .player-guide-row strong { font-size: 0.86rem; }
 .player-guide-row small { margin-top: 0.12rem; color: rgba(255,255,255,0.62); font-size: 0.72rem; font-weight: 750; }
+.player-guide-empty { padding: 1rem; color: rgba(255,255,255,0.6); font-size: 0.85rem; font-weight: 760; text-align: center; }
 .player-more-menu { position: absolute; top: calc(100% + 0.45rem); right: 0; z-index: 4; display: none; width: min(25rem, 84vw); overflow: hidden; border: 1px solid rgba(255,255,255,0.14); border-radius: 1rem; background: rgba(20,20,21,0.94); box-shadow: 0 1.2rem 2.4rem rgba(0,0,0,0.42); backdrop-filter: blur(22px); }
 .player-more-menu.open { display: block; }
 .player-more-kicker { padding: 0.8rem 0.95rem 0.35rem; color: rgba(255,255,255,0.56); font-size: 0.75rem; font-weight: 850; }
