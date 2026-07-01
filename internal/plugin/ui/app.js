@@ -2617,7 +2617,7 @@ function renderGuidePage() {
   const categories = guideFilterCategories();
   const slots = guideSlots();
   state.guideLastSlotStart = guideSlotStart();
-  byId("view").innerHTML = "<div class=\"guide-page\"><div class=\"guide-tools\"><select id=\"category-select\" class=\"select\"><option value=\"\">" + escapeHTML(allGroupLabel()) + "</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select><button id=\"guide-inline-refresh\" class=\"refresh-button\" type=\"button\" data-guide-refresh=\"true\" aria-label=\"Refresh guide\" title=\"Refresh guide\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" aria-hidden=\"true\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M20 12a8 8 0 0 1-14.1 5.15M4 12A8 8 0 0 1 18.1 6.85\"/><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M6 17.25H3.75V19.5M18 6.75h2.25V4.5\"/></svg></button>" + guideFreshnessHTML() + "<input id=\"guide-search\" class=\"search\" placeholder=\"Search by program or channel\" value=\"" + escapeHTML(state.query) + "\"></div><div class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div></div></div>";
+  byId("view").innerHTML = "<div class=\"guide-page\">" + sectionHeaderWithActions("TV Guide", guideFreshnessHTML()) + "<div class=\"guide-tools\"><select id=\"category-select\" class=\"select\"><option value=\"\">" + escapeHTML(allGroupLabel()) + "</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program or channel\" value=\"" + escapeHTML(state.query) + "\"></div><div class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div></div></div>";
   byId("category-select").onchange = function(event) { state.category = event.target.value; renderGuidePage(); };
   byId("guide-search").oninput = function(event) { state.query = event.target.value; resetGuideRows(); renderEPG(); };
   resetGuideRows();
@@ -2814,10 +2814,10 @@ function setAdminTab(tab) {
 function renderAdminSettingsTab() {
   return ""
     + adminStatusPanel()
-    + "<div class=\"settings-card\"><h2>Recordings</h2><div id=\"admin-recording-settings\" class=\"settings-list\"></div></div>"
-    + "<div class=\"settings-card\"><h2>Group method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
-    + "<div class=\"settings-card\"><h2>Presentation Overrides</h2><div class=\"settings-note admin-status-note\">Add alternate virtual group paths without changing the original Dispatcharr groups.</div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>"
-    + "<div class=\"settings-card\"><h2>Event Keywords</h2><div class=\"settings-note admin-status-note\">Events are detected from the Dispatcharr guide. One keyword per line or comma-separated.</div><div id=\"admin-event-keyword-settings\" class=\"settings-list\"></div></div>"
+    + "<div class=\"settings-card settings-card-compact\"><h2>Recordings</h2><div id=\"admin-recording-settings\" class=\"settings-list\"></div></div>"
+    + "<div class=\"settings-card settings-card-compact\"><h2>Group method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
+    + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Presentation Overrides</h2><p>Add alternate virtual group paths without changing the original Dispatcharr groups.</p></div></div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>"
+    + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Event Keywords</h2><p>Events are detected from the Dispatcharr guide. One keyword per line or comma-separated.</p></div></div><div id=\"admin-event-keyword-settings\" class=\"settings-list event-keyword-list\"></div></div>"
     + "";
 }
 function renderAdminRecordingSettings() {
@@ -2829,7 +2829,7 @@ function renderAdminRecordingSettings() {
 }
 function renderAdminIntegrationsTab() {
   return ""
-    + "<div class=\"settings-card\"><h2>ECM</h2><div id=\"admin-ecm-settings\" class=\"settings-list\"></div></div>"
+    + "<div class=\"settings-card integrations-card\"><div class=\"settings-card-head\"><div><h2>ECM</h2><p>Embed Enhanced Channel Manager for Dispatcharr channel work.</p></div></div><div id=\"admin-ecm-settings\" class=\"settings-list\"></div></div>"
     + "";
 }
 function adminStatusPill(status) {
@@ -2849,7 +2849,7 @@ function adminStatusPanel() {
   const source = state.app && state.app.source ? state.app.source : {};
   const guideStatus = String(status.epgStatus || (status.epgProgramCount ? "ok" : "unknown"));
   const error = status.lastError || status.epgLastError || "";
-  return "<div class=\"admin-status-strip\" aria-label=\"Connection Status\"><div class=\"admin-status-grid\">"
+  return "<div class=\"admin-status-strip\" aria-label=\"Connection Status\"><div class=\"settings-card-head\"><div><h2>Connection Status</h2><p>Dispatcharr API health and latest sync details.</p></div></div><div class=\"admin-status-grid\">"
     + adminStatusItem("Connection", adminStatusPill(status.status || "ok"), sourceModeLabel(source.mode))
     + adminStatusItem("Channels", escapeHTML(String(status.channelCount || items(state.app.channels).length || 0)), "Last catalog sync: " + dateTimeLabel(status.lastSuccessUnix))
     + adminStatusItem("Guide", adminStatusPill(guideStatus), String(status.epgProgramCount || items(state.app.programs).length || 0) + " programs · " + dateTimeLabel(status.epgLastSuccessUnix))
@@ -2865,8 +2865,8 @@ function renderAdminECMSettings() {
   const settings = adminSettings();
   const root = byId("admin-ecm-settings");
   if (!root) return;
-  root.innerHTML = "<label><span>Enable ECM</span><input type=\"checkbox\" data-admin-ecm-field=\"enabled\"" + (settings.ecmEnabled === true ? " checked" : "") + "></label>"
-    + "<div class=\"settings-row ecm-url-row\"><span>ECM URL</span><input type=\"url\" data-admin-ecm-field=\"url\" value=\"" + escapeHTML(settings.ecmURL || "") + "\"></div>"
+  root.innerHTML = "<label class=\"settings-row compact-row\"><span><strong>Enable ECM</strong><small>Show the Channel Manager tab for admins.</small></span><input type=\"checkbox\" data-admin-ecm-field=\"enabled\"" + (settings.ecmEnabled === true ? " checked" : "") + "></label>"
+    + "<div class=\"settings-row ecm-url-row compact-row\"><span><strong>ECM URL</strong><small>The embedded manager instance.</small></span><input type=\"url\" data-admin-ecm-field=\"url\" value=\"" + escapeHTML(settings.ecmURL || "") + "\"></div>"
     + "<div class=\"settings-note\">When enabled, the Channel Manager tab embeds this ECM instance for admin channel management.</div>";
 }
 function renderAdminCategorySettings() {
@@ -2874,7 +2874,7 @@ function renderAdminCategorySettings() {
   const root = byId("admin-category-settings");
   const nested = settings.mode !== "normal" ? "<div class=\"settings-list-nested\">"
     + "<div class=\"settings-row\"><span>Delimiter</span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Sports - NHL Teams</option></select></div>"
-    + "<div class=\"settings-row virtual-label-row\"><span>Virtual label</span><div class=\"virtual-label-control\"><span>Virtual</span><input data-admin-category-field=\"virtualGroupLabel\" value=\"" + escapeHTML(virtualGroupLabelSuffix(settings.virtualGroupLabel)) + "\" placeholder=\"Groups\"></div></div>"
+    + "<div class=\"settings-row virtual-label-row\"><span>Virtual groups label</span><div class=\"virtual-label-control\"><span>Virtual</span><input data-admin-category-field=\"virtualGroupLabel\" value=\"" + escapeHTML(virtualGroupLabelSuffix(settings.virtualGroupLabel)) + "\" placeholder=\"Groups\"></div></div>"
     + "</div>" : "";
   root.innerHTML = adminSaveStatusHTML()
     + "<div class=\"settings-row\"><span>Mode</span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Normal</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">By delimiter</option></select></div>"
@@ -2951,7 +2951,7 @@ function renderAdminEventKeywordSettings() {
   if (!root) return;
   const rows = normalizeEventKeywordRows(adminSettings().eventKeywords);
   root.innerHTML = rows.map(function(row, index) {
-    return "<div class=\"settings-row event-keyword-row\"><span>" + escapeHTML(row.categoryName || eventCategoryName(row.categoryId)) + "</span><textarea data-admin-event-keyword-index=\"" + index + "\" aria-label=\"" + escapeHTML((row.categoryName || row.categoryId) + " event keywords") + "\">" + escapeHTML(row.keywords.join("\n")) + "</textarea></div>";
+    return "<div class=\"settings-row event-keyword-row\"><span class=\"event-keyword-label\">" + escapeHTML(row.categoryName || eventCategoryName(row.categoryId)) + "</span><textarea data-admin-event-keyword-index=\"" + index + "\" aria-label=\"" + escapeHTML((row.categoryName || row.categoryId) + " event keywords") + "\">" + escapeHTML(row.keywords.join("\n")) + "</textarea></div>";
   }).join("");
 }
 function updateAdminEventKeywords(index, value) {
