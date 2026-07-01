@@ -319,11 +319,12 @@ button { cursor: pointer; }
   .sports-matchup { gap: 0.5rem; }
   .sports-channel-wrap, .sports-channel, .sports-channel-more { max-width: min(13rem, 100%); }
 }
-.multiview-page { height: 100%; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 0.9rem; }
+.multiview-page { height: 100%; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 0.9rem; }
 .multiview-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
 .multiview-toolbar h2 { margin: 0; font-size: 1.08rem; }
 .multiview-toolbar p { margin: 0.12rem 0 0; color: var(--muted); font-size: 0.78rem; font-weight: 760; }
 .multiview-actions { display: flex; align-items: center; gap: 0.45rem; }
+.multiview-count { border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--muted); padding: 0.35rem 0.62rem; font-size: 0.76rem; font-weight: 900; }
 .multiview-grid { min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(14rem, 1fr); gap: 0.55rem; }
 .multiview-grid.count-1 { grid-template-columns: minmax(0, 1fr); }
 .multiview-grid.count-1 .multiview-tile { min-height: min(68vh, 42rem); }
@@ -340,11 +341,19 @@ button { cursor: pointer; }
 .multiview-tile-controls button { width: 2rem; height: 2rem; border: 1px solid rgba(255,255,255,0.24); border-radius: 999px; background: rgba(0,0,0,0.52); color: white; display: grid; place-items: center; }
 .multiview-tile-controls button:hover { background: rgba(255,255,255,0.16); }
 .multiview-empty { display: grid; align-content: start; gap: 0.75rem; }
+.multiview-picker { border: 1px solid var(--line); border-radius: 0.65rem; background: color-mix(in srgb, var(--panel) 78%, transparent); padding: 0.65rem; display: grid; gap: 0.55rem; }
+.multiview-picker-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; }
+.multiview-picker-head strong { font-size: 0.84rem; }
+.multiview-picker-head span { color: var(--muted); font-size: 0.72rem; font-weight: 800; }
+.multiview-search { min-width: 0; display: grid; grid-template-columns: 1rem minmax(0, 1fr); align-items: center; gap: 0.45rem; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2); padding: 0.42rem 0.65rem; color: var(--muted); }
+.multiview-search svg { width: 0.92rem; height: 0.92rem; }
+.multiview-search input { min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 0.82rem; font-weight: 760; }
 .multiview-channel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.5rem; }
 .multiview-channel-add { border: 1px solid var(--line); border-radius: 0.65rem; background: var(--panel); color: var(--text); min-width: 0; min-height: 4.4rem; padding: 0.55rem 0.65rem; display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); align-items: center; gap: 0.65rem; text-align: left; }
 .multiview-channel-add:hover { background: var(--panel-2); }
 .multiview-channel-add strong, .multiview-channel-add small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .multiview-channel-add small { color: var(--muted); font-size: 0.74rem; font-weight: 760; }
+.multiview-no-results { border: 1px dashed var(--line); border-radius: 0.65rem; color: var(--muted); padding: 1rem; text-align: center; font-weight: 850; }
 .channel-button-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.5rem; }
 .virtual-channel-button { border: 0; border-radius: 0.65rem; background: var(--panel); color: var(--text); display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); align-items: center; gap: 0.7rem; min-height: 4rem; padding: 0.55rem 0.65rem; text-align: left; }
 .virtual-channel-button:hover { background: var(--panel-2); }
