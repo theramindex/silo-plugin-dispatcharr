@@ -1,15 +1,12 @@
 const path = window.location.pathname;
 const base = path.endsWith("/dispatcharr/player") ? path.slice(0, -"/dispatcharr/player".length) : (path.endsWith("/dispatcharr/admin") ? path.slice(0, -"/dispatcharr/admin".length) : (path.endsWith("/dispatcharr") ? path.slice(0, -"/dispatcharr".length) : ""));
 const isAdminRoute = path.endsWith("/dispatcharr/admin");
-const prefsKey = "silo.ramindex.dispatcharr.preferences.v1";
-const searchHistoryKey = "silo.ramindex.dispatcharr.searchHistory.v1";
 const adminSettingsKey = "adminCategorySettings";
 const pluginInstallationID = (base.match(/\/api\/v1\/plugins\/(\d+)/) || [])[1] || "";
 const localCacheSuffix = pluginInstallationID || "default";
 const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuffix;
-const adminSettingsLocalKey = "silo.ramindex.dispatcharr.adminSettings.v1." + localCacheSuffix;
 const adminSettingsToken = "__ADMIN_SETTINGS_TOKEN__";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsTab: "live", sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
 
 function applySiloTheme() {
   const params = new URLSearchParams(window.location.search);
@@ -81,7 +78,7 @@ function icon(name) {
 }
 function menuIcon(name) { return "<span class=\"menu-icon\">" + icon(name) + "</span>"; }
 function defaultPrefs() {
-  return { favorites: {}, favoriteOrder: [], autoFavorites: {}, hiddenCategories: {}, sportsFavoriteTeams: {}, keywordPasses: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, customGroups: [], customGroupMemberships: {} };
+  return { favorites: {}, favoriteOrder: [], autoFavorites: {}, hiddenCategories: {}, sportsFavoriteTeams: {}, keywordPasses: [], recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, customGroups: [], customGroupMemberships: {} };
 }
 function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
 function defaultEventKeywordRules() {
@@ -93,7 +90,7 @@ function defaultEventKeywordRules() {
   ];
 }
 function defaultAdminCategorySettings() {
-  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", allowRecordingsByDefault: true, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
+  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", virtualGroupSource: "group", allowRecordingsByDefault: true, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
 }
 function cloneAdminCategorySettings(settings) {
   try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -145,22 +142,22 @@ function normalizeKeywordPasses(value) {
   }).filter(Boolean).slice(0, 24);
 }
 function keywordPasses() { return normalizeKeywordPasses(prefs().keywordPasses); }
-function mergePrefs(remote, local) {
+function mergePrefs(remote) {
   remote = Object.assign(defaultPrefs(), remote || {});
-  local = Object.assign(defaultPrefs(), local || {});
   return {
-    favorites: Object.assign({}, remote.favorites, local.favorites),
-    favoriteOrder: uniqueIDs(items(local.favoriteOrder).length ? items(local.favoriteOrder) : items(remote.favoriteOrder)),
-    autoFavorites: Object.assign({}, remote.autoFavorites, local.autoFavorites),
-    hiddenCategories: Object.assign({}, remote.hiddenCategories, local.hiddenCategories),
-    sportsFavoriteTeams: Object.assign({}, remote.sportsFavoriteTeams, local.sportsFavoriteTeams),
-    keywordPasses: normalizeKeywordPasses(items(local.keywordPasses).length ? local.keywordPasses : remote.keywordPasses),
-    recentChannels: uniqueIDs(items(remote.recentChannels).concat(items(local.recentChannels))).slice(0, 24),
-    continueWatching: Object.assign({}, remote.continueWatching, local.continueWatching),
-    playback: Object.assign({}, remote.playback, local.playback),
-    categoryParsing: Object.assign({}, remote.categoryParsing, local.categoryParsing),
-    customGroups: items(local.customGroups).length ? items(local.customGroups) : items(remote.customGroups),
-    customGroupMemberships: Object.assign({}, remote.customGroupMemberships, local.customGroupMemberships)
+    favorites: Object.assign({}, remote.favorites),
+    favoriteOrder: uniqueIDs(items(remote.favoriteOrder)),
+    autoFavorites: Object.assign({}, remote.autoFavorites),
+    hiddenCategories: Object.assign({}, remote.hiddenCategories),
+    sportsFavoriteTeams: Object.assign({}, remote.sportsFavoriteTeams),
+    keywordPasses: normalizeKeywordPasses(remote.keywordPasses),
+    recentSearches: uniqueIDs(items(remote.recentSearches).map(function(value) { return String(value || "").trim(); }).filter(Boolean)).slice(0, 12),
+    recentChannels: uniqueIDs(items(remote.recentChannels)).slice(0, 24),
+    continueWatching: Object.assign({}, remote.continueWatching),
+    playback: Object.assign({}, remote.playback),
+    categoryParsing: Object.assign({}, remote.categoryParsing),
+    customGroups: items(remote.customGroups),
+    customGroupMemberships: Object.assign({}, remote.customGroupMemberships)
   };
 }
 function normalizePreferences() {
@@ -169,6 +166,7 @@ function normalizePreferences() {
   state.app.preferences.categoryParsing = Object.assign(defaultPrefs().categoryParsing, state.app.preferences.categoryParsing || {});
   state.app.preferences.sportsFavoriteTeams = state.app.preferences.sportsFavoriteTeams || {};
   state.app.preferences.keywordPasses = normalizeKeywordPasses(state.app.preferences.keywordPasses);
+  state.app.preferences.recentSearches = uniqueIDs(items(state.app.preferences.recentSearches).map(function(value) { return String(value || "").trim(); }).filter(Boolean)).slice(0, 12);
   state.app.preferences.customGroups = items(state.app.preferences.customGroups);
   state.app.preferences.customGroupMemberships = state.app.preferences.customGroupMemberships || {};
   const valid = {};
@@ -194,6 +192,8 @@ function normalizeAdminCategorySettings() {
   if (state.adminCategorySettings.delimiter !== "pipe" && state.adminCategorySettings.delimiter !== "dash") state.adminCategorySettings.delimiter = "pipe";
   state.adminCategorySettings.virtualGroupLabel = virtualGroupLabelSuffix(state.adminCategorySettings.virtualGroupLabel);
   state.adminCategorySettings.allowRecordingsByDefault = state.adminCategorySettings.allowRecordingsByDefault !== false;
+  state.adminCategorySettings.virtualGroupSource = normalizeVirtualGroupSource(state.adminCategorySettings.virtualGroupSource, state.adminCategorySettings.inferChannelNameGroups === true);
+  state.adminCategorySettings.inferChannelNameGroups = state.adminCategorySettings.virtualGroupSource !== "group";
   state.adminCategorySettings.ecmEnabled = state.adminCategorySettings.ecmEnabled === true;
   state.adminCategorySettings.ecmURL = normalizeAdminECMURL(state.adminCategorySettings.ecmURL);
   state.adminCategorySettings.categoryRenames = [];
@@ -203,6 +203,20 @@ function normalizeAdminCategorySettings() {
   delete state.adminCategorySettings.adminGroups;
   delete state.adminCategorySettings.adminGroupMemberships;
   delete state.adminCategorySettings.presentationOverrides;
+}
+function normalizeVirtualGroupSource(value, inferLegacy) {
+  const mode = String(value || "").trim();
+  if (mode === "group" || mode === "group_channel" || mode === "channel") return mode;
+  return inferLegacy ? "group_channel" : "group";
+}
+function virtualGroupSourceMode() {
+  return normalizeVirtualGroupSource(adminSettings().virtualGroupSource, adminSettings().inferChannelNameGroups === true);
+}
+function useSourceGroupVirtualPaths() {
+  return virtualGroupSourceMode() !== "channel";
+}
+function useChannelNameVirtualPaths() {
+  return virtualGroupSourceMode() !== "group";
 }
 function normalizeCategoryRenames(value) {
   const seen = {};
@@ -315,17 +329,15 @@ function recordWatchPreference(channel) {
   normalizePreferences();
   savePrefs();
 }
-function readLocalPrefs() {
-  try { return Object.assign(defaultPrefs(), JSON.parse(localStorage.getItem(prefsKey) || "{}")); }
-  catch (_) { return defaultPrefs(); }
-}
 function readRecentSearches() {
-  try { return uniqueIDs(items(JSON.parse(localStorage.getItem(searchHistoryKey) || "[]")).map(function(value) { return String(value || "").trim(); })).slice(0, 12); }
-  catch (_) { return []; }
+  return uniqueIDs(items(prefs().recentSearches).map(function(value) { return String(value || "").trim(); }).filter(Boolean)).slice(0, 12);
 }
 function writeRecentSearches(searches) {
   state.recentSearches = uniqueIDs(items(searches).map(function(value) { return String(value || "").trim(); }).filter(Boolean)).slice(0, 12);
-  try { localStorage.setItem(searchHistoryKey, JSON.stringify(state.recentSearches)); } catch (_) {}
+  if (state.app && state.app.preferences) {
+    state.app.preferences.recentSearches = state.recentSearches;
+    savePrefs({ quiet: true });
+  }
 }
 function rememberSearch(value) {
   value = String(value || "").trim();
@@ -404,13 +416,6 @@ function readLocalAppCache() {
     return null;
   }
 }
-function readLocalAdminSettings() {
-  try { return readAdminSettingsValue(JSON.parse(localStorage.getItem(adminSettingsLocalKey) || "null")); }
-  catch (_) { return defaultAdminCategorySettings(); }
-}
-function writeLocalAdminSettings(settings) {
-  try { localStorage.setItem(adminSettingsLocalKey, JSON.stringify(cloneAdminCategorySettings(settings))); } catch (_) {}
-}
 function readSiloPrefsValue(value) {
   if (!value) return null;
   try { return Object.assign(defaultPrefs(), JSON.parse(value)); }
@@ -447,32 +452,33 @@ async function savePluginSettingValue(key, value) {
   values[key] = value;
   await corePutNoContent("/api/v1/settings/plugins/" + encodeURIComponent(pluginInstallationID), { values: values });
 }
-function writeLocalPrefs() {
-  try { localStorage.setItem(prefsKey, JSON.stringify(state.app.preferences)); } catch (_) {}
+function syncRuntimePreferences() {
+  if (!state.app || !state.app.preferences) return;
+  postJSON("/dispatcharr/api/preferences", state.app.preferences).catch(function() {});
 }
 function savePrefs(options) {
   if (!state.app || !state.app.preferences) return;
   options = options || {};
-  writeLocalPrefs();
   if (pluginInstallationID) {
     state.profileSaveStatus = "saving";
     state.profileSaveMessage = "";
     savePluginSettingValue("preferences", JSON.stringify(state.app.preferences)).then(function() {
       state.profileSaveStatus = "saved";
       state.profileSaveMessage = "Saved to your Silo profile.";
+      syncRuntimePreferences();
       if (state.view === "settings") renderSettings();
     }).catch(function(error) {
       state.profileSaveStatus = "error";
-      state.profileSaveMessage = "Saved on this device, but not to your Silo profile.";
+      state.profileSaveMessage = "Could not save to your Silo profile.";
       if (!options.quiet) showAppToast(state.profileSaveMessage);
       if (state.view === "settings") renderSettings();
       try { console.warn("Dispatcharr profile preference save failed", error); } catch (_) {}
     });
   } else {
-    state.profileSaveStatus = "local";
-    state.profileSaveMessage = "Saved on this device, but not to your Silo profile.";
+    state.profileSaveStatus = "error";
+    state.profileSaveMessage = "Could not save to your Silo profile.";
+    if (!options.quiet) showAppToast(state.profileSaveMessage);
   }
-  postJSON("/dispatcharr/api/preferences", state.app.preferences).catch(function() {});
 }
 function saveAdminCategorySettings() {
   state.adminCategorySettings = Object.assign(defaultAdminCategorySettings(), state.adminCategorySettings || {});
@@ -485,7 +491,6 @@ function saveAdminCategorySettings() {
     normalizeAdminCategorySettings();
   }).then(function() {
     state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
-    writeLocalAdminSettings(state.adminCategorySettings);
     state.adminSaveStatus = "saved";
     state.adminSaveMessage = "Saved group settings.";
     if (state.view === "admin") renderAdminPage();
@@ -666,11 +671,61 @@ function aliasVirtualPathsForSourcePath(sourcePath) {
     return configuredCategoryPath(alias.aliasPath);
   }).filter(Boolean);
 }
+function channelNamePathParts(channel) {
+  return String((channel && channel.name) || "").split("|").map(function(part) {
+    return String(part || "").trim();
+  }).filter(Boolean);
+}
+function normalizedNameToken(value) {
+  return String(value || "").trim().replace(/\s+/g, " ");
+}
+function looksLikeUSStateCode(value) {
+  const code = normalizedNameToken(value).toUpperCase();
+  const states = {
+    AL: true, AK: true, AZ: true, AR: true, CA: true, CO: true, CT: true, DE: true, FL: true, GA: true,
+    HI: true, ID: true, IL: true, IN: true, IA: true, KS: true, KY: true, LA: true, ME: true, MD: true,
+    MA: true, MI: true, MN: true, MS: true, MO: true, MT: true, NE: true, NV: true, NH: true, NJ: true,
+    NM: true, NY: true, NC: true, ND: true, OH: true, OK: true, OR: true, PA: true, RI: true, SC: true,
+    SD: true, TN: true, TX: true, UT: true, VT: true, VA: true, WA: true, WV: true, WI: true, WY: true,
+    DC: true
+  };
+  return states[code] === true;
+}
+function inferredInternationalRoot(channel, parts) {
+  const text = (parts.join(" ") + " " + sourceCategoryLabel(channel || {}) + " " + ((channel && channel.categoryName) || "")).toLowerCase();
+  if (/\b(sport|sports|team|teams|league|football|soccer|futbol|fútbol|mlb|nba|nfl|nhl|mls|f1)\b/.test(text)) return "International Sports";
+  if (/\b(news|noticias|nouvelles)\b/.test(text)) return "International News";
+  if (/\b(kids|children|cartoon|junior)\b/.test(text)) return "International Kids";
+  return "International TV";
+}
+function inferredChannelNameGroupPaths(channel) {
+  if (!useChannelNameVirtualPaths()) return [];
+  const parts = channelNamePathParts(channel).map(normalizedNameToken).filter(Boolean);
+  if (parts.length < 2) return [];
+  const first = parts[0];
+  const second = parts[1];
+  const paths = [];
+  if (looksLikeUSStateCode(first)) {
+    const state = first.toUpperCase();
+    paths.push("US TV / Locals / " + state);
+    if (second) paths.push("US TV / Locals / " + state + " / " + second);
+    return uniqueIDs(paths);
+  }
+  const root = inferredInternationalRoot(channel, parts);
+  paths.push(root + " / " + first);
+  if (second) paths.push(root + " / " + first + " / " + second);
+  return uniqueIDs(paths);
+}
 function virtualPathsForChannel(channel) {
   const paths = [];
   const sourcePath = sourceVirtualPathForChannel(channel);
-  if (sourcePath) paths.push(sourcePath);
-  aliasVirtualPathsForSourcePath(sourcePath).forEach(function(path) { paths.push(path); });
+  if (sourcePath && useSourceGroupVirtualPaths()) {
+    paths.push(sourcePath);
+    aliasVirtualPathsForSourcePath(sourcePath).forEach(function(path) { paths.push(path); });
+  }
+  if (useChannelNameVirtualPaths()) {
+    inferredChannelNameGroupPaths(channel).forEach(function(path) { paths.push(path); });
+  }
   return uniqueIDs(paths);
 }
 function isRewindableChannel(channel) {
@@ -745,7 +800,6 @@ function setChannelFavorite(channelID, enabled) {
   }
   normalizePreferences();
   savePrefs();
-  postJSON("/dispatcharr/api/favorites", { id: id, enabled: !!favoriteMap()[id] }).catch(function() {});
   return !!favoriteMap()[id];
 }
 function channelMatchesQuery(channel) {
@@ -929,6 +983,7 @@ function setView(view) {
     if (state.view === "player") stopCurrentWatch("leave_player");
   }
   if (view !== "multiview" && state.view === "multiview") stopAllMultiview("leave_multiview");
+  if (view !== state.view) state.folderQuery = "";
   state.view = view;
   if (view === "favorites" || view === "onlater") state.category = "";
   if ((view === "search" || view === "onlater") && dvrEnabled()) loadRecordings(false);
@@ -943,6 +998,7 @@ function setView(view) {
   render();
 }
 function setCategory(id) {
+  if ((id || "") !== state.category) state.folderQuery = "";
   state.category = id || "";
   state.view = id ? "live" : "home";
   render();
@@ -950,18 +1006,16 @@ function setCategory(id) {
 async function hydrateApp(payload, options) {
   options = options || {};
   state.app = payload;
-  const localPrefs = readLocalPrefs();
   if (options.localCache) {
-    state.app.preferences = mergePrefs(state.app.preferences, localPrefs);
-    state.adminCategorySettings = readLocalAdminSettings();
+    state.app.preferences = defaultPrefs();
+    state.adminCategorySettings = defaultAdminCategorySettings();
   } else {
     const values = await loadPluginSettingsValues().catch(function() { return null; });
     const siloPrefs = readSiloPrefsValue(values && values.preferences ? values.preferences : "");
-    state.app.preferences = siloPrefs ? mergePrefs(siloPrefs, {}) : mergePrefs(state.app.preferences, localPrefs);
+    state.app.preferences = mergePrefs(siloPrefs || state.app.preferences);
     const savedAdminSettings = values && values[adminSettingsKey] ? readAdminSettingsValue(values[adminSettingsKey]) : null;
-    const localAdminSettings = readLocalAdminSettings();
     state.adminCategorySettings = await loadAdminCategorySettings().catch(function() {
-      return savedAdminSettings || localAdminSettings;
+      return savedAdminSettings || defaultAdminCategorySettings();
     });
   }
   state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
@@ -971,9 +1025,8 @@ async function hydrateApp(payload, options) {
   normalizePreferences();
   normalizeAdminCategorySettings();
   state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
-  writeLocalAdminSettings(state.adminCategorySettings);
   if (!options.localCache) writeLocalAppCache(state.app);
-  if (!isAdminRoute && !options.localCache) savePrefs({ quiet: true });
+  if (!isAdminRoute && !options.localCache) syncRuntimePreferences();
 }
 async function loadApp() {
   const cached = readLocalAppCache();
@@ -2188,10 +2241,43 @@ function setVirtualCategoryView(view) {
   state.virtualCategoryView = view === "list" ? "list" : "guide";
   renderLivePage();
 }
+function folderSearchNeedle() {
+  return lower(String(state.folderQuery || "").trim());
+}
+function channelMatchesFolderQuery(channel) {
+  const query = folderSearchNeedle();
+  if (!query) return true;
+  const current = currentProgram(channel) || {};
+  const next = nextProgram(channel) || {};
+  return lower([
+    channel && channel.name,
+    channel && channel.categoryName,
+    sourceCategoryLabel(channel || {}),
+    channel && channel.number,
+    channel && channel.id,
+    current.title,
+    current.description,
+    next.title,
+    next.description
+  ].join(" ")).indexOf(query) !== -1;
+}
+function categoryMatchesFolderQuery(category) {
+  const query = folderSearchNeedle();
+  if (!query) return true;
+  return lower([
+    category && category.name,
+    category && category.id,
+    category && category.kind
+  ].join(" ")).indexOf(query) !== -1;
+}
+function folderFilterHTML(placeholder) {
+  return "<div class=\"folder-filter\"><input id=\"folder-filter\" class=\"search\" type=\"search\" placeholder=\"" + escapeHTML(placeholder || "Filter visible channels") + "\" value=\"" + escapeHTML(state.folderQuery || "") + "\" autocomplete=\"off\"></div>";
+}
 function renderLivePage() {
   const channels = visibleChannels(false);
   if (state.view === "favorites") {
-    byId("view").innerHTML = sectionHeader("Favorite channels") + favoriteCards(channels.slice(0, 60));
+    const filtered = channels.filter(channelMatchesFolderQuery);
+    byId("view").innerHTML = sectionHeader("Favorite channels") + folderFilterHTML("Filter favorites") + favoriteCards(filtered.slice(0, 60));
     return;
   }
   if (state.category.indexOf("virtual:") === 0 || state.category.indexOf("featured:") === 0) {
@@ -2201,14 +2287,18 @@ function renderLivePage() {
     const children = (featured ? featuredChildCategories : virtualChildCategories)(path, function(channel) {
       return !(channel.categoryId && hidden[channel.categoryId]);
     });
+    const filteredChildren = children.filter(categoryMatchesFolderQuery);
+    const filteredChannels = channels.filter(channelMatchesFolderQuery);
     byId("view").innerHTML = virtualFolderHeader(path, featured)
-      + (children.length ? "<div class=\"category-grid\">" + children.map(categoryTileHTML).join("") + "</div>" : "")
-      + renderVirtualCategoryContent(channels);
-    maybeWarmGuideForChannels(channels, state.category);
+      + folderFilterHTML("Filter this folder")
+      + (filteredChildren.length ? "<div class=\"category-grid\">" + filteredChildren.map(categoryTileHTML).join("") + "</div>" : "")
+      + renderVirtualCategoryContent(filteredChannels);
+    maybeWarmGuideForChannels(filteredChannels, state.category);
     return;
   }
-  byId("view").innerHTML = categoryGrid() + sectionHeader(categoryName(state.category) || "Channels") + rowCards(channels.slice(0, 24));
-  if (state.category) maybeWarmGuideForChannels(channels, state.category);
+  const filteredChannels = channels.filter(channelMatchesFolderQuery);
+  byId("view").innerHTML = categoryGrid() + sectionHeader(categoryName(state.category) || "Channels") + folderFilterHTML("Filter visible channels") + rowCards(filteredChannels.slice(0, 24));
+  if (state.category) maybeWarmGuideForChannels(filteredChannels, state.category);
 }
 function recordingCustom(recording) {
   return recording && recording.custom_properties && typeof recording.custom_properties === "object" ? recording.custom_properties : {};
@@ -2850,7 +2940,7 @@ function adminSaveStatusHTML() {
 }
 function updateCategoryParsingField(field, target) {
   const settings = state.adminCategorySettings || defaultAdminCategorySettings();
-  settings[field] = target.value;
+  settings[field] = target.type === "checkbox" ? !!target.checked : target.value;
   if (!settings.delimiter) settings.delimiter = "pipe";
   state.adminCategorySettings = settings;
   if (state.category.indexOf("virtual:") === 0 && !categoryName(state.category)) state.category = "";
@@ -2986,6 +3076,7 @@ function renderAdminCategorySettings() {
   root.innerHTML = adminSaveStatusHTML()
     + "<div class=\"settings-row\"><span>Mode</span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Normal</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">By delimiter</option></select></div>"
     + nested
+    + "<div class=\"settings-row\"><span><strong>Virtual group source</strong><small>Choose whether virtual groups come from Dispatcharr groups, channel names, or both. Channel pipe reads structured names like NY | New York City | FOX 5.</small></span><select data-admin-category-field=\"virtualGroupSource\"><option value=\"group\"" + (virtualGroupSourceMode() === "group" ? " selected" : "") + ">Group pipe</option><option value=\"group_channel\"" + (virtualGroupSourceMode() === "group_channel" ? " selected" : "") + ">Group pipe + channel pipe</option><option value=\"channel\"" + (virtualGroupSourceMode() === "channel" ? " selected" : "") + ">Channel pipe</option></select></div>"
     + (settings.mode === "normal" ? "<div class=\"settings-note\">Channel groups are shown as provided, without remapping or resorting.</div>" : "")
     + (settings.mode === "delimiter" ? "<div class=\"settings-note\">Channel group names are split into virtual groups using the selected delimiter.</div>" : "");
 }
@@ -3971,7 +4062,6 @@ document.addEventListener("change", function(event) {
   if (event.target.checked) state.app.preferences.hiddenCategories[id] = true;
   else delete state.app.preferences.hiddenCategories[id];
   savePrefs();
-  postJSON("/dispatcharr/api/hidden-categories", { id: id, hidden: event.target.checked }).catch(function() {});
   render();
 });
 document.addEventListener("input", function(event) {
@@ -3989,6 +4079,16 @@ document.addEventListener("input", function(event) {
     state.playerGuideQuery = event.target.value || "";
     renderPlayerGuidePanel();
     const input = byId("player-guide-search");
+    if (input) {
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+    return;
+  }
+  if (event.target && event.target.id === "folder-filter") {
+    state.folderQuery = event.target.value || "";
+    renderLivePage();
+    const input = byId("folder-filter");
     if (input) {
       input.focus();
       input.setSelectionRange(input.value.length, input.value.length);
