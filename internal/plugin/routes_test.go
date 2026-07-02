@@ -198,6 +198,12 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`recentSearches: []`,
 		`function renderSearchPage()`,
 		`function renderSearchResults(query)`,
+		`const SEARCH_RESULTS_DELAY_MS = 180;`,
+		`function updateSearchPageResults()`,
+		`function scheduleSearchResultsUpdate()`,
+		`function refreshGuideRowsForQuery()`,
+		`function updateLiveSearchFilter()`,
+		`id=\"search-page-results\"`,
 		`function renderOnLaterPage()`,
 		`function groupedUpcomingAirings(programs, query)`,
 		`function programIsGuidePlaceholder(program)`,
@@ -522,6 +528,7 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 					{"id": "channel:world-cup-replay", "name": "World Cup Replay", "categoryId": "cat:world-cup-replays", "categoryName": "World Cup Replays"},
 					{"id": "channel:ny-local", "name": "NY | New York City | FOX 5 WNYW", "categoryId": "cat:us-tv", "categoryName": "US TV"},
 					{"id": "channel:argentina-city", "name": "Argentina | Buenos Aires | Sports 1", "categoryId": "cat:intl-sports", "categoryName": "International Sports"},
+					{"id": "channel:us-sports-mlb", "name": "MLB Teams Network", "categoryId": "cat:us-sports-mlb", "categoryName": "US | Sports | MLB Teams"},
 				},
 				"categories": []map[string]any{
 					{"id": "cat:world-cup", "name": "* World Cup"},
@@ -530,6 +537,7 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 					{"id": "cat:world-cup-replays", "name": "World Cup Replays"},
 					{"id": "cat:us-tv", "name": "US TV"},
 					{"id": "cat:intl-sports", "name": "International Sports"},
+					{"id": "cat:us-sports-mlb", "name": "US | Sports | MLB Teams"},
 				},
 			},
 			"adminCategorySettings": map[string]any{
@@ -540,6 +548,7 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 				"categoryAliases": []map[string]any{
 					{"sourcePath": "International | Argentina | Sports", "aliasPath": "Sports | Argentina"},
 					{"sourcePath": "International | Argentina | Sports", "aliasPath": "World Cup | Argentina"},
+					{"sourcePath": "US | Sports", "aliasPath": "Sports | US"},
 				},
 			},
 		},
@@ -554,6 +563,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	}
 	if result.SourceCount != 1 || result.AliasCount != 1 || result.SecondAliasCount != 1 {
 		t.Fatalf("expected source and alias counts to point at the same channel: %+v", result)
+	}
+	if !result.PrefixAliasPath || result.PrefixAliasCount != 1 {
+		t.Fatalf("expected prefix alias subtree to include one channel: %+v", result)
 	}
 	if !result.InferredLocalGroup || !result.InferredLocalCityGroup || !result.InferredCountryGroup || !result.InferredCountryCityGroup {
 		t.Fatalf("expected channel-name inference to add local and international city/country virtual groups: %+v", result)
@@ -671,9 +683,11 @@ type virtualAliasResult struct {
 	SourcePath               bool   `json:"sourcePath"`
 	AliasPath                bool   `json:"aliasPath"`
 	SecondAliasPath          bool   `json:"secondAliasPath"`
+	PrefixAliasPath          bool   `json:"prefixAliasPath"`
 	SourceCount              int    `json:"sourceCount"`
 	AliasCount               int    `json:"aliasCount"`
 	SecondAliasCount         int    `json:"secondAliasCount"`
+	PrefixAliasCount         int    `json:"prefixAliasCount"`
 	InferredLocalGroup       bool   `json:"inferredLocalGroup"`
 	InferredLocalCityGroup   bool   `json:"inferredLocalCityGroup"`
 	InferredCountryGroup     bool   `json:"inferredCountryGroup"`
@@ -788,6 +802,7 @@ JSON.stringify((function() {
   const source = all.find(function(item) { return item.name === "International / Argentina / Sports"; });
   const alias = all.find(function(item) { return item.name === "Sports / Argentina"; });
   const secondAlias = all.find(function(item) { return item.name === "World Cup / Argentina"; });
+  const prefixAlias = all.find(function(item) { return item.name === "Sports / US / MLB Teams"; });
   const channelsInSource = effectiveChannels(false).filter(function(channel) {
     return virtualPathsForChannel(channel).indexOf("International / Argentina / Sports") !== -1;
   });
@@ -796,6 +811,9 @@ JSON.stringify((function() {
   });
   const channelsInSecondAlias = effectiveChannels(false).filter(function(channel) {
     return virtualPathsForChannel(channel).indexOf("World Cup / Argentina") !== -1;
+  });
+  const channelsInPrefixAlias = effectiveChannels(false).filter(function(channel) {
+    return virtualPathsForChannel(channel).indexOf("Sports / US / MLB Teams") !== -1;
   });
   const nyLocal = channelByID("channel:ny-local");
   const argentinaCity = channelByID("channel:argentina-city");
@@ -849,9 +867,11 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     sourcePath: !!source,
     aliasPath: !!alias,
     secondAliasPath: !!secondAlias,
+    prefixAliasPath: !!prefixAlias,
     sourceCount: channelsInSource.length,
     aliasCount: channelsInAlias.length,
     secondAliasCount: channelsInSecondAlias.length,
+    prefixAliasCount: channelsInPrefixAlias.length,
     inferredLocalGroup: nyPaths.indexOf("US TV / Locals / NY") !== -1,
     inferredLocalCityGroup: nyPaths.indexOf("US TV / Locals / NY / New York City") !== -1,
     inferredCountryGroup: argentinaPaths.indexOf("International Sports / Argentina") !== -1,
