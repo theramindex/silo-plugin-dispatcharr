@@ -112,6 +112,21 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	if enabled, ok := payload["allowRecordingsByDefault"].(bool); ok {
 		allowRecordingsByDefault = enabled
 	}
+	inferChannelNameGroups := false
+	if enabled, ok := payload["inferChannelNameGroups"].(bool); ok {
+		inferChannelNameGroups = enabled
+	}
+	virtualGroupSource := strings.TrimSpace(asStringValue(payload["virtualGroupSource"]))
+	switch virtualGroupSource {
+	case "group", "group_channel", "channel":
+	default:
+		if inferChannelNameGroups {
+			virtualGroupSource = "group_channel"
+		} else {
+			virtualGroupSource = "group"
+		}
+	}
+	inferChannelNameGroups = virtualGroupSource != "group"
 	ecmURL, _ := payload["ecmURL"].(string)
 	ecmURL = normalizeAdminECMURL(ecmURL)
 	categoryRenames := normalizeCategoryRenames(payload["categoryRenames"])
@@ -125,9 +140,11 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 		"mode":                     mode,
 		"delimiter":                delimiter,
 		"virtualGroupLabel":        virtualGroupLabel,
+		"virtualGroupSource":       virtualGroupSource,
 		"ecmEnabled":               ecmEnabled,
 		"ecmURL":                   ecmURL,
 		"allowRecordingsByDefault": allowRecordingsByDefault,
+		"inferChannelNameGroups":   inferChannelNameGroups,
 		"categoryRenames":          categoryRenames,
 		"categoryAliases":          categoryAliases,
 		"eventKeywords":            eventKeywords,

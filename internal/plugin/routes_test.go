@@ -183,11 +183,10 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`function allGroupLabel()`,
 		`data-admin-category-field=\"virtualGroupLabel\"`,
 		`const showSourceCategorySettings = !virtualCategoriesActive()`,
-		`Saved on this device, but not to your Silo profile.`,
 		`aria-label="Live TV sections"`,
 		`<span>Guide</span>`,
 		`<span>On Later</span>`,
-		`<span>My Stuff</span>`,
+		`My Stuff <small id="favorite-count">0</small>`,
 		`<span>Sports</span>`,
 		`<span>Events</span>`,
 		`id="settings-menu-button"`,
@@ -196,7 +195,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`id="sports-topbar-tabs"`,
 		`id="app-search-button"`,
 		`data-view="search"`,
-		`const searchHistoryKey = "silo.ramindex.dispatcharr.searchHistory.v1"`,
+		`recentSearches: []`,
 		`function renderSearchPage()`,
 		`function renderSearchResults(query)`,
 		`function renderOnLaterPage()`,
@@ -204,6 +203,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`function programIsGuidePlaceholder(program)`,
 		`no games? today`,
 		`function rememberSearch(value)`,
+		`function folderFilterHTML(placeholder)`,
+		`id=\"folder-filter\"`,
 		`onLaterType`,
 		`data-search-recent=`,
 		`data-search-type=`,
@@ -324,19 +325,23 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		t.Fatalf("expected home page order to be continue watching, favorites, guide grid, then group sections")
 	}
 	virtualHeaderIndex := strings.Index(body, `byId("view").innerHTML = virtualFolderHeader(path, featured)`)
-	virtualChildrenIndex := strings.Index(body, `+ (children.length ? "<div class=\"category-grid\">`)
-	virtualContentIndex := strings.Index(body, `+ renderVirtualCategoryContent(channels)`)
-	if virtualHeaderIndex < 0 || virtualChildrenIndex < 0 || virtualContentIndex < 0 {
-		t.Fatalf("expected virtual category drilldown to render breadcrumbs, subfolders, and switchable channel content")
+	virtualFilterIndex := strings.Index(body, `+ folderFilterHTML("Filter this folder")`)
+	virtualChildrenIndex := strings.Index(body, `+ (filteredChildren.length ? "<div class=\"category-grid\">`)
+	virtualContentIndex := strings.Index(body, `+ renderVirtualCategoryContent(filteredChannels)`)
+	if virtualHeaderIndex < 0 || virtualFilterIndex < 0 || virtualChildrenIndex < 0 || virtualContentIndex < 0 {
+		t.Fatalf("expected virtual category drilldown to render breadcrumbs, filter, subfolders, and switchable channel content")
 	}
-	if !(virtualHeaderIndex < virtualChildrenIndex && virtualChildrenIndex < virtualContentIndex) {
-		t.Fatalf("expected virtual category drilldown order to be breadcrumbs, subfolders, then channel content")
+	if !(virtualHeaderIndex < virtualFilterIndex && virtualFilterIndex < virtualChildrenIndex && virtualChildrenIndex < virtualContentIndex) {
+		t.Fatalf("expected virtual category drilldown order to be breadcrumbs, filter, subfolders, then channel content")
 	}
 	if strings.Contains(body, `+ (children.length ? sectionHeader("Virtual Groups")`) || strings.Contains(body, `+ (children.length ? sectionHeader("Virtual Categories")`) {
 		t.Fatalf("expected virtual child groups to render without a duplicate section heading")
 	}
-	if strings.Contains(body, "Saved on this device. Silo profile sync is unavailable here.") {
-		t.Fatalf("expected local-only profile save message to use the standard warning")
+	if strings.Contains(body, "Saved on this device") {
+		t.Fatalf("expected profile preferences not to expose local-only save copy")
+	}
+	if strings.Contains(body, `postJSON("/dispatcharr/api/favorites"`) || strings.Contains(body, `postJSON("/dispatcharr/api/hidden-categories"`) {
+		t.Fatalf("expected user preference changes to persist through Silo profile preferences")
 	}
 	if strings.Contains(body, `data-title=\"" + escapeHTML(programTitle) + "\"`) {
 		t.Fatalf("expected guide program cells not to expose hover title popups")
@@ -412,8 +417,17 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`function renderAdminCategoryAliasSettings()`,
 		`function renderAdminECMSettings()`,
 		`function adminECMURL()`,
+		`virtualGroupSource: "group"`,
 		`ecmEnabled: false`,
+		`inferChannelNameGroups: false`,
+		`state.adminCategorySettings.virtualGroupSource = normalizeVirtualGroupSource(state.adminCategorySettings.virtualGroupSource, state.adminCategorySettings.inferChannelNameGroups === true)`,
 		`state.adminCategorySettings.ecmEnabled = state.adminCategorySettings.ecmEnabled === true`,
+		`state.adminCategorySettings.inferChannelNameGroups = state.adminCategorySettings.virtualGroupSource !== "group"`,
+		`function virtualGroupSourceMode()`,
+		`function inferredChannelNameGroupPaths(channel)`,
+		`data-admin-category-field=\"virtualGroupSource\"`,
+		`Group pipe + channel pipe`,
+		`Channel pipe`,
 		`return adminSettings().ecmEnabled === true && !!adminECMURL();`,
 		`Group method`,
 		`virtual-label-control`,
@@ -506,17 +520,23 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 					{"id": "channel:admin-favorites", "name": "Admin Favorite", "categoryId": "cat:admin-favorites", "categoryName": "* Admin Favorites"},
 					{"id": "channel:argentina-sports", "name": "Argentina Sports", "categoryId": "cat:argentina-sports", "categoryName": "* International | Argentina | Sports"},
 					{"id": "channel:world-cup-replay", "name": "World Cup Replay", "categoryId": "cat:world-cup-replays", "categoryName": "World Cup Replays"},
+					{"id": "channel:ny-local", "name": "NY | New York City | FOX 5 WNYW", "categoryId": "cat:us-tv", "categoryName": "US TV"},
+					{"id": "channel:argentina-city", "name": "Argentina | Buenos Aires | Sports 1", "categoryId": "cat:intl-sports", "categoryName": "International Sports"},
 				},
 				"categories": []map[string]any{
 					{"id": "cat:world-cup", "name": "* World Cup"},
 					{"id": "cat:admin-favorites", "name": "* Admin Favorites"},
 					{"id": "cat:argentina-sports", "name": "* International | Argentina | Sports"},
 					{"id": "cat:world-cup-replays", "name": "World Cup Replays"},
+					{"id": "cat:us-tv", "name": "US TV"},
+					{"id": "cat:intl-sports", "name": "International Sports"},
 				},
 			},
 			"adminCategorySettings": map[string]any{
-				"mode":      "delimiter",
-				"delimiter": "pipe",
+				"mode":                   "delimiter",
+				"delimiter":              "pipe",
+				"virtualGroupSource":     "group_channel",
+				"inferChannelNameGroups": true,
 				"categoryAliases": []map[string]any{
 					{"sourcePath": "International | Argentina | Sports", "aliasPath": "Sports | Argentina"},
 					{"sourcePath": "International | Argentina | Sports", "aliasPath": "World Cup | Argentina"},
@@ -534,6 +554,12 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	}
 	if result.SourceCount != 1 || result.AliasCount != 1 || result.SecondAliasCount != 1 {
 		t.Fatalf("expected source and alias counts to point at the same channel: %+v", result)
+	}
+	if !result.InferredLocalGroup || !result.InferredLocalCityGroup || !result.InferredCountryGroup || !result.InferredCountryCityGroup {
+		t.Fatalf("expected channel-name inference to add local and international city/country virtual groups: %+v", result)
+	}
+	if !result.ChannelOnlySourceHidden || !result.ChannelOnlyInferredShown {
+		t.Fatalf("expected channel-pipe source mode to hide source group paths while preserving channel-name groups: %+v", result)
 	}
 	if result.ObjectParsedMode != "delimiter" {
 		t.Fatalf("expected admin settings JSON object to preserve mode: %+v", result)
@@ -633,12 +659,11 @@ func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
 	}
 	helperBody := body[helperIndex:]
 	saveIndex := strings.Index(helperBody, `savePrefs();`)
-	cacheIndex := strings.Index(helperBody, `postJSON("/dispatcharr/api/favorites"`)
-	if saveIndex == -1 || cacheIndex == -1 {
-		t.Fatalf("expected channel favorite helper to save Silo profile preferences and sync plugin cache")
+	if saveIndex == -1 {
+		t.Fatalf("expected channel favorite helper to save Silo profile preferences")
 	}
-	if saveIndex > cacheIndex {
-		t.Fatalf("expected channel favorite helper to save Silo profile preferences before syncing plugin cache")
+	if strings.Contains(helperBody[:strings.Index(helperBody, `function channelMatchesQuery(channel)`)], `postJSON("/dispatcharr/api/favorites"`) {
+		t.Fatalf("expected channel favorite helper not to use the local plugin favorite cache endpoint")
 	}
 }
 
@@ -649,6 +674,12 @@ type virtualAliasResult struct {
 	SourceCount              int    `json:"sourceCount"`
 	AliasCount               int    `json:"aliasCount"`
 	SecondAliasCount         int    `json:"secondAliasCount"`
+	InferredLocalGroup       bool   `json:"inferredLocalGroup"`
+	InferredLocalCityGroup   bool   `json:"inferredLocalCityGroup"`
+	InferredCountryGroup     bool   `json:"inferredCountryGroup"`
+	InferredCountryCityGroup bool   `json:"inferredCountryCityGroup"`
+	ChannelOnlySourceHidden  bool   `json:"channelOnlySourceHidden"`
+	ChannelOnlyInferredShown bool   `json:"channelOnlyInferredShown"`
 	ObjectParsedMode         string `json:"objectParsedMode"`
 	StringParsedMode         string `json:"stringParsedMode"`
 	FeaturedSection          bool   `json:"featuredSection"`
@@ -766,6 +797,17 @@ JSON.stringify((function() {
   const channelsInSecondAlias = effectiveChannels(false).filter(function(channel) {
     return virtualPathsForChannel(channel).indexOf("World Cup / Argentina") !== -1;
   });
+  const nyLocal = channelByID("channel:ny-local");
+  const argentinaCity = channelByID("channel:argentina-city");
+  const nyPaths = virtualPathsForChannel(nyLocal);
+  const argentinaPaths = virtualPathsForChannel(argentinaCity);
+  state.adminCategorySettings.virtualGroupSource = "channel";
+  normalizeAdminCategorySettings();
+  const channelOnlyArgentinaPaths = virtualPathsForChannel(argentinaCity);
+  const channelOnlySourceHidden = channelOnlyArgentinaPaths.indexOf("International Sports") === -1;
+  const channelOnlyInferredShown = channelOnlyArgentinaPaths.indexOf("International Sports / Argentina") !== -1;
+  state.adminCategorySettings.virtualGroupSource = "group_channel";
+  normalizeAdminCategorySettings();
   const grid = categoryGrid();
   state.adminCategorySettings.virtualGroupLabel = "Things";
   const renamedGrid = categoryGrid();
@@ -810,6 +852,12 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     sourceCount: channelsInSource.length,
     aliasCount: channelsInAlias.length,
     secondAliasCount: channelsInSecondAlias.length,
+    inferredLocalGroup: nyPaths.indexOf("US TV / Locals / NY") !== -1,
+    inferredLocalCityGroup: nyPaths.indexOf("US TV / Locals / NY / New York City") !== -1,
+    inferredCountryGroup: argentinaPaths.indexOf("International Sports / Argentina") !== -1,
+    inferredCountryCityGroup: argentinaPaths.indexOf("International Sports / Argentina / Buenos Aires") !== -1,
+    channelOnlySourceHidden: channelOnlySourceHidden,
+    channelOnlyInferredShown: channelOnlyInferredShown,
     objectParsedMode: readAdminSettingsValue({ mode: "delimiter", delimiter: "pipe" }).mode,
     stringParsedMode: readAdminSettingsValue(JSON.stringify({ mode: "delimiter", delimiter: "pipe" })).mode,
     featuredSection: grid.indexOf(">Featured Groups<") !== -1,
@@ -1412,7 +1460,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 		Method:  "POST",
 		Path:    "/dispatcharr/api/admin-settings",
 		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
-		Body:    []byte(`{"mode":"delimiter","delimiter":"pipe","virtualGroupLabel":" Virtual Categories ","allowRecordingsByDefault":false,"categoryRenames":[{"sourcePath":" International | Arabic | Sports ","displayName":" International Sports "},{"sourcePath":"International | Arabic | Sports","displayName":"Duplicate Ignored"},{"sourcePath":"","displayName":"Nowhere"},{"sourcePath":"International | TV","displayName":""}],"categoryAliases":[{"sourcePath":" International | Arabic | Sports ","aliasPath":" Sports | Arabic "},{"sourcePath":"International | Arabic | Sports","aliasPath":"Sports | Arabic"},{"sourcePath":"International | Arabic | Sports","aliasPath":"World Cup | Arabic"},{"sourcePath":"","aliasPath":"Nowhere"},{"sourcePath":"International | Arabic | Sports","aliasPath":""}]}`),
+		Body:    []byte(`{"mode":"delimiter","delimiter":"pipe","virtualGroupLabel":" Virtual Categories ","virtualGroupSource":"channel","allowRecordingsByDefault":false,"inferChannelNameGroups":true,"categoryRenames":[{"sourcePath":" International | Arabic | Sports ","displayName":" International Sports "},{"sourcePath":"International | Arabic | Sports","displayName":"Duplicate Ignored"},{"sourcePath":"","displayName":"Nowhere"},{"sourcePath":"International | TV","displayName":""}],"categoryAliases":[{"sourcePath":" International | Arabic | Sports ","aliasPath":" Sports | Arabic "},{"sourcePath":"International | Arabic | Sports","aliasPath":"Sports | Arabic"},{"sourcePath":"International | Arabic | Sports","aliasPath":"World Cup | Arabic"},{"sourcePath":"","aliasPath":"Nowhere"},{"sourcePath":"International | Arabic | Sports","aliasPath":""}]}`),
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
@@ -1439,8 +1487,14 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	if payload["virtualGroupLabel"] != "Virtual Categories" {
 		t.Fatalf("expected virtual group label to persist: %+v", payload)
 	}
+	if payload["virtualGroupSource"] != "channel" {
+		t.Fatalf("expected virtual group source to persist: %+v", payload)
+	}
 	if payload["allowRecordingsByDefault"] != false {
 		t.Fatalf("expected admin recording default to persist: %+v", payload)
+	}
+	if payload["inferChannelNameGroups"] != true {
+		t.Fatalf("expected channel-name group inference flag to persist: %+v", payload)
 	}
 	renames, ok := payload["categoryRenames"].([]any)
 	if !ok || len(renames) != 1 {
@@ -1468,8 +1522,14 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	if persisted["virtualGroupLabel"] != "Virtual Categories" {
 		t.Fatalf("expected virtual group label to write through to host config: %+v", persisted)
 	}
+	if persisted["virtualGroupSource"] != "channel" {
+		t.Fatalf("expected virtual group source to write through to host config: %+v", persisted)
+	}
 	if persisted["allowRecordingsByDefault"] != false {
 		t.Fatalf("expected admin recording default to write through to host config: %+v", persisted)
+	}
+	if persisted["inferChannelNameGroups"] != true {
+		t.Fatalf("expected channel-name group inference flag to write through to host config: %+v", persisted)
 	}
 	persistedRenames, ok := persisted["categoryRenames"].([]map[string]string)
 	if !ok || len(persistedRenames) != 1 {

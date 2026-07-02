@@ -182,7 +182,7 @@ func TestUserConfigSchema_DeclaresAdminCategorySettingsShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected admin category settings schema properties, got %q", adminSettings.GetJsonSchema())
 	}
-	for _, key := range []string{"mode", "delimiter", "virtualGroupLabel", "ecmEnabled", "ecmURL", "allowRecordingsByDefault", "categoryRenames", "categoryAliases"} {
+	for _, key := range []string{"mode", "delimiter", "virtualGroupLabel", "virtualGroupSource", "ecmEnabled", "ecmURL", "allowRecordingsByDefault", "inferChannelNameGroups", "categoryRenames", "categoryAliases"} {
 		if _, ok := properties[key]; !ok {
 			t.Fatalf("expected admin category settings schema to declare %q", key)
 		}
