@@ -271,8 +271,8 @@ func (c *Client) postRawWithRetry(ctx context.Context, endpoint string, body []b
 		return nil, fmt.Errorf("execute request: %w", err)
 	}
 	defer response.Body.Close()
-	if allowRefresh && response.StatusCode == http.StatusUnauthorized && c.refresh != "" {
-		if err := c.refreshToken(ctx); err == nil {
+	if allowRefresh && response.StatusCode == http.StatusUnauthorized && c.canRecoverAuth() {
+		if err := c.recoverAuth(ctx); err == nil {
 			return c.postRawWithRetry(ctx, endpoint, body, false)
 		}
 	}
@@ -296,8 +296,8 @@ func (c *Client) getRawWithRetry(ctx context.Context, endpoint string, allowRefr
 		return nil, fmt.Errorf("execute request: %w", err)
 	}
 	defer response.Body.Close()
-	if allowRefresh && response.StatusCode == http.StatusUnauthorized && c.refresh != "" {
-		if err := c.refreshToken(ctx); err == nil {
+	if allowRefresh && response.StatusCode == http.StatusUnauthorized && c.canRecoverAuth() {
+		if err := c.recoverAuth(ctx); err == nil {
 			return c.getRawWithRetry(ctx, endpoint, false)
 		}
 	}
@@ -381,15 +381,40 @@ func (c *Client) refreshToken(ctx context.Context) error {
 		return fmt.Errorf("dispatcharr refresh status %d: %s", response.StatusCode, responseSnippet(response.Body))
 	}
 	var token struct {
-		Access string `json:"access"`
+		Access  string `json:"access"`
+		Refresh string `json:"refresh"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&token); err != nil {
 		return err
 	}
 	c.mu.Lock()
 	c.access = token.Access
+	if token.Refresh != "" {
+		c.refresh = token.Refresh
+	}
 	c.mu.Unlock()
 	return nil
+}
+
+func (c *Client) canRecoverAuth() bool {
+	if strings.TrimSpace(c.apiKey) != "" {
+		return false
+	}
+	c.mu.Lock()
+	refresh := c.refresh
+	c.mu.Unlock()
+	return refresh != "" || (strings.TrimSpace(c.username) != "" && strings.TrimSpace(c.password) != "")
+}
+
+func (c *Client) recoverAuth(ctx context.Context) error {
+	if c.refreshToken(ctx) == nil {
+		return nil
+	}
+	c.mu.Lock()
+	c.access = ""
+	c.refresh = ""
+	c.mu.Unlock()
+	return c.login(ctx)
 }
 
 func responseSnippet(reader io.Reader) string {
