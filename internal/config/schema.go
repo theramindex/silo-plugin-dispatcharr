@@ -136,6 +136,15 @@ const categorySettingsJSONSchema = `{
       "type": "boolean",
       "default": true
     },
+    "virtualGroupSource": {
+      "type": "string",
+      "enum": ["group", "group_channel", "channel"],
+      "default": "group"
+    },
+    "inferChannelNameGroups": {
+      "type": "boolean",
+      "default": false
+    },
     "categoryRenames": {
       "type": "array",
       "items": {
