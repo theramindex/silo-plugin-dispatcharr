@@ -665,11 +665,23 @@ function configuredCategoryPath(value) {
   return slashParts.length > 1 ? slashParts.join(" / ") : "";
 }
 function aliasVirtualPathsForSourcePath(sourcePath) {
-  return categoryAliases().filter(function(alias) {
-    return configuredCategoryPath(alias.sourcePath) === sourcePath;
-  }).map(function(alias) {
-    return configuredCategoryPath(alias.aliasPath);
-  }).filter(Boolean);
+  const normalizedSourcePath = configuredCategoryPath(sourcePath) || String(sourcePath || "").trim();
+  if (!normalizedSourcePath) return [];
+  const paths = [];
+  const seen = {};
+  categoryAliases().forEach(function(alias) {
+    const fromPath = configuredCategoryPath(alias.sourcePath);
+    const toPath = configuredCategoryPath(alias.aliasPath);
+    if (!fromPath || !toPath) return;
+    if (normalizedSourcePath !== fromPath && normalizedSourcePath.indexOf(fromPath + " / ") !== 0) return;
+    const suffix = normalizedSourcePath === fromPath ? "" : normalizedSourcePath.slice(fromPath.length + 3);
+    const remappedPath = suffix ? toPath + " / " + suffix : toPath;
+    if (!seen[remappedPath]) {
+      seen[remappedPath] = true;
+      paths.push(remappedPath);
+    }
+  });
+  return paths;
 }
 function channelNamePathParts(channel) {
   return String((channel && channel.name) || "").split("|").map(function(part) {
@@ -737,7 +749,10 @@ function virtualPathsForChannel(channel) {
     aliasVirtualPathsForSourcePath(sourcePath).forEach(function(path) { paths.push(path); });
     if (virtualGroupSourceMode() === "group_channel") {
       const combinedPath = appendUnduplicatedPathParts(sourcePath, channelNameFolderPathParts(channel));
-      if (combinedPath) paths.push(combinedPath);
+      if (combinedPath) {
+        paths.push(combinedPath);
+        aliasVirtualPathsForSourcePath(combinedPath).forEach(function(path) { paths.push(path); });
+      }
     }
   }
   if (useChannelNameVirtualPaths()) {
@@ -1533,6 +1548,41 @@ function renderSearchResults(query) {
     return sectionHeader(section.title) + "<div class=\"search-result-list\">" + section.rows.map(renderSearchResultRow).join("") + "</div>";
   }).join("") + "</div>";
 }
+const SEARCH_RESULTS_DELAY_MS = 180;
+let searchResultsTimer = null;
+function clearSearchResultsTimer() {
+  if (!searchResultsTimer) return;
+  clearTimeout(searchResultsTimer);
+  searchResultsTimer = null;
+}
+function renderSearchPageResults() {
+  return searchNeedle() ? renderSearchResults(searchNeedle()) : renderSearchStart();
+}
+function updateSearchPageResults() {
+  const root = byId("search-page-results");
+  if (!root) {
+    renderSearchPage();
+    return;
+  }
+  root.innerHTML = renderSearchPageResults();
+}
+function scheduleSearchResultsUpdate() {
+  clearSearchResultsTimer();
+  searchResultsTimer = setTimeout(function() {
+    searchResultsTimer = null;
+    if (state.view === "search") updateSearchPageResults();
+  }, SEARCH_RESULTS_DELAY_MS);
+}
+function refreshGuideRowsForQuery() {
+  if (state.view !== "guide" || !byId("epg")) return false;
+  resetGuideRows();
+  renderEPG();
+  return true;
+}
+function updateLiveSearchFilter() {
+  if (refreshGuideRowsForQuery()) return;
+  render();
+}
 function renderSearchStart() {
   const recent = items(state.recentSearches);
   const recentHTML = recent.length ? sectionHeaderWithActions("Recent searches", "<button class=\"search-clear\" type=\"button\" data-search-clear=\"true\">Clear All</button>") + "<div class=\"search-chip-row\">" + recent.map(function(value) {
@@ -1565,7 +1615,7 @@ function renderSearchPage() {
   const filterHTML = "<div class=\"search-chip-row\">" + searchFilters().map(function(item) {
     return "<button class=\"search-chip" + (filter === item.id ? " active" : "") + "\" type=\"button\" data-search-type=\"" + escapeHTML(item.id) + "\">" + escapeHTML(item.label) + "</button>";
   }).join("") + "</div>";
-  root.innerHTML = "<div class=\"search-page\"><div class=\"search-hero\"><h2>Search</h2><div class=\"search-form\"><input id=\"search-page-input\" class=\"search-field\" value=\"" + escapeHTML(query) + "\" placeholder=\"Search movies, tv shows, channels and more\" autocomplete=\"off\"><button class=\"search-cancel\" type=\"button\" data-search-cancel=\"true\">Cancel</button></div></div>" + filterHTML + (searchNeedle() ? renderSearchResults(searchNeedle()) : renderSearchStart()) + "</div>";
+  root.innerHTML = "<div class=\"search-page\"><div class=\"search-hero\"><h2>Search</h2><div class=\"search-form\"><input id=\"search-page-input\" class=\"search-field\" value=\"" + escapeHTML(query) + "\" placeholder=\"Search movies, tv shows, channels and more\" autocomplete=\"off\"><button class=\"search-cancel\" type=\"button\" data-search-cancel=\"true\">Cancel</button></div></div>" + filterHTML + "<div id=\"search-page-results\" class=\"search-page-results\">" + renderSearchPageResults() + "</div></div>";
   const input = byId("search-page-input");
   if (input && document.activeElement !== input) {
     setTimeout(function() {
@@ -4019,8 +4069,9 @@ document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
 document.addEventListener("keydown", function(event) {
   if (event.target && event.target.id === "search-page-input" && event.key === "Enter") {
     event.preventDefault();
+    clearSearchResultsTimer();
+    updateSearchPageResults();
     rememberSearch(state.searchQuery);
-    renderSearchPage();
     return;
   }
   if (state.view === "search" && event.key === "Escape") {
@@ -4090,7 +4141,7 @@ document.addEventListener("input", function(event) {
   }
   if (event.target && event.target.id === "search-page-input") {
     state.searchQuery = event.target.value || "";
-    renderSearchPage();
+    scheduleSearchResultsUpdate();
     return;
   }
   if (event.target && event.target.id === "player-guide-search") {
@@ -4153,7 +4204,7 @@ const appSearchButton = byId("app-search-button");
 if (appSearchButton) appSearchButton.onclick = function() { setView("search"); };
 const globalSearch = byId("global-search");
 if (globalSearch) {
-  globalSearch.oninput = function(event) { state.query = event.target.value; render(); };
+  globalSearch.oninput = function(event) { state.query = event.target.value; updateLiveSearchFilter(); };
   globalSearch.onkeydown = function(event) {
     if (event.key !== "Enter") return;
     state.searchQuery = event.target.value || "";
