@@ -203,7 +203,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`function programIsGuidePlaceholder(program)`,
 		`no games? today`,
 		`function rememberSearch(value)`,
-		`function folderFilterHTML(placeholder)`,
+		`function folderFilterHTML(placeholder, actionsHTML)`,
 		`id=\"folder-filter\"`,
 		`onLaterType`,
 		`data-search-recent=`,
@@ -325,7 +325,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		t.Fatalf("expected home page order to be continue watching, favorites, guide grid, then group sections")
 	}
 	virtualHeaderIndex := strings.Index(body, `byId("view").innerHTML = virtualFolderHeader(path, featured)`)
-	virtualFilterIndex := strings.Index(body, `+ folderFilterHTML("Filter this folder")`)
+	virtualFilterIndex := strings.Index(body, `+ folderFilterHTML("Filter this folder", renderVirtualCategoryViewToggle())`)
 	virtualChildrenIndex := strings.Index(body, `+ (filteredChildren.length ? "<div class=\"category-grid\">`)
 	virtualContentIndex := strings.Index(body, `+ renderVirtualCategoryContent(filteredChannels)`)
 	if virtualHeaderIndex < 0 || virtualFilterIndex < 0 || virtualChildrenIndex < 0 || virtualContentIndex < 0 {

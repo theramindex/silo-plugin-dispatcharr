@@ -676,6 +676,19 @@ function channelNamePathParts(channel) {
     return String(part || "").trim();
   }).filter(Boolean);
 }
+function channelNameFolderPathParts(channel) {
+  const parts = channelNamePathParts(channel).map(normalizedNameToken).filter(Boolean);
+  if (parts.length < 2) return [];
+  return parts.slice(0, -1);
+}
+function appendUnduplicatedPathParts(basePath, extraParts) {
+  const baseParts = String(basePath || "").split(" / ").map(normalizedNameToken).filter(Boolean);
+  let additions = items(extraParts).map(normalizedNameToken).filter(Boolean);
+  while (additions.length && baseParts.length && normalizedNameToken(baseParts[baseParts.length - 1]).toLowerCase() === normalizedNameToken(additions[0]).toLowerCase()) {
+    additions = additions.slice(1);
+  }
+  return additions.length ? baseParts.concat(additions).join(" / ") : "";
+}
 function normalizedNameToken(value) {
   return String(value || "").trim().replace(/\s+/g, " ");
 }
@@ -722,6 +735,10 @@ function virtualPathsForChannel(channel) {
   if (sourcePath && useSourceGroupVirtualPaths()) {
     paths.push(sourcePath);
     aliasVirtualPathsForSourcePath(sourcePath).forEach(function(path) { paths.push(path); });
+    if (virtualGroupSourceMode() === "group_channel") {
+      const combinedPath = appendUnduplicatedPathParts(sourcePath, channelNameFolderPathParts(channel));
+      if (combinedPath) paths.push(combinedPath);
+    }
   }
   if (useChannelNameVirtualPaths()) {
     inferredChannelNameGroupPaths(channel).forEach(function(path) { paths.push(path); });
@@ -2217,7 +2234,7 @@ function renderHomeGuide(channels, emptyMessage, options) {
   }).join("") + "</div></div>";
 }
 function renderVirtualCategoryGuide(channels) {
-  return sectionActions(renderVirtualCategoryViewToggle()) + renderHomeGuide(channels, "No channels in this virtual group yet.");
+  return renderHomeGuide(channels, "No channels in this virtual group yet.");
 }
 function virtualCategoryView() {
   return state.virtualCategoryView === "list" ? "list" : "guide";
@@ -2227,8 +2244,8 @@ function renderVirtualCategoryViewToggle() {
   return "<div class=\"view-toggle\" aria-label=\"Virtual category view\"><button type=\"button\" data-virtual-category-view=\"guide\" class=\"" + (active === "guide" ? "active" : "") + "\" aria-pressed=\"" + (active === "guide" ? "true" : "false") + "\">Guide</button><button type=\"button\" data-virtual-category-view=\"list\" class=\"" + (active === "list" ? "active" : "") + "\" aria-pressed=\"" + (active === "list" ? "true" : "false") + "\">List</button></div>";
 }
 function renderVirtualCategoryChannelList(channels) {
-  if (!channels.length) return sectionHeaderWithActions("Channels", renderVirtualCategoryViewToggle()) + "<div class=\"empty\">No channels in this virtual group yet.</div>";
-  return sectionHeaderWithActions("Channels", renderVirtualCategoryViewToggle()) + "<div class=\"channel-button-list\">" + channels.map(function(channel) {
+  if (!channels.length) return sectionHeader("Channels") + "<div class=\"empty\">No channels in this virtual group yet.</div>";
+  return sectionHeader("Channels") + "<div class=\"channel-button-list\">" + channels.map(function(channel) {
     const program = currentProgram(channel) || {};
     const subtitle = program.title || channel.categoryName || "Live TV";
     return "<button class=\"virtual-channel-button\" data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<span><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><span>" + escapeHTML(subtitle) + "</span></span></button>";
@@ -2270,8 +2287,8 @@ function categoryMatchesFolderQuery(category) {
     category && category.kind
   ].join(" ")).indexOf(query) !== -1;
 }
-function folderFilterHTML(placeholder) {
-  return "<div class=\"folder-filter\"><input id=\"folder-filter\" class=\"search\" type=\"search\" placeholder=\"" + escapeHTML(placeholder || "Filter visible channels") + "\" value=\"" + escapeHTML(state.folderQuery || "") + "\" autocomplete=\"off\"></div>";
+function folderFilterHTML(placeholder, actionsHTML) {
+  return "<div class=\"folder-filter\"><input id=\"folder-filter\" class=\"search\" type=\"search\" placeholder=\"" + escapeHTML(placeholder || "Filter visible channels") + "\" value=\"" + escapeHTML(state.folderQuery || "") + "\" autocomplete=\"off\">" + (actionsHTML ? "<div class=\"folder-filter-actions\">" + actionsHTML + "</div>" : "") + "</div>";
 }
 function renderLivePage() {
   const channels = visibleChannels(false);
@@ -2290,7 +2307,7 @@ function renderLivePage() {
     const filteredChildren = children.filter(categoryMatchesFolderQuery);
     const filteredChannels = channels.filter(channelMatchesFolderQuery);
     byId("view").innerHTML = virtualFolderHeader(path, featured)
-      + folderFilterHTML("Filter this folder")
+      + folderFilterHTML("Filter this folder", renderVirtualCategoryViewToggle())
       + (filteredChildren.length ? "<div class=\"category-grid\">" + filteredChildren.map(categoryTileHTML).join("") + "</div>" : "")
       + renderVirtualCategoryContent(filteredChannels);
     maybeWarmGuideForChannels(filteredChannels, state.category);
@@ -3069,14 +3086,15 @@ function renderAdminECMSettings() {
 function renderAdminCategorySettings() {
   const settings = adminSettings();
   const root = byId("admin-category-settings");
+  const sourceHelp = "Choose whether virtual groups come from Dispatcharr groups, channel names, or both. Channel pipe reads structured names like NY | New York City | FOX 5.";
   const nested = settings.mode !== "normal" ? "<div class=\"settings-list-nested\">"
-    + "<div class=\"settings-row\"><span>Delimiter</span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Sports - NHL Teams</option></select></div>"
-    + "<div class=\"settings-row virtual-label-row\"><span>Virtual groups label</span><div class=\"virtual-label-control\"><span>Virtual</span><input data-admin-category-field=\"virtualGroupLabel\" value=\"" + escapeHTML(virtualGroupLabelSuffix(settings.virtualGroupLabel)) + "\" placeholder=\"Groups\"></div></div>"
+    + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Delimiter</strong><small>Split source names into nested virtual groups.</small></span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Sports - NHL Teams</option></select></div>"
+    + "<div class=\"settings-row settings-form-row virtual-label-row\"><span class=\"settings-field-copy\"><strong>Virtual groups label</strong><small>Only the suffix after Virtual is editable.</small></span><div class=\"virtual-label-control\"><span>Virtual</span><input data-admin-category-field=\"virtualGroupLabel\" value=\"" + escapeHTML(virtualGroupLabelSuffix(settings.virtualGroupLabel)) + "\" placeholder=\"Groups\"></div></div>"
     + "</div>" : "";
   root.innerHTML = adminSaveStatusHTML()
-    + "<div class=\"settings-row\"><span>Mode</span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Normal</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">By delimiter</option></select></div>"
+    + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Mode</strong><small>Choose how Silo builds the browse hierarchy.</small></span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Normal</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">By delimiter</option></select></div>"
     + nested
-    + "<div class=\"settings-row\"><span><strong>Virtual group source</strong><small>Choose whether virtual groups come from Dispatcharr groups, channel names, or both. Channel pipe reads structured names like NY | New York City | FOX 5.</small></span><select data-admin-category-field=\"virtualGroupSource\"><option value=\"group\"" + (virtualGroupSourceMode() === "group" ? " selected" : "") + ">Group pipe</option><option value=\"group_channel\"" + (virtualGroupSourceMode() === "group_channel" ? " selected" : "") + ">Group pipe + channel pipe</option><option value=\"channel\"" + (virtualGroupSourceMode() === "channel" ? " selected" : "") + ">Channel pipe</option></select></div>"
+    + "<div class=\"settings-row settings-form-row settings-source-row\"><span class=\"settings-field-copy\"><strong>Virtual group source</strong><small>" + escapeHTML(sourceHelp) + "</small></span><select data-admin-category-field=\"virtualGroupSource\"><option value=\"group\"" + (virtualGroupSourceMode() === "group" ? " selected" : "") + ">Group pipe</option><option value=\"group_channel\"" + (virtualGroupSourceMode() === "group_channel" ? " selected" : "") + ">Group pipe + channel pipe</option><option value=\"channel\"" + (virtualGroupSourceMode() === "channel" ? " selected" : "") + ">Channel pipe</option></select></div>"
     + (settings.mode === "normal" ? "<div class=\"settings-note\">Channel groups are shown as provided, without remapping or resorting.</div>" : "")
     + (settings.mode === "delimiter" ? "<div class=\"settings-note\">Channel group names are split into virtual groups using the selected delimiter.</div>" : "");
 }
