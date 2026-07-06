@@ -2881,14 +2881,18 @@ function renderGuidePage() {
   const categories = guideFilterCategories();
   const slots = guideSlots();
   state.guideLastSlotStart = guideSlotStart();
-  byId("view").innerHTML = "<div class=\"guide-page\">" + sectionHeaderWithActions("TV Guide", guideFreshnessHTML()) + "<div class=\"guide-tools\"><select id=\"category-select\" class=\"select\"><option value=\"\">" + escapeHTML(allGroupLabel()) + "</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program or channel\" value=\"" + escapeHTML(state.query) + "\"></div><div class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div></div></div>";
+  byId("view").innerHTML = "<div class=\"guide-page\">" + sectionHeaderWithActions("TV Guide", guideFreshnessHTML()) + "<div class=\"guide-tools\"><select id=\"category-select\" class=\"select\"><option value=\"\">" + escapeHTML(allGroupLabel()) + "</option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.category === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>"; }).join("") + "</select><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program or channel\" value=\"" + escapeHTML(state.query) + "\"></div><div id=\"guide-scroll\" class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div></div></div>";
   byId("category-select").onchange = function(event) { state.category = event.target.value; renderGuidePage(); };
   byId("guide-search").oninput = function(event) { state.query = event.target.value; resetGuideRows(); renderEPG(); };
+  const guideScroll = byId("guide-scroll");
+  if (guideScroll) guideScroll.onscroll = function() {
+    if (isNearGuideEnd()) appendGuideRows();
+  };
   resetGuideRows();
   maybeWarmGuideForChannels(state.guideChannels.slice(0, guideBatchSize()), "guide:" + (state.category || "all"));
   renderEPG();
 }
-function guideBatchSize() { return 40; }
+function guideBatchSize() { return 24; }
 function resetGuideRows() {
   state.guideChannels = visibleChannels(true).filter(guideChannelMatchesQuery);
   state.guideRendered = 0;
@@ -2973,6 +2977,10 @@ function appendGuideRows() {
   if (isNearGuideEnd()) appendGuideRows();
 }
 function isNearGuideEnd() {
+  const guideScroll = byId("guide-scroll");
+  if (guideScroll && guideScroll.scrollHeight > guideScroll.clientHeight + 10) {
+    return guideScroll.scrollTop + guideScroll.clientHeight > guideScroll.scrollHeight - 900;
+  }
   return window.innerHeight + window.scrollY > document.documentElement.scrollHeight - 900;
 }
 function renderSettings() {
@@ -4215,6 +4223,9 @@ if (globalSearch) {
 window.addEventListener("scroll", function() {
   if (state.view === "guide" && isNearGuideEnd()) appendGuideRows();
 }, { passive: true });
+window.addEventListener("resize", function() {
+  if (state.view === "guide" && isNearGuideEnd()) appendGuideRows();
+});
 window.addEventListener("beforeunload", function() {
   if (state.currentSession) navigator.sendBeacon(route("/dispatcharr/api/watch/stop"), JSON.stringify({ sessionId: state.currentSession.id, reason: "page_unload" }));
   items(state.multiviewTiles).forEach(function(tile) {

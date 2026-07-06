@@ -16,6 +16,20 @@ import (
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
 )
 
+func TestDispatcharrGuideSearchWindowLooksAheadSevenDays(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.UTC)
+	start, end := dispatcharrGuideSearchWindow(now.Unix())
+
+	if !start.Equal(now.Add(-1 * time.Hour)) {
+		t.Fatalf("expected one hour lookback, got %s", start)
+	}
+	if !end.Equal(now.Add(7 * 24 * time.Hour)) {
+		t.Fatalf("expected seven day lookahead, got %s", end)
+	}
+}
+
 func TestSyncStoresChannelsAndPrograms(t *testing.T) {
 	t.Parallel()
 

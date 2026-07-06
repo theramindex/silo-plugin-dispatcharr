@@ -20,6 +20,16 @@ import (
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
 )
 
+const (
+	dispatcharrGuideLookback  = time.Hour
+	dispatcharrGuideLookahead = 7 * 24 * time.Hour
+)
+
+func dispatcharrGuideSearchWindow(nowUnix int64) (time.Time, time.Time) {
+	now := time.Unix(nowUnix, 0)
+	return now.Add(-dispatcharrGuideLookback), now.Add(dispatcharrGuideLookahead)
+}
+
 type xtreamAppCatalogClient interface {
 	LiveCategories(ctx context.Context) ([]xtream.LiveCategory, error)
 	VODCategories(ctx context.Context) ([]xtream.VODCategory, error)
@@ -180,8 +190,7 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 		}
 	}
 	if !tightDeadline {
-		start := time.Unix(nowUnix, 0).Add(-1 * time.Hour)
-		end := time.Unix(nowUnix, 0).Add(24 * time.Hour)
+		start, end := dispatcharrGuideSearchWindow(nowUnix)
 		if upstreamPrograms, err := client.SearchPrograms(ctx, start, end); err == nil {
 			for _, upstream := range upstreamPrograms {
 				channelID := ""
@@ -689,8 +698,7 @@ func (s *Service) dispatcharrGuidePrograms(ctx context.Context, settings config.
 	}
 
 	if !hasTightDeadline(ctx) {
-		start := time.Unix(nowUnix, 0).Add(-1 * time.Hour)
-		end := time.Unix(nowUnix, 0).Add(24 * time.Hour)
+		start, end := dispatcharrGuideSearchWindow(nowUnix)
 		if upstreamPrograms, err := client.SearchPrograms(ctx, start, end); err == nil {
 			for _, upstream := range upstreamPrograms {
 				channelID := ""
