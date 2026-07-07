@@ -427,14 +427,14 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`ecmEnabled: false`,
 		`inferChannelNameGroups: false`,
 		`state.adminCategorySettings.virtualGroupSource = normalizeVirtualGroupSource(state.adminCategorySettings.virtualGroupSource, state.adminCategorySettings.inferChannelNameGroups === true)`,
-		`state.adminCategorySettings.ecmEnabled = state.adminCategorySettings.ecmEnabled === true`,
+		`state.adminCategorySettings.ecmEnabled = !!state.adminCategorySettings.ecmURL`,
 		`state.adminCategorySettings.inferChannelNameGroups = state.adminCategorySettings.virtualGroupSource !== "group"`,
 		`function virtualGroupSourceMode()`,
 		`function inferredChannelNameGroupPaths(channel)`,
 		`data-admin-category-field=\"virtualGroupSource\"`,
 		`Group pipe + channel pipe`,
 		`Channel pipe`,
-		`return adminSettings().ecmEnabled === true && !!adminECMURL();`,
+		`return !!adminECMURL();`,
 		`Group method`,
 		`virtual-label-control`,
 		`placeholder=\"Groups\"`,
@@ -445,14 +445,12 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`alias-table-row`,
 		`Normal`,
 		`By delimiter`,
-		`Enable ECM`,
 		`ECM URL`,
 		`ecm-url-row`,
 		`.settings-row.ecm-url-row input`,
 		`data-admin-tab=\"settings\"`,
 		`data-admin-tab=\"integrations\"`,
 		`data-admin-tab=\"manager\"`,
-		`data-admin-ecm-field=\"enabled\"`,
 		`data-admin-ecm-field=\"url\"`,
 		`byId("view").innerHTML = state.adminTab === "manager" ? renderExternalChannelManager()`,
 		`data-admin-category-field=\"mode\"`,
@@ -1616,7 +1614,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayloadToFile(t *testing.T) {
 	if saved["mode"] != "delimiter" || saved["delimiter"] != "dash" {
 		t.Fatalf("expected normalized admin settings file, got %+v", saved)
 	}
-	if saved["ecmEnabled"] != false || saved["ecmURL"] != "https://ecm.example.test/manage" {
+	if saved["ecmEnabled"] != true || saved["ecmURL"] != "https://ecm.example.test/manage" {
 		t.Fatalf("expected normalized ECM settings file, got %+v", saved)
 	}
 	if aliases, ok := saved["categoryAliases"].([]any); !ok || len(aliases) != 1 {
@@ -1642,7 +1640,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayloadToFile(t *testing.T) {
 	if loaded["mode"] != "delimiter" || loaded["delimiter"] != "dash" {
 		t.Fatalf("expected admin settings to load from file: %+v", loaded)
 	}
-	if loaded["ecmEnabled"] != false || loaded["ecmURL"] != "https://ecm.example.test/manage" {
+	if loaded["ecmEnabled"] != true || loaded["ecmURL"] != "https://ecm.example.test/manage" {
 		t.Fatalf("expected ECM settings to load from file: %+v", loaded)
 	}
 	if aliases, ok := loaded["categoryAliases"].([]any); !ok || len(aliases) != 1 {
