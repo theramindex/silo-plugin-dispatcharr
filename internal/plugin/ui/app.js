@@ -194,8 +194,8 @@ function normalizeAdminCategorySettings() {
   state.adminCategorySettings.allowRecordingsByDefault = state.adminCategorySettings.allowRecordingsByDefault !== false;
   state.adminCategorySettings.virtualGroupSource = normalizeVirtualGroupSource(state.adminCategorySettings.virtualGroupSource, state.adminCategorySettings.inferChannelNameGroups === true);
   state.adminCategorySettings.inferChannelNameGroups = state.adminCategorySettings.virtualGroupSource !== "group";
-  state.adminCategorySettings.ecmEnabled = state.adminCategorySettings.ecmEnabled === true;
   state.adminCategorySettings.ecmURL = normalizeAdminECMURL(state.adminCategorySettings.ecmURL);
+  state.adminCategorySettings.ecmEnabled = !!state.adminCategorySettings.ecmURL;
   state.adminCategorySettings.categoryRenames = [];
   state.adminCategorySettings.categoryAliases = normalizeCategoryAliases(state.adminCategorySettings.categoryAliases);
   state.adminCategorySettings.eventKeywords = normalizeEventKeywordRows(state.adminCategorySettings.eventKeywords);
@@ -305,7 +305,7 @@ function normalizeAdminECMURL(value) {
   return fallback;
 }
 function adminECMEnabled() {
-  return adminSettings().ecmEnabled === true && !!adminECMURL();
+  return !!adminECMURL();
 }
 function adminECMURL() {
   return normalizeAdminECMURL(adminSettings().ecmURL);
@@ -3025,7 +3025,6 @@ function updateCategoryParsingField(field, target) {
 }
 function updateAdminECMField(field, target) {
   const settings = state.adminCategorySettings || defaultAdminCategorySettings();
-  if (field === "enabled") settings.ecmEnabled = !!target.checked;
   if (field === "url") settings.ecmURL = target.value;
   state.adminCategorySettings = settings;
   normalizeAdminCategorySettings();
@@ -3121,7 +3120,7 @@ function adminStatusPanel() {
   const source = state.app && state.app.source ? state.app.source : {};
   const guideStatus = String(status.epgStatus || (status.epgProgramCount ? "ok" : "unknown"));
   const error = status.lastError || status.epgLastError || "";
-  return "<div class=\"admin-status-strip\" aria-label=\"Connection Status\"><div class=\"settings-card-head\"><div><h2>Connection Status</h2><p>Dispatcharr API health and latest sync details.</p></div></div><div class=\"admin-status-grid\">"
+  return "<div class=\"admin-status-strip\" aria-label=\"Connection Status\"><div class=\"settings-card-head\"><div><h2>Connection Status</h2></div></div><div class=\"admin-status-grid\">"
     + adminStatusItem("Connection", adminStatusPill(status.status || "ok"), sourceModeLabel(source.mode))
     + adminStatusItem("Channels", escapeHTML(String(status.channelCount || items(state.app.channels).length || 0)), "Last catalog sync: " + dateTimeLabel(status.lastSuccessUnix))
     + adminStatusItem("Guide", adminStatusPill(guideStatus), String(status.epgProgramCount || items(state.app.programs).length || 0) + " programs · " + dateTimeLabel(status.epgLastSuccessUnix))
@@ -3137,9 +3136,7 @@ function renderAdminECMSettings() {
   const settings = adminSettings();
   const root = byId("admin-ecm-settings");
   if (!root) return;
-  root.innerHTML = "<label class=\"settings-row compact-row\"><span><strong>Enable ECM</strong><small>Show the Channel Manager tab for admins.</small></span><input type=\"checkbox\" data-admin-ecm-field=\"enabled\"" + (settings.ecmEnabled === true ? " checked" : "") + "></label>"
-    + "<div class=\"settings-row ecm-url-row compact-row\"><span><strong>ECM URL</strong><small>The embedded manager instance.</small></span><input type=\"url\" data-admin-ecm-field=\"url\" value=\"" + escapeHTML(settings.ecmURL || "") + "\"></div>"
-    + "<div class=\"settings-note\">When enabled, the Channel Manager tab embeds this ECM instance for admin channel management.</div>";
+  root.innerHTML = "<div class=\"settings-row ecm-url-row compact-row\"><span><strong>ECM URL</strong><small>Leave blank to hide Channel Manager.</small></span><input type=\"url\" data-admin-ecm-field=\"url\" value=\"" + escapeHTML(settings.ecmURL || "") + "\"></div>";
 }
 function renderAdminCategorySettings() {
   const settings = adminSettings();
@@ -3153,8 +3150,7 @@ function renderAdminCategorySettings() {
     + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Mode</strong><small>Choose how Silo builds the browse hierarchy.</small></span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Normal</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">By delimiter</option></select></div>"
     + nested
     + "<div class=\"settings-row settings-form-row settings-source-row\"><span class=\"settings-field-copy\"><strong>Virtual group source</strong><small>" + escapeHTML(sourceHelp) + "</small></span><select data-admin-category-field=\"virtualGroupSource\"><option value=\"group\"" + (virtualGroupSourceMode() === "group" ? " selected" : "") + ">Group pipe</option><option value=\"group_channel\"" + (virtualGroupSourceMode() === "group_channel" ? " selected" : "") + ">Group pipe + channel pipe</option><option value=\"channel\"" + (virtualGroupSourceMode() === "channel" ? " selected" : "") + ">Channel pipe</option></select></div>"
-    + (settings.mode === "normal" ? "<div class=\"settings-note\">Channel groups are shown as provided, without remapping or resorting.</div>" : "")
-    + (settings.mode === "delimiter" ? "<div class=\"settings-note\">Channel group names are split into virtual groups using the selected delimiter.</div>" : "");
+    + (settings.mode === "normal" ? "<div class=\"settings-note\">Channel groups are shown as provided, without remapping or resorting.</div>" : "");
 }
 function adminSourceGroups() {
   const groups = {};
