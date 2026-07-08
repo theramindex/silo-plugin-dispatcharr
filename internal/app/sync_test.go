@@ -349,6 +349,9 @@ func TestSyncDirectLoginScopesChannelsAndGuideToChannelProfile(t *testing.T) {
 	if len(snapshot.Catalog.Channels) != 1 || snapshot.Catalog.Channels[0].Name != "New York ABC" {
 		t.Fatalf("expected only NYC profile channel, got %+v", snapshot.Catalog.Channels)
 	}
+	if got := snapshot.Catalog.Channels[0].ProfileIDs; len(got) != 1 || got[0] != "10" {
+		t.Fatalf("expected synced channel to include profile membership, got %+v", got)
+	}
 	if snapshot.Catalog.Source.ChannelProfile == nil || snapshot.Catalog.Source.ChannelProfile.Name != "The Ramindex - NYC" {
 		t.Fatalf("expected selected profile on source, got %+v", snapshot.Catalog.Source)
 	}

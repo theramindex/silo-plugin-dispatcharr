@@ -24,6 +24,7 @@ type Channel struct {
 	StreamURL    string `json:"streamUrl,omitempty"`
 	CategoryID   string `json:"categoryId,omitempty"`
 	CategoryName string `json:"categoryName,omitempty"`
+	ProfileIDs   []string `json:"profileIds,omitempty"`
 }
 
 func StableChannelID(mode SourceMode, identity ChannelIdentity) string {

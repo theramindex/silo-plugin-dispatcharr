@@ -223,6 +223,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`Search movies, tv shows, channels and more`,
 		`function renderSportsPage()`,
 		`function renderSportsTopbarTabs()`,
+		`error.status = response.status`,
+		`Your Silo session expired. Refresh the page or sign in again.`,
 		`function compareSportsEventsForTab(left, right)`,
 		`return rightRecent - leftRecent;`,
 		`sports-channel-logo`,
@@ -433,6 +435,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`function inferredChannelNameGroupPaths(channel)`,
 		`data-admin-category-field=\"virtualGroupSource\"`,
 		`Group pipe + channel pipe`,
+		`Profile pipe + group pipe`,
 		`Channel pipe`,
 		`return !!adminECMURL();`,
 		`Group method`,
@@ -524,9 +527,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 					{"id": "channel:admin-favorites", "name": "Admin Favorite", "categoryId": "cat:admin-favorites", "categoryName": "* Admin Favorites"},
 					{"id": "channel:argentina-sports", "name": "Argentina Sports", "categoryId": "cat:argentina-sports", "categoryName": "* International | Argentina | Sports"},
 					{"id": "channel:world-cup-replay", "name": "World Cup Replay", "categoryId": "cat:world-cup-replays", "categoryName": "World Cup Replays"},
-					{"id": "channel:ny-local", "name": "NY | New York City | FOX 5 WNYW", "categoryId": "cat:us-tv", "categoryName": "US TV"},
+					{"id": "channel:ny-local", "name": "NY | New York City | FOX 5 WNYW", "categoryId": "cat:us-tv", "categoryName": "US TV", "profileIds": []string{"profile-ny"}},
 					{"id": "channel:argentina-city", "name": "Argentina | Buenos Aires | Sports 1", "categoryId": "cat:intl-sports", "categoryName": "International Sports"},
-					{"id": "channel:us-sports-mlb", "name": "MLB Teams Network", "categoryId": "cat:us-sports-mlb", "categoryName": "US | Sports | MLB Teams"},
+					{"id": "channel:us-sports-mlb", "name": "MLB Teams Network", "categoryId": "cat:us-sports-mlb", "categoryName": "US | Sports | MLB Teams", "profileIds": []string{"profile-ny"}},
 				},
 				"categories": []map[string]any{
 					{"id": "cat:world-cup", "name": "* World Cup"},
@@ -536,6 +539,11 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 					{"id": "cat:us-tv", "name": "US TV"},
 					{"id": "cat:intl-sports", "name": "International Sports"},
 					{"id": "cat:us-sports-mlb", "name": "US | Sports | MLB Teams"},
+				},
+				"source": map[string]any{
+					"profiles": []map[string]any{
+						{"id": "profile-ny", "name": "The Ramindex | NY", "channelCount": 2},
+					},
 				},
 			},
 			"adminCategorySettings": map[string]any{
@@ -555,6 +563,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	result := runVirtualAliasScript(t, script, context)
 	if !result.SourcePath {
 		t.Fatalf("expected source path to remain visible: %+v", result)
+	}
+	if !result.ProfileGroupPath || !result.ProfileGroupRoot {
+		t.Fatalf("expected profile plus channel group virtual paths to be present: %+v", result)
 	}
 	if !result.AliasPath || !result.SecondAliasPath {
 		t.Fatalf("expected Silo admin alias paths to be present: %+v", result)
@@ -679,6 +690,8 @@ func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
 
 type virtualAliasResult struct {
 	SourcePath               bool   `json:"sourcePath"`
+	ProfileGroupPath         bool   `json:"profileGroupPath"`
+	ProfileGroupRoot         bool   `json:"profileGroupRoot"`
 	AliasPath                bool   `json:"aliasPath"`
 	SecondAliasPath          bool   `json:"secondAliasPath"`
 	PrefixAliasPath          bool   `json:"prefixAliasPath"`
@@ -797,7 +810,14 @@ state.app.programs = [
 rebuildProgramIndex();
 JSON.stringify((function() {
   const all = virtualCategoriesFromPaths("", function() { return true; }, true);
+  state.adminCategorySettings.virtualGroupSource = "profile_group";
+  normalizeAdminCategorySettings();
+  const profileAll = virtualCategoriesFromPaths("", function() { return true; }, true);
+  state.adminCategorySettings.virtualGroupSource = "group_channel";
+  normalizeAdminCategorySettings();
   const source = all.find(function(item) { return item.name === "International / Argentina / Sports"; });
+  const profileGroup = profileAll.find(function(item) { return item.name === "The Ramindex / NY / US TV"; });
+  const profileRoot = profileAll.find(function(item) { return item.name === "The Ramindex"; });
   const alias = all.find(function(item) { return item.name === "Sports / Argentina"; });
   const secondAlias = all.find(function(item) { return item.name === "World Cup / Argentina"; });
   const prefixAlias = all.find(function(item) { return item.name === "Sports / US / MLB Teams"; });
@@ -863,6 +883,8 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 	const programSearchMatchesEPG = visibleChannels(false).some(function(item) { return item.id === "channel:argentina-sports"; });
 	return {
     sourcePath: !!source,
+    profileGroupPath: !!profileGroup,
+    profileGroupRoot: !!profileRoot,
     aliasPath: !!alias,
     secondAliasPath: !!secondAlias,
     prefixAliasPath: !!prefixAlias,
@@ -880,7 +902,7 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     stringParsedMode: readAdminSettingsValue(JSON.stringify({ mode: "delimiter", delimiter: "pipe" })).mode,
     featuredSection: grid.indexOf(">Featured Groups<") !== -1,
     featuredRenamedSection: renamedGrid.indexOf(">Featured Things<") !== -1 && renamedGrid.indexOf(">Featured Groups<") === -1,
-    guideRenamedAllOption: renamedGuideView.indexOf(">All things</option>") !== -1 && renamedGuideView.indexOf(">All groups</option>") === -1,
+    guideRenamedAllOption: renamedGuideView.indexOf('value="All things"') !== -1 && renamedGuideView.indexOf('value="All groups"') === -1,
     featuredCategory: grid.indexOf("International | Argentina | Sports") !== -1,
     featuredAlphabetical: grid.indexOf(">Admin Favorites</strong>") !== -1 && grid.indexOf(">World Cup</strong>") !== -1 && grid.indexOf(">Admin Favorites</strong>") < grid.indexOf(">World Cup</strong>"),
     featuredVirtualCategory: grid.indexOf('data-category="featured:International / Argentina / Sports"') !== -1,
