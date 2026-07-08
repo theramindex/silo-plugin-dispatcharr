@@ -108,13 +108,19 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	if enabled, ok := payload["allowRecordingsByDefault"].(bool); ok {
 		allowRecordingsByDefault = enabled
 	}
+	collapseDuplicateVirtualGroups := true
+	if enabled, ok := payload["collapseDuplicateVirtualGroups"].(bool); ok {
+		collapseDuplicateVirtualGroups = enabled
+	} else if enabled, ok := payload["collapseDuplicateProfileGroups"].(bool); ok {
+		collapseDuplicateVirtualGroups = enabled
+	}
 	inferChannelNameGroups := false
 	if enabled, ok := payload["inferChannelNameGroups"].(bool); ok {
 		inferChannelNameGroups = enabled
 	}
 	virtualGroupSource := strings.TrimSpace(asStringValue(payload["virtualGroupSource"]))
 	switch virtualGroupSource {
-	case "group", "group_channel", "channel":
+	case "group", "group_channel", "profile_group", "channel":
 	default:
 		if inferChannelNameGroups {
 			virtualGroupSource = "group_channel"
@@ -134,17 +140,18 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	}
 
 	return map[string]any{
-		"mode":                     mode,
-		"delimiter":                delimiter,
-		"virtualGroupLabel":        virtualGroupLabel,
-		"virtualGroupSource":       virtualGroupSource,
-		"ecmEnabled":               ecmEnabled,
-		"ecmURL":                   ecmURL,
-		"allowRecordingsByDefault": allowRecordingsByDefault,
-		"inferChannelNameGroups":   inferChannelNameGroups,
-		"categoryRenames":          categoryRenames,
-		"categoryAliases":          categoryAliases,
-		"eventKeywords":            eventKeywords,
+		"mode":                           mode,
+		"delimiter":                      delimiter,
+		"virtualGroupLabel":              virtualGroupLabel,
+		"virtualGroupSource":             virtualGroupSource,
+		"ecmEnabled":                     ecmEnabled,
+		"ecmURL":                         ecmURL,
+		"allowRecordingsByDefault":       allowRecordingsByDefault,
+		"collapseDuplicateVirtualGroups": collapseDuplicateVirtualGroups,
+		"inferChannelNameGroups":         inferChannelNameGroups,
+		"categoryRenames":                categoryRenames,
+		"categoryAliases":                categoryAliases,
+		"eventKeywords":                  eventKeywords,
 	}
 }
 
