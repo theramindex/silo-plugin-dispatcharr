@@ -290,6 +290,9 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`function renderEPGGapCell(channel, startUnix, endUnix, windowInfo)`,
 		`class=\"epg-cell program epg-gap\"`,
 		`program" + (isLive ? " live" : "")`,
+		`data-program-detail-channel=`,
+		`function renderProgramDetailsModal()`,
+		`class=\"program-modal\"`,
 		`if (start > cursor) cells.push(renderEPGGapCell(channel, cursor, start, windowInfo));`,
 		`customGroupChannelID`,
 		`role=\"combobox\"`,
@@ -333,7 +336,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		t.Fatalf("expected home page order to be continue watching, favorites, guide grid, then group sections")
 	}
 	virtualHeaderIndex := strings.Index(body, `byId("view").innerHTML = virtualFolderHeader(path, featured)`)
-	virtualFilterIndex := strings.Index(body, `+ folderFilterHTML("Filter this folder", renderVirtualCategoryViewToggle())`)
+	virtualFilterIndex := strings.Index(body, `+ folderFilterHTML("Filter this folder", "")`)
 	virtualChildrenIndex := strings.Index(body, `+ (filteredChildren.length ? "<div class=\"category-grid\">`)
 	virtualContentIndex := strings.Index(body, `+ renderVirtualCategoryContent(filteredChannels)`)
 	if virtualHeaderIndex < 0 || virtualFilterIndex < 0 || virtualChildrenIndex < 0 || virtualContentIndex < 0 {
@@ -341,6 +344,9 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	}
 	if !(virtualHeaderIndex < virtualFilterIndex && virtualFilterIndex < virtualChildrenIndex && virtualChildrenIndex < virtualContentIndex) {
 		t.Fatalf("expected virtual category drilldown order to be breadcrumbs, filter, subfolders, then channel content")
+	}
+	if !strings.Contains(body, `virtual-folder-actions`) || !strings.Contains(body, `guideFreshnessHTML() + renderVirtualCategoryViewToggle()`) {
+		t.Fatalf("expected virtual folder freshness and view toggle to align with breadcrumbs")
 	}
 	if strings.Contains(body, `+ (children.length ? sectionHeader("Virtual Groups")`) || strings.Contains(body, `+ (children.length ? sectionHeader("Virtual Categories")`) {
 		t.Fatalf("expected virtual child groups to render without a duplicate section heading")
@@ -353,6 +359,9 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	}
 	if strings.Contains(body, `data-title=\"" + escapeHTML(programTitle) + "\"`) {
 		t.Fatalf("expected guide program cells not to expose hover title popups")
+	}
+	if strings.Contains(body, `data-tooltip-always=\"true\"`) || strings.Contains(body, `epgProgramTooltip(`) {
+		t.Fatalf("expected guide program details to use modal instead of large hover tooltip")
 	}
 }
 
@@ -427,6 +436,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`function adminECMURL()`,
 		`virtualGroupSource: "group"`,
 		`ecmEnabled: false`,
+		`collapseDuplicateVirtualGroups: true`,
 		`inferChannelNameGroups: false`,
 		`state.adminCategorySettings.virtualGroupSource = normalizeVirtualGroupSource(state.adminCategorySettings.virtualGroupSource, state.adminCategorySettings.inferChannelNameGroups === true)`,
 		`state.adminCategorySettings.ecmEnabled = !!state.adminCategorySettings.ecmURL`,
@@ -437,6 +447,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`Group pipe + channel pipe`,
 		`Profile pipe + group pipe`,
 		`Channel pipe`,
+		`Collapse duplicate virtual groups`,
 		`return !!adminECMURL();`,
 		`Group method`,
 		`virtual-label-control`,
@@ -527,7 +538,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 					{"id": "channel:admin-favorites", "name": "Admin Favorite", "categoryId": "cat:admin-favorites", "categoryName": "* Admin Favorites"},
 					{"id": "channel:argentina-sports", "name": "Argentina Sports", "categoryId": "cat:argentina-sports", "categoryName": "* International | Argentina | Sports"},
 					{"id": "channel:world-cup-replay", "name": "World Cup Replay", "categoryId": "cat:world-cup-replays", "categoryName": "World Cup Replays"},
-					{"id": "channel:ny-local", "name": "NY | New York City | FOX 5 WNYW", "categoryId": "cat:us-tv", "categoryName": "US TV", "profileIds": []string{"profile-ny"}},
+					{"id": "channel:ny-local", "name": "NY | New York City | FOX 5 WNYW", "categoryId": "cat:locals", "categoryName": "Locals", "profileIds": []string{"profile-ny"}},
+					{"id": "channel:profile-us-tv-dup", "name": "Demo Channel", "categoryId": "cat:us-tv", "categoryName": "US TV", "profileIds": []string{"profile-us-tv"}},
+					{"id": "channel:us-tv-dup", "name": "TV | Demo Channel", "categoryId": "cat:us-tv-pipe", "categoryName": "US | TV"},
 					{"id": "channel:argentina-city", "name": "Argentina | Buenos Aires | Sports 1", "categoryId": "cat:intl-sports", "categoryName": "International Sports"},
 					{"id": "channel:us-sports-mlb", "name": "MLB Teams Network", "categoryId": "cat:us-sports-mlb", "categoryName": "US | Sports | MLB Teams", "profileIds": []string{"profile-ny"}},
 				},
@@ -536,13 +549,16 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 					{"id": "cat:admin-favorites", "name": "* Admin Favorites"},
 					{"id": "cat:argentina-sports", "name": "* International | Argentina | Sports"},
 					{"id": "cat:world-cup-replays", "name": "World Cup Replays"},
+					{"id": "cat:locals", "name": "Locals"},
 					{"id": "cat:us-tv", "name": "US TV"},
+					{"id": "cat:us-tv-pipe", "name": "US | TV"},
 					{"id": "cat:intl-sports", "name": "International Sports"},
 					{"id": "cat:us-sports-mlb", "name": "US | Sports | MLB Teams"},
 				},
 				"source": map[string]any{
 					"profiles": []map[string]any{
-						{"id": "profile-ny", "name": "The Ramindex | NY", "channelCount": 2},
+						{"id": "profile-ny", "name": "US TV | NY", "channelCount": 2},
+						{"id": "profile-us-tv", "name": "US TV", "channelCount": 1},
 					},
 				},
 			},
@@ -566,6 +582,12 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	}
 	if !result.ProfileGroupPath || !result.ProfileGroupRoot {
 		t.Fatalf("expected profile plus channel group virtual paths to be present: %+v", result)
+	}
+	if !result.ProfileLocalMarketPath {
+		t.Fatalf("expected profile locals to include inferred market path: %+v", result)
+	}
+	if !result.DuplicateProfileCollapsed || !result.DuplicateProfileExpanded || !result.DuplicateGroupCollapsed || !result.DuplicateGroupExpanded {
+		t.Fatalf("expected duplicate virtual group labels to collapse by default and expand when disabled: %+v", result)
 	}
 	if !result.AliasPath || !result.SecondAliasPath {
 		t.Fatalf("expected Silo admin alias paths to be present: %+v", result)
@@ -689,55 +711,60 @@ func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
 }
 
 type virtualAliasResult struct {
-	SourcePath               bool   `json:"sourcePath"`
-	ProfileGroupPath         bool   `json:"profileGroupPath"`
-	ProfileGroupRoot         bool   `json:"profileGroupRoot"`
-	AliasPath                bool   `json:"aliasPath"`
-	SecondAliasPath          bool   `json:"secondAliasPath"`
-	PrefixAliasPath          bool   `json:"prefixAliasPath"`
-	SourceCount              int    `json:"sourceCount"`
-	AliasCount               int    `json:"aliasCount"`
-	SecondAliasCount         int    `json:"secondAliasCount"`
-	PrefixAliasCount         int    `json:"prefixAliasCount"`
-	InferredLocalGroup       bool   `json:"inferredLocalGroup"`
-	InferredLocalCityGroup   bool   `json:"inferredLocalCityGroup"`
-	InferredCountryGroup     bool   `json:"inferredCountryGroup"`
-	InferredCountryCityGroup bool   `json:"inferredCountryCityGroup"`
-	ChannelOnlySourceHidden  bool   `json:"channelOnlySourceHidden"`
-	ChannelOnlyInferredShown bool   `json:"channelOnlyInferredShown"`
-	ObjectParsedMode         string `json:"objectParsedMode"`
-	StringParsedMode         string `json:"stringParsedMode"`
-	FeaturedSection          bool   `json:"featuredSection"`
-	FeaturedRenamedSection   bool   `json:"featuredRenamedSection"`
-	GuideRenamedAllOption    bool   `json:"guideRenamedAllOption"`
-	FeaturedCategory         bool   `json:"featuredCategory"`
-	FeaturedAlphabetical     bool   `json:"featuredAlphabetical"`
-	FeaturedVirtualCategory  bool   `json:"featuredVirtualCategory"`
-	FeaturedSourceCategory   bool   `json:"featuredSourceCategory"`
-	FeaturedMarkerVisible    bool   `json:"featuredMarkerVisible"`
-	FeaturedBreadcrumbRoot   bool   `json:"featuredBreadcrumbRoot"`
-	FeaturedBreadcrumbPath   bool   `json:"featuredBreadcrumbPath"`
-	FeaturedGuide            bool   `json:"featuredGuide"`
-	FeaturedGuideHeading     bool   `json:"featuredGuideHeading"`
-	FeaturedViewToggle       bool   `json:"featuredViewToggle"`
-	FeaturedListView         bool   `json:"featuredListView"`
-	FeaturedBackButton       bool   `json:"featuredBackButton"`
-	SimpleFeaturedCategory   bool   `json:"simpleFeaturedCategory"`
-	SimpleFeaturedGuide      bool   `json:"simpleFeaturedGuide"`
-	SimpleFeaturedViewToggle bool   `json:"simpleFeaturedViewToggle"`
-	SimpleFeaturedSourcePage bool   `json:"simpleFeaturedSourcePage"`
-	VirtualBreadcrumbRoot    bool   `json:"virtualBreadcrumbRoot"`
-	VirtualGuideHeading      bool   `json:"virtualGuideHeading"`
-	VirtualBackButton        bool   `json:"virtualBackButton"`
-	ChannelCategoryName      string `json:"channelCategoryName"`
-	ReplayRewindable         bool   `json:"replayRewindable"`
-	NormalRewindable         bool   `json:"normalRewindable"`
-	ReplayPlayerClass        bool   `json:"replayPlayerClass"`
-	ReplayPlayerControls     bool   `json:"replayPlayerControls"`
-	ReplayPlayerTag          bool   `json:"replayPlayerTag"`
-	EPGOverlapResolved       bool   `json:"epgOverlapResolved"`
-	GuideStartsAtCurrentSlot bool   `json:"guideStartsAtCurrentSlot"`
-	ProgramSearchMatchesEPG  bool   `json:"programSearchMatchesEpg"`
+	SourcePath                bool   `json:"sourcePath"`
+	ProfileGroupPath          bool   `json:"profileGroupPath"`
+	ProfileGroupRoot          bool   `json:"profileGroupRoot"`
+	ProfileLocalMarketPath    bool   `json:"profileLocalMarketPath"`
+	DuplicateProfileCollapsed bool   `json:"duplicateProfileCollapsed"`
+	DuplicateProfileExpanded  bool   `json:"duplicateProfileExpanded"`
+	DuplicateGroupCollapsed   bool   `json:"duplicateGroupCollapsed"`
+	DuplicateGroupExpanded    bool   `json:"duplicateGroupExpanded"`
+	AliasPath                 bool   `json:"aliasPath"`
+	SecondAliasPath           bool   `json:"secondAliasPath"`
+	PrefixAliasPath           bool   `json:"prefixAliasPath"`
+	SourceCount               int    `json:"sourceCount"`
+	AliasCount                int    `json:"aliasCount"`
+	SecondAliasCount          int    `json:"secondAliasCount"`
+	PrefixAliasCount          int    `json:"prefixAliasCount"`
+	InferredLocalGroup        bool   `json:"inferredLocalGroup"`
+	InferredLocalCityGroup    bool   `json:"inferredLocalCityGroup"`
+	InferredCountryGroup      bool   `json:"inferredCountryGroup"`
+	InferredCountryCityGroup  bool   `json:"inferredCountryCityGroup"`
+	ChannelOnlySourceHidden   bool   `json:"channelOnlySourceHidden"`
+	ChannelOnlyInferredShown  bool   `json:"channelOnlyInferredShown"`
+	ObjectParsedMode          string `json:"objectParsedMode"`
+	StringParsedMode          string `json:"stringParsedMode"`
+	FeaturedSection           bool   `json:"featuredSection"`
+	FeaturedRenamedSection    bool   `json:"featuredRenamedSection"`
+	GuideRenamedAllOption     bool   `json:"guideRenamedAllOption"`
+	FeaturedCategory          bool   `json:"featuredCategory"`
+	FeaturedAlphabetical      bool   `json:"featuredAlphabetical"`
+	FeaturedVirtualCategory   bool   `json:"featuredVirtualCategory"`
+	FeaturedSourceCategory    bool   `json:"featuredSourceCategory"`
+	FeaturedMarkerVisible     bool   `json:"featuredMarkerVisible"`
+	FeaturedBreadcrumbRoot    bool   `json:"featuredBreadcrumbRoot"`
+	FeaturedBreadcrumbPath    bool   `json:"featuredBreadcrumbPath"`
+	FeaturedGuide             bool   `json:"featuredGuide"`
+	FeaturedGuideHeading      bool   `json:"featuredGuideHeading"`
+	FeaturedViewToggle        bool   `json:"featuredViewToggle"`
+	FeaturedListView          bool   `json:"featuredListView"`
+	FeaturedBackButton        bool   `json:"featuredBackButton"`
+	SimpleFeaturedCategory    bool   `json:"simpleFeaturedCategory"`
+	SimpleFeaturedGuide       bool   `json:"simpleFeaturedGuide"`
+	SimpleFeaturedViewToggle  bool   `json:"simpleFeaturedViewToggle"`
+	SimpleFeaturedSourcePage  bool   `json:"simpleFeaturedSourcePage"`
+	VirtualBreadcrumbRoot     bool   `json:"virtualBreadcrumbRoot"`
+	VirtualGuideHeading       bool   `json:"virtualGuideHeading"`
+	VirtualBackButton         bool   `json:"virtualBackButton"`
+	ChannelCategoryName       string `json:"channelCategoryName"`
+	ReplayRewindable          bool   `json:"replayRewindable"`
+	NormalRewindable          bool   `json:"normalRewindable"`
+	ReplayPlayerClass         bool   `json:"replayPlayerClass"`
+	ReplayPlayerControls      bool   `json:"replayPlayerControls"`
+	ReplayPlayerTag           bool   `json:"replayPlayerTag"`
+	EPGOverlapResolved        bool   `json:"epgOverlapResolved"`
+	GuideStartsAtCurrentSlot  bool   `json:"guideStartsAtCurrentSlot"`
+	ProgramSearchMatchesEPG   bool   `json:"programSearchMatchesEpg"`
 }
 
 func extractPlayerScript(t *testing.T) string {
@@ -813,11 +840,24 @@ JSON.stringify((function() {
   state.adminCategorySettings.virtualGroupSource = "profile_group";
   normalizeAdminCategorySettings();
   const profileAll = virtualCategoriesFromPaths("", function() { return true; }, true);
+  const nyLocalProfilePaths = virtualPathsForChannel(channelByID("channel:ny-local"));
+  const duplicateProfilePaths = virtualPathsForChannel(channelByID("channel:profile-us-tv-dup"));
+  state.adminCategorySettings.collapseDuplicateVirtualGroups = false;
+  normalizeAdminCategorySettings();
+  const duplicateProfileExpandedPaths = virtualPathsForChannel(channelByID("channel:profile-us-tv-dup"));
+  state.adminCategorySettings.collapseDuplicateVirtualGroups = true;
+  normalizeAdminCategorySettings();
   state.adminCategorySettings.virtualGroupSource = "group_channel";
   normalizeAdminCategorySettings();
+  const usTVDuplicateGroupPaths = virtualPathsForChannel(channelByID("channel:us-tv-dup"));
+  state.adminCategorySettings.collapseDuplicateVirtualGroups = false;
+  normalizeAdminCategorySettings();
+  const usTVDuplicateGroupExpandedPaths = virtualPathsForChannel(channelByID("channel:us-tv-dup"));
+  state.adminCategorySettings.collapseDuplicateVirtualGroups = true;
+  normalizeAdminCategorySettings();
   const source = all.find(function(item) { return item.name === "International / Argentina / Sports"; });
-  const profileGroup = profileAll.find(function(item) { return item.name === "The Ramindex / NY / US TV"; });
-  const profileRoot = profileAll.find(function(item) { return item.name === "The Ramindex"; });
+  const profileGroup = profileAll.find(function(item) { return item.name === "US TV / NY / Locals"; });
+  const profileRoot = profileAll.find(function(item) { return item.name === "US TV"; });
   const alias = all.find(function(item) { return item.name === "Sports / Argentina"; });
   const secondAlias = all.find(function(item) { return item.name === "World Cup / Argentina"; });
   const prefixAlias = all.find(function(item) { return item.name === "Sports / US / MLB Teams"; });
@@ -885,6 +925,11 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     sourcePath: !!source,
     profileGroupPath: !!profileGroup,
     profileGroupRoot: !!profileRoot,
+    profileLocalMarketPath: nyLocalProfilePaths.indexOf("US TV / NY / Locals / New York City") !== -1,
+    duplicateProfileCollapsed: duplicateProfilePaths.indexOf("US TV") !== -1 && duplicateProfilePaths.indexOf("US TV / US TV") === -1,
+    duplicateProfileExpanded: duplicateProfileExpandedPaths.indexOf("US TV / US TV") !== -1,
+    duplicateGroupCollapsed: usTVDuplicateGroupPaths.indexOf("US / TV") !== -1 && usTVDuplicateGroupPaths.indexOf("US / TV / TV") === -1,
+    duplicateGroupExpanded: usTVDuplicateGroupExpandedPaths.indexOf("US / TV / TV") !== -1,
     aliasPath: !!alias,
     secondAliasPath: !!secondAlias,
     prefixAliasPath: !!prefixAlias,
@@ -1500,7 +1545,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 		Method:  "POST",
 		Path:    "/dispatcharr/api/admin-settings",
 		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
-		Body:    []byte(`{"mode":"delimiter","delimiter":"pipe","virtualGroupLabel":" Virtual Categories ","virtualGroupSource":"channel","allowRecordingsByDefault":false,"inferChannelNameGroups":true,"categoryRenames":[{"sourcePath":" International | Arabic | Sports ","displayName":" International Sports "},{"sourcePath":"International | Arabic | Sports","displayName":"Duplicate Ignored"},{"sourcePath":"","displayName":"Nowhere"},{"sourcePath":"International | TV","displayName":""}],"categoryAliases":[{"sourcePath":" International | Arabic | Sports ","aliasPath":" Sports | Arabic "},{"sourcePath":"International | Arabic | Sports","aliasPath":"Sports | Arabic"},{"sourcePath":"International | Arabic | Sports","aliasPath":"World Cup | Arabic"},{"sourcePath":"","aliasPath":"Nowhere"},{"sourcePath":"International | Arabic | Sports","aliasPath":""}]}`),
+		Body:    []byte(`{"mode":"delimiter","delimiter":"pipe","virtualGroupLabel":" Virtual Categories ","virtualGroupSource":"profile_group","allowRecordingsByDefault":false,"collapseDuplicateVirtualGroups":false,"inferChannelNameGroups":true,"categoryRenames":[{"sourcePath":" International | Arabic | Sports ","displayName":" International Sports "},{"sourcePath":"International | Arabic | Sports","displayName":"Duplicate Ignored"},{"sourcePath":"","displayName":"Nowhere"},{"sourcePath":"International | TV","displayName":""}],"categoryAliases":[{"sourcePath":" International | Arabic | Sports ","aliasPath":" Sports | Arabic "},{"sourcePath":"International | Arabic | Sports","aliasPath":"Sports | Arabic"},{"sourcePath":"International | Arabic | Sports","aliasPath":"World Cup | Arabic"},{"sourcePath":"","aliasPath":"Nowhere"},{"sourcePath":"International | Arabic | Sports","aliasPath":""}]}`),
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
@@ -1527,11 +1572,14 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	if payload["virtualGroupLabel"] != "Virtual Categories" {
 		t.Fatalf("expected virtual group label to persist: %+v", payload)
 	}
-	if payload["virtualGroupSource"] != "channel" {
+	if payload["virtualGroupSource"] != "profile_group" {
 		t.Fatalf("expected virtual group source to persist: %+v", payload)
 	}
 	if payload["allowRecordingsByDefault"] != false {
 		t.Fatalf("expected admin recording default to persist: %+v", payload)
+	}
+	if payload["collapseDuplicateVirtualGroups"] != false {
+		t.Fatalf("expected duplicate virtual group collapse setting to persist: %+v", payload)
 	}
 	if payload["inferChannelNameGroups"] != true {
 		t.Fatalf("expected channel-name group inference flag to persist: %+v", payload)
@@ -1562,11 +1610,14 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	if persisted["virtualGroupLabel"] != "Virtual Categories" {
 		t.Fatalf("expected virtual group label to write through to host config: %+v", persisted)
 	}
-	if persisted["virtualGroupSource"] != "channel" {
+	if persisted["virtualGroupSource"] != "profile_group" {
 		t.Fatalf("expected virtual group source to write through to host config: %+v", persisted)
 	}
 	if persisted["allowRecordingsByDefault"] != false {
 		t.Fatalf("expected admin recording default to write through to host config: %+v", persisted)
+	}
+	if persisted["collapseDuplicateVirtualGroups"] != false {
+		t.Fatalf("expected duplicate virtual group collapse setting to write through to host config: %+v", persisted)
 	}
 	if persisted["inferChannelNameGroups"] != true {
 		t.Fatalf("expected channel-name group inference flag to write through to host config: %+v", persisted)

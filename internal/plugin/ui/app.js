@@ -6,7 +6,7 @@ const pluginInstallationID = (base.match(/\/api\/v1\/plugins\/(\d+)/) || [])[1] 
 const localCacheSuffix = pluginInstallationID || "default";
 const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuffix;
 const adminSettingsToken = "__ADMIN_SETTINGS_TOKEN__";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
 
 function applySiloTheme() {
   const params = new URLSearchParams(window.location.search);
@@ -58,6 +58,7 @@ function icon(name) {
     "speaker-off": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m4.5 4.5 15 15M5 14.25h2.5l4.25 3.25v-5.75M11.75 8.7V6.5L8.8 8.75M16 10.8a3 3 0 0 1 .2 2.2'/></svg>",
     "airplay": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 17.25h-1.5A2.25 2.25 0 0 1 3 15V6.75A2.25 2.25 0 0 1 5.25 4.5h13.5A2.25 2.25 0 0 1 21 6.75V15a2.25 2.25 0 0 1-2.25 2.25h-1.5M8.25 21h7.5L12 16.5 8.25 21Z'/></svg>",
     "guide": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M4.5 6.75h15M4.5 12h15M4.5 17.25h15M8.25 4.5v15M15.75 4.5v15'/></svg>",
+    "clock": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z'/><path stroke-linecap='round' stroke-linejoin='round' d='M12 7.5V12l3 2.25'/></svg>",
     "multiview": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M4.5 5.75h6.25v5.75H4.5zM13.25 5.75h6.25v5.75h-6.25zM4.5 14h6.25v4.25H4.5zM13.25 14h6.25v4.25h-6.25z'/></svg>",
     "settings": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M12 8.25a3.75 3.75 0 1 1 0 7.5 3.75 3.75 0 0 1 0-7.5Z'/><path stroke-linecap='round' stroke-linejoin='round' d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.23.64.84 1 1.51 1H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z'/></svg>",
     "fullscreen": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M8.25 4.5H4.5v3.75M15.75 4.5h3.75v3.75M19.5 15.75v3.75h-3.75M4.5 15.75v3.75h3.75M9 9 4.5 4.5M15 9l4.5-4.5M15 15l4.5 4.5M9 15l-4.5 4.5'/></svg>",
@@ -90,7 +91,7 @@ function defaultEventKeywordRules() {
   ];
 }
 function defaultAdminCategorySettings() {
-  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", virtualGroupSource: "group", allowRecordingsByDefault: true, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
+  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, allowRecordingsByDefault: true, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
 }
 function cloneAdminCategorySettings(settings) {
   try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -192,6 +193,11 @@ function normalizeAdminCategorySettings() {
   if (state.adminCategorySettings.delimiter !== "pipe" && state.adminCategorySettings.delimiter !== "dash") state.adminCategorySettings.delimiter = "pipe";
   state.adminCategorySettings.virtualGroupLabel = virtualGroupLabelSuffix(state.adminCategorySettings.virtualGroupLabel);
   state.adminCategorySettings.allowRecordingsByDefault = state.adminCategorySettings.allowRecordingsByDefault !== false;
+  if (typeof state.adminCategorySettings.collapseDuplicateVirtualGroups === "undefined" && typeof state.adminCategorySettings.collapseDuplicateProfileGroups !== "undefined") {
+    state.adminCategorySettings.collapseDuplicateVirtualGroups = state.adminCategorySettings.collapseDuplicateProfileGroups;
+  }
+  state.adminCategorySettings.collapseDuplicateVirtualGroups = state.adminCategorySettings.collapseDuplicateVirtualGroups !== false;
+  delete state.adminCategorySettings.collapseDuplicateProfileGroups;
   state.adminCategorySettings.virtualGroupSource = normalizeVirtualGroupSource(state.adminCategorySettings.virtualGroupSource, state.adminCategorySettings.inferChannelNameGroups === true);
   state.adminCategorySettings.inferChannelNameGroups = state.adminCategorySettings.virtualGroupSource !== "group";
   state.adminCategorySettings.ecmURL = normalizeAdminECMURL(state.adminCategorySettings.ecmURL);
@@ -711,6 +717,13 @@ function appendUnduplicatedPathParts(basePath, extraParts) {
   }
   return additions.length ? baseParts.concat(additions).join(" / ") : "";
 }
+function appendVirtualPathParts(basePath, extraParts) {
+  const baseParts = String(basePath || "").split(" / ").map(normalizedNameToken).filter(Boolean);
+  const additions = items(extraParts).map(normalizedNameToken).filter(Boolean);
+  if (!baseParts.length || !additions.length) return "";
+  if (adminSettings().collapseDuplicateVirtualGroups === false) return baseParts.concat(additions).join(" / ");
+  return appendUnduplicatedPathParts(basePath, additions);
+}
 function normalizedNameToken(value) {
   return String(value || "").trim().replace(/\s+/g, " ");
 }
@@ -751,6 +764,14 @@ function inferredChannelNameGroupPaths(channel) {
   if (second) paths.push(root + " / " + first + " / " + second);
   return uniqueIDs(paths);
 }
+function localMarketPathPartsForChannel(channel, sourceParts) {
+  const sourceTail = normalizedNameToken(items(sourceParts).slice(-1)[0] || "").toLowerCase();
+  if (sourceTail !== "local" && sourceTail !== "locals") return [];
+  const parts = channelNamePathParts(channel).map(normalizedNameToken).filter(Boolean);
+  if (parts.length < 2) return [];
+  if (looksLikeUSStateCode(parts[0])) return parts[1] ? [parts[1]] : [];
+  return [parts[0]];
+}
 function virtualPathsForChannel(channel) {
   const paths = [];
   if (useProfileGroupVirtualPaths()) {
@@ -762,7 +783,7 @@ function virtualPathsForChannel(channel) {
     paths.push(sourcePath);
     aliasVirtualPathsForSourcePath(sourcePath).forEach(function(path) { paths.push(path); });
     if (virtualGroupSourceMode() === "group_channel") {
-      const combinedPath = appendUnduplicatedPathParts(sourcePath, channelNameFolderPathParts(channel));
+      const combinedPath = appendVirtualPathParts(sourcePath, channelNameFolderPathParts(channel));
       if (combinedPath) {
         paths.push(combinedPath);
         aliasVirtualPathsForSourcePath(combinedPath).forEach(function(path) { paths.push(path); });
@@ -780,7 +801,11 @@ function profileVirtualPathsForChannel(channel) {
   const paths = [];
   profilePathsForChannel(channel).forEach(function(profilePath) {
     paths.push(profilePath);
-    paths.push(profilePath + " / " + sourcePath);
+    const sourceParts = String(sourcePath || "").split(" / ").map(normalizedNameToken).filter(Boolean);
+    const combinedPath = appendVirtualPathParts(profilePath, sourceParts);
+    if (combinedPath) paths.push(combinedPath);
+    const marketPath = appendVirtualPathParts(combinedPath || (profilePath + " / " + sourcePath), localMarketPathPartsForChannel(channel, sourceParts));
+    if (marketPath) paths.push(marketPath);
   });
   return uniqueIDs(paths);
 }
@@ -2176,7 +2201,7 @@ function activeVirtualCategoryID(path, featured) {
   return featured ? featuredCategoryID(path) : virtualCategoryID(path);
 }
 function virtualFolderHeader(path, featured) {
-  return "<div class=\"section-title\">" + virtualFolderBreadcrumbs(path, featured) + "</div>";
+  return "<div class=\"section-title virtual-folder-title\">" + virtualFolderBreadcrumbs(path, featured) + "<div class=\"virtual-folder-actions\">" + guideFreshnessHTML() + renderVirtualCategoryViewToggle() + "</div></div>";
 }
 function virtualFolderBreadcrumbs(path, featured) {
   const parts = path.split(" / ").filter(Boolean);
@@ -2397,7 +2422,7 @@ function renderHomeGuide(channels, emptyMessage, options) {
   }).join("") + "</div></div>";
 }
 function renderVirtualCategoryGuide(channels) {
-  return renderHomeGuide(channels, "No channels in this virtual group yet.");
+  return renderHomeGuide(channels, "No channels in this virtual group yet.", { hideFreshness: true });
 }
 function virtualCategoryView() {
   return state.virtualCategoryView === "list" ? "list" : "guide";
@@ -2470,7 +2495,7 @@ function renderLivePage() {
     const filteredChildren = children.filter(categoryMatchesFolderQuery);
     const filteredChannels = channels.filter(channelMatchesFolderQuery);
     byId("view").innerHTML = virtualFolderHeader(path, featured)
-      + folderFilterHTML("Filter this folder", renderVirtualCategoryViewToggle())
+      + folderFilterHTML("Filter this folder", "")
       + (filteredChildren.length ? "<div class=\"category-grid\">" + filteredChildren.map(categoryTileHTML).join("") + "</div>" : "")
       + renderVirtualCategoryContent(filteredChannels);
     maybeWarmGuideForChannels(filteredChannels, state.category);
@@ -2604,6 +2629,73 @@ function scheduleProgram(channelID, programID, button) {
   }).finally(function() {
     if (button) button.disabled = false;
   });
+}
+function programDetailsState() {
+  if (!state.programDetails) return null;
+  const channel = channelByID(state.programDetails.channelID);
+  const program = programByID(state.programDetails.channelID, state.programDetails.programID);
+  if (!channel || !program) return null;
+  return { channel: channel, program: program };
+}
+function openProgramDetails(channelID, programID) {
+  const program = programByID(channelID, programID);
+  if (!program || programIsGuidePlaceholder(program)) {
+    const channel = channelByID(channelID);
+    if (channel) playChannel(channel);
+    return;
+  }
+  state.programDetails = { channelID: channelID, programID: programID };
+  renderProgramDetailsModal();
+}
+function closeProgramDetails() {
+  state.programDetails = null;
+  renderProgramDetailsModal();
+}
+function programDetailTags(program, channel) {
+  const tags = [];
+  if (programLooksSports(program)) tags.push("Sports");
+  else if (programLooksMovie(program)) tags.push("Movie");
+  if (program.rating) tags.push(program.rating);
+  if (channel && channel.categoryName) tags.push(categoryDisplayName(channel.categoryName));
+  if (programIsLive(program)) tags.push("Live now");
+  return uniqueIDs(tags).slice(0, 5);
+}
+function programDurationLabel(seconds) {
+  const minutes = Math.max(1, Math.round(Number(seconds || 0) / 60));
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (hours && remainder) return hours + " hr " + remainder + " min";
+  if (hours) return hours + (hours === 1 ? " hr" : " hrs");
+  return minutes + " min";
+}
+function programDetailsModalHTML(details) {
+  const channel = details.channel;
+  const program = details.program;
+  const title = program.title || guideUnavailableLabel();
+  const description = String(program.summary || program.description || "").trim();
+  const start = program.startUnix || 0;
+  const end = program.endUnix || 0;
+  const duration = start && end ? Math.max(1, Math.round((end - start) / 60)) : 0;
+  const timeText = [start ? dateTimeLabel(start) : "", duration ? programDurationLabel(duration * 60) : ""].filter(Boolean).join(", ");
+  const channelName = channel.name || channel.categoryName || "Live TV";
+  const tags = programDetailTags(program, channel);
+  const canSchedule = dvrEnabled() && end > Math.floor(Date.now() / 1000);
+  return "<div class=\"program-modal-backdrop\" data-program-modal-close=\"true\"></div><section class=\"program-modal\" role=\"dialog\" aria-modal=\"true\" aria-label=\"" + escapeHTML(title) + "\">"
+    + "<button class=\"program-modal-close\" type=\"button\" data-program-modal-close=\"true\" aria-label=\"Close\">" + icon("x") + "</button>"
+    + "<div class=\"program-modal-head\"><div class=\"program-modal-art\">" + logoHTML(channel) + "</div><div class=\"program-modal-title\"><h2>" + escapeHTML(title) + "</h2><p>" + escapeHTML(channelName) + "</p><div class=\"program-modal-time\">" + icon("clock") + "<span>" + escapeHTML(timeText || (programIsLive(program) ? "Live now" : "Guide airing")) + "</span></div><div class=\"program-modal-tags\">" + tags.map(function(tag) { return "<span>" + escapeHTML(tag) + "</span>"; }).join("") + "</div></div></div>"
+    + "<div class=\"program-modal-body\">" + (description ? escapeHTML(description) : "No additional details are available for this airing.") + "</div>"
+    + "<div class=\"program-modal-actions\"><button type=\"button\" data-search-airing=\"" + escapeHTML(title) + "\">" + icon("search") + "<span>More Airings</span></button><button type=\"button\" data-program-detail-watch=\"" + escapeHTML(channel.id) + "\">" + icon("play") + "<span>Watch Now</span></button>" + (canSchedule ? "<button type=\"button\" data-program-detail-schedule=\"" + escapeHTML(channel.id) + "\" data-program-detail-program=\"" + escapeHTML(program.id || "") + "\">" + icon("record") + "<span>Record</span></button>" : "") + "</div>"
+    + "</section>";
+}
+function renderProgramDetailsModal() {
+  let root = byId("program-details-root");
+  if (!root) {
+    root = document.createElement("div");
+    root.id = "program-details-root";
+    document.body.appendChild(root);
+  }
+  const details = programDetailsState();
+  root.innerHTML = details ? programDetailsModalHTML(details) : "";
 }
 function renderRecordingsPage() {
   const root = byId("view");
@@ -3073,7 +3165,7 @@ function renderEPGCells(channel, channelIndex) {
     const isLive = start <= now && end > now;
     const programTitle = programIsGuidePlaceholder(program) ? guideUnavailableLabel() : program.title || guideUnavailableLabel();
     const programTime = epgVisibleTime(start, windowStart);
-    cells.push("<div class=\"epg-cell program" + (isLive ? " live" : "") + "\" style=\"" + epgCellStyle(start, end, windowInfo) + "\"><button class=\"epg-play\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(programTime + " " + programTitle) + "\" data-tooltip-always=\"true\" data-overflow-tooltip=\"" + escapeHTML(epgProgramTooltip(program, channel, start, end, isLive)) + "\"><time>" + escapeHTML(programTime) + "</time><strong>" + escapeHTML(programTitle) + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>");
+    cells.push("<div class=\"epg-cell program" + (isLive ? " live" : "") + "\" style=\"" + epgCellStyle(start, end, windowInfo) + "\"><button class=\"epg-play\" data-program-detail-channel=\"" + escapeHTML(channel.id) + "\" data-program-detail=\"" + escapeHTML(program.id || "") + "\" aria-label=\"" + escapeHTML(programTime + " " + programTitle) + "\"><time>" + escapeHTML(programTime) + "</time><strong>" + escapeHTML(programTitle) + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>");
     cursor = end;
   });
   if (cursor < windowEnd) cells.push(renderEPGGapCell(channel, cursor, windowEnd, windowInfo));
@@ -3081,13 +3173,6 @@ function renderEPGCells(channel, channelIndex) {
 }
 function epgVisibleTime(startUnix, windowStart) {
   return timeLabel(Math.max(startUnix || windowStart, windowStart));
-}
-function epgProgramTooltip(program, channel, startUnix, endUnix, isLive) {
-  const title = programIsGuidePlaceholder(program) ? guideUnavailableLabel() : program.title || guideUnavailableLabel();
-  const channelName = channel.name || channel.categoryName || "Live TV";
-  const timeRange = [timeLabel(startUnix), timeLabel(endUnix)].filter(Boolean).join(" - ");
-  const summary = String(program.summary || program.description || "").trim();
-  return [title, (isLive ? "Live now" : timeRange), channelName, summary].filter(Boolean).join("\n");
 }
 function renderEPGGapCell(channel, startUnix, endUnix, windowInfo) {
   if (endUnix <= startUnix) return "";
@@ -3297,6 +3382,7 @@ function renderAdminCategorySettings() {
     + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Mode</strong><small>Choose how Silo builds the browse hierarchy.</small></span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Normal</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">By delimiter</option></select></div>"
     + nested
     + "<div class=\"settings-row settings-form-row settings-source-row\"><span class=\"settings-field-copy\"><strong>Virtual group source</strong><small>" + escapeHTML(sourceHelp) + "</small></span><select data-admin-category-field=\"virtualGroupSource\"><option value=\"group\"" + (virtualGroupSourceMode() === "group" ? " selected" : "") + ">Group pipe</option><option value=\"group_channel\"" + (virtualGroupSourceMode() === "group_channel" ? " selected" : "") + ">Group pipe + channel pipe</option><option value=\"profile_group\"" + (virtualGroupSourceMode() === "profile_group" ? " selected" : "") + ">Profile pipe + group pipe</option><option value=\"channel\"" + (virtualGroupSourceMode() === "channel" ? " selected" : "") + ">Channel pipe</option></select></div>"
+    + "<label class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Collapse duplicate virtual groups</strong><small>Skip repeated names when group, profile, or channel path labels overlap.</small></span><input type=\"checkbox\" data-admin-category-field=\"collapseDuplicateVirtualGroups\"" + (settings.collapseDuplicateVirtualGroups !== false ? " checked" : "") + "></label>"
     + (settings.mode === "normal" ? "<div class=\"settings-note\">Channel groups are shown as provided, without remapping or resorting.</div>" : "");
 }
 function adminSourceGroups() {
@@ -3950,6 +4036,32 @@ document.addEventListener("click", function(event) {
     refreshGuideBlockData();
     return;
   }
+  const programDetailClose = event.target.closest("[data-program-modal-close]");
+  if (programDetailClose) {
+    event.preventDefault();
+    closeProgramDetails();
+    return;
+  }
+  const programDetailWatch = event.target.closest("[data-program-detail-watch]");
+  if (programDetailWatch) {
+    event.preventDefault();
+    const channel = channelByID(programDetailWatch.getAttribute("data-program-detail-watch"));
+    closeProgramDetails();
+    if (channel) playChannel(channel);
+    return;
+  }
+  const programDetailSchedule = event.target.closest("[data-program-detail-schedule]");
+  if (programDetailSchedule) {
+    event.preventDefault();
+    scheduleProgram(programDetailSchedule.getAttribute("data-program-detail-schedule"), programDetailSchedule.getAttribute("data-program-detail-program"), programDetailSchedule);
+    return;
+  }
+  const programDetailTarget = event.target.closest("[data-program-detail-channel]");
+  if (programDetailTarget) {
+    event.preventDefault();
+    openProgramDetails(programDetailTarget.getAttribute("data-program-detail-channel"), programDetailTarget.getAttribute("data-program-detail"));
+    return;
+  }
   const searchCancel = event.target.closest("[data-search-cancel]");
   if (searchCancel) {
     event.preventDefault();
@@ -4013,6 +4125,7 @@ document.addEventListener("click", function(event) {
   if (searchAiring) {
     event.preventDefault();
     rememberSearch(state.searchQuery);
+    closeProgramDetails();
     state.searchQuery = searchAiring.getAttribute("data-search-airing") || state.searchQuery;
     state.searchType = "programs";
     setView("search");
@@ -4218,6 +4331,11 @@ document.addEventListener("focusout", function(event) {
 document.addEventListener("fullscreenchange", updateFullscreenButton);
 document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
 document.addEventListener("keydown", function(event) {
+  if (state.programDetails && event.key === "Escape") {
+    event.preventDefault();
+    closeProgramDetails();
+    return;
+  }
   if (event.target && event.target.id === "search-page-input" && event.key === "Enter") {
     event.preventDefault();
     clearSearchResultsTimer();
