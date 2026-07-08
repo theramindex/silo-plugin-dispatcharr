@@ -132,6 +132,7 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 		s.store.RecordFailure(nowUnix, err.Error())
 		return err
 	}
+	profileIDsByChannel := profileIDsByDispatcharrChannel(profiles)
 
 	content := model.ContentState{LiveCategories: make([]model.Category, 0, len(groups))}
 	categoryNames := map[string]string{}
@@ -155,6 +156,7 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 			continue
 		}
 		channel := mapping.MapDispatcharrChannel(upstream, client.LiveStreamURL(upstream.UUID.String()))
+		channel.ProfileIDs = profileIDsByChannel[upstream.ID.String()]
 		channel.LogoURL = client.AbsoluteURL(channel.LogoURL)
 		if channel.LogoURL == "" {
 			channel.LogoURL = client.LogoCacheURL(firstPresent(upstream.EffectiveLogoID.String(), upstream.LogoID.String()))
@@ -368,6 +370,24 @@ func selectedChannelProfile(selection string, profiles []dispatcharr.ChannelProf
 		return &matched, allowed, nil
 	}
 	return nil, nil, fmt.Errorf("dispatcharr channel profile %q was not found", selection)
+}
+
+func profileIDsByDispatcharrChannel(profiles []dispatcharr.ChannelProfile) map[string][]string {
+	membership := map[string][]string{}
+	for _, profile := range profiles {
+		profileID := strings.TrimSpace(profile.ID.String())
+		if profileID == "" {
+			continue
+		}
+		for _, channelID := range profile.Channels {
+			key := strings.TrimSpace(channelID.String())
+			if key == "" {
+				continue
+			}
+			membership[key] = append(membership[key], profileID)
+		}
+	}
+	return membership
 }
 
 func directSourceWithProfiles(profiles []dispatcharr.ChannelProfile, selected *dispatcharr.ChannelProfile) model.Source {
