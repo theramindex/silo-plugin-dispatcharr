@@ -344,6 +344,9 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`function renderProgramDetailsModal()`,
 		`class=\"program-modal\"`,
 		`aria-labelledby=\"program-modal-title\" aria-describedby=\"program-modal-description\"`,
+		`.program-modal-art .logo { position: absolute; left: 50%; top: 50%;`,
+		`.program-modal-tags span.is-live { background: #b42318;`,
+		`tag === "Live now" ? " class=\"is-live\""`,
 		`shell.setAttribute("inert", "")`,
 		`function trapProgramModalFocus(event)`,
 		`if (start > cursor) cells.push(renderEPGGapCell(channel, cursor, start, windowInfo));`,
@@ -750,6 +753,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.DetailsFirstProgramClick {
 		t.Fatalf("expected Search and On Later program clicks to open explicit Watch Now details: %+v", result)
 	}
+	if !result.DetailsLiveTag {
+		t.Fatalf("expected live program details to render a dedicated live-status tag: %+v", result)
+	}
 	if !result.PlayerReturnContextRestored {
 		t.Fatalf("expected player exit to restore browse and scroll context: %+v", result)
 	}
@@ -856,6 +862,7 @@ type virtualAliasResult struct {
 	ProgramSearchMatchesEPG     bool   `json:"programSearchMatchesEpg"`
 	GuideWindowBounded          bool   `json:"guideWindowBounded"`
 	DetailsFirstProgramClick    bool   `json:"detailsFirstProgramClick"`
+	DetailsLiveTag              bool   `json:"detailsLiveTag"`
 	PlayerReturnContextRestored bool   `json:"playerReturnContextRestored"`
 }
 
@@ -1038,6 +1045,7 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 	});
 	const programModal = document.getElementById("program-details-root");
 	const detailsFirstProgramClick = !!state.programDetails && state.programDetails.programID === "overlap-a" && programModal.innerHTML.indexOf("Watch Now") !== -1 && state.currentChannel === null && state.view === "search";
+	const detailsLiveTag = programModal.innerHTML.indexOf('<span class="is-live">Live now</span>') !== -1;
 	state.programDetails = null;
 	renderProgramDetailsModal();
 
@@ -1118,6 +1126,7 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 		programSearchMatchesEpg: programSearchMatchesEPG,
 		guideWindowBounded: guideWindowBounded,
 		detailsFirstProgramClick: detailsFirstProgramClick,
+		detailsLiveTag: detailsLiveTag,
 		playerReturnContextRestored: playerReturnContextRestored
 	};
 })())
