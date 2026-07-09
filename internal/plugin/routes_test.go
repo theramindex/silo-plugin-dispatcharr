@@ -2186,6 +2186,10 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		t.Fatal("opening program details must not directly play a fallback channel")
 	}
 	requireScript(`Program details unavailable`)
+	recentCards := functionBody("rowCards")
+	if !strings.Contains(recentCards, "currentProgram(channel)") || !strings.Contains(recentCards, `class=\"continue-card recent-channel-card\"`) || strings.Contains(recentCards, "channel.categoryName") {
+		t.Fatal("recently watched cards must show current programming instead of internal channel groups")
+	}
 
 	// The VM integration test exercises details-first clicks, guide windowing,
 	// and exact player return state. These checks keep their public hooks stable.
@@ -2229,6 +2233,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.filter-section`,
 		`.organization-preview`,
 		`.event-card-body.no-art`,
+		`.recent-channel-card`,
 		`@media (max-width: 700px)`,
 		`.topbar-primary`,
 		`.topbar-actions`,
@@ -2237,6 +2242,9 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	}
 	if !strings.Contains(compactStyles, `.sports-card{`) || !strings.Contains(compactStyles, `.admin-status-strip{`) || !strings.Contains(compactStyles, `.custom-group-browser,.custom-group-members{`) || !strings.Contains(compactStyles, `border-radius:0.5rem;`) {
 		t.Fatal("non-pill sports cards must keep an 8px-or-smaller radius")
+	}
+	if !strings.Contains(styles, `.time-head span:not(:first-child) { position: sticky; left: var(--epg-logo-col);`) {
+		t.Fatal("guide time panes must remain frozen while scrolling horizontally")
 	}
 	if strings.Contains(styles, `letter-spacing: 0.04em`) {
 		t.Fatal("interface labels must use neutral letter spacing")
