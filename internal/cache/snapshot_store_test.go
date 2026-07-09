@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -41,6 +42,13 @@ func TestFileSnapshotStorageRoundTripsCatalogSnapshot(t *testing.T) {
 	}
 	if len(loaded.Catalog.Programs) != 1 || loaded.Catalog.Programs[0].ID != "program:1" {
 		t.Fatalf("unexpected loaded programs: %+v", loaded.Catalog.Programs)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat snapshot: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("expected private snapshot permissions 0600, got %04o", got)
 	}
 }
 

@@ -15,15 +15,15 @@ type ChannelIdentity struct {
 }
 
 type Channel struct {
-	ID           string `json:"id"`
-	SourceID     string `json:"sourceId"`
-	Name         string `json:"name"`
-	Number       string `json:"number,omitempty"`
-	GuideID      string `json:"guideId,omitempty"`
-	LogoURL      string `json:"logoUrl,omitempty"`
-	StreamURL    string `json:"streamUrl,omitempty"`
-	CategoryID   string `json:"categoryId,omitempty"`
-	CategoryName string `json:"categoryName,omitempty"`
+	ID           string   `json:"id"`
+	SourceID     string   `json:"sourceId"`
+	Name         string   `json:"name"`
+	Number       string   `json:"number,omitempty"`
+	GuideID      string   `json:"guideId,omitempty"`
+	LogoURL      string   `json:"logoUrl,omitempty"`
+	StreamURL    string   `json:"streamUrl,omitempty"`
+	CategoryID   string   `json:"categoryId,omitempty"`
+	CategoryName string   `json:"categoryName,omitempty"`
 	ProfileIDs   []string `json:"profileIds,omitempty"`
 }
 

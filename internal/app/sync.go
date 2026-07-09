@@ -38,27 +38,31 @@ type xtreamAppCatalogClient interface {
 	Series(ctx context.Context) ([]xtream.Series, error)
 }
 
-func (s *Service) SyncNow(ctx context.Context, settings config.Settings, nowUnix int64) error {
-	return s.syncNow(ctx, settings, nowUnix, false)
+type syncOptions struct {
+	exactGuide   bool
+	channelsOnly bool
 }
 
-func (s *Service) syncNow(ctx context.Context, settings config.Settings, nowUnix int64, exactGuide bool) error {
+func (s *Service) SyncNow(ctx context.Context, settings config.Settings, nowUnix int64) error {
+	return s.syncNow(ctx, settings, nowUnix, syncOptions{})
+}
+
+func (s *Service) RefreshChannelsNow(ctx context.Context, settings config.Settings, nowUnix int64) error {
+	return s.syncNow(ctx, settings, nowUnix, syncOptions{channelsOnly: true})
+}
+
+func (s *Service) syncNow(ctx context.Context, settings config.Settings, nowUnix int64, options syncOptions) error {
 	if err := settings.Validate(); err != nil {
 		return err
 	}
 
 	switch settings.SourceMode {
 	case config.SourceModeDirectLogin, config.SourceModeAPIKey:
-		return s.syncDispatcharr(ctx, settings, nowUnix, exactGuide)
+		return s.syncDispatcharr(ctx, settings, nowUnix, options)
 	case config.SourceModeXtream:
-		return s.syncXtream(ctx, settings, model.SourceModeXtream, nowUnix, exactGuide)
+		return s.syncXtream(ctx, settings, model.SourceModeXtream, nowUnix, options)
 	case config.SourceModeM3UXMLTV:
 		playlistData, err := s.fetchURL(ctx, settings.M3UURL)
-		if err != nil {
-			s.store.RecordFailure(nowUnix, err.Error())
-			return err
-		}
-		xmltvData, err := s.fetchURL(ctx, settings.EPGXMLURL)
 		if err != nil {
 			s.store.RecordFailure(nowUnix, err.Error())
 			return err
@@ -68,38 +72,41 @@ func (s *Service) syncNow(ctx context.Context, settings config.Settings, nowUnix
 			s.store.RecordFailure(nowUnix, err.Error())
 			return err
 		}
-		doc, err := xmltv.Parse(xmltvData)
-		if err != nil {
-			s.store.RecordFailure(nowUnix, err.Error())
-			return err
-		}
 		channels := make([]model.Channel, 0, len(entries))
 		programs := make([]model.Program, 0)
 		for _, entry := range entries {
-			channel := mapping.MapM3UChannel(entry)
-			channels = append(channels, channel)
-			matchedChannel, ok := matching.Match(entry, doc)
-			if !ok {
-				continue
-			}
-			for _, programme := range doc.Programmes {
-				if programme.Channel == matchedChannel.ID {
-					programs = append(programs, mapping.MapXMLTVProgramme(channel.ID, programme))
-				}
-			}
+			channels = append(channels, mapping.MapM3UChannel(entry))
 		}
-		catalog := model.CatalogState{Source: model.LiveTVSource(model.SourceModeM3UXMLTV), Channels: channels, Programs: programs, Health: syncHealth(nowUnix, len(programs))}
+		if options.channelsOnly {
+			programs = s.preservedPrograms(settings, channels)
+		} else {
+			xmltvData, err := s.fetchURL(ctx, settings.EPGXMLURL)
+			if err != nil {
+				s.store.RecordFailure(nowUnix, err.Error())
+				return err
+			}
+			doc, err := xmltv.Parse(xmltvData)
+			if err != nil {
+				s.store.RecordFailure(nowUnix, err.Error())
+				return err
+			}
+			programs = programsForM3UEntries(entries, channels, doc)
+		}
+		content := model.ContentState{}
+		if options.channelsOnly {
+			content = s.preservedContent(settings)
+		}
+		catalog := model.CatalogState{Source: model.LiveTVSource(model.SourceModeM3UXMLTV), Channels: channels, Programs: programs, Health: s.syncHealthForOperation(settings, nowUnix, len(programs), options), Content: content}
 		state := cache.SnapshotFromCatalog(catalog)
 		state.Health.LastSuccessUnix = nowUnix
 		state.ConfigKey = config.CatalogCacheKey(settings)
-		s.replaceSnapshotAfterSync(state, exactGuide)
-		return nil
+		return s.replaceSnapshotAfterSync(state, options.exactGuide)
 	default:
 		return fmt.Errorf("source mode %q not implemented", settings.SourceMode)
 	}
 }
 
-func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings, nowUnix int64, exactGuide bool) error {
+func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings, nowUnix int64, options syncOptions) error {
 	client := s.dispatcharrFactory(settings)
 	tightDeadline := hasTightDeadline(ctx)
 	if err := requireDispatcharrMinimumVersion(ctx, client); err != nil {
@@ -180,7 +187,10 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 
 	programs := make([]model.Program, 0)
 	programIDs := map[string]struct{}{}
-	if upstreamPrograms, err := client.Programs(ctx); err == nil {
+	if options.channelsOnly {
+		programs = s.preservedPrograms(settings, channels)
+		content = mergePreservedContent(content, s.preservedContent(settings))
+	} else if upstreamPrograms, err := client.Programs(ctx); err == nil {
 		for _, upstream := range upstreamPrograms {
 			channelID := channelByGuideID[upstream.TVGID.String()]
 			if channelID == "" {
@@ -191,7 +201,7 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 			programIDs[program.ID] = struct{}{}
 		}
 	}
-	if !tightDeadline {
+	if !options.channelsOnly && !tightDeadline {
 		start, end := dispatcharrGuideSearchWindow(nowUnix)
 		if upstreamPrograms, err := client.SearchPrograms(ctx, start, end); err == nil {
 			for _, upstream := range upstreamPrograms {
@@ -215,7 +225,7 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 		}
 	}
 
-	if !tightDeadline {
+	if !options.channelsOnly && !tightDeadline {
 		if categories, err := client.VODCategories(ctx); err == nil {
 			for _, upstream := range categories {
 				category := mapping.MapDispatcharrVODCategory(upstream)
@@ -248,20 +258,19 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 		Source:   directSourceWithProfiles(profiles, profile),
 		Channels: channels,
 		Programs: programs,
-		Health:   syncHealth(nowUnix, len(programs)),
+		Health:   s.syncHealthForOperation(settings, nowUnix, len(programs), options),
 		Content:  content,
 	}
 	state := cache.SnapshotFromCatalog(catalog)
 	state.Health.LastSuccessUnix = nowUnix
 	state.ConfigKey = config.CatalogCacheKey(settings)
-	s.replaceSnapshotAfterSync(state, exactGuide)
-	if tightDeadline || len(programs) == 0 {
-		s.StartAsyncEPGRefresh(settings)
+	if err := s.replaceSnapshotAfterSync(state, options.exactGuide); err != nil {
+		return err
 	}
 	return nil
 }
 
-func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sourceMode model.SourceMode, nowUnix int64, exactGuide bool) error {
+func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sourceMode model.SourceMode, nowUnix int64, options syncOptions) error {
 	baseURL, username, password := xtreamConnectionSettings(settings)
 	client := s.xtreamFactory(baseURL, username, password)
 	streams, err := client.LiveStreams(ctx)
@@ -274,7 +283,7 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 	categoryNames := map[string]string{}
 	tightDeadline := hasTightDeadline(ctx)
 	if catalogClient, ok := client.(xtreamAppCatalogClient); ok {
-		content = loadXtreamAppCatalog(ctx, catalogClient, !tightDeadline)
+		content = loadXtreamAppCatalog(ctx, catalogClient, !tightDeadline && !options.channelsOnly)
 		for _, category := range content.LiveCategories {
 			categoryNames[category.ID] = category.Name
 		}
@@ -288,7 +297,10 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 		channels = append(channels, channel)
 	}
 
-	if !tightDeadline && strings.TrimSpace(settings.EPGXMLURL) != "" {
+	if options.channelsOnly {
+		programs = s.preservedPrograms(settings, channels)
+		content = mergePreservedContent(content, s.preservedContent(settings))
+	} else if !tightDeadline && strings.TrimSpace(settings.EPGXMLURL) != "" {
 		xmltvPrograms, err := s.xmltvProgramsForChannels(ctx, settings.EPGXMLURL, channels)
 		if err != nil {
 			s.store.RecordFailure(nowUnix, err.Error())
@@ -297,7 +309,7 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 		programs = append(programs, xmltvPrograms...)
 	}
 
-	if len(programs) == 0 {
+	if !options.channelsOnly && len(programs) == 0 {
 		for _, stream := range streams {
 			if tightDeadline {
 				continue
@@ -320,15 +332,14 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 		Source:   model.LiveTVSource(sourceMode),
 		Channels: channels,
 		Programs: programs,
-		Health:   syncHealth(nowUnix, len(programs)),
+		Health:   s.syncHealthForOperation(settings, nowUnix, len(programs), options),
 		Content:  content,
 	}
 	state := cache.SnapshotFromCatalog(catalog)
 	state.Health.LastSuccessUnix = nowUnix
 	state.ConfigKey = config.CatalogCacheKey(settings)
-	s.replaceSnapshotAfterSync(state, exactGuide)
-	if tightDeadline {
-		s.StartAsyncEPGRefresh(settings)
+	if err := s.replaceSnapshotAfterSync(state, options.exactGuide); err != nil {
+		return err
 	}
 	return nil
 }
@@ -374,6 +385,7 @@ func selectedChannelProfile(selection string, profiles []dispatcharr.ChannelProf
 
 func profileIDsByDispatcharrChannel(profiles []dispatcharr.ChannelProfile) map[string][]string {
 	membership := map[string][]string{}
+	seen := map[string]map[string]bool{}
 	for _, profile := range profiles {
 		profileID := strings.TrimSpace(profile.ID.String())
 		if profileID == "" {
@@ -384,6 +396,13 @@ func profileIDsByDispatcharrChannel(profiles []dispatcharr.ChannelProfile) map[s
 			if key == "" {
 				continue
 			}
+			if seen[key] == nil {
+				seen[key] = map[string]bool{}
+			}
+			if seen[key][profileID] {
+				continue
+			}
+			seen[key][profileID] = true
 			membership[key] = append(membership[key], profileID)
 		}
 	}
@@ -440,6 +459,64 @@ func programsFromXMLTVDocument(channels []model.Channel, doc xmltv.Document) []m
 		programs = append(programs, mapping.MapXMLTVProgramme(channelID, programme))
 	}
 	return programs
+}
+
+func programsForM3UEntries(entries []m3u.Entry, channels []model.Channel, doc xmltv.Document) []model.Program {
+	matcher := matching.NewIndex(doc)
+	programsByGuideID := make(map[string][]xmltv.Programme, len(doc.Channels))
+	for _, programme := range doc.Programmes {
+		key := strings.ToLower(strings.TrimSpace(programme.Channel))
+		programsByGuideID[key] = append(programsByGuideID[key], programme)
+	}
+
+	programs := make([]model.Program, 0, len(doc.Programmes))
+	for index, entry := range entries {
+		if index >= len(channels) {
+			break
+		}
+		matchedChannel, ok := matcher.Match(entry)
+		if !ok {
+			continue
+		}
+		for _, programme := range programsByGuideID[strings.ToLower(strings.TrimSpace(matchedChannel.ID))] {
+			programs = append(programs, mapping.MapXMLTVProgramme(channels[index].ID, programme))
+		}
+	}
+	return programs
+}
+
+func (s *Service) preservedPrograms(settings config.Settings, channels []model.Channel) []model.Program {
+	snapshot := s.store.Current()
+	if snapshot.ConfigKey != config.CatalogCacheKey(settings) {
+		return nil
+	}
+	channelIDs := make(map[string]bool, len(channels))
+	for _, channel := range channels {
+		channelIDs[channel.ID] = true
+	}
+	programs := make([]model.Program, 0, len(snapshot.Catalog.Programs))
+	for _, program := range snapshot.Catalog.Programs {
+		if channelIDs[program.ChannelID] {
+			programs = append(programs, program)
+		}
+	}
+	return programs
+}
+
+func (s *Service) preservedContent(settings config.Settings) model.ContentState {
+	snapshot := s.store.Current()
+	if snapshot.ConfigKey != config.CatalogCacheKey(settings) {
+		return model.ContentState{}
+	}
+	return snapshot.Catalog.Content
+}
+
+func mergePreservedContent(fresh, preserved model.ContentState) model.ContentState {
+	fresh.VODCategories = preserved.VODCategories
+	fresh.SeriesCategories = preserved.SeriesCategories
+	fresh.VODItems = preserved.VODItems
+	fresh.SeriesItems = preserved.SeriesItems
+	return fresh
 }
 
 func sortChannelsByLineupNumber(channels []model.Channel) {
@@ -540,85 +617,24 @@ func hasTightDeadline(ctx context.Context) bool {
 	return ok && time.Until(deadline) < 45*time.Second
 }
 
-func (s *Service) StartAsyncEPGRefresh(settings config.Settings) {
-	if !usesDispatcharrAPI(settings) {
-		if _, err := epgURL(settings); err != nil {
-			return
-		}
-	}
-
-	if usesDispatcharrAPI(settings) {
-		s.epgMu.Lock()
-		if s.epgRunning {
-			s.epgMu.Unlock()
-			return
-		}
-		s.epgRunning = true
-		s.epgMu.Unlock()
-
-		s.store.MarkEPGLoading()
-		s.persistSnapshot()
-		go func() {
-			defer func() {
-				s.epgMu.Lock()
-				s.epgRunning = false
-				s.epgMu.Unlock()
-			}()
-
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-			defer cancel()
-			now := time.Now().Unix()
-			if err := s.SyncNow(ctx, settings, now); err != nil {
-				s.store.RecordEPGFailure(now, err.Error())
-				s.persistSnapshot()
-			}
-		}()
-		return
-	}
-
-	s.epgMu.Lock()
-	if s.epgRunning {
-		s.epgMu.Unlock()
-		return
-	}
-	s.epgRunning = true
-	s.epgMu.Unlock()
-
-	s.store.MarkEPGLoading()
-	s.persistSnapshot()
-	go func() {
-		defer func() {
-			s.epgMu.Lock()
-			s.epgRunning = false
-			s.epgMu.Unlock()
-		}()
-
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-		defer cancel()
-		if err := s.refreshEPG(ctx, settings, time.Now().Unix()); err != nil {
-			s.store.RecordEPGFailure(time.Now().Unix(), err.Error())
-		}
-	}()
-}
-
 func (s *Service) RefreshEPGNow(ctx context.Context, settings config.Settings, nowUnix int64) error {
 	if err := settings.Validate(); err != nil {
 		return err
 	}
 	if usesDispatcharrAPI(settings) {
-		if err := s.syncNow(ctx, settings, nowUnix, true); err != nil {
+		if err := s.syncNow(ctx, settings, nowUnix, syncOptions{exactGuide: true}); err != nil {
 			s.store.RecordEPGFailure(nowUnix, err.Error())
-			s.persistSnapshot()
+			_ = s.persistSnapshot()
 			return err
 		}
 		return nil
 	}
 	if _, err := epgURL(settings); err != nil {
-		return s.syncNow(ctx, settings, nowUnix, true)
+		return s.syncNow(ctx, settings, nowUnix, syncOptions{exactGuide: true})
 	}
 	if err := s.refreshEPG(ctx, settings, nowUnix); err != nil {
 		s.store.RecordEPGFailure(nowUnix, err.Error())
-		s.persistSnapshot()
+		_ = s.persistSnapshot()
 		return err
 	}
 	return nil
@@ -628,22 +644,25 @@ func (s *Service) RefreshGuideOnlyNow(ctx context.Context, settings config.Setti
 	if err := settings.Validate(); err != nil {
 		return err
 	}
+	current := s.store.Current()
+	if current.ConfigKey != "" && current.ConfigKey != config.CatalogCacheKey(settings) {
+		return s.SyncNow(ctx, settings, nowUnix)
+	}
 	if usesDispatcharrAPI(settings) {
 		programs, err := s.dispatcharrGuidePrograms(ctx, settings, nowUnix)
 		if err != nil {
 			s.store.RecordEPGFailure(nowUnix, err.Error())
-			s.persistSnapshot()
+			_ = s.persistSnapshot()
 			return err
 		}
-		s.replacePrograms(programs, nowUnix)
-		return nil
+		return s.replacePrograms(programs, nowUnix)
 	}
 	if _, err := epgURL(settings); err != nil {
 		return s.SyncNow(ctx, settings, nowUnix)
 	}
 	if err := s.refreshEPG(ctx, settings, nowUnix); err != nil {
 		s.store.RecordEPGFailure(nowUnix, err.Error())
-		s.persistSnapshot()
+		_ = s.persistSnapshot()
 		return err
 	}
 	return nil
@@ -653,9 +672,9 @@ func (s *Service) ForceSyncNow(ctx context.Context, settings config.Settings, no
 	if err := settings.Validate(); err != nil {
 		return err
 	}
-	if err := s.syncNow(ctx, settings, nowUnix, true); err != nil {
+	if err := s.syncNow(ctx, settings, nowUnix, syncOptions{exactGuide: true}); err != nil {
 		s.store.RecordEPGFailure(nowUnix, err.Error())
-		s.persistSnapshot()
+		_ = s.persistSnapshot()
 		return err
 	}
 	return nil
@@ -763,6 +782,22 @@ func syncHealth(nowUnix int64, programCount int) model.SyncHealth {
 	return health
 }
 
+func (s *Service) syncHealthForOperation(settings config.Settings, nowUnix int64, programCount int, options syncOptions) model.SyncHealth {
+	if !options.channelsOnly {
+		return syncHealth(nowUnix, programCount)
+	}
+	current := s.store.Current()
+	if current.ConfigKey != config.CatalogCacheKey(settings) {
+		return model.SyncHealth{LastSuccessUnix: nowUnix}
+	}
+	health := current.Health
+	health.LastSuccessUnix = nowUnix
+	health.LastFailureUnix = 0
+	health.LastError = ""
+	health.EPGProgramCount = programCount
+	return health
+}
+
 func epgURL(settings config.Settings) (string, error) {
 	if settings.SourceMode == config.SourceModeM3UXMLTV && strings.TrimSpace(settings.EPGXMLURL) != "" {
 		return strings.TrimSpace(settings.EPGXMLURL), nil
@@ -812,6 +847,5 @@ func (s *Service) refreshEPG(ctx context.Context, settings config.Settings, nowU
 
 	snapshot := s.store.Current()
 	programs := programsFromXMLTVDocument(snapshot.Catalog.Channels, doc)
-	s.replacePrograms(programs, nowUnix)
-	return nil
+	return s.replacePrograms(programs, nowUnix)
 }

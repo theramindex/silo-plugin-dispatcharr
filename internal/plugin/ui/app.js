@@ -5,7 +5,11 @@ const adminSettingsKey = "adminCategorySettings";
 const pluginInstallationID = (base.match(/\/api\/v1\/plugins\/(\d+)/) || [])[1] || "";
 const localCacheSuffix = pluginInstallationID || "default";
 const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuffix;
-const adminSettingsToken = "__ADMIN_SETTINGS_TOKEN__";
+const adminSettingsMeta = document.querySelector('meta[name="dispatcharr-admin-token"]');
+const adminSettingsToken = adminSettingsMeta ? String(adminSettingsMeta.content || "") : "";
+const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
+const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
+const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
 const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
 
 function applySiloTheme() {
@@ -17,6 +21,38 @@ function applySiloTheme() {
 applySiloTheme();
 
 function route(url) { return base + url; }
+function assetURL(filename) {
+  return assetPrefix + "/" + filename + (assetVersion ? "?v=" + encodeURIComponent(assetVersion) : "");
+}
+const playerLibraryPromises = {};
+let programModalReturnFocus = null;
+function loadPlayerLibrary(filename, globalName) {
+  if (window[globalName]) return Promise.resolve();
+  if (playerLibraryPromises[globalName]) return playerLibraryPromises[globalName];
+  playerLibraryPromises[globalName] = new Promise(function(resolve, reject) {
+    const script = document.createElement("script");
+    script.src = assetURL(filename);
+    script.async = true;
+    script.onload = function() {
+      if (window[globalName]) resolve();
+      else reject(new Error(globalName + " did not initialize"));
+    };
+    script.onerror = function() { reject(new Error("could not load " + filename)); };
+    document.head.appendChild(script);
+  }).catch(function(error) {
+    delete playerLibraryPromises[globalName];
+    throw error;
+  });
+  return playerLibraryPromises[globalName];
+}
+function ensurePlayerLibraries(format) {
+  if (format === "hls") return loadPlayerLibrary("hls.min.js", "Hls");
+  if (format === "mpegts") return loadPlayerLibrary("mpegts.min.js", "mpegts");
+  return Promise.all([
+    loadPlayerLibrary("hls.min.js", "Hls"),
+    loadPlayerLibrary("mpegts.min.js", "mpegts")
+  ]);
+}
 function routeHeaders(extra) {
   const headers = Object.assign({}, extra || {});
   if (isAdminRoute && adminSettingsToken) headers["x-dispatcharr-admin-token"] = adminSettingsToken;
@@ -452,18 +488,13 @@ async function loadAdminCategorySettings() {
   return readAdminSettingsValue(await getJSON(adminSettingsURL()));
 }
 function adminSettingsURL() {
-  if (!adminSettingsToken) return "/dispatcharr/api/admin-settings";
-  return "/dispatcharr/api/admin-settings?admin_token=" + encodeURIComponent(adminSettingsToken);
+  return "/dispatcharr/api/admin-settings";
 }
 async function savePluginSettingValue(key, value) {
   if (!pluginInstallationID) throw new Error("plugin installation settings unavailable");
   const values = await loadPluginSettingsValues().catch(function() { return {}; }) || {};
   values[key] = value;
   await corePutNoContent("/api/v1/settings/plugins/" + encodeURIComponent(pluginInstallationID), { values: values });
-}
-function syncRuntimePreferences() {
-  if (!state.app || !state.app.preferences) return;
-  postJSON("/dispatcharr/api/preferences", state.app.preferences).catch(function() {});
 }
 function savePrefs(options) {
   if (!state.app || !state.app.preferences) return;
@@ -474,7 +505,6 @@ function savePrefs(options) {
     savePluginSettingValue("preferences", JSON.stringify(state.app.preferences)).then(function() {
       state.profileSaveStatus = "saved";
       state.profileSaveMessage = "Saved to your Silo profile.";
-      syncRuntimePreferences();
       if (state.view === "settings") renderSettings();
     }).catch(function(error) {
       state.profileSaveStatus = "error";
@@ -624,13 +654,8 @@ function normalizedGroupName(value) {
 function isWorldCupReplayGroup(value) {
   return normalizedGroupName(value) === "world cup replays";
 }
-function delimiterPattern() {
-  return (adminSettings().delimiter || "pipe") === "pipe" ? /\s*\|\s*/ : /\s+-\s*/;
-}
 function parsedDelimitedPath(name) {
-  name = String(name || "").trim();
-  if (!name) return [];
-  return name.split(delimiterPattern()).map(function(part) { return String(part || "").trim(); }).filter(Boolean);
+  return window.DispatcharrLineup.parsedDelimitedPath(name, (adminSettings().delimiter || "pipe"));
 }
 function parsedCategoryPath(name) {
   const settings = categoryParsing();
@@ -700,9 +725,7 @@ function aliasVirtualPathsForSourcePath(sourcePath) {
   return paths;
 }
 function channelNamePathParts(channel) {
-  return String((channel && channel.name) || "").split("|").map(function(part) {
-    return String(part || "").trim();
-  }).filter(Boolean);
+  return window.DispatcharrLineup.channelNamePathParts(channel);
 }
 function channelNameFolderPathParts(channel) {
   const parts = channelNamePathParts(channel).map(normalizedNameToken).filter(Boolean);
@@ -710,22 +733,13 @@ function channelNameFolderPathParts(channel) {
   return parts.slice(0, -1);
 }
 function appendUnduplicatedPathParts(basePath, extraParts) {
-  const baseParts = String(basePath || "").split(" / ").map(normalizedNameToken).filter(Boolean);
-  let additions = items(extraParts).map(normalizedNameToken).filter(Boolean);
-  while (additions.length && baseParts.length && normalizedNameToken(baseParts[baseParts.length - 1]).toLowerCase() === normalizedNameToken(additions[0]).toLowerCase()) {
-    additions = additions.slice(1);
-  }
-  return additions.length ? baseParts.concat(additions).join(" / ") : "";
+  return window.DispatcharrLineup.appendUnduplicatedPathParts(basePath, extraParts);
 }
 function appendVirtualPathParts(basePath, extraParts) {
-  const baseParts = String(basePath || "").split(" / ").map(normalizedNameToken).filter(Boolean);
-  const additions = items(extraParts).map(normalizedNameToken).filter(Boolean);
-  if (!baseParts.length || !additions.length) return "";
-  if (adminSettings().collapseDuplicateVirtualGroups === false) return baseParts.concat(additions).join(" / ");
-  return appendUnduplicatedPathParts(basePath, additions);
+  return window.DispatcharrLineup.appendVirtualPathParts(basePath, extraParts, adminSettings().collapseDuplicateVirtualGroups);
 }
 function normalizedNameToken(value) {
-  return String(value || "").trim().replace(/\s+/g, " ");
+  return window.DispatcharrLineup.normalizedNameToken(value);
 }
 function looksLikeUSStateCode(value) {
   const code = normalizedNameToken(value).toUpperCase();
@@ -814,7 +828,9 @@ function sourceGroupPathForChannel(channel) {
 }
 function profilePathsForChannel(channel) {
   const profiles = profileMapByID();
-  return items(channel && channel.profileIds).map(function(profileID) {
+  const selectedProfile = state.app && state.app.source && state.app.source.channelProfile;
+  const profileIDs = selectedProfile && selectedProfile.id ? [selectedProfile.id] : items(channel && channel.profileIds);
+  return profileIDs.map(function(profileID) {
     return profileVirtualPathForName((profiles[profileID] || {}).name || profileID);
   }).filter(Boolean);
 }
@@ -1107,10 +1123,17 @@ function setCategory(id) {
 }
 async function hydrateApp(payload, options) {
   options = options || {};
+  const previousApp = state.app || {};
+  payload = payload || {};
+  payload.programs = Array.isArray(payload.programs) ? payload.programs : items(previousApp.programs);
+  payload.vod = payload.vod || previousApp.vod || { available: false, categories: [], items: [] };
+  payload.series = payload.series || previousApp.series || { available: false, categories: [], items: [] };
   state.app = payload;
   if (options.localCache) {
     state.app.preferences = defaultPrefs();
     state.adminCategorySettings = defaultAdminCategorySettings();
+  } else if (options.reuseSettings) {
+    state.app.preferences = previousApp.preferences || defaultPrefs();
   } else {
     const values = await loadPluginSettingsValues().catch(function() { return null; });
     const siloPrefs = readSiloPrefsValue(values && values.preferences ? values.preferences : "");
@@ -1128,7 +1151,28 @@ async function hydrateApp(payload, options) {
   normalizeAdminCategorySettings();
   state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
   if (!options.localCache) writeLocalAppCache(state.app);
-  if (!isAdminRoute && !options.localCache) syncRuntimePreferences();
+}
+async function refreshStatusData() {
+  const status = await getJSON("/dispatcharr/api/status");
+  if (state.app) state.app.status = status || {};
+  return status || {};
+}
+async function refreshSupplementalData(includeContent) {
+  if (!state.app) return;
+  const requests = [getJSON("/dispatcharr/api/guide").catch(function(error) {
+    try { console.warn("Dispatcharr guide load failed", error); } catch (_) {}
+    return null;
+  })];
+  if (includeContent) {
+    requests.push(getJSON("/dispatcharr/api/vod").catch(function() { return null; }));
+    requests.push(getJSON("/dispatcharr/api/series").catch(function() { return null; }));
+  }
+  const payloads = await Promise.all(requests);
+  if (payloads[0]) state.app.programs = items(payloads[0].programs);
+  if (includeContent && payloads[1]) state.app.vod = payloads[1];
+  if (includeContent && payloads[2]) state.app.series = payloads[2];
+  rebuildProgramIndex();
+  writeLocalAppCache(state.app);
 }
 async function loadApp() {
   const cached = readLocalAppCache();
@@ -1143,38 +1187,12 @@ async function loadApp() {
     await hydrateApp(await getJSON("/dispatcharr/api/app"));
     state.appLoadedFromCache = false;
     render();
+    await refreshSupplementalData(true);
+    render();
   } catch (error) {
     if (!renderedCachedApp) throw error;
     showAppToast("Showing saved guide. Refresh failed.");
     try { console.warn("Dispatcharr app refresh failed", error); } catch (_) {}
-  }
-}
-async function refreshAppData() {
-  if (state.refreshing) return;
-  const buttons = Array.prototype.slice.call(document.querySelectorAll("[data-guide-refresh]"));
-  const previousEPGSuccess = epgLastSuccessUnix();
-  state.refreshing = true;
-  buttons.forEach(function(button) {
-    button.classList.add("is-loading");
-    button.disabled = true;
-  });
-  try {
-    await hydrateApp(await postJSON("/dispatcharr/api/refresh", {}));
-    if (guideNeedsFollowupRefresh(previousEPGSuccess)) {
-      showAppToast("Guide refresh started. Waiting for EPG data...");
-      await pollGuideRefresh(previousEPGSuccess);
-    }
-    state.recordings = null;
-    render();
-    showAppToast(guideRefreshAdvanced(previousEPGSuccess) ? "Guide refreshed from Dispatcharr." : "Guide refresh finished without newer EPG data.");
-  } catch (error) {
-    showAppToast("Dispatcharr refresh failed.");
-  } finally {
-    state.refreshing = false;
-    buttons.forEach(function(button) {
-      button.classList.remove("is-loading");
-      button.disabled = false;
-    });
   }
 }
 function guideHasPrograms() {
@@ -1215,15 +1233,21 @@ function guideRefreshAdvanced(previousEPGSuccess) {
 function guideNeedsFollowupRefresh(previousEPGSuccess) {
   const status = state.app && state.app.status ? state.app.status : {};
   const epgStatus = String(status.epgStatus || "").toLowerCase();
-  return epgStatus === "loading" || !guideRefreshAdvanced(previousEPGSuccess);
+  const refreshState = String((status.refresh || {}).state || "").toLowerCase();
+  return refreshState === "queued" || refreshState === "running" || epgStatus === "loading" || !guideRefreshAdvanced(previousEPGSuccess);
 }
 async function pollGuideRefresh(previousEPGSuccess) {
-  for (let attempt = 0; attempt < 30 && guideNeedsFollowupRefresh(previousEPGSuccess); attempt++) {
+  for (let attempt = 0; attempt < 300 && guideNeedsFollowupRefresh(previousEPGSuccess); attempt++) {
     await new Promise(function(resolve) { setTimeout(resolve, 2000); });
-    await hydrateApp(await getJSON("/dispatcharr/api/app"));
+    await refreshStatusData();
     const status = state.app && state.app.status ? state.app.status : {};
+    const refresh = status.refresh || {};
+    const refreshState = String(refresh.state || "").toLowerCase();
+    if (refreshState === "failed" || refreshState === "canceled") throw new Error(refresh.error || "guide refresh did not complete");
+    if (refreshState === "succeeded") return;
     if (String(status.epgStatus || "").toLowerCase() === "failed") break;
   }
+  if (guideNeedsFollowupRefresh(previousEPGSuccess)) throw new Error("guide refresh timed out");
 }
 function updateGuideFreshnessBlock() {
   const freshness = document.querySelector(".guide-freshness");
@@ -1260,11 +1284,12 @@ async function refreshGuideBlockData() {
   refreshVisibleGuideBlock();
   showAppToast("Refreshing guide...");
   try {
-    await hydrateApp(await postJSON("/dispatcharr/api/refresh", {}));
+    await hydrateApp(await postJSON("/dispatcharr/api/refresh", {}), { reuseSettings: true });
     refreshVisibleGuideBlock();
     if (guideNeedsFollowupRefresh(previousEPGSuccess)) {
       await pollGuideRefresh(previousEPGSuccess);
     }
+    await refreshSupplementalData(true);
     state.recordings = null;
     refreshVisibleGuideBlock();
     showAppToast(guideRefreshAdvanced(previousEPGSuccess) ? "Guide refreshed from Dispatcharr." : "Guide refresh finished without newer EPG data.");
@@ -1353,7 +1378,8 @@ async function tickGuideAutoRefresh() {
   state.guideAutoFetching = true;
   state.guideLastAutoFetchAt = now;
   try {
-    await hydrateApp(await getJSON("/dispatcharr/api/app"));
+    await refreshStatusData();
+    await refreshSupplementalData(false);
     if (state.view !== "guide") return;
     if (guideSearchFocused()) {
       resetGuideRows();
@@ -2394,9 +2420,7 @@ function maybeWarmGuideForChannels(channels, key) {
   postJSON("/dispatcharr/api/guide/ping", { channelIds: channelIds }).then(function(result) {
     if (result && result.refreshing) {
       setTimeout(function() {
-        getJSON("/dispatcharr/api/app").then(function(payload) {
-          hydrateApp(payload).then(render).catch(function() {});
-        }).catch(function() {});
+        refreshStatusData().then(function() { return refreshSupplementalData(false); }).then(render).catch(function() {});
       }, 12000);
     }
   }).catch(function(error) {
@@ -2644,12 +2668,16 @@ function openProgramDetails(channelID, programID) {
     if (channel) playChannel(channel);
     return;
   }
+  programModalReturnFocus = document.activeElement;
   state.programDetails = { channelID: channelID, programID: programID };
   renderProgramDetailsModal();
 }
 function closeProgramDetails() {
   state.programDetails = null;
   renderProgramDetailsModal();
+  const returnFocus = programModalReturnFocus;
+  programModalReturnFocus = null;
+  if (returnFocus && typeof returnFocus.focus === "function" && document.contains(returnFocus)) returnFocus.focus();
 }
 function programDetailTags(program, channel) {
   const tags = [];
@@ -2680,10 +2708,10 @@ function programDetailsModalHTML(details) {
   const channelName = channel.name || channel.categoryName || "Live TV";
   const tags = programDetailTags(program, channel);
   const canSchedule = dvrEnabled() && end > Math.floor(Date.now() / 1000);
-  return "<div class=\"program-modal-backdrop\" data-program-modal-close=\"true\"></div><section class=\"program-modal\" role=\"dialog\" aria-modal=\"true\" aria-label=\"" + escapeHTML(title) + "\">"
+  return "<div class=\"program-modal-backdrop\" data-program-modal-close=\"true\"></div><section class=\"program-modal\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"program-modal-title\" aria-describedby=\"program-modal-description\">"
     + "<button class=\"program-modal-close\" type=\"button\" data-program-modal-close=\"true\" aria-label=\"Close\">" + icon("x") + "</button>"
-    + "<div class=\"program-modal-head\"><div class=\"program-modal-art\">" + logoHTML(channel) + "</div><div class=\"program-modal-title\"><h2>" + escapeHTML(title) + "</h2><p>" + escapeHTML(channelName) + "</p><div class=\"program-modal-time\">" + icon("clock") + "<span>" + escapeHTML(timeText || (programIsLive(program) ? "Live now" : "Guide airing")) + "</span></div><div class=\"program-modal-tags\">" + tags.map(function(tag) { return "<span>" + escapeHTML(tag) + "</span>"; }).join("") + "</div></div></div>"
-    + "<div class=\"program-modal-body\">" + (description ? escapeHTML(description) : "No additional details are available for this airing.") + "</div>"
+    + "<div class=\"program-modal-head\"><div class=\"program-modal-art\">" + logoHTML(channel) + "</div><div class=\"program-modal-title\"><h2 id=\"program-modal-title\">" + escapeHTML(title) + "</h2><p>" + escapeHTML(channelName) + "</p><div class=\"program-modal-time\">" + icon("clock") + "<span>" + escapeHTML(timeText || (programIsLive(program) ? "Live now" : "Guide airing")) + "</span></div><div class=\"program-modal-tags\">" + tags.map(function(tag) { return "<span>" + escapeHTML(tag) + "</span>"; }).join("") + "</div></div></div>"
+    + "<div id=\"program-modal-description\" class=\"program-modal-body\">" + (description ? escapeHTML(description) : "No additional details are available for this airing.") + "</div>"
     + "<div class=\"program-modal-actions\"><button type=\"button\" data-search-airing=\"" + escapeHTML(title) + "\">" + icon("search") + "<span>More Airings</span></button><button type=\"button\" data-program-detail-watch=\"" + escapeHTML(channel.id) + "\">" + icon("play") + "<span>Watch Now</span></button>" + (canSchedule ? "<button type=\"button\" data-program-detail-schedule=\"" + escapeHTML(channel.id) + "\" data-program-detail-program=\"" + escapeHTML(program.id || "") + "\">" + icon("record") + "<span>Record</span></button>" : "") + "</div>"
     + "</section>";
 }
@@ -2696,6 +2724,36 @@ function renderProgramDetailsModal() {
   }
   const details = programDetailsState();
   root.innerHTML = details ? programDetailsModalHTML(details) : "";
+  const shell = document.querySelector(".shell");
+  if (shell) {
+    if (details) shell.setAttribute("inert", "");
+    else shell.removeAttribute("inert");
+  }
+  document.body.classList.toggle("program-modal-open", !!details);
+  if (details) {
+    const closeButton = root.querySelector(".program-modal-close");
+    if (closeButton) closeButton.focus();
+  }
+}
+function trapProgramModalFocus(event) {
+  if (!state.programDetails || event.key !== "Tab") return false;
+  const modal = document.querySelector(".program-modal");
+  if (!modal) return false;
+  const focusable = Array.prototype.slice.call(modal.querySelectorAll("button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"));
+  if (!focusable.length) return false;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+    return true;
+  }
+  if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+    return true;
+  }
+  return false;
 }
 function renderRecordingsPage() {
   const root = byId("view");
@@ -2870,10 +2928,19 @@ function renderMultiviewPicker() {
   }).join("") : "<div class=\"multiview-no-results\">No matching channels.</div>") + "</div></div>";
 }
 function attachMultiviewPlayers() {
+  const missingFormats = items(state.multiviewTiles).map(function(tile) { return tile.channel && tile.channel.streamFormat; }).filter(function(format) {
+    return (format === "hls" && !window.Hls) || (format === "mpegts" && !window.mpegts) || (!format && (!window.Hls || !window.mpegts));
+  });
+  if (missingFormats.length) {
+    Promise.all(missingFormats.map(ensurePlayerLibraries)).then(attachMultiviewPlayers).catch(function() {
+      showAppToast("Playback components could not be loaded.");
+    });
+    return;
+  }
   items(state.multiviewTiles).forEach(function(tile) {
     const video = byId(tile.videoID);
     if (!video || tile.attached || !tile.channel) return;
-    const attachment = attachVideoSource(video, browserStreamURL(tile.channel), { rewindable: isRewindableChannel(tile.channel) });
+    const attachment = attachVideoSource(video, browserStreamURL(tile.channel), { rewindable: isRewindableChannel(tile.channel), format: tile.channel.streamFormat });
     tile.hls = attachment.hls;
     tile.tsPlayer = attachment.tsPlayer;
     tile.attached = true;
@@ -2942,10 +3009,14 @@ function handleMultiviewAction(action, tileID) {
 function hasOpenPlayerOverlay() {
   return state.audioMenuOpen || state.volumeMenuOpen || state.moreMenuOpen || state.playerGuideOpen;
 }
+function playerChromeHasFocus() {
+  const active = document.activeElement;
+  return !!(active && active.closest && active.closest(".player-top, .player-bottom, .player-guide-panel"));
+}
 function updatePlayerChrome() {
   const shell = document.querySelector(".playback-shell");
   if (!shell) return;
-  shell.classList.toggle("is-idle", state.playerChromeIdle && !hasOpenPlayerOverlay());
+  shell.classList.toggle("is-idle", state.playerChromeIdle && !hasOpenPlayerOverlay() && !playerChromeHasFocus());
 }
 function wakePlayerChrome(delay) {
   if (state.view !== "player") return;
@@ -2953,6 +3024,10 @@ function wakePlayerChrome(delay) {
   updatePlayerChrome();
   if (state.playerChromeTimer) clearTimeout(state.playerChromeTimer);
   state.playerChromeTimer = setTimeout(function() {
+    if (playerChromeHasFocus()) {
+      wakePlayerChrome();
+      return;
+    }
     state.playerChromeIdle = true;
     updatePlayerChrome();
   }, delay || 2400);
@@ -3000,7 +3075,7 @@ function attachVideoSource(video, url, options) {
       }
     }
   };
-  const isHLS = url.indexOf(".m3u8") !== -1;
+  const isHLS = (options && options.format === "hls") || url.indexOf(".m3u8") !== -1;
   if (window.Hls && Hls.isSupported() && isHLS) {
     attachment.hls = new Hls();
     attachment.hls.loadSource(url);
@@ -3835,7 +3910,7 @@ function setVideoSource(url, options) {
   }
   if (state.hls) { state.hls.destroy(); state.hls = null; }
   if (state.tsPlayer) { state.tsPlayer.destroy(); state.tsPlayer = null; }
-  const attachment = attachVideoSource(video, url, { rewindable: rewindable });
+  const attachment = attachVideoSource(video, url, { rewindable: rewindable, format: options && options.format });
   state.hls = attachment.hls;
   state.tsPlayer = attachment.tsPlayer;
   setTimeout(updateAudioMenu, 500);
@@ -3850,7 +3925,13 @@ async function playChannel(channel) {
   state.currentChannel = channel;
   state.view = "player";
   render();
-  setVideoSource(browserStreamURL(channel), { rewindable: isRewindableChannel(channel) });
+  try {
+    await ensurePlayerLibraries(channel.streamFormat);
+  } catch (_) {
+    showPlayerToast("Playback components could not be loaded.");
+    return;
+  }
+  setVideoSource(browserStreamURL(channel), { rewindable: isRewindableChannel(channel), format: channel.streamFormat });
   startWatch(channel);
   const guide = await getJSON("/dispatcharr/api/guide?channel_id=" + encodeURIComponent(channel.id)).catch(function() { return { programs: [] }; });
   const nowGuide = byId("now-guide");
@@ -4323,6 +4404,7 @@ document.addEventListener("mouseout", function(event) {
 document.addEventListener("focusin", function(event) {
   const target = overflowTooltipTarget(event);
   if (target) showOverflowTooltip(target, event);
+  if (state.view === "player") wakePlayerChrome();
 });
 document.addEventListener("focusout", function(event) {
   const target = overflowTooltipTarget(event);
@@ -4331,6 +4413,7 @@ document.addEventListener("focusout", function(event) {
 document.addEventListener("fullscreenchange", updateFullscreenButton);
 document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
 document.addEventListener("keydown", function(event) {
+  if (trapProgramModalFocus(event)) return;
   if (state.programDetails && event.key === "Escape") {
     event.preventDefault();
     closeProgramDetails();

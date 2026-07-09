@@ -2,9 +2,30 @@ package cache
 
 import (
 	"testing"
+	"time"
 
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
 )
+
+func TestStorePrunesExpiredWatchSessions(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	now := time.Now().Unix()
+	store.sessions["expired"] = WatchSession{ID: "expired", LastHeartbeatUnix: now - watchSessionTTLSeconds - 1}
+	store.sessions["recent"] = WatchSession{ID: "recent", LastHeartbeatUnix: now}
+
+	started := store.StartWatch("channel", "channel:1", "News")
+	if started.ID == "" {
+		t.Fatal("expected a watch session ID")
+	}
+	if _, exists := store.sessions["expired"]; exists {
+		t.Fatal("expected expired watch session to be pruned")
+	}
+	if _, exists := store.sessions["recent"]; !exists {
+		t.Fatal("expected recent watch session to remain")
+	}
+}
 
 func TestStorePreservesLastSuccessfulSnapshotOnFailure(t *testing.T) {
 	t.Parallel()
@@ -111,5 +132,29 @@ func TestStoreDoesNotPersistPlaybackURLStateSeparately(t *testing.T) {
 	}
 	if current.PlaybackResolvedAtUnix != 0 {
 		t.Fatalf("expected no cached playback resolution timestamp, got %d", current.PlaybackResolvedAtUnix)
+	}
+}
+
+func TestStoreDoesNotPreserveGuideAcrossCatalogConfigChanges(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	store.Replace(Snapshot{
+		Catalog: model.CatalogState{
+			Source:   model.LiveTVSource(model.SourceModeXtream),
+			Channels: []model.Channel{{ID: "xtream:1"}},
+			Programs: []model.Program{{ID: "old", ChannelID: "xtream:1"}},
+			Health:   model.SyncHealth{EPGStatus: "ok", EPGProgramCount: 1, EPGLastSuccessUnix: 10},
+		},
+		Health:    model.SyncHealth{EPGStatus: "ok", EPGProgramCount: 1, EPGLastSuccessUnix: 10},
+		ConfigKey: "old-config",
+	})
+	store.Replace(Snapshot{
+		Catalog:   model.CatalogState{Source: model.LiveTVSource(model.SourceModeXtream), Channels: []model.Channel{{ID: "xtream:1"}}},
+		ConfigKey: "new-config",
+	})
+
+	if programs := store.Current().Catalog.Programs; len(programs) != 0 {
+		t.Fatalf("expected old guide to be discarded across config change, got %+v", programs)
 	}
 }

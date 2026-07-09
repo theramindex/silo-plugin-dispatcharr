@@ -133,6 +133,22 @@ func TestGlobalConfigSchema_ContainsExpectedFields(t *testing.T) {
 	}
 }
 
+func TestGlobalConfigSchemaOmitsHostOwnedSchedulingAndDynamicRouteControls(t *testing.T) {
+	t.Parallel()
+
+	connection := GlobalConfigSchema()[0]
+	for _, removed := range []string{"live_tv_enabled", "channel_refresh_hours", "epg_refresh_hours"} {
+		if strings.Contains(connection.GetJsonSchema(), `"`+removed+`"`) {
+			t.Fatalf("connection schema exposes unsupported control %q", removed)
+		}
+		for _, field := range connection.GetAdminForm().GetFields() {
+			if field.GetKey() == removed {
+				t.Fatalf("admin form exposes unsupported control %q", removed)
+			}
+		}
+	}
+}
+
 func TestUserConfigSchema_DeclaresCurrentPreferenceShape(t *testing.T) {
 	t.Parallel()
 
@@ -160,7 +176,7 @@ func TestUserConfigSchema_DeclaresCurrentPreferenceShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected preferences schema properties, got %q", preferences.GetJsonSchema())
 	}
-	for _, key := range []string{"favorites", "autoFavorites", "hiddenCategories", "sportsFavoriteTeams", "keywordPasses", "recentChannels", "continueWatching", "playback", "categoryParsing", "customGroups", "customGroupMemberships"} {
+	for _, key := range []string{"favorites", "autoFavorites", "hiddenCategories", "sportsFavoriteTeams", "keywordPasses", "recentSearches", "recentChannels", "continueWatching", "playback", "categoryParsing", "customGroups", "customGroupMemberships"} {
 		if _, ok := properties[key]; !ok {
 			t.Fatalf("expected preferences schema to declare %q", key)
 		}
@@ -182,7 +198,7 @@ func TestUserConfigSchema_DeclaresAdminCategorySettingsShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected admin category settings schema properties, got %q", adminSettings.GetJsonSchema())
 	}
-	for _, key := range []string{"mode", "delimiter", "virtualGroupLabel", "virtualGroupSource", "ecmEnabled", "ecmURL", "allowRecordingsByDefault", "inferChannelNameGroups", "categoryRenames", "categoryAliases"} {
+	for _, key := range []string{"mode", "delimiter", "virtualGroupLabel", "virtualGroupSource", "ecmEnabled", "ecmURL", "allowRecordingsByDefault", "collapseDuplicateVirtualGroups", "inferChannelNameGroups", "categoryRenames", "categoryAliases", "eventKeywords"} {
 		if _, ok := properties[key]; !ok {
 			t.Fatalf("expected admin category settings schema to declare %q", key)
 		}
@@ -234,7 +250,7 @@ func TestGlobalConfigSchema_ProvidesAdminFormsForSiloUI(t *testing.T) {
 
 	connection := mustFindSchema(t, GlobalConfigSchema(), "connection")
 
-	if connection.GetAdminForm() == nil || len(connection.GetAdminForm().GetFields()) != 11 {
+	if connection.GetAdminForm() == nil || len(connection.GetAdminForm().GetFields()) != 8 {
 		t.Fatalf("expected connection admin form fields, got %+v", connection.GetAdminForm())
 	}
 

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 const DefaultAdminSettingsFile = "/var/lib/continuum/plugins/silo.ramindex.dispatcharr/category-settings.json"
@@ -20,6 +21,7 @@ type adminSettingsStorage interface {
 
 type FileAdminSettingsStorage struct {
 	path string
+	mu   sync.Mutex
 }
 
 func NewFileAdminSettingsStorage(path string) *FileAdminSettingsStorage {
@@ -55,6 +57,9 @@ func (s *FileAdminSettingsStorage) Load() (json.RawMessage, bool, error) {
 }
 
 func (s *FileAdminSettingsStorage) Save(settings json.RawMessage) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	normalized, err := normalizeAdminSettingsJSON(settings)
 	if err != nil {
 		return fmt.Errorf("encode admin settings file: %w", err)
@@ -62,13 +67,30 @@ func (s *FileAdminSettingsStorage) Save(settings json.RawMessage) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return err
 	}
-	tmp := s.path + ".tmp"
-	data := append([]byte(nil), normalized...)
-	data = append(data, '\n')
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+	tmp, err := os.CreateTemp(filepath.Dir(s.path), ".dispatcharr-category-settings-*")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, s.path)
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	data := append([]byte(nil), normalized...)
+	data = append(data, '\n')
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, s.path)
 }
 
 func normalizeAdminSettingsJSON(data []byte) (json.RawMessage, error) {

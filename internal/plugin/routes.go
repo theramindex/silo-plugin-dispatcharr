@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"embed"
 	"encoding/hex"
 	"encoding/json"
@@ -29,6 +30,11 @@ import (
 //go:embed assets/hls.min.js assets/mpegts.min.js
 var playerAssets embed.FS
 
+var (
+	assetVersionOnce  sync.Once
+	assetVersionValue string
+)
+
 type HTTPRoutesServer struct {
 	pluginv1.UnimplementedHttpRoutesServer
 	store             *cache.Store
@@ -36,10 +42,9 @@ type HTTPRoutesServer struct {
 	adminPersister    func(context.Context, map[string]any) error
 	adminStorage      adminSettingsStorage
 	adminToken        string
-	syncer            catalogSyncer
+	coordinator       *RefreshCoordinator
 	hydrateMu         sync.Mutex
 	refreshMu         sync.Mutex
-	refreshRunning    bool
 	guideWarmLastUnix int64
 	sportsProvider    sportsProvider
 	sportsCache       sportsEventCache
@@ -76,14 +81,49 @@ func NewHTTPRoutesServerWithSyncerAndAdminSettingsFile(store *cache.Store, setti
 	return server
 }
 
+func NewHTTPRoutesServerWithCoordinatorAndAdminSettingsFile(store *cache.Store, settingsProvider func() config.Settings, coordinator *RefreshCoordinator, path string) *HTTPRoutesServer {
+	server := newHTTPRoutesServer(store, settingsProvider, nil)
+	server.coordinator = coordinator
+	server.adminStorage = NewFileAdminSettingsStorage(path)
+	return server
+}
+
 func newHTTPRoutesServer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
-	return &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, syncer: syncer, adminToken: newAdminToken(), sportsProvider: newESPNSportsProvider(&http.Client{Timeout: 8 * time.Second})}
+	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, adminToken: newAdminToken(), sportsProvider: newESPNSportsProvider(&http.Client{Timeout: 8 * time.Second})}
+	if syncer != nil {
+		server.coordinator = NewRefreshCoordinator(syncer)
+	}
+	return server
 }
 
 type ChannelsPayload struct {
 	SourceName string           `json:"sourceName"`
-	Channels   []model.Channel  `json:"channels"`
+	Channels   []PublicChannel  `json:"channels"`
 	Categories []model.Category `json:"categories"`
+}
+
+type PublicChannel struct {
+	ID           string   `json:"id"`
+	SourceID     string   `json:"sourceId"`
+	Name         string   `json:"name"`
+	Number       string   `json:"number,omitempty"`
+	GuideID      string   `json:"guideId,omitempty"`
+	LogoURL      string   `json:"logoUrl,omitempty"`
+	CategoryID   string   `json:"categoryId,omitempty"`
+	CategoryName string   `json:"categoryName,omitempty"`
+	ProfileIDs   []string `json:"profileIds,omitempty"`
+	StreamFormat string   `json:"streamFormat,omitempty"`
+}
+
+type PublicVODItem struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	CategoryID  string `json:"categoryId,omitempty"`
+	PosterURL   string `json:"posterUrl,omitempty"`
+	Rating      string `json:"rating,omitempty"`
+	Added       string `json:"added,omitempty"`
+	Container   string `json:"container,omitempty"`
+	Description string `json:"description,omitempty"`
 }
 
 type GuidePayload struct {
@@ -137,22 +177,11 @@ type AppCapabilities struct {
 }
 
 type AppPayload struct {
-	Status       HealthPayload        `json:"status"`
-	Source       model.Source         `json:"source"`
-	Channels     []model.Channel      `json:"channels"`
-	Programs     []model.Program      `json:"programs"`
-	Categories   []model.Category     `json:"categories"`
-	VOD          ContentPayload       `json:"vod"`
-	Series       ContentPayload       `json:"series"`
-	Preferences  cache.Preferences    `json:"preferences"`
-	Sessions     []cache.WatchSession `json:"sessions"`
-	Capabilities AppCapabilities      `json:"capabilities"`
-}
-
-type toggleRequest struct {
-	ID      string `json:"id"`
-	Enabled bool   `json:"enabled"`
-	Hidden  bool   `json:"hidden"`
+	Status       HealthPayload    `json:"status"`
+	Source       model.Source     `json:"source"`
+	Channels     []PublicChannel  `json:"channels"`
+	Categories   []model.Category `json:"categories"`
+	Capabilities AppCapabilities  `json:"capabilities"`
 }
 
 type watchRequest struct {
@@ -168,11 +197,17 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 	case "/dispatcharr", "/dispatcharr/player", "/dispatcharr/admin":
 		return htmlResponse(http.StatusOK, s.playerPageHTML(request)), nil
 	case "/dispatcharr/assets/hls.min.js", "/assets/hls.min.js":
-		return assetResponse("assets/hls.min.js")
+		return playerLibraryAssetResponse("assets/hls.min.js")
 	case "/dispatcharr/assets/mpegts.min.js", "/assets/mpegts.min.js":
-		return assetResponse("assets/mpegts.min.js")
+		return playerLibraryAssetResponse("assets/mpegts.min.js")
+	case "/dispatcharr/assets/app.js", "/assets/app.js":
+		return playerUIAssetResponse("ui/app.js", "application/javascript; charset=utf-8")
+	case "/dispatcharr/assets/lineup.js", "/assets/lineup.js":
+		return playerUIAssetResponse("ui/lineup.js", "application/javascript; charset=utf-8")
+	case "/dispatcharr/assets/app.css", "/assets/app.css":
+		return playerUIAssetResponse("ui/styles.css", "text/css; charset=utf-8")
 	case "/dispatcharr/status", "/dispatcharr/api/status":
-		return s.respondJSON(http.StatusOK, BuildHealthPayload(s.store.Current()))
+		return s.respondJSON(http.StatusOK, s.healthPayload())
 	case "/dispatcharr/api/refresh":
 		return s.handleRefresh(ctx, request)
 	case "/dispatcharr/api/app":
@@ -195,10 +230,13 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		s.ensureCatalogHydrated(ctx)
 		return s.respondJSON(http.StatusOK, s.categoriesPayload())
 	case "/dispatcharr/api/vod":
+		s.ensureCatalogHydrated(ctx)
 		return s.respondJSON(http.StatusOK, s.vodPayload())
 	case "/dispatcharr/api/series":
+		s.ensureCatalogHydrated(ctx)
 		return s.respondJSON(http.StatusOK, s.seriesPayload())
 	case "/dispatcharr/api/recordings":
+		s.ensureCatalogHydrated(ctx)
 		if request.GetMethod() == http.MethodPost {
 			return s.handleScheduleRecording(ctx, request)
 		}
@@ -240,6 +278,7 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		streamURL = appendPlaybackQuery(streamURL, request)
 		return redirectResponse(streamURL), nil
 	case "/dispatcharr/vod/stream":
+		s.ensureCatalogHydrated(ctx)
 		itemID := queryValue(request, "item_id")
 		if strings.TrimSpace(itemID) == "" {
 			return textResponse(http.StatusBadRequest, "missing item_id query parameter"), nil
@@ -255,7 +294,7 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 }
 
 func (s *HTTPRoutesServer) ensureCatalogHydrated(ctx context.Context) {
-	if s.syncer == nil || s.settingsProvider == nil {
+	if s.coordinator == nil || s.settingsProvider == nil {
 		return
 	}
 
@@ -282,8 +321,12 @@ func (s *HTTPRoutesServer) ensureCatalogHydrated(ctx context.Context) {
 		s.store.RecordFailure(time.Now().Unix(), err.Error())
 		return
 	}
-	if err := s.syncer.SyncNow(ctx, settings, time.Now().Unix()); err != nil {
+	if err := s.coordinator.Run(ctx, RefreshCatalog, settings, time.Now().Unix()); err != nil {
 		s.store.RecordFailure(time.Now().Unix(), err.Error())
+		return
+	}
+	if len(s.store.Current().Catalog.Programs) == 0 {
+		_, _ = s.startBackgroundGuideWarm(settings)
 	}
 }
 
@@ -297,7 +340,7 @@ func catalogSnapshotMatchesSettings(snapshot cache.Snapshot, settings config.Set
 func modelSourceModeForSettings(settings config.Settings) model.SourceMode {
 	switch settings.EffectiveSourceMode() {
 	case config.SourceModeAPIKey:
-		return model.SourceModeAPIKey
+		return model.SourceModeDirectLogin
 	case config.SourceModeXtream:
 		return model.SourceModeXtream
 	case config.SourceModeM3UXMLTV:
@@ -311,7 +354,7 @@ func (s *HTTPRoutesServer) handleRefresh(ctx context.Context, request *pluginv1.
 	if request.GetMethod() != http.MethodPost {
 		return textResponse(http.StatusMethodNotAllowed, "refresh requires POST"), nil
 	}
-	if s.syncer == nil || s.settingsProvider == nil {
+	if s.coordinator == nil || s.settingsProvider == nil {
 		return textResponse(http.StatusServiceUnavailable, "catalog sync is not available"), nil
 	}
 
@@ -335,7 +378,7 @@ func (s *HTTPRoutesServer) handleGuidePing(ctx context.Context, request *pluginv
 	if request.GetMethod() != http.MethodPost {
 		return textResponse(http.StatusMethodNotAllowed, "guide ping requires POST"), nil
 	}
-	if s.syncer == nil || s.settingsProvider == nil {
+	if s.coordinator == nil || s.settingsProvider == nil {
 		return textResponse(http.StatusServiceUnavailable, "catalog sync is not available"), nil
 	}
 
@@ -372,99 +415,62 @@ func (s *HTTPRoutesServer) handleGuidePing(ctx context.Context, request *pluginv
 }
 
 func (s *HTTPRoutesServer) startBackgroundRefresh(settings config.Settings) bool {
-	s.refreshMu.Lock()
-	if s.refreshRunning {
-		s.refreshMu.Unlock()
+	if s.coordinator == nil {
 		return false
 	}
-	s.refreshRunning = true
-	s.refreshMu.Unlock()
-
 	s.store.MarkEPGLoading()
-	go func() {
-		defer func() {
-			s.refreshMu.Lock()
-			s.refreshRunning = false
-			s.refreshMu.Unlock()
-		}()
-
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-		defer cancel()
-		now := time.Now().Unix()
-		var err error
-		if forceSyncer, ok := s.syncer.(forceCatalogSyncer); ok {
-			err = forceSyncer.ForceSyncNow(ctx, settings, now)
-		} else {
-			err = s.syncer.SyncNow(ctx, settings, now)
-		}
-		if err != nil {
-			s.store.RecordFailure(now, err.Error())
-			s.store.RecordEPGFailure(now, err.Error())
-		}
-	}()
-	return true
+	_, started := s.coordinator.Start(RefreshForce, settings)
+	return started
 }
 
 func (s *HTTPRoutesServer) startBackgroundGuideWarm(settings config.Settings) (bool, string) {
-	refresher, ok := s.syncer.(guideOnlySyncer)
-	if !ok {
+	if s.coordinator == nil {
 		return false, "unavailable"
 	}
 
 	now := time.Now().Unix()
 	s.refreshMu.Lock()
-	if s.refreshRunning {
-		s.refreshMu.Unlock()
-		return false, "refreshing"
-	}
 	if s.guideWarmLastUnix > 0 && now-s.guideWarmLastUnix < 300 {
 		s.refreshMu.Unlock()
 		return false, "cooldown"
 	}
-	s.refreshRunning = true
 	s.guideWarmLastUnix = now
 	s.refreshMu.Unlock()
 
 	s.store.MarkEPGLoading()
-	go func() {
-		defer func() {
-			s.refreshMu.Lock()
-			s.refreshRunning = false
-			s.refreshMu.Unlock()
-		}()
-
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-		defer cancel()
-		now := time.Now().Unix()
-		if err := refresher.RefreshGuideOnlyNow(ctx, settings, now); err != nil {
-			s.store.RecordEPGFailure(now, err.Error())
-		}
-	}()
+	_, started := s.coordinator.Start(RefreshGuide, settings)
+	if !started {
+		return false, "refreshing"
+	}
 	return true, "refreshing"
 }
 
 func (s *HTTPRoutesServer) buildAppPayload() AppPayload {
 	snapshot := s.store.Current()
-	preferences := s.store.Preferences()
 	return AppPayload{
-		Status:       BuildHealthPayload(snapshot),
+		Status:       s.healthPayload(),
 		Source:       snapshot.Catalog.Source,
-		Channels:     snapshot.Catalog.Channels,
-		Programs:     snapshot.Catalog.Programs,
+		Channels:     publicChannels(snapshot.Catalog.Channels),
 		Categories:   liveCategories(snapshot),
-		VOD:          s.vodPayload(),
-		Series:       s.seriesPayload(),
-		Preferences:  preferences,
-		Sessions:     s.store.ActiveSessions(),
-		Capabilities: appCapabilities(snapshot.Catalog.Source.Mode, preferences),
+		Capabilities: appCapabilities(snapshot.Catalog.Source.Mode),
 	}
+}
+
+func (s *HTTPRoutesServer) healthPayload() HealthPayload {
+	payload := BuildHealthPayload(s.store.Current())
+	if s.coordinator != nil {
+		payload.Refresh = s.coordinator.Status()
+	} else {
+		payload.Refresh = RefreshJob{State: RefreshIdle}
+	}
+	return payload
 }
 
 func (s *HTTPRoutesServer) channelsPayload() ChannelsPayload {
 	snapshot := s.store.Current()
 	return ChannelsPayload{
 		SourceName: snapshot.Catalog.Source.Name,
-		Channels:   snapshot.Catalog.Channels,
+		Channels:   publicChannels(snapshot.Catalog.Channels),
 		Categories: liveCategories(snapshot),
 	}
 }
@@ -486,8 +492,59 @@ func (s *HTTPRoutesServer) vodPayload() ContentPayload {
 	return ContentPayload{
 		Available:  len(snapshot.Catalog.Content.VODItems) > 0,
 		Categories: snapshot.Catalog.Content.VODCategories,
-		Items:      snapshot.Catalog.Content.VODItems,
+		Items:      publicVODItems(snapshot.Catalog.Content.VODItems),
 	}
+}
+
+func publicChannels(channels []model.Channel) []PublicChannel {
+	result := make([]PublicChannel, 0, len(channels))
+	for _, channel := range channels {
+		result = append(result, PublicChannel{
+			ID:           channel.ID,
+			SourceID:     channel.SourceID,
+			Name:         channel.Name,
+			Number:       channel.Number,
+			GuideID:      channel.GuideID,
+			LogoURL:      channel.LogoURL,
+			CategoryID:   channel.CategoryID,
+			CategoryName: channel.CategoryName,
+			ProfileIDs:   append([]string(nil), channel.ProfileIDs...),
+			StreamFormat: publicStreamFormat(channel.StreamURL),
+		})
+	}
+	return result
+}
+
+func publicStreamFormat(rawURL string) string {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return ""
+	}
+	path := strings.ToLower(parsed.Path)
+	if strings.HasSuffix(path, ".m3u8") || strings.Contains(path, "/proxy/hls/") {
+		return "hls"
+	}
+	if strings.HasSuffix(path, ".ts") || strings.Contains(path, "/proxy/ts/") {
+		return "mpegts"
+	}
+	return ""
+}
+
+func publicVODItems(items []model.VODItem) []PublicVODItem {
+	result := make([]PublicVODItem, 0, len(items))
+	for _, item := range items {
+		result = append(result, PublicVODItem{
+			ID:          item.ID,
+			Name:        item.Name,
+			CategoryID:  item.CategoryID,
+			PosterURL:   item.PosterURL,
+			Rating:      item.Rating,
+			Added:       item.Added,
+			Container:   item.Container,
+			Description: item.Description,
+		})
+	}
+	return result
 }
 
 func (s *HTTPRoutesServer) seriesPayload() ContentPayload {
@@ -588,14 +645,7 @@ func scheduleRecordingErrorResponse(err error) *pluginv1.HandleHTTPResponse {
 }
 
 func (s *HTTPRoutesServer) handlePreferences(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
-	if request.GetMethod() != http.MethodPost {
-		return s.respondJSON(http.StatusOK, s.store.Preferences())
-	}
-	var preferences cache.Preferences
-	if err := json.Unmarshal(request.GetBody(), &preferences); err != nil {
-		return textResponse(http.StatusBadRequest, "invalid preferences payload"), nil
-	}
-	return s.respondJSON(http.StatusOK, s.store.SetPreferences(preferences))
+	return userStateUnavailableResponse(), nil
 }
 
 func (s *HTTPRoutesServer) handleAdminSettings(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
@@ -611,18 +661,18 @@ func (s *HTTPRoutesServer) handleAdminSettings(ctx context.Context, request *plu
 			}
 			if ok {
 				s.store.SetAdminSettings(saved)
-				return s.respondJSON(http.StatusOK, json.RawMessage(saved))
+				return s.respondAdminSettings(request, saved)
 			}
 		}
 		if s.store.HasAdminSettings() {
-			return s.respondJSON(http.StatusOK, json.RawMessage(s.store.AdminSettings()))
+			return s.respondAdminSettings(request, s.store.AdminSettings())
 		}
 		if s.settingsProvider != nil {
 			if configured := s.settingsProvider().AdminSettings; len(configured) > 0 {
-				return s.respondJSON(http.StatusOK, json.RawMessage(configured))
+				return s.respondAdminSettings(request, configured)
 			}
 		}
-		return s.respondJSON(http.StatusOK, json.RawMessage(s.store.AdminSettings()))
+		return s.respondAdminSettings(request, s.store.AdminSettings())
 	}
 	var payload map[string]any
 	if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
@@ -644,14 +694,24 @@ func (s *HTTPRoutesServer) handleAdminSettings(ctx context.Context, request *plu
 	return s.respondJSON(http.StatusOK, json.RawMessage(saved))
 }
 
+func (s *HTTPRoutesServer) respondAdminSettings(request *pluginv1.HandleHTTPRequest, settings json.RawMessage) (*pluginv1.HandleHTTPResponse, error) {
+	if s.adminSettingsAuthorized(request) {
+		return s.respondJSON(http.StatusOK, settings)
+	}
+	var public map[string]any
+	if err := json.Unmarshal(settings, &public); err != nil {
+		return textResponse(http.StatusInternalServerError, "invalid saved admin settings"), nil
+	}
+	public["ecmEnabled"] = false
+	public["ecmURL"] = ""
+	return s.respondJSON(http.StatusOK, public)
+}
+
 func (s *HTTPRoutesServer) adminSettingsAuthorized(request *pluginv1.HandleHTTPRequest) bool {
 	if s.adminToken == "" {
 		return false
 	}
-	if headerValue(request.GetHeaders(), "x-dispatcharr-admin-token") == s.adminToken {
-		return true
-	}
-	return queryValue(request, "admin_token") == s.adminToken
+	return headerValue(request.GetHeaders(), "x-dispatcharr-admin-token") == s.adminToken
 }
 
 func headerValue(headers map[string]string, key string) string {
@@ -695,42 +755,19 @@ func (s *HTTPRoutesServer) persistAdminSettingsAsync(payload map[string]any) {
 }
 
 func (s *HTTPRoutesServer) handleFavorite(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
-	if request.GetMethod() != http.MethodPost {
-		return s.respondJSON(http.StatusOK, s.store.Preferences().Favorites)
-	}
-	var payload toggleRequest
-	if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
-		return textResponse(http.StatusBadRequest, "invalid favorite payload"), nil
-	}
-	if strings.TrimSpace(payload.ID) == "" {
-		return textResponse(http.StatusBadRequest, "missing id"), nil
-	}
-	return s.respondJSON(http.StatusOK, s.store.SetFavorite(payload.ID, payload.Enabled))
+	return userStateUnavailableResponse(), nil
 }
 
 func (s *HTTPRoutesServer) handleHiddenCategory(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
-	if request.GetMethod() != http.MethodPost {
-		return s.respondJSON(http.StatusOK, s.store.Preferences().HiddenCategories)
-	}
-	var payload toggleRequest
-	if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
-		return textResponse(http.StatusBadRequest, "invalid hidden category payload"), nil
-	}
-	if strings.TrimSpace(payload.ID) == "" {
-		return textResponse(http.StatusBadRequest, "missing id"), nil
-	}
-	return s.respondJSON(http.StatusOK, s.store.SetHiddenCategory(payload.ID, payload.Hidden))
+	return userStateUnavailableResponse(), nil
 }
 
 func (s *HTTPRoutesServer) handlePlaybackSettings(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
-	if request.GetMethod() != http.MethodPost {
-		return s.respondJSON(http.StatusOK, s.store.Preferences().Playback)
-	}
-	var settings cache.PlaybackSettings
-	if err := json.Unmarshal(request.GetBody(), &settings); err != nil {
-		return textResponse(http.StatusBadRequest, "invalid playback settings payload"), nil
-	}
-	return s.respondJSON(http.StatusOK, s.store.SetPlaybackSettings(settings).Playback)
+	return userStateUnavailableResponse(), nil
+}
+
+func userStateUnavailableResponse() *pluginv1.HandleHTTPResponse {
+	return textResponse(http.StatusGone, "user state is stored in the Silo user profile")
 }
 
 func (s *HTTPRoutesServer) handleWatchStart(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
@@ -747,8 +784,8 @@ func (s *HTTPRoutesServer) handleWatchStart(request *pluginv1.HandleHTTPRequest)
 	if strings.TrimSpace(payload.ItemKind) == "" {
 		payload.ItemKind = "channel"
 	}
-	session, preferences := s.store.StartWatch(payload.ItemKind, payload.ItemID, payload.ItemName)
-	return s.respondJSON(http.StatusOK, map[string]any{"session": session, "preferences": preferences})
+	session := s.store.StartWatch(payload.ItemKind, payload.ItemID, payload.ItemName)
+	return s.respondJSON(http.StatusOK, map[string]any{"session": session})
 }
 
 func (s *HTTPRoutesServer) handleWatchHeartbeat(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
@@ -789,13 +826,14 @@ func (s *HTTPRoutesServer) respondJSON(status int, value any) (*pluginv1.HandleH
 	return &pluginv1.HandleHTTPResponse{
 		StatusCode: int32(status),
 		Headers: map[string]string{
-			"content-type": "application/json",
+			"cache-control": "no-store",
+			"content-type":  "application/json",
 		},
 		Body: payload,
 	}, nil
 }
 
-func assetResponse(path string) (*pluginv1.HandleHTTPResponse, error) {
+func playerLibraryAssetResponse(path string) (*pluginv1.HandleHTTPResponse, error) {
 	payload, err := playerAssets.ReadFile(path)
 	if err != nil {
 		return textResponse(http.StatusNotFound, "asset not found"), nil
@@ -810,9 +848,29 @@ func assetResponse(path string) (*pluginv1.HandleHTTPResponse, error) {
 	}, nil
 }
 
+func playerUIAssetResponse(path string, contentType string) (*pluginv1.HandleHTTPResponse, error) {
+	payload, err := playerUIAssets.ReadFile(path)
+	if err != nil {
+		return textResponse(http.StatusNotFound, "asset not found"), nil
+	}
+	return &pluginv1.HandleHTTPResponse{
+		StatusCode: http.StatusOK,
+		Headers: map[string]string{
+			"cache-control": "public, max-age=31536000, immutable",
+			"content-type":  contentType,
+		},
+		Body: payload,
+	}, nil
+}
+
 func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) string {
-	body := strings.Replace(playerPageHTMLTemplate, "__PLAYER_LIBRARIES__", playerLibrariesHTML(), 1)
-	body = strings.Replace(body, "__SILO_THEME__", html.EscapeString(sanitizeThemeSlug(queryValue(request, "theme"))), 1)
+	body := strings.Replace(playerPageHTMLTemplate, "__SILO_THEME__", html.EscapeString(sanitizeThemeSlug(queryValue(request, "theme"))), 1)
+	assetPrefix := "assets"
+	if request.GetPath() == "/dispatcharr" {
+		assetPrefix = "dispatcharr/assets"
+	}
+	body = strings.ReplaceAll(body, "__ASSET_PREFIX__", assetPrefix)
+	body = strings.ReplaceAll(body, "__ASSET_VERSION__", pluginAssetVersion())
 	if request.GetPath() == "/dispatcharr/admin" {
 		body = strings.Replace(body, "__ADMIN_SETTINGS_TOKEN__", html.EscapeString(s.adminToken), 1)
 	} else {
@@ -826,6 +884,28 @@ func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) s
 	}
 	body = strings.Replace(body, "__APP_TITLE__", "Live TV", 2)
 	return strings.Replace(body, "__ROUTE_CLASS__", "", 1)
+}
+
+func pluginAssetVersion() string {
+	assetVersionOnce.Do(func() {
+		hash := sha256.New()
+		for _, asset := range []struct {
+			fs   embed.FS
+			path string
+		}{
+			{playerUIAssets, "ui/styles.css"},
+			{playerUIAssets, "ui/lineup.js"},
+			{playerUIAssets, "ui/app.js"},
+			{playerAssets, "assets/hls.min.js"},
+			{playerAssets, "assets/mpegts.min.js"},
+		} {
+			if payload, err := asset.fs.ReadFile(asset.path); err == nil {
+				_, _ = hash.Write(payload)
+			}
+		}
+		assetVersionValue = hex.EncodeToString(hash.Sum(nil))[:16]
+	})
+	return assetVersionValue
 }
 
 func newAdminToken() string {
@@ -865,20 +945,6 @@ func sanitizeThemeSlug(value string) string {
 		}
 		return -1
 	}, value)
-}
-
-func playerLibrariesHTML() string {
-	var builder strings.Builder
-	for _, path := range []string{"assets/hls.min.js", "assets/mpegts.min.js"} {
-		payload, err := playerAssets.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		builder.WriteString("<script>")
-		builder.WriteString(strings.ReplaceAll(string(payload), "</script", "<\\/script"))
-		builder.WriteString("</script>\n")
-	}
-	return builder.String()
 }
 
 func (s *HTTPRoutesServer) resolveStreamURL(channelID string) (string, error) {
@@ -1138,7 +1204,7 @@ func liveCategories(snapshot cache.Snapshot) []model.Category {
 	return categories
 }
 
-func appCapabilities(sourceMode model.SourceMode, preferences cache.Preferences) AppCapabilities {
+func appCapabilities(sourceMode model.SourceMode) AppCapabilities {
 	return AppCapabilities{
 		LiveTV:                true,
 		Guide:                 true,
@@ -1147,8 +1213,8 @@ func appCapabilities(sourceMode model.SourceMode, preferences cache.Preferences)
 		Recordings:            dvrEnabledForSource(sourceMode),
 		Favorites:             true,
 		HiddenCategories:      true,
-		BackendProxySupported: preferences.Playback.BackendProxySupported,
-		StreamMode:            preferences.Playback.StreamMode,
+		BackendProxySupported: false,
+		StreamMode:            "redirect",
 		NativeLiveTVExport:    false,
 	}
 }

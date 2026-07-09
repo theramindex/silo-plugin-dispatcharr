@@ -82,11 +82,6 @@ type SportsChannelMatch struct {
 	Score        int    `json:"score"`
 }
 
-type sportsFavoriteRequest struct {
-	TeamID  string `json:"teamId"`
-	Enabled bool   `json:"enabled"`
-}
-
 func (s *HTTPRoutesServer) handleSports(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
 	if request.GetMethod() != "" && request.GetMethod() != http.MethodGet {
 		return textResponse(http.StatusMethodNotAllowed, "method not allowed"), nil
@@ -96,32 +91,16 @@ func (s *HTTPRoutesServer) handleSports(ctx context.Context, request *pluginv1.H
 }
 
 func (s *HTTPRoutesServer) handleSportsFavorite(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
-	if request.GetMethod() != http.MethodPost {
-		return textResponse(http.StatusMethodNotAllowed, "method not allowed"), nil
-	}
-	var payload sportsFavoriteRequest
-	if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
-		return textResponse(http.StatusBadRequest, "invalid sports favorite payload"), nil
-	}
-	teamID := strings.TrimSpace(payload.TeamID)
-	if teamID == "" {
-		return textResponse(http.StatusBadRequest, "missing teamId"), nil
-	}
-	return s.respondJSON(http.StatusOK, s.store.SetSportsFavoriteTeam(teamID, payload.Enabled))
+	return userStateUnavailableResponse(), nil
 }
 
 func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) SportsPayload {
 	now := time.Now()
 	events, updatedUnix, source, err := s.cachedSportsEvents(ctx, now, refresh)
-	preferences := s.store.Preferences()
-	favorites := preferences.SportsFavoriteTeams
-	if favorites == nil {
-		favorites = map[string]bool{}
-	}
 	snapshot := s.store.Current()
 	for index := range events {
-		events[index].Home.Favorite = favorites[events[index].Home.ID]
-		events[index].Away.Favorite = favorites[events[index].Away.ID]
+		events[index].Home.Favorite = false
+		events[index].Away.Favorite = false
 		events[index].Channels = matchSportsChannels(events[index], snapshot)
 	}
 	sort.Slice(events, func(i, j int) bool {
@@ -140,7 +119,7 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 		Source:        source,
 		Leagues:       sportsLeagues(events),
 		Events:        events,
-		FavoriteTeams: sortedBoolKeys(favorites),
+		FavoriteTeams: []string{},
 	}
 	if err != nil {
 		payload.Error = err.Error()
@@ -316,7 +295,12 @@ func matchSportsChannels(event SportsEvent, snapshot cache.Snapshot) []SportsCha
 		programsByChannel[program.ChannelID] = append(programsByChannel[program.ChannelID], program)
 	}
 	matches := make([]SportsChannelMatch, 0)
+	seenChannels := map[string]bool{}
 	for _, channel := range snapshot.Catalog.Channels {
+		if channel.ID == "" || seenChannels[channel.ID] {
+			continue
+		}
+		seenChannels[channel.ID] = true
 		score, reason := scoreSportsChannel(channel, categoryNames[channel.CategoryID], programsByChannel[channel.ID], event, terms)
 		if score <= 0 {
 			continue

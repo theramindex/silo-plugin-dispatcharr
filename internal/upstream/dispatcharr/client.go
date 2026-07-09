@@ -16,6 +16,10 @@ import (
 	sharedhttp "github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/httpclient"
 )
 
+const maxPaginationPages = 2000
+
+var errPaginationLimit = fmt.Errorf("pagination exceeded %d pages", maxPaginationPages)
+
 type Client struct {
 	baseURL  string
 	username string
@@ -74,7 +78,17 @@ func (c *Client) Programs(ctx context.Context) ([]Program, error) {
 func (c *Client) SearchPrograms(ctx context.Context, start, end time.Time) ([]ProgramSearchResult, error) {
 	var programs []ProgramSearchResult
 	next := c.searchProgramsEndpoint(start, end, 1)
+	seen := map[string]bool{}
+	pages := 0
 	for strings.TrimSpace(next) != "" {
+		if seen[next] {
+			return nil, fmt.Errorf("pagination cycle detected")
+		}
+		seen[next] = true
+		pages++
+		if pages > maxPaginationPages {
+			return nil, errPaginationLimit
+		}
 		var page struct {
 			Next    string                `json:"next"`
 			Results []ProgramSearchResult `json:"results"`
@@ -154,7 +168,17 @@ func (c *Client) AbsoluteURL(raw string) string {
 
 func (c *Client) getList(ctx context.Context, endpoint string, target any) error {
 	next := endpoint
+	seen := map[string]bool{}
+	pages := 0
 	for strings.TrimSpace(next) != "" {
+		if seen[next] {
+			return fmt.Errorf("pagination cycle detected")
+		}
+		seen[next] = true
+		pages++
+		if pages > maxPaginationPages {
+			return errPaginationLimit
+		}
 		var page struct {
 			Next    string          `json:"next"`
 			Results json.RawMessage `json:"results"`
@@ -258,7 +282,11 @@ func (c *Client) postRawWithRetry(ctx context.Context, endpoint string, body []b
 	if err := c.ensureAuth(ctx); err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint(endpoint), bytes.NewReader(body))
+	target, err := c.requestEndpoint(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +296,7 @@ func (c *Client) postRawWithRetry(ctx context.Context, endpoint string, body []b
 	c.authorize(req)
 	response, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("execute request: %w", err)
+		return nil, fmt.Errorf("execute request: %w", sharedhttp.RedactErrorURL(err))
 	}
 	defer response.Body.Close()
 	if allowRefresh && response.StatusCode == http.StatusUnauthorized && c.canRecoverAuth() {
@@ -279,21 +307,25 @@ func (c *Client) postRawWithRetry(ctx context.Context, endpoint string, body []b
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return nil, fmt.Errorf("unexpected status %d: %s", response.StatusCode, responseSnippet(response.Body))
 	}
-	return io.ReadAll(response.Body)
+	return sharedhttp.ReadAllLimit(response.Body, sharedhttp.MaxJSONResponseBytes)
 }
 
 func (c *Client) getRawWithRetry(ctx context.Context, endpoint string, allowRefresh bool) ([]byte, error) {
 	if err := c.ensureAuth(ctx); err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.endpoint(endpoint), nil)
+	target, err := c.requestEndpoint(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return nil, err
 	}
 	c.authorize(req)
 	response, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("execute request: %w", err)
+		return nil, fmt.Errorf("execute request: %w", sharedhttp.RedactErrorURL(err))
 	}
 	defer response.Body.Close()
 	if allowRefresh && response.StatusCode == http.StatusUnauthorized && c.canRecoverAuth() {
@@ -304,7 +336,7 @@ func (c *Client) getRawWithRetry(ctx context.Context, endpoint string, allowRefr
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return nil, fmt.Errorf("unexpected status %d", response.StatusCode)
 	}
-	return io.ReadAll(response.Body)
+	return sharedhttp.ReadAllLimit(response.Body, sharedhttp.MaxJSONResponseBytes)
 }
 
 func (c *Client) ensureAuth(ctx context.Context) error {
@@ -334,7 +366,7 @@ func (c *Client) login(ctx context.Context) error {
 	req.Header.Set("User-Agent", "Silo Dispatcharr Plugin")
 	response, err := c.http.Do(req)
 	if err != nil {
-		return err
+		return sharedhttp.RedactErrorURL(err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
@@ -374,7 +406,7 @@ func (c *Client) refreshToken(ctx context.Context) error {
 	req.Header.Set("User-Agent", "Silo Dispatcharr Plugin")
 	response, err := c.http.Do(req)
 	if err != nil {
-		return err
+		return sharedhttp.RedactErrorURL(err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
@@ -440,11 +472,33 @@ func (c *Client) authorize(req *http.Request) {
 }
 
 func (c *Client) endpoint(endpoint string) string {
+	target, err := c.requestEndpoint(endpoint)
+	if err != nil {
+		return ""
+	}
+	return target
+}
+
+func (c *Client) requestEndpoint(endpoint string) (string, error) {
 	parsed, err := url.Parse(endpoint)
 	if err == nil && parsed.IsAbs() {
-		return endpoint
+		base, baseErr := url.Parse(c.baseURL)
+		if baseErr != nil {
+			return "", fmt.Errorf("parse dispatcharr base url: %w", baseErr)
+		}
+		if !strings.EqualFold(parsed.Scheme, base.Scheme) || !strings.EqualFold(parsed.Host, base.Host) {
+			return "", fmt.Errorf("refusing cross-origin dispatcharr endpoint")
+		}
+		return parsed.String(), nil
 	}
-	return c.absolutePath(endpoint)
+	if err != nil {
+		return "", fmt.Errorf("parse dispatcharr endpoint: %w", err)
+	}
+	target := c.absolutePath(endpoint)
+	if target == "" {
+		return "", fmt.Errorf("resolve dispatcharr endpoint")
+	}
+	return target, nil
 }
 
 func (c *Client) absolutePath(rawPath string) string {
@@ -453,12 +507,17 @@ func (c *Client) absolutePath(rawPath string) string {
 		return ""
 	}
 	relative, err := url.Parse(rawPath)
-	if err == nil && relative.IsAbs() {
+	if err != nil {
+		return ""
+	}
+	if relative.IsAbs() {
 		return rawPath
 	}
-	base.Path = path.Join(base.Path, rawPath)
-	if strings.HasSuffix(rawPath, "/") && !strings.HasSuffix(base.Path, "/") {
+	base.Path = path.Join(base.Path, relative.Path)
+	if strings.HasSuffix(relative.Path, "/") && !strings.HasSuffix(base.Path, "/") {
 		base.Path += "/"
 	}
+	base.RawQuery = relative.RawQuery
+	base.Fragment = ""
 	return base.String()
 }

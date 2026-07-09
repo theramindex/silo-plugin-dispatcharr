@@ -111,7 +111,7 @@ func TestHTTPRoutesServerAppRouteIncludesAppLayerPayload(t *testing.T) {
 		Catalog: model.CatalogState{
 			Source: model.LiveTVSource(model.SourceModeXtream),
 			Channels: []model.Channel{
-				{ID: "xtream:1", Name: "News HD", CategoryID: "10", CategoryName: "News"},
+				{ID: "xtream:1", Name: "News HD", CategoryID: "10", CategoryName: "News", StreamURL: "https://provider.example/live/demo/secret/1.ts"},
 			},
 			Programs: []model.Program{
 				{ID: "program:1", ChannelID: "xtream:1", Title: "Morning News", StartUnix: 100, EndUnix: 200},
@@ -119,7 +119,7 @@ func TestHTTPRoutesServerAppRouteIncludesAppLayerPayload(t *testing.T) {
 			Content: model.ContentState{
 				LiveCategories: []model.Category{{ID: "10", Name: "News", Kind: "live"}},
 				VODCategories:  []model.Category{{ID: "movies", Name: "Movies", Kind: "vod"}},
-				VODItems:       []model.VODItem{{ID: "vod:2001", Name: "Example Movie", Container: "mp4"}},
+				VODItems:       []model.VODItem{{ID: "vod:2001", Name: "Example Movie", Container: "mp4", StreamURL: "https://provider.example/movie/demo/secret/2001.mp4"}},
 				SeriesItems:    []model.SeriesItem{{ID: "series:3001", Name: "Example Series"}},
 			},
 		},
@@ -143,8 +143,55 @@ func TestHTTPRoutesServerAppRouteIncludesAppLayerPayload(t *testing.T) {
 	if !payload.Capabilities.LiveTV || payload.Capabilities.NativeLiveTVExport || payload.Capabilities.Recordings {
 		t.Fatalf("unexpected capabilities: %+v", payload.Capabilities)
 	}
-	if len(payload.Categories) != 1 || len(payload.Channels) != 1 || len(payload.Programs) != 1 {
+	if len(payload.Categories) != 1 || len(payload.Channels) != 1 {
 		t.Fatalf("unexpected app payload: %+v", payload)
+	}
+	var topLevel map[string]json.RawMessage
+	if err := json.Unmarshal(response.GetBody(), &topLevel); err != nil {
+		t.Fatalf("unmarshal app payload fields: %v", err)
+	}
+	for _, field := range []string{"programs", "vod", "series"} {
+		if _, exists := topLevel[field]; exists {
+			t.Fatalf("app bootstrap payload must not include supplemental field %q", field)
+		}
+	}
+	if payload.Channels[0].StreamFormat != "mpegts" {
+		t.Fatalf("expected a non-secret playback format hint, got %+v", payload.Channels[0])
+	}
+	if strings.Contains(string(response.GetBody()), "provider.example") || strings.Contains(string(response.GetBody()), "secret") {
+		t.Fatalf("app payload exposed provider credentials: %s", string(response.GetBody()))
+	}
+	if strings.Contains(string(response.GetBody()), `"sessions"`) || strings.Contains(string(response.GetBody()), `"preferences"`) {
+		t.Fatalf("app payload must be user-neutral: %s", string(response.GetBody()))
+	}
+}
+
+func TestCatalogSnapshotMatchesAPIKeyDirectAppMode(t *testing.T) {
+	t.Parallel()
+
+	settings := config.Settings{SourceMode: config.SourceModeAPIKey, DispatcharrURL: "https://dispatcharr.example", DispatcharrAPIKey: "secret"}
+	snapshot := cache.Snapshot{
+		Catalog:   model.CatalogState{Source: model.LiveTVSource(model.SourceModeDirectLogin), Channels: []model.Channel{{ID: "channel:1"}}},
+		ConfigKey: config.CatalogCacheKey(settings),
+	}
+	if !catalogSnapshotMatchesSettings(snapshot, settings) {
+		t.Fatal("API key catalog should match the shared Direct app source mode")
+	}
+}
+
+func TestPublicStreamFormatUsesUpstreamPathWithoutExposingIt(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]string{
+		"https://dispatcharr.example/proxy/ts/stream/channel-id":  "mpegts",
+		"https://provider.example/live/channel.m3u8?token=secret": "hls",
+		"https://provider.example/live/channel.ts":                "mpegts",
+		"https://provider.example/live/channel":                   "",
+	}
+	for rawURL, expected := range tests {
+		if actual := publicStreamFormat(rawURL); actual != expected {
+			t.Fatalf("publicStreamFormat(%q) = %q, want %q", rawURL, actual, expected)
+		}
 	}
 }
 
@@ -165,7 +212,10 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if response.GetHeaders()["cache-control"] != "no-store" {
 		t.Fatalf("expected app shell to disable browser caching, got %q", response.GetHeaders()["cache-control"])
 	}
-	body := string(response.GetBody())
+	if !strings.Contains(string(response.GetBody()), `src="dispatcharr/assets/app.js?v=`) || strings.Contains(string(response.GetBody()), "__ASSET_VERSION__") {
+		t.Fatalf("expected root app shell to reference versioned assets: %s", string(response.GetBody()))
+	}
+	body := string(response.GetBody()) + "\n" + playerAppJavaScript() + "\n" + playerStylesCSS()
 	for _, want := range []string{
 		`function sourceVirtualChildCategories(parentPath, includeChannel)`,
 		`function featuredChildCategories(parentPath, includeChannel)`,
@@ -293,6 +343,9 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`data-program-detail-channel=`,
 		`function renderProgramDetailsModal()`,
 		`class=\"program-modal\"`,
+		`aria-labelledby=\"program-modal-title\" aria-describedby=\"program-modal-description\"`,
+		`shell.setAttribute("inert", "")`,
+		`function trapProgramModalFocus(event)`,
 		`if (start > cursor) cells.push(renderEPGGapCell(channel, cursor, start, windowInfo));`,
 		`customGroupChannelID`,
 		`role=\"combobox\"`,
@@ -365,7 +418,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	}
 }
 
-func TestManifestDeclaresSportsAPIRoutes(t *testing.T) {
+func TestManifestDeclaresPublicApplicationRoutesOnly(t *testing.T) {
 	t.Parallel()
 
 	raw, err := os.ReadFile(filepath.Join("..", "..", "manifest.json"))
@@ -388,11 +441,26 @@ func TestManifestDeclaresSportsAPIRoutes(t *testing.T) {
 	}
 	for _, route := range []string{
 		"GET /dispatcharr/api/sports",
-		"POST /dispatcharr/api/sports/favorites",
 		"GET /dispatcharr/api/events",
+		"GET /dispatcharr/assets/app.js",
+		"GET /dispatcharr/assets/lineup.js",
+		"GET /dispatcharr/assets/app.css",
 	} {
 		if !seen[route] {
 			t.Fatalf("manifest does not declare %s", route)
+		}
+	}
+	for _, route := range []string{
+		"POST /dispatcharr/api/sports/favorites",
+		"GET /dispatcharr/api/preferences",
+		"POST /dispatcharr/api/preferences",
+		"POST /dispatcharr/api/favorites",
+		"POST /dispatcharr/api/hidden-categories",
+		"GET /dispatcharr/api/playback",
+		"POST /dispatcharr/api/playback",
+	} {
+		if seen[route] {
+			t.Fatalf("manifest must not advertise process-global user state route %s", route)
 		}
 	}
 }
@@ -407,7 +475,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	if response.GetStatusCode() != 200 {
 		t.Fatalf("expected 200, got %d", response.GetStatusCode())
 	}
-	body := string(response.GetBody())
+	body := string(response.GetBody()) + "\n" + playerAppJavaScript() + "\n" + playerStylesCSS()
 	for _, want := range []string{
 		`<title>Live TV Admin</title>`,
 		`<h1>Live TV Admin</h1>`,
@@ -483,7 +551,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`function effectiveChannel(channel)`,
 		`/dispatcharr/api/admin-settings`,
 		`state.adminCategorySettings = await loadAdminCategorySettings().catch(function()`,
-		`const adminSettingsToken = "`,
+		`meta[name="dispatcharr-admin-token"]`,
 		`x-dispatcharr-admin-token`,
 		`row.keywords.join("\n")`,
 	} {
@@ -538,7 +606,7 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 					{"id": "channel:admin-favorites", "name": "Admin Favorite", "categoryId": "cat:admin-favorites", "categoryName": "* Admin Favorites"},
 					{"id": "channel:argentina-sports", "name": "Argentina Sports", "categoryId": "cat:argentina-sports", "categoryName": "* International | Argentina | Sports"},
 					{"id": "channel:world-cup-replay", "name": "World Cup Replay", "categoryId": "cat:world-cup-replays", "categoryName": "World Cup Replays"},
-					{"id": "channel:ny-local", "name": "NY | New York City | FOX 5 WNYW", "categoryId": "cat:locals", "categoryName": "Locals", "profileIds": []string{"profile-ny"}},
+					{"id": "channel:ny-local", "name": "NY | New York City | FOX 5 WNYW", "categoryId": "cat:locals", "categoryName": "Locals", "profileIds": []string{"profile-ny", "profile-us-tv"}},
 					{"id": "channel:profile-us-tv-dup", "name": "Demo Channel", "categoryId": "cat:us-tv", "categoryName": "US TV", "profileIds": []string{"profile-us-tv"}},
 					{"id": "channel:us-tv-dup", "name": "TV | Demo Channel", "categoryId": "cat:us-tv-pipe", "categoryName": "US | TV"},
 					{"id": "channel:argentina-city", "name": "Argentina | Buenos Aires | Sports 1", "categoryId": "cat:intl-sports", "categoryName": "International Sports"},
@@ -585,6 +653,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	}
 	if !result.ProfileLocalMarketPath {
 		t.Fatalf("expected profile locals to include inferred market path: %+v", result)
+	}
+	if !result.SelectedProfileScoped {
+		t.Fatalf("expected an explicitly selected profile to hide other profile memberships: %+v", result)
 	}
 	if !result.DuplicateProfileCollapsed || !result.DuplicateProfileExpanded || !result.DuplicateGroupCollapsed || !result.DuplicateGroupExpanded {
 		t.Fatalf("expected duplicate virtual group labels to collapse by default and expand when disabled: %+v", result)
@@ -679,7 +750,7 @@ func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
 	if response.GetStatusCode() != 200 {
 		t.Fatalf("expected 200, got %d", response.GetStatusCode())
 	}
-	body := string(response.GetBody())
+	body := string(response.GetBody()) + "\n" + playerAppJavaScript() + "\n" + playerStylesCSS()
 	for _, want := range []string{
 		`favoriteOrder: []`,
 		`function orderedFavoriteChannels(`,
@@ -715,6 +786,7 @@ type virtualAliasResult struct {
 	ProfileGroupPath          bool   `json:"profileGroupPath"`
 	ProfileGroupRoot          bool   `json:"profileGroupRoot"`
 	ProfileLocalMarketPath    bool   `json:"profileLocalMarketPath"`
+	SelectedProfileScoped     bool   `json:"selectedProfileScoped"`
 	DuplicateProfileCollapsed bool   `json:"duplicateProfileCollapsed"`
 	DuplicateProfileExpanded  bool   `json:"duplicateProfileExpanded"`
 	DuplicateGroupCollapsed   bool   `json:"duplicateGroupCollapsed"`
@@ -841,6 +913,9 @@ JSON.stringify((function() {
   normalizeAdminCategorySettings();
   const profileAll = virtualCategoriesFromPaths("", function() { return true; }, true);
   const nyLocalProfilePaths = virtualPathsForChannel(channelByID("channel:ny-local"));
+  state.app.source.channelProfile = { id: "profile-ny", name: "US TV | NY" };
+  const selectedProfilePaths = profilePathsForChannel(channelByID("channel:ny-local"));
+  delete state.app.source.channelProfile;
   const duplicateProfilePaths = virtualPathsForChannel(channelByID("channel:profile-us-tv-dup"));
   state.adminCategorySettings.collapseDuplicateVirtualGroups = false;
   normalizeAdminCategorySettings();
@@ -926,6 +1001,7 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     profileGroupPath: !!profileGroup,
     profileGroupRoot: !!profileRoot,
     profileLocalMarketPath: nyLocalProfilePaths.indexOf("US TV / NY / Locals / New York City") !== -1,
+    selectedProfileScoped: selectedProfilePaths.length === 1 && selectedProfilePaths[0] === "US TV / NY",
     duplicateProfileCollapsed: duplicateProfilePaths.indexOf("US TV") !== -1 && duplicateProfilePaths.indexOf("US TV / US TV") === -1,
     duplicateProfileExpanded: duplicateProfileExpandedPaths.indexOf("US TV / US TV") !== -1,
     duplicateGroupCollapsed: usTVDuplicateGroupPaths.indexOf("US / TV") !== -1 && usTVDuplicateGroupPaths.indexOf("US / TV / TV") === -1,
@@ -1321,10 +1397,6 @@ func TestHTTPRoutesServerRefreshRouteStartsBackgroundCatalogSync(t *testing.T) {
 	if payload.Status.EPGStatus != "loading" {
 		t.Fatalf("expected loading EPG status while sync runs, got %+v", payload.Status)
 	}
-	if len(payload.Programs) != 2 {
-		t.Fatalf("expected current guide payload while sync runs, got %+v", payload.Programs)
-	}
-
 	close(block)
 	waitForStubSync(t, done)
 	if syncer.forceCallCount() != 1 {
@@ -1397,7 +1469,7 @@ func TestHTTPRoutesServerGuidePingRefreshesWhenAnyCheckedChannelIsMissingGuide(t
 	waitForStubSync(t, done)
 }
 
-func TestHTTPRoutesServerFavoriteRouteUpdatesPreferences(t *testing.T) {
+func TestHTTPRoutesServerLegacyFavoriteRouteRejectsProcessGlobalState(t *testing.T) {
 	t.Parallel()
 
 	server := NewHTTPRoutesServer(cache.NewStore())
@@ -1409,15 +1481,8 @@ func TestHTTPRoutesServerFavoriteRouteUpdatesPreferences(t *testing.T) {
 	if err != nil {
 		t.Fatalf("favorite route: %v", err)
 	}
-	if response.GetStatusCode() != 200 {
-		t.Fatalf("expected 200, got %d", response.GetStatusCode())
-	}
-	var prefs cache.Preferences
-	if err := json.Unmarshal(response.GetBody(), &prefs); err != nil {
-		t.Fatalf("unmarshal preferences: %v", err)
-	}
-	if !prefs.Favorites["xtream:1"] {
-		t.Fatalf("expected favorite to be enabled: %+v", prefs)
+	if response.GetStatusCode() != http.StatusGone {
+		t.Fatalf("expected 410, got %d", response.GetStatusCode())
 	}
 }
 
@@ -1487,7 +1552,7 @@ func waitForStubSync(t *testing.T, done <-chan struct{}) {
 	}
 }
 
-func TestHTTPRoutesServerPreferencesRoutePersistsFullPayload(t *testing.T) {
+func TestHTTPRoutesServerLegacyPreferencesRouteRejectsProcessGlobalState(t *testing.T) {
 	t.Parallel()
 
 	server := NewHTTPRoutesServer(cache.NewStore())
@@ -1499,36 +1564,8 @@ func TestHTTPRoutesServerPreferencesRoutePersistsFullPayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("preferences route: %v", err)
 	}
-	if response.GetStatusCode() != 200 {
-		t.Fatalf("expected 200, got %d", response.GetStatusCode())
-	}
-	var prefs cache.Preferences
-	if err := json.Unmarshal(response.GetBody(), &prefs); err != nil {
-		t.Fatalf("unmarshal preferences: %v", err)
-	}
-	if !prefs.Favorites["channel:1"] || !prefs.AutoFavorites["channel:2"] || !prefs.HiddenCategories["sports"] {
-		t.Fatalf("expected full preferences to persist: %+v", prefs)
-	}
-	if len(prefs.RecentChannels) != 1 || prefs.RecentChannels[0] != "channel:1" {
-		t.Fatalf("expected recent channel to persist: %+v", prefs)
-	}
-	if len(prefs.FavoriteOrder) != 2 || prefs.FavoriteOrder[0] != "channel:1" || prefs.FavoriteOrder[1] != "channel:3" {
-		t.Fatalf("expected favorite order to persist: %+v", prefs.FavoriteOrder)
-	}
-	if !prefs.SportsFavoriteTeams["mlb:cin"] {
-		t.Fatalf("expected sports favorite team to persist: %+v", prefs.SportsFavoriteTeams)
-	}
-	if len(prefs.KeywordPasses) != 1 || prefs.KeywordPasses[0].Keyword != "World Cup" {
-		t.Fatalf("expected keyword passes to persist: %+v", prefs.KeywordPasses)
-	}
-	if !prefs.CategoryParsing.Enabled || prefs.CategoryParsing.Delimiter != "pipe" {
-		t.Fatalf("expected category parsing settings to persist: %+v", prefs.CategoryParsing)
-	}
-	if len(prefs.CustomGroups) != 1 || prefs.CustomGroups[0].Name != "Spanish" {
-		t.Fatalf("expected custom groups to persist: %+v", prefs.CustomGroups)
-	}
-	if got := prefs.CustomGroupMemberships["group:spanish"]; len(got) != 2 || got[0] != "channel:1" || got[1] != "channel:2" {
-		t.Fatalf("expected custom group memberships to persist: %+v", prefs.CustomGroupMemberships)
+	if response.GetStatusCode() != http.StatusGone {
+		t.Fatalf("expected 410, got %d", response.GetStatusCode())
 	}
 }
 
@@ -1680,6 +1717,13 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayloadToFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read admin settings file: %v", err)
 	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat admin settings file: %v", err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("expected owner-only admin settings file, got %o", info.Mode().Perm())
+	}
 	var saved map[string]any
 	if err := json.Unmarshal(data, &saved); err != nil {
 		t.Fatalf("decode admin settings file: %v", err)
@@ -1785,21 +1829,40 @@ func TestHTTPRoutesServerAdminSettingsRouteRequiresAdminPageTokenForPost(t *test
 	}
 }
 
-func TestHTTPRoutesServerAdminSettingsRouteAcceptsQueryToken(t *testing.T) {
+func TestHTTPRoutesServerAdminSettingsPublicReadHidesManagerURL(t *testing.T) {
+	t.Parallel()
+
+	server := NewHTTPRoutesServer(cache.NewStore())
+	server.store.SetAdminSettings(json.RawMessage(`{"mode":"delimiter","delimiter":"pipe","ecmEnabled":true,"ecmURL":"https://manager.example/private"}`))
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/dispatcharr/api/admin-settings"})
+	if err != nil {
+		t.Fatalf("admin settings route: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+		t.Fatalf("unmarshal public admin settings: %v", err)
+	}
+	if payload["ecmURL"] != "" || payload["ecmEnabled"] != false {
+		t.Fatalf("public admin settings exposed manager configuration: %+v", payload)
+	}
+}
+
+func TestHTTPRoutesServerAdminSettingsRouteRejectsQueryTokenForWrite(t *testing.T) {
 	t.Parallel()
 
 	server := NewHTTPRoutesServer(cache.NewStore())
 	query, _ := structpb.NewStruct(map[string]any{"admin_token": server.adminToken})
 	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
-		Method: "GET",
+		Method: http.MethodPost,
 		Path:   "/dispatcharr/api/admin-settings",
 		Query:  query,
+		Body:   []byte(`{"mode":"delimiter","delimiter":"pipe"}`),
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
 	}
-	if response.GetStatusCode() != 200 {
-		t.Fatalf("expected 200 with admin settings query token, got %d", response.GetStatusCode())
+	if response.GetStatusCode() != http.StatusForbidden {
+		t.Fatalf("expected query token to be rejected, got %d", response.GetStatusCode())
 	}
 }
 
@@ -1819,17 +1882,13 @@ func TestHTTPRoutesServerWatchLifecycleUpdatesSessionState(t *testing.T) {
 		t.Fatalf("expected 200, got %d", startResponse.GetStatusCode())
 	}
 	var startPayload struct {
-		Session     cache.WatchSession `json:"session"`
-		Preferences cache.Preferences  `json:"preferences"`
+		Session cache.WatchSession `json:"session"`
 	}
 	if err := json.Unmarshal(startResponse.GetBody(), &startPayload); err != nil {
 		t.Fatalf("unmarshal watch start payload: %v", err)
 	}
 	if startPayload.Session.ID == "" || startPayload.Session.ItemID != "xtream:1" {
 		t.Fatalf("unexpected watch session: %+v", startPayload.Session)
-	}
-	if len(startPayload.Preferences.RecentChannels) != 1 || startPayload.Preferences.RecentChannels[0] != "xtream:1" {
-		t.Fatalf("expected recent channel update: %+v", startPayload.Preferences)
 	}
 
 	heartbeatResponse, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
@@ -2014,13 +2073,13 @@ func TestHTTPRoutesServerPlayerRoute(t *testing.T) {
 	if strings.Contains(body, "cdn.jsdelivr.net") {
 		t.Fatalf("expected player libraries to be served locally")
 	}
-	if strings.Contains(body, `src="dispatcharr/assets/`) || strings.Contains(body, "__PLAYER_LIBRARIES__") {
-		t.Fatalf("expected embedded player libraries")
+	if strings.Contains(body, "__ASSET_PREFIX__") || strings.Contains(body, "__PLAYER_LIBRARIES__") {
+		t.Fatalf("expected asset placeholders to be resolved")
 	}
-	if !strings.Contains(body, "mpegts.js") || !strings.Contains(body, "Hls") {
-		t.Fatalf("expected inline player library content")
+	if !strings.Contains(body, `src="assets/app.js?v=`) || !strings.Contains(body, `href="assets/app.css?v=`) || strings.Contains(body, "mpegts.js") {
+		t.Fatalf("expected external application assets and on-demand player libraries")
 	}
-	if !strings.Contains(body, "output_profile=2") {
+	if !strings.Contains(playerAppJavaScript(), "output_profile=2") {
 		t.Fatalf("expected browser playback to request AAC Xtream profile")
 	}
 }
@@ -2042,6 +2101,49 @@ func TestHTTPRoutesServerPlayerAssetRoutes(t *testing.T) {
 		}
 		if len(response.GetBody()) < 1024 {
 			t.Fatalf("expected embedded player asset body for %s", path)
+		}
+	}
+}
+
+func TestHTTPRoutesServerApplicationAssetRoutes(t *testing.T) {
+	t.Parallel()
+
+	server := NewHTTPRoutesServer(cache.NewStore())
+	tests := map[string]string{
+		"/dispatcharr/assets/app.js":    "application/javascript; charset=utf-8",
+		"/dispatcharr/assets/lineup.js": "application/javascript; charset=utf-8",
+		"/dispatcharr/assets/app.css":   "text/css; charset=utf-8",
+	}
+	for path, contentType := range tests {
+		response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: path})
+		if err != nil {
+			t.Fatalf("asset route %s: %v", path, err)
+		}
+		if response.GetStatusCode() != http.StatusOK || response.GetHeaders()["content-type"] != contentType {
+			t.Fatalf("unexpected response for %s: status=%d content-type=%q", path, response.GetStatusCode(), response.GetHeaders()["content-type"])
+		}
+		if response.GetHeaders()["cache-control"] != "public, max-age=31536000, immutable" || len(response.GetBody()) == 0 {
+			t.Fatalf("expected cacheable embedded asset for %s", path)
+		}
+	}
+}
+
+func TestPlayerAppUsesLightweightRefreshPolling(t *testing.T) {
+	t.Parallel()
+
+	script := playerAppJavaScript()
+	if strings.Count(script, `getJSON("/dispatcharr/api/app")`) != 1 {
+		t.Fatalf("app bootstrap endpoint should only be used for initial load")
+	}
+	for _, marker := range []string{
+		`getJSON("/dispatcharr/api/status")`,
+		`getJSON("/dispatcharr/api/guide")`,
+		`getJSON("/dispatcharr/api/vod")`,
+		`getJSON("/dispatcharr/api/series")`,
+		`attempt < 300`,
+	} {
+		if !strings.Contains(script, marker) {
+			t.Fatalf("expected lightweight refresh marker %q", marker)
 		}
 	}
 }

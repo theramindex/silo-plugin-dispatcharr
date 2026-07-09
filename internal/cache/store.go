@@ -20,7 +20,6 @@ type Snapshot struct {
 type Store struct {
 	mu            sync.RWMutex
 	snapshot      Snapshot
-	preferences   Preferences
 	adminSettings json.RawMessage
 	sessions      map[string]WatchSession
 }
@@ -36,8 +35,14 @@ type WatchSession struct {
 	EndReason         string `json:"endReason,omitempty"`
 }
 
+const (
+	watchSessionTTLSeconds  = int64((6 * time.Hour) / time.Second)
+	endedSessionTTLSeconds  = int64(time.Hour / time.Second)
+	maximumWatchSessionRows = 2048
+)
+
 func NewStore() *Store {
-	return &Store{preferences: defaultPreferences(), sessions: map[string]WatchSession{}}
+	return &Store{sessions: map[string]WatchSession{}}
 }
 
 func (s *Store) Current() Snapshot {
@@ -87,6 +92,9 @@ func (s *Store) replace(snapshot Snapshot, preserveGuide bool) {
 }
 
 func shouldPreserveGuide(current, next Snapshot) bool {
+	if current.ConfigKey != "" && next.ConfigKey != "" && current.ConfigKey != next.ConfigKey {
+		return false
+	}
 	if !sameCatalogSource(current.Catalog.Source, next.Catalog.Source) {
 		return false
 	}
@@ -122,23 +130,6 @@ func haveProgramChannels(channels []model.Channel, programs []model.Program) boo
 	return true
 }
 
-func (s *Store) Preferences() Preferences {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	preferences := s.preferences
-	preferences.Favorites = cloneBoolMap(s.preferences.Favorites)
-	preferences.FavoriteOrder = append([]string(nil), s.preferences.FavoriteOrder...)
-	preferences.AutoFavorites = cloneBoolMap(s.preferences.AutoFavorites)
-	preferences.HiddenCategories = cloneBoolMap(s.preferences.HiddenCategories)
-	preferences.SportsFavoriteTeams = cloneBoolMap(s.preferences.SportsFavoriteTeams)
-	preferences.RecentChannels = append([]string(nil), s.preferences.RecentChannels...)
-	preferences.ContinueWatching = cloneAnyMap(s.preferences.ContinueWatching)
-	preferences.CustomGroups = cloneCustomGroups(s.preferences.CustomGroups)
-	preferences.CustomGroupMemberships = cloneStringSliceMap(s.preferences.CustomGroupMemberships)
-	return preferences
-}
-
 func (s *Store) AdminSettings() json.RawMessage {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -164,13 +155,13 @@ func (s *Store) SetAdminSettings(settings json.RawMessage) json.RawMessage {
 	return append(json.RawMessage(nil), s.adminSettings...)
 }
 
-func (s *Store) StartWatch(kind, id, name string) (WatchSession, Preferences) {
+func (s *Store) StartWatch(kind, id, name string) WatchSession {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.ensurePreferences()
 	s.ensureSessions()
 	now := time.Now().Unix()
+	s.pruneWatchSessionsLocked(now)
 	session := WatchSession{
 		ID:                newSessionID(),
 		ItemKind:          kind,
@@ -181,26 +172,7 @@ func (s *Store) StartWatch(kind, id, name string) (WatchSession, Preferences) {
 	}
 	s.sessions[session.ID] = session
 
-	if kind == "channel" && id != "" {
-		s.preferences.RecentChannels = prependUnique(s.preferences.RecentChannels, id, 24)
-		plays := 1
-		if previous, ok := s.preferences.ContinueWatching[id].(map[string]any); ok {
-			if value, ok := previous["plays"].(float64); ok {
-				plays = int(value) + 1
-			}
-		}
-		s.preferences.ContinueWatching[id] = map[string]any{
-			"kind":     kind,
-			"name":     name,
-			"playedAt": now,
-			"plays":    plays,
-		}
-		if plays >= 3 && !s.preferences.Favorites[id] {
-			s.preferences.AutoFavorites[id] = true
-		}
-	}
-
-	return session, s.preferencesSnapshotLocked()
+	return session
 }
 
 func (s *Store) HeartbeatWatch(id string) (WatchSession, bool) {
@@ -235,85 +207,6 @@ func (s *Store) StopWatch(id, reason string) (WatchSession, bool) {
 		s.sessions[id] = session
 	}
 	return session, true
-}
-
-func (s *Store) ActiveSessions() []WatchSession {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	sessions := make([]WatchSession, 0, len(s.sessions))
-	for _, session := range s.sessions {
-		if session.EndedAtUnix == 0 {
-			sessions = append(sessions, session)
-		}
-	}
-	return sessions
-}
-
-func (s *Store) SetFavorite(id string, enabled bool) Preferences {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.ensurePreferences()
-	if enabled {
-		s.preferences.Favorites[id] = true
-		s.preferences.FavoriteOrder = appendUnique(s.preferences.FavoriteOrder, id, 256)
-	} else {
-		delete(s.preferences.Favorites, id)
-		s.preferences.FavoriteOrder = removeString(s.preferences.FavoriteOrder, id)
-	}
-	return s.preferencesSnapshotLocked()
-}
-
-func (s *Store) SetHiddenCategory(id string, hidden bool) Preferences {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.ensurePreferences()
-	if hidden {
-		s.preferences.HiddenCategories[id] = true
-	} else {
-		delete(s.preferences.HiddenCategories, id)
-	}
-	return s.preferencesSnapshotLocked()
-}
-
-func (s *Store) SetPlaybackSettings(settings PlaybackSettings) Preferences {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.ensurePreferences()
-	settings.BackendProxySupported = false
-	if settings.StreamMode == "" || settings.StreamMode == "proxy" {
-		settings.StreamMode = "redirect"
-	}
-	if settings.OutputFormat == "" {
-		settings.OutputFormat = "ts"
-	}
-	s.preferences.Playback = settings
-	return s.preferencesSnapshotLocked()
-}
-
-func (s *Store) SetPreferences(preferences Preferences) Preferences {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.preferences = preferences
-	s.ensurePreferences()
-	return s.preferencesSnapshotLocked()
-}
-
-func (s *Store) SetSportsFavoriteTeam(teamID string, enabled bool) Preferences {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.ensurePreferences()
-	if enabled {
-		s.preferences.SportsFavoriteTeams[teamID] = true
-	} else {
-		delete(s.preferences.SportsFavoriteTeams, teamID)
-	}
-	return s.preferencesSnapshotLocked()
 }
 
 func (s *Store) RecordFailure(atUnix int64, message string) {
@@ -380,142 +273,36 @@ func (s *Store) RecordEPGFailure(atUnix int64, message string) {
 	s.snapshot.Catalog.Health.EPGLastError = message
 }
 
-func (s *Store) ensurePreferences() {
-	if s.preferences.Favorites == nil {
-		s.preferences.Favorites = map[string]bool{}
-	}
-	if s.preferences.FavoriteOrder == nil {
-		s.preferences.FavoriteOrder = []string{}
-	}
-	if s.preferences.AutoFavorites == nil {
-		s.preferences.AutoFavorites = map[string]bool{}
-	}
-	if s.preferences.HiddenCategories == nil {
-		s.preferences.HiddenCategories = map[string]bool{}
-	}
-	if s.preferences.SportsFavoriteTeams == nil {
-		s.preferences.SportsFavoriteTeams = map[string]bool{}
-	}
-	if s.preferences.KeywordPasses == nil {
-		s.preferences.KeywordPasses = []KeywordPass{}
-	}
-	if s.preferences.RecentChannels == nil {
-		s.preferences.RecentChannels = []string{}
-	}
-	if s.preferences.ContinueWatching == nil {
-		s.preferences.ContinueWatching = map[string]any{}
-	}
-	if s.preferences.CategoryParsing.Mode == "" {
-		s.preferences.CategoryParsing.Mode = "off"
-	}
-	if s.preferences.CategoryParsing.Delimiter == "" {
-		s.preferences.CategoryParsing.Delimiter = "dash"
-	}
-	if s.preferences.CustomGroups == nil {
-		s.preferences.CustomGroups = []CustomGroup{}
-	}
-	if s.preferences.CustomGroupMemberships == nil {
-		s.preferences.CustomGroupMemberships = map[string][]string{}
-	}
-	if s.preferences.Playback.StreamMode == "" {
-		s.preferences.Playback.StreamMode = "redirect"
-	}
-	if s.preferences.Playback.OutputFormat == "" {
-		s.preferences.Playback.OutputFormat = "ts"
-	}
-}
-
 func (s *Store) ensureSessions() {
 	if s.sessions == nil {
 		s.sessions = map[string]WatchSession{}
 	}
 }
 
-func (s *Store) preferencesSnapshotLocked() Preferences {
-	preferences := s.preferences
-	preferences.Favorites = cloneBoolMap(s.preferences.Favorites)
-	preferences.FavoriteOrder = append([]string(nil), s.preferences.FavoriteOrder...)
-	preferences.AutoFavorites = cloneBoolMap(s.preferences.AutoFavorites)
-	preferences.HiddenCategories = cloneBoolMap(s.preferences.HiddenCategories)
-	preferences.SportsFavoriteTeams = cloneBoolMap(s.preferences.SportsFavoriteTeams)
-	preferences.KeywordPasses = append([]KeywordPass(nil), s.preferences.KeywordPasses...)
-	preferences.RecentChannels = append([]string(nil), s.preferences.RecentChannels...)
-	preferences.ContinueWatching = cloneAnyMap(s.preferences.ContinueWatching)
-	preferences.CustomGroups = cloneCustomGroups(s.preferences.CustomGroups)
-	preferences.CustomGroupMemberships = cloneStringSliceMap(s.preferences.CustomGroupMemberships)
-	return preferences
-}
-
-func cloneBoolMap(values map[string]bool) map[string]bool {
-	clone := make(map[string]bool, len(values))
-	for key, value := range values {
-		clone[key] = value
-	}
-	return clone
-}
-
-func cloneAnyMap(values map[string]any) map[string]any {
-	clone := make(map[string]any, len(values))
-	for key, value := range values {
-		clone[key] = value
-	}
-	return clone
-}
-
-func cloneCustomGroups(values []CustomGroup) []CustomGroup {
-	return append([]CustomGroup(nil), values...)
-}
-
-func cloneStringSliceMap(values map[string][]string) map[string][]string {
-	clone := make(map[string][]string, len(values))
-	for key, value := range values {
-		clone[key] = append([]string(nil), value...)
-	}
-	return clone
-}
-
-func appendUnique(values []string, value string, limit int) []string {
-	result := append([]string(nil), values...)
-	if value == "" {
-		return result
-	}
-	for _, existing := range result {
-		if existing == value {
-			return result
-		}
-	}
-	result = append(result, value)
-	if limit > 0 && len(result) > limit {
-		return result[len(result)-limit:]
-	}
-	return result
-}
-
-func removeString(values []string, value string) []string {
-	result := make([]string, 0, len(values))
-	for _, existing := range values {
-		if existing != value {
-			result = append(result, existing)
-		}
-	}
-	return result
-}
-
-func prependUnique(values []string, value string, limit int) []string {
-	result := make([]string, 0, len(values)+1)
-	if value != "" {
-		result = append(result, value)
-	}
-	for _, existing := range values {
-		if existing == "" || existing == value {
+func (s *Store) pruneWatchSessionsLocked(now int64) {
+	for id, session := range s.sessions {
+		if session.EndedAtUnix > 0 && session.EndedAtUnix < now-endedSessionTTLSeconds {
+			delete(s.sessions, id)
 			continue
 		}
-		result = append(result, existing)
-		if limit > 0 && len(result) >= limit {
-			return result
+		if session.EndedAtUnix == 0 && session.LastHeartbeatUnix < now-watchSessionTTLSeconds {
+			delete(s.sessions, id)
 		}
 	}
-	return result
+	for len(s.sessions) >= maximumWatchSessionRows {
+		oldestID := ""
+		oldestUnix := now
+		for id, session := range s.sessions {
+			if oldestID == "" || session.LastHeartbeatUnix < oldestUnix {
+				oldestID = id
+				oldestUnix = session.LastHeartbeatUnix
+			}
+		}
+		if oldestID == "" {
+			break
+		}
+		delete(s.sessions, oldestID)
+	}
 }
 
 func newSessionID() string {

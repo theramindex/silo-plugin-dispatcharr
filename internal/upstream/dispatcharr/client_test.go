@@ -1,6 +1,7 @@
 package dispatcharr
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +13,43 @@ func TestEndpointPreservesTrailingSlash(t *testing.T) {
 	client := NewLoginClient("https://dispatcharr.example.com", "demo", "secret")
 	if got := client.endpoint("/api/accounts/token/"); got != "https://dispatcharr.example.com/api/accounts/token/" {
 		t.Fatalf("unexpected endpoint: %q", got)
+	}
+}
+
+func TestEndpointPreservesPaginationQuery(t *testing.T) {
+	t.Parallel()
+
+	client := NewLoginClient("https://dispatcharr.example.com", "demo", "secret")
+	if got := client.endpoint("/api/channels/channels/?page=2"); got != "https://dispatcharr.example.com/api/channels/channels/?page=2" {
+		t.Fatalf("unexpected pagination endpoint: %q", got)
+	}
+}
+
+func TestGetListRejectsCrossOriginPaginationWithoutForwardingCredentials(t *testing.T) {
+	t.Parallel()
+
+	attackerRequests := 0
+	attacker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attackerRequests++
+		if got := r.Header.Get("Authorization"); got != "" {
+			t.Errorf("cross-origin request forwarded authorization header %q", got)
+		}
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	defer attacker.Close()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"next":%q,"results":[]}`, attacker.URL+"/steal")
+	}))
+	defer upstream.Close()
+
+	client := NewAPIKeyClient(upstream.URL, "top-secret")
+	if _, err := client.ChannelGroups(t.Context()); err == nil {
+		t.Fatal("expected cross-origin pagination link to be rejected")
+	}
+	if attackerRequests != 0 {
+		t.Fatalf("expected no attacker requests, got %d", attackerRequests)
 	}
 }
 

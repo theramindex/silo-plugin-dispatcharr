@@ -107,6 +107,28 @@ func TestSyncPersistsCatalogSnapshot(t *testing.T) {
 	}
 }
 
+func TestSyncReportsCatalogSnapshotPersistenceFailure(t *testing.T) {
+	t.Parallel()
+
+	storage := &memorySnapshotStorage{saveErr: errors.New("disk full")}
+	service := NewService(Dependencies{
+		Store:           cache.NewStore(),
+		SnapshotStorage: storage,
+		XtreamFactory: func(string, string, string) XtreamClient {
+			return &stubXtreamClient{
+				streams: []xtream.LiveStream{{Num: 1, Name: "News HD", StreamID: 1001, EPGChannelID: "news.hd"}},
+				epg:     xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "epg-1", Title: "Morning News", StartTimestamp: "1700000000", StopTimestamp: "1700003600"}}},
+			}
+		},
+	})
+	settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://dispatcharr.example.com", XtreamUsername: "demo", XtreamPassword: "secret", ChannelRefreshH: 24, EPGRefreshH: 6}
+
+	err := service.SyncNow(context.Background(), settings, 210)
+	if err == nil || !strings.Contains(err.Error(), "persist catalog snapshot") {
+		t.Fatalf("expected persistence failure, got %v", err)
+	}
+}
+
 func TestSyncXtreamUsesCustomXMLTVGuide(t *testing.T) {
 	t.Parallel()
 
@@ -365,6 +387,18 @@ func TestSyncDirectLoginScopesChannelsAndGuideToChannelProfile(t *testing.T) {
 	}
 }
 
+func TestProfileMembershipDeduplicatesRepeatedChannelRows(t *testing.T) {
+	t.Parallel()
+
+	membership := profileIDsByDispatcharrChannel([]dispatcharr.ChannelProfile{
+		{ID: "10", Name: "US TV | NY", Channels: []dispatcharr.String{"2", "2"}},
+		{ID: "11", Name: "International TV | Canada", Channels: []dispatcharr.String{"2"}},
+	})
+	if got := membership["2"]; len(got) != 2 || got[0] != "10" || got[1] != "11" {
+		t.Fatalf("expected one membership per profile, got %+v", got)
+	}
+}
+
 func TestRefreshEPGNowDirectPurgesStaleGuideBeforeDispatcharrSync(t *testing.T) {
 	t.Parallel()
 
@@ -525,6 +559,36 @@ func TestRefreshGuideOnlyNowDirectReplacesStaleGuideWithoutPurgingFirst(t *testi
 	}
 }
 
+func TestRefreshGuideOnlyPreservesLastKnownGuideWhenUpstreamReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+		Channels: []model.Channel{{ID: "m3u:news.hd", Name: "News HD", GuideID: "news.hd"}},
+	}})
+	store.ReplacePrograms([]model.Program{{ID: "program:old", ChannelID: "m3u:news.hd", Title: "Old Morning", StartUnix: 100, EndUnix: 200}}, 200)
+	service := NewService(Dependencies{
+		Store: store,
+		DispatcharrFactory: func(config.Settings) DispatcharrClient {
+			return &stubDispatcharrClient{channels: []dispatcharr.Channel{{ID: "1", UUID: "11111111-1111-1111-1111-111111111111", EffectiveName: "News HD", EffectiveTVGID: "news.hd"}}}
+		},
+	})
+	settings := config.Settings{SourceMode: config.SourceModeDirectLogin, DispatcharrURL: "https://dispatcharr.example.com", DispatcharrUser: "demo", DispatcharrPass: "secret", ChannelRefreshH: 24, EPGRefreshH: 6}
+
+	err := service.RefreshGuideOnlyNow(context.Background(), settings, 300)
+	if err == nil || !strings.Contains(err.Error(), "no guide programs") {
+		t.Fatalf("expected empty guide rejection, got %v", err)
+	}
+	snapshot := store.Current()
+	if len(snapshot.Catalog.Programs) != 1 || snapshot.Catalog.Programs[0].Title != "Old Morning" {
+		t.Fatalf("expected last-known-good guide to remain, got %+v", snapshot.Catalog.Programs)
+	}
+	if snapshot.Health.EPGStatus != "failed" {
+		t.Fatalf("expected failed guide health, got %+v", snapshot.Health)
+	}
+}
+
 func TestSyncDispatcharrSkipsVODWithTightDeadline(t *testing.T) {
 	t.Parallel()
 
@@ -582,7 +646,7 @@ func TestSyncDispatcharrSkipsVODWithTightDeadline(t *testing.T) {
 	}
 }
 
-func TestSyncDispatcharrTightDeadlineStartsAsyncEPGRefresh(t *testing.T) {
+func TestSyncDispatcharrTightDeadlineDoesNotSpawnUnmanagedRefresh(t *testing.T) {
 	t.Parallel()
 
 	store := cache.NewStore()
@@ -591,7 +655,7 @@ func TestSyncDispatcharrTightDeadlineStartsAsyncEPGRefresh(t *testing.T) {
 		Store: store,
 		DispatcharrFactory: func(config.Settings) DispatcharrClient {
 			factoryCalls++
-			client := &stubDispatcharrClient{
+			return &stubDispatcharrClient{
 				channels: []dispatcharr.Channel{{
 					ID:                     "1",
 					UUID:                   "11111111-1111-1111-1111-111111111111",
@@ -603,16 +667,6 @@ func TestSyncDispatcharrTightDeadlineStartsAsyncEPGRefresh(t *testing.T) {
 				}},
 				groups: []dispatcharr.ChannelGroup{{ID: "10", Name: "Local"}},
 			}
-			if factoryCalls > 1 {
-				client.programs = []dispatcharr.Program{{
-					ID:        "epg-async",
-					TVGID:     "news.hd",
-					Title:     "Async Morning",
-					StartTime: "2026-06-18T12:00:00Z",
-					EndTime:   "2026-06-18T13:00:00Z",
-				}}
-			}
-			return client
 		},
 		FetchURL: func(_ context.Context, rawURL string) ([]byte, error) {
 			t.Fatal("direct async EPG refresh should use Dispatcharr API sync, not XMLTV fetch")
@@ -635,15 +689,12 @@ func TestSyncDispatcharrTightDeadlineStartsAsyncEPGRefresh(t *testing.T) {
 		t.Fatalf("expected tight-deadline dispatcharr sync success, got %v", err)
 	}
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		snapshot := store.Current()
-		if len(snapshot.Catalog.Programs) == 1 && snapshot.Health.EPGStatus == "ok" {
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
+	if factoryCalls != 1 {
+		t.Fatalf("expected sync to stay within its caller, got %d factory calls", factoryCalls)
 	}
-	t.Fatalf("expected async EPG refresh to populate programs, got %+v", store.Current())
+	if len(store.Current().Catalog.Programs) != 0 {
+		t.Fatalf("expected background guide work to be owned by the coordinator, got %+v", store.Current().Catalog.Programs)
+	}
 }
 
 func TestSyncXtreamSkipsPerChannelEPGWithTightDeadline(t *testing.T) {
@@ -819,6 +870,7 @@ func (s *stubDispatcharrClient) AbsoluteURL(raw string) string { return raw }
 type memorySnapshotStorage struct {
 	snapshot cache.Snapshot
 	saves    int
+	saveErr  error
 }
 
 func (s *memorySnapshotStorage) Load() (cache.Snapshot, bool, error) {
@@ -828,7 +880,7 @@ func (s *memorySnapshotStorage) Load() (cache.Snapshot, bool, error) {
 func (s *memorySnapshotStorage) Save(snapshot cache.Snapshot) error {
 	s.snapshot = snapshot
 	s.saves++
-	return nil
+	return s.saveErr
 }
 
 func (s *memorySnapshotStorage) Path() string {

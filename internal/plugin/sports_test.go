@@ -36,6 +36,7 @@ func TestHTTPRoutesServerSportsMatchesChannelsAndFavoriteTeams(t *testing.T) {
 			Source: model.LiveTVSource(model.SourceModeXtream),
 			Channels: []model.Channel{
 				{ID: "ch:fs1", Name: "FOX Sports 1", CategoryID: "world", CategoryName: "World Cup"},
+				{ID: "ch:fs1", Name: "FOX Sports 1", CategoryID: "world", CategoryName: "World Cup"},
 				{ID: "ch:arg", Name: "Argentina Deportes", CategoryID: "arg", CategoryName: "Sports | Argentina"},
 				{ID: "ch:news", Name: "News Now", CategoryID: "news", CategoryName: "News"},
 			},
@@ -77,6 +78,15 @@ func TestHTTPRoutesServerSportsMatchesChannelsAndFavoriteTeams(t *testing.T) {
 	assertSportsMatch(t, event.Channels, "ch:fs1")
 	assertSportsMatch(t, event.Channels, "ch:arg")
 	assertNoSportsMatch(t, event.Channels, "ch:news")
+	matchCount := 0
+	for _, match := range event.Channels {
+		if match.ID == "ch:fs1" {
+			matchCount++
+		}
+	}
+	if matchCount != 1 {
+		t.Fatalf("expected duplicate channel IDs to collapse, got %+v", event.Channels)
+	}
 
 	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
 		Method: http.MethodPost,
@@ -86,20 +96,13 @@ func TestHTTPRoutesServerSportsMatchesChannelsAndFavoriteTeams(t *testing.T) {
 	if err != nil {
 		t.Fatalf("favorite route: %v", err)
 	}
-	if response.GetStatusCode() != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", response.GetStatusCode(), string(response.GetBody()))
-	}
-	var preferences cache.Preferences
-	if err := json.Unmarshal(response.GetBody(), &preferences); err != nil {
-		t.Fatalf("unmarshal preferences: %v", err)
-	}
-	if !preferences.SportsFavoriteTeams["team:arg"] {
-		t.Fatalf("favorite team was not persisted: %+v", preferences.SportsFavoriteTeams)
+	if response.GetStatusCode() != http.StatusGone {
+		t.Fatalf("expected 410, got %d: %s", response.GetStatusCode(), string(response.GetBody()))
 	}
 
 	payload = fetchSportsPayload(t, server)
-	if !payload.Events[0].Home.Favorite || payload.Events[0].Away.Favorite {
-		t.Fatalf("favorite flags not applied to sports payload: %+v", payload.Events[0])
+	if payload.Events[0].Home.Favorite || payload.Events[0].Away.Favorite {
+		t.Fatalf("sports payload must remain user-neutral: %+v", payload.Events[0])
 	}
 }
 

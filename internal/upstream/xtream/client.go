@@ -136,7 +136,7 @@ func (c *Client) getJSON(ctx context.Context, action string, params map[string]s
 
 	response, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("execute request: %w", err)
+		return fmt.Errorf("execute request: %w", sharedhttp.RedactErrorURL(err))
 	}
 	defer response.Body.Close()
 
@@ -144,7 +144,11 @@ func (c *Client) getJSON(ctx context.Context, action string, params map[string]s
 		return fmt.Errorf("unexpected status %d", response.StatusCode)
 	}
 
-	if err := json.NewDecoder(response.Body).Decode(target); err != nil {
+	body, err := sharedhttp.ReadAllLimit(response.Body, sharedhttp.MaxJSONResponseBytes)
+	if err != nil {
+		return fmt.Errorf("read response: %w", err)
+	}
+	if err := json.Unmarshal(body, target); err != nil {
 		return fmt.Errorf("decode response: %w", err)
 	}
 	return nil

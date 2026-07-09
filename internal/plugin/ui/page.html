@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="dispatcharr-admin-token" content="__ADMIN_SETTINGS_TOKEN__">
+<meta name="dispatcharr-asset-version" content="__ASSET_VERSION__">
 <title>__APP_TITLE__</title>
-__PLAYER_LIBRARIES__
-<style>
-__APP_STYLES__
-</style>
+<link rel="stylesheet" href="__ASSET_PREFIX__/app.css?v=__ASSET_VERSION__">
+<script defer src="__ASSET_PREFIX__/lineup.js?v=__ASSET_VERSION__"></script>
+<script defer src="__ASSET_PREFIX__/app.js?v=__ASSET_VERSION__"></script>
 </head>
 <body>
 <div class="shell __ROUTE_CLASS__">
@@ -47,8 +48,5 @@ __APP_STYLES__
     <div id="view"><div class="empty">Loading Live TV...</div></div>
   </main>
 </div>
-<script>
-__APP_SCRIPT__
-</script>
 </body>
 </html>

@@ -1,5 +1,9 @@
 # Dispatcharr Improvement and Host Integration Plan
 
+> Historical planning record. Current implementation and SDK boundaries are
+> documented in `README.md` and `docs/sdk-fit-notes.md`; status tables below
+> describe the state when this plan was written and are not a release checklist.
+
 Consolidated plan for three parallel tracks:
 
 1. **Plugin maintainability** — extract the embedded UI from `routes.go`
