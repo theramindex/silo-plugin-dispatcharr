@@ -741,6 +741,12 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.GuideWindowBounded {
 		t.Fatalf("expected guide windowing to stay within the 60-row DOM bound: %+v", result)
 	}
+	if !result.DetailsFirstProgramClick {
+		t.Fatalf("expected Search and On Later program clicks to open explicit Watch Now details: %+v", result)
+	}
+	if !result.PlayerReturnContextRestored {
+		t.Fatalf("expected player exit to restore browse and scroll context: %+v", result)
+	}
 }
 
 func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
@@ -785,62 +791,64 @@ func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
 }
 
 type virtualAliasResult struct {
-	SourcePath                bool   `json:"sourcePath"`
-	ProfileGroupPath          bool   `json:"profileGroupPath"`
-	ProfileGroupRoot          bool   `json:"profileGroupRoot"`
-	ProfileLocalMarketPath    bool   `json:"profileLocalMarketPath"`
-	SelectedProfileScoped     bool   `json:"selectedProfileScoped"`
-	DuplicateProfileCollapsed bool   `json:"duplicateProfileCollapsed"`
-	DuplicateProfileExpanded  bool   `json:"duplicateProfileExpanded"`
-	DuplicateGroupCollapsed   bool   `json:"duplicateGroupCollapsed"`
-	DuplicateGroupExpanded    bool   `json:"duplicateGroupExpanded"`
-	AliasPath                 bool   `json:"aliasPath"`
-	SecondAliasPath           bool   `json:"secondAliasPath"`
-	PrefixAliasPath           bool   `json:"prefixAliasPath"`
-	SourceCount               int    `json:"sourceCount"`
-	AliasCount                int    `json:"aliasCount"`
-	SecondAliasCount          int    `json:"secondAliasCount"`
-	PrefixAliasCount          int    `json:"prefixAliasCount"`
-	InferredLocalGroup        bool   `json:"inferredLocalGroup"`
-	InferredLocalCityGroup    bool   `json:"inferredLocalCityGroup"`
-	InferredCountryGroup      bool   `json:"inferredCountryGroup"`
-	InferredCountryCityGroup  bool   `json:"inferredCountryCityGroup"`
-	ChannelOnlySourceHidden   bool   `json:"channelOnlySourceHidden"`
-	ChannelOnlyInferredShown  bool   `json:"channelOnlyInferredShown"`
-	ObjectParsedMode          string `json:"objectParsedMode"`
-	StringParsedMode          string `json:"stringParsedMode"`
-	FeaturedSection           bool   `json:"featuredSection"`
-	FeaturedRenamedSection    bool   `json:"featuredRenamedSection"`
-	GuideRenamedAllOption     bool   `json:"guideRenamedAllOption"`
-	FeaturedCategory          bool   `json:"featuredCategory"`
-	FeaturedAlphabetical      bool   `json:"featuredAlphabetical"`
-	FeaturedVirtualCategory   bool   `json:"featuredVirtualCategory"`
-	FeaturedSourceCategory    bool   `json:"featuredSourceCategory"`
-	FeaturedMarkerVisible     bool   `json:"featuredMarkerVisible"`
-	FeaturedBreadcrumbRoot    bool   `json:"featuredBreadcrumbRoot"`
-	FeaturedBreadcrumbPath    bool   `json:"featuredBreadcrumbPath"`
-	FeaturedGuide             bool   `json:"featuredGuide"`
-	FeaturedGuideHeading      bool   `json:"featuredGuideHeading"`
-	FeaturedViewToggle        bool   `json:"featuredViewToggle"`
-	FeaturedListView          bool   `json:"featuredListView"`
-	FeaturedBackButton        bool   `json:"featuredBackButton"`
-	SimpleFeaturedCategory    bool   `json:"simpleFeaturedCategory"`
-	SimpleFeaturedGuide       bool   `json:"simpleFeaturedGuide"`
-	SimpleFeaturedViewToggle  bool   `json:"simpleFeaturedViewToggle"`
-	SimpleFeaturedSourcePage  bool   `json:"simpleFeaturedSourcePage"`
-	VirtualBreadcrumbRoot     bool   `json:"virtualBreadcrumbRoot"`
-	VirtualGuideHeading       bool   `json:"virtualGuideHeading"`
-	VirtualBackButton         bool   `json:"virtualBackButton"`
-	ChannelCategoryName       string `json:"channelCategoryName"`
-	ReplayRewindable          bool   `json:"replayRewindable"`
-	NormalRewindable          bool   `json:"normalRewindable"`
-	ReplayPlayerClass         bool   `json:"replayPlayerClass"`
-	ReplayPlayerControls      bool   `json:"replayPlayerControls"`
-	ReplayPlayerTag           bool   `json:"replayPlayerTag"`
-	EPGOverlapResolved        bool   `json:"epgOverlapResolved"`
-	GuideStartsAtCurrentSlot  bool   `json:"guideStartsAtCurrentSlot"`
-	ProgramSearchMatchesEPG   bool   `json:"programSearchMatchesEpg"`
-	GuideWindowBounded        bool   `json:"guideWindowBounded"`
+	SourcePath                  bool   `json:"sourcePath"`
+	ProfileGroupPath            bool   `json:"profileGroupPath"`
+	ProfileGroupRoot            bool   `json:"profileGroupRoot"`
+	ProfileLocalMarketPath      bool   `json:"profileLocalMarketPath"`
+	SelectedProfileScoped       bool   `json:"selectedProfileScoped"`
+	DuplicateProfileCollapsed   bool   `json:"duplicateProfileCollapsed"`
+	DuplicateProfileExpanded    bool   `json:"duplicateProfileExpanded"`
+	DuplicateGroupCollapsed     bool   `json:"duplicateGroupCollapsed"`
+	DuplicateGroupExpanded      bool   `json:"duplicateGroupExpanded"`
+	AliasPath                   bool   `json:"aliasPath"`
+	SecondAliasPath             bool   `json:"secondAliasPath"`
+	PrefixAliasPath             bool   `json:"prefixAliasPath"`
+	SourceCount                 int    `json:"sourceCount"`
+	AliasCount                  int    `json:"aliasCount"`
+	SecondAliasCount            int    `json:"secondAliasCount"`
+	PrefixAliasCount            int    `json:"prefixAliasCount"`
+	InferredLocalGroup          bool   `json:"inferredLocalGroup"`
+	InferredLocalCityGroup      bool   `json:"inferredLocalCityGroup"`
+	InferredCountryGroup        bool   `json:"inferredCountryGroup"`
+	InferredCountryCityGroup    bool   `json:"inferredCountryCityGroup"`
+	ChannelOnlySourceHidden     bool   `json:"channelOnlySourceHidden"`
+	ChannelOnlyInferredShown    bool   `json:"channelOnlyInferredShown"`
+	ObjectParsedMode            string `json:"objectParsedMode"`
+	StringParsedMode            string `json:"stringParsedMode"`
+	FeaturedSection             bool   `json:"featuredSection"`
+	FeaturedRenamedSection      bool   `json:"featuredRenamedSection"`
+	GuideRenamedAllOption       bool   `json:"guideRenamedAllOption"`
+	FeaturedCategory            bool   `json:"featuredCategory"`
+	FeaturedAlphabetical        bool   `json:"featuredAlphabetical"`
+	FeaturedVirtualCategory     bool   `json:"featuredVirtualCategory"`
+	FeaturedSourceCategory      bool   `json:"featuredSourceCategory"`
+	FeaturedMarkerVisible       bool   `json:"featuredMarkerVisible"`
+	FeaturedBreadcrumbRoot      bool   `json:"featuredBreadcrumbRoot"`
+	FeaturedBreadcrumbPath      bool   `json:"featuredBreadcrumbPath"`
+	FeaturedGuide               bool   `json:"featuredGuide"`
+	FeaturedGuideHeading        bool   `json:"featuredGuideHeading"`
+	FeaturedViewToggle          bool   `json:"featuredViewToggle"`
+	FeaturedListView            bool   `json:"featuredListView"`
+	FeaturedBackButton          bool   `json:"featuredBackButton"`
+	SimpleFeaturedCategory      bool   `json:"simpleFeaturedCategory"`
+	SimpleFeaturedGuide         bool   `json:"simpleFeaturedGuide"`
+	SimpleFeaturedViewToggle    bool   `json:"simpleFeaturedViewToggle"`
+	SimpleFeaturedSourcePage    bool   `json:"simpleFeaturedSourcePage"`
+	VirtualBreadcrumbRoot       bool   `json:"virtualBreadcrumbRoot"`
+	VirtualGuideHeading         bool   `json:"virtualGuideHeading"`
+	VirtualBackButton           bool   `json:"virtualBackButton"`
+	ChannelCategoryName         string `json:"channelCategoryName"`
+	ReplayRewindable            bool   `json:"replayRewindable"`
+	NormalRewindable            bool   `json:"normalRewindable"`
+	ReplayPlayerClass           bool   `json:"replayPlayerClass"`
+	ReplayPlayerControls        bool   `json:"replayPlayerControls"`
+	ReplayPlayerTag             bool   `json:"replayPlayerTag"`
+	EPGOverlapResolved          bool   `json:"epgOverlapResolved"`
+	GuideStartsAtCurrentSlot    bool   `json:"guideStartsAtCurrentSlot"`
+	ProgramSearchMatchesEPG     bool   `json:"programSearchMatchesEpg"`
+	GuideWindowBounded          bool   `json:"guideWindowBounded"`
+	DetailsFirstProgramClick    bool   `json:"detailsFirstProgramClick"`
+	PlayerReturnContextRestored bool   `json:"playerReturnContextRestored"`
 }
 
 func extractPlayerScript(t *testing.T) string {
@@ -885,18 +893,24 @@ function makeElement() {
     focus: () => {},
     querySelector: () => null,
     querySelectorAll: () => [],
+    closest: () => null,
     addEventListener: () => {},
     play: () => Promise.resolve(),
     pause: () => {},
+    load: () => {},
   };
 }
+const mainElement = makeElement();
+const documentListeners = {};
 const sandbox = {
-  window: { location: { pathname: "/api/v1/plugins/14/dispatcharr/admin", search: "" }, innerHeight: 800, scrollY: 0, addEventListener: () => {} },
-  document: { documentElement: { dataset: {} }, elements: {}, fullscreenElement: null, querySelectorAll: () => [], querySelector: () => makeElement(), getElementById: function(id) { this.elements[id] = this.elements[id] || makeElement(); return this.elements[id]; }, addEventListener: () => {} },
+  window: { location: { pathname: "/api/v1/plugins/14/dispatcharr/admin", search: "" }, innerHeight: 800, scrollY: 0, scrollTo: function(x, y) { this.lastScroll = [x, y]; }, addEventListener: () => {} },
+  document: { documentElement: { dataset: {} }, body: makeElement(), elements: {}, fullscreenElement: null, activeElement: null, querySelectorAll: () => [], querySelector: (selector) => selector === ".main" ? mainElement : makeElement(), getElementById: function(id) { this.elements[id] = this.elements[id] || makeElement(); return this.elements[id]; }, addEventListener: function(name, handler) { this.listeners[name] = this.listeners[name] || []; this.listeners[name].push(handler); }, listeners: documentListeners, contains: () => true },
   localStorage: { getItem: () => null, setItem: () => {} },
   navigator: { sendBeacon: () => true },
   console: { log: () => {}, warn: () => {}, error: () => {} },
   URLSearchParams,
+  getComputedStyle: () => ({ getPropertyValue: () => "", fontSize: "16px" }),
+  requestAnimationFrame: (callback) => { callback(); return 1; },
   setTimeout,
   clearTimeout,
 };
@@ -1000,6 +1014,38 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 	state.category = "";
 	state.query = "Second overlapping";
 	const programSearchMatchesEPG = visibleChannels(false).some(function(item) { return item.id === "channel:argentina-sports"; });
+	state.currentChannel = null;
+	state.view = "search";
+	state.searchQuery = "overlap";
+	const searchProgramTarget = {
+		closest: function(selector) { return selector === "[data-search-program-channel]" ? this : null; },
+		getAttribute: function(name) { return name === "data-search-program-channel" ? "channel:argentina-sports" : (name === "data-search-program" ? "overlap-a" : ""); }
+	};
+	(document.listeners.click || []).forEach(function(handler) {
+		handler({ target: searchProgramTarget, preventDefault: function() {} });
+	});
+	const programModal = document.getElementById("program-details-root");
+	const detailsFirstProgramClick = !!state.programDetails && state.programDetails.programID === "overlap-a" && programModal.innerHTML.indexOf("Watch Now") !== -1 && state.currentChannel === null && state.view === "search";
+	state.programDetails = null;
+	renderProgramDetailsModal();
+
+	state.view = "player";
+	state.playerReturnContext = { view: "guide", category: "source:cat:argentina-sports", query: "sports", folderQuery: "Argentina", scrollY: 47, mainScrollTop: 63, guideScrollLeft: 91, guideScrollTop: 117 };
+	returnFromPlayer();
+	const restoredGuideScroll = document.getElementById("guide-scroll");
+	const playerReturnContextRestored = state.view === "guide" && state.category === "source:cat:argentina-sports" && state.query === "sports" && state.folderQuery === "Argentina" && state.playerReturnContext === null && window.lastScroll[1] === 47 && document.querySelector(".main").scrollTop === 63 && restoredGuideScroll.scrollLeft === 91 && restoredGuideScroll.scrollTop === 117;
+
+	state.guideChannels = Array.from({ length: 2521 }, function(_, index) { return { id: "window-channel-" + index, name: "Channel " + index, categoryId: "" }; });
+	state.view = "guide";
+	state.guideLoading = false;
+	state.guideWindowStart = -1;
+	state.guideWindowEnd = -1;
+	restoredGuideScroll.scrollTop = 90000;
+	restoredGuideScroll.clientHeight = 700;
+	restoredGuideScroll.querySelector = function(selector) { return selector === ".time-head" ? { offsetHeight: 32 } : null; };
+	renderGuideWindow(true);
+	const renderedGuideRows = (document.getElementById("epg").innerHTML.match(/class="epg-row"/g) || []).length;
+	const guideWindowBounded = state.guideWindowStart > 0 && renderedGuideRows > 0 && renderedGuideRows <= 60 && renderedGuideRows === state.guideWindowEnd - state.guideWindowStart;
 	return {
     sourcePath: !!source,
     profileGroupPath: !!profileGroup,
@@ -1056,10 +1102,9 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 		epgOverlapResolved: epgOverlapResolved,
 		guideStartsAtCurrentSlot: guideStartsAtCurrentSlot,
 		programSearchMatchesEpg: programSearchMatchesEPG,
-		guideWindowBounded: (function() {
-			const range = guideVisibleRange(2521, 90000, 700, 70, 32);
-			return range.start > 0 && range.end <= 2521 && range.end - range.start <= 60;
-		})()
+		guideWindowBounded: guideWindowBounded,
+		detailsFirstProgramClick: detailsFirstProgramClick,
+		playerReturnContextRestored: playerReturnContextRestored
 	};
 })())
 `+"`"+`, sandbox);
@@ -2124,7 +2169,6 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		}
 		return script[start : start+end]
 	}
-
 	// The guide should render only a bounded, overscanned channel window.
 	requireScript(`class="guide-window-spacer"`)
 	requireScript(`class="guide-window"`)
@@ -2143,11 +2187,16 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	}
 	requireScript(`Program details unavailable`)
 
-	// Playback returns people to the exact browsing context they left.
+	// The VM integration test exercises details-first clicks, guide windowing,
+	// and exact player return state. These checks keep their public hooks stable.
 	requireScript(`playerReturnContext`)
 	requireScript(`view: state.view`)
 	requireScript(`scrollY: window.scrollY`)
 	requireScript(`window.scrollTo(0, context.scrollY || 0)`)
+	recoveryPanel := functionBody("recoveryPanelHTML")
+	if strings.Contains(recoveryPanel, `class="recovery-panel" role="status"`) || !strings.Contains(recoveryPanel, `<span role="status" aria-live="polite">`) {
+		t.Fatal("recovery controls must sit outside the live status region")
+	}
 
 	for _, want := range []string{
 		`class="organization-preview"`,
@@ -2186,8 +2235,11 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	} {
 		requireStyle(want)
 	}
-	if !strings.Contains(compactStyles, `.sports-card,`) || !strings.Contains(compactStyles, `border-radius:0.5rem;`) {
+	if !strings.Contains(compactStyles, `.sports-card{`) || !strings.Contains(compactStyles, `.admin-status-strip{`) || !strings.Contains(compactStyles, `.custom-group-browser,.custom-group-members{`) || !strings.Contains(compactStyles, `border-radius:0.5rem;`) {
 		t.Fatal("non-pill sports cards must keep an 8px-or-smaller radius")
+	}
+	if strings.Contains(styles, `letter-spacing: 0.04em`) {
+		t.Fatal("interface labels must use neutral letter spacing")
 	}
 }
 
