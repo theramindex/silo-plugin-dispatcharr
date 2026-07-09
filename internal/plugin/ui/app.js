@@ -1092,7 +1092,8 @@ function stopAllMultiview(reason) {
     state.multiviewHeartbeat = null;
   }
 }
-function setView(view) {
+function setView(view, options) {
+  options = options || {};
   if (view === "search" && state.view !== "search" && state.view !== "player") {
     state.searchReturnView = state.view || "home";
   }
@@ -1101,9 +1102,9 @@ function setView(view) {
     if (state.view === "player") stopCurrentWatch("leave_player");
   }
   if (view !== "multiview" && state.view === "multiview") stopAllMultiview("leave_multiview");
-  if (view !== state.view) state.folderQuery = "";
+  if (view !== state.view && !options.preserveBrowseState) state.folderQuery = "";
   state.view = view;
-  if (view === "favorites" || view === "onlater") state.category = "";
+  if ((view === "favorites" || view === "onlater") && !options.preserveBrowseState) state.category = "";
   if ((view === "search" || view === "onlater") && dvrEnabled()) loadRecordings(false);
   if (view === "sports") {
     state.category = "";
@@ -1590,7 +1591,7 @@ function searchResultSections(query) {
         art: logoHTML(channel),
         title: program.title || "Untitled program",
         meta: [(programIsLive(program) ? "Live now" : dateTimeLabel(program.startUnix)), channel.name || "Live TV"].filter(Boolean).join(" - "),
-        action: programIsLive(program) ? "Watch" : "Guide",
+        action: "Details",
         recordable: dvrEnabled() && programIsUpcoming(program),
         channelId: program.channelId,
         programId: program.id || ""
@@ -1620,7 +1621,7 @@ function searchResultSections(query) {
         art: logoHTML(channel),
         title: program.title || "Sports",
         meta: [(programIsLive(program) ? "Live now" : dateTimeLabel(program.startUnix)), channel.name || ""].filter(Boolean).join(" - "),
-        action: programIsLive(program) ? "Watch" : "Guide"
+        action: "Details"
       };
     }) });
   }
@@ -1633,7 +1634,7 @@ function searchResultSections(query) {
         art: logoHTML(channel),
         title: program.title || "Event",
         meta: [(programIsLive(program) ? "Live now" : dateTimeLabel(program.startUnix)), channel.name || ""].filter(Boolean).join(" - "),
-        action: programIsLive(program) ? "Watch" : "Guide"
+        action: "Details"
       };
     }) });
   }
@@ -1656,7 +1657,7 @@ function searchResultSections(query) {
         art: logoHTML(channel),
         title: program.title || "Movie",
         meta: ["Guide", dateTimeLabel(program.startUnix), channel.name || ""].filter(Boolean).join(" - "),
-        action: programIsLive(program) ? "Watch" : "Guide"
+        action: "Details"
       };
     })) });
   }
@@ -1838,7 +1839,7 @@ function renderProgramDiscoveryRow(program) {
     art: logoHTML(channel),
     title: program.title || "Untitled program",
     meta: [(programIsLive(program) ? "Live now" : dateTimeLabel(program.startUnix)), channel.name || ""].filter(Boolean).join(" - "),
-    action: programIsLive(program) ? "Watch" : "Guide",
+    action: "Details",
     recordable: dvrEnabled() && programIsUpcoming(program),
     channelId: program.channelId,
     programId: program.id || ""
@@ -1851,7 +1852,7 @@ function renderProgramDiscoveryCard(program) {
     art: logoHTML(channel),
     title: program.title || "Untitled program",
     meta: [(programIsLive(program) ? "Live now" : dateTimeLabel(program.startUnix)), channel.name || ""].filter(Boolean).join(" - "),
-    action: programIsLive(program) ? "Watch" : "Guide",
+    action: "Details",
     recordable: dvrEnabled() && programIsUpcoming(program),
     channelId: program.channelId,
     programId: program.id || ""
@@ -2166,7 +2167,7 @@ function renderBroadcastEventCard(event) {
 function recoveryPanelHTML(error, kind) {
   if (!error) return "";
   const label = kind === "sports" ? "sports" : "events";
-  return '<div class="recovery-panel" role="status" aria-live="polite"><span>' + escapeHTML(error) + "</span><div class=\"recovery-actions\"><button type=\"button\" data-recovery-retry=\"" + label + "\" aria-label=\"Retry loading " + label + "\">Retry</button><button type=\"button\" data-recovery-reload=\"true\" aria-label=\"Reload Live TV\">Reload</button></div></div>";
+  return '<div class="recovery-panel"><span role="status" aria-live="polite">' + escapeHTML(error) + "</span><div class=\"recovery-actions\"><button type=\"button\" data-recovery-retry=\"" + label + "\" aria-label=\"Retry loading " + label + "\">Retry</button><button type=\"button\" data-recovery-reload=\"true\" aria-label=\"Reload Live TV\">Reload</button></div></div>";
 }
 function eventStatusLabel(event) {
   if (event.live) return "Live";
@@ -4154,10 +4155,7 @@ function returnFromPlayer() {
   state.category = context.category || "";
   state.query = context.query || "";
   state.folderQuery = context.folderQuery || "";
-  setView(context.view || "live");
-  state.category = context.category || "";
-  state.query = context.query || "";
-  state.folderQuery = context.folderQuery || "";
+  setView(context.view || "live", { preserveBrowseState: true });
   requestAnimationFrame(function() {
     window.scrollTo(0, context.scrollY || 0);
     const main = document.querySelector(".main");
@@ -4304,14 +4302,7 @@ document.addEventListener("click", function(event) {
     rememberSearch(state.searchQuery);
     const channelID = searchProgram.getAttribute("data-search-program-channel");
     const programID = searchProgram.getAttribute("data-search-program");
-    const program = programByID(channelID, programID);
-    const channel = channelByID(channelID);
-    if (program && channel && programIsLive(program)) playChannel(channel);
-    else if (channel) {
-      state.view = "guide";
-      state.category = channel.categoryId || "";
-      render();
-    }
+    openProgramDetails(channelID, programID);
     return;
   }
   const searchAiring = event.target.closest("[data-search-airing]");
