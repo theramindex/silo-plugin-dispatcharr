@@ -685,10 +685,16 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 		t.Fatalf("expected starred source category to render in featured section: %+v", result)
 	}
 	if !result.FeaturedRenamedSection {
-		t.Fatalf("expected featured section label to retain explicit channel-group semantics: %+v", result)
+		t.Fatalf("expected featured section label to use the configured group label: %+v", result)
+	}
+	if !result.ListingRenamedSection {
+		t.Fatalf("expected channel listing section label to use the configured group label: %+v", result)
 	}
 	if !result.GuideRenamedAllOption {
-		t.Fatalf("expected guide filter all option to retain explicit channel-group semantics: %+v", result)
+		t.Fatalf("expected guide filter all option to use the configured group label: %+v", result)
+	}
+	if !result.VirtualRenamedBreadcrumb {
+		t.Fatalf("expected virtual folder breadcrumbs to use the configured group label: %+v", result)
 	}
 	if !result.FeaturedAlphabetical {
 		t.Fatalf("expected featured categories to render alphabetically by display name: %+v", result)
@@ -715,7 +721,7 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 		t.Fatalf("expected simple starred groups to use the featured drilldown guide/list view: %+v", result)
 	}
 	if !result.VirtualBreadcrumbRoot {
-		t.Fatalf("expected normal virtual group breadcrumb root to remain virtual groups: %+v", result)
+		t.Fatalf("expected normal virtual group breadcrumb root to use the default configured label: %+v", result)
 	}
 	if result.FeaturedBackButton || result.VirtualBackButton {
 		t.Fatalf("expected virtual drilldowns to omit the redundant Back button: %+v", result)
@@ -817,7 +823,9 @@ type virtualAliasResult struct {
 	StringParsedMode            string `json:"stringParsedMode"`
 	FeaturedSection             bool   `json:"featuredSection"`
 	FeaturedRenamedSection      bool   `json:"featuredRenamedSection"`
+	ListingRenamedSection       bool   `json:"listingRenamedSection"`
 	GuideRenamedAllOption       bool   `json:"guideRenamedAllOption"`
+	VirtualRenamedBreadcrumb    bool   `json:"virtualRenamedBreadcrumb"`
 	FeaturedCategory            bool   `json:"featuredCategory"`
 	FeaturedAlphabetical        bool   `json:"featuredAlphabetical"`
 	FeaturedVirtualCategory     bool   `json:"featuredVirtualCategory"`
@@ -982,6 +990,10 @@ JSON.stringify((function() {
   const renamedGrid = categoryGrid();
   renderGuidePage();
   const renamedGuideView = document.elements.view ? document.elements.view.innerHTML : "";
+  state.category = "virtual:International / Argentina / Sports";
+  renderLivePage();
+  const renamedVirtualView = document.elements.view ? document.elements.view.innerHTML : "";
+  state.category = "";
   state.adminCategorySettings.virtualGroupLabel = "Groups";
   const channel = channelByID("channel:argentina-sports");
   state.category = "featured:International / Argentina / Sports";
@@ -1071,15 +1083,17 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     channelOnlyInferredShown: channelOnlyInferredShown,
     objectParsedMode: readAdminSettingsValue({ mode: "delimiter", delimiter: "pipe" }).mode,
     stringParsedMode: readAdminSettingsValue(JSON.stringify({ mode: "delimiter", delimiter: "pipe" })).mode,
-    featuredSection: grid.indexOf(">Featured Channel Groups<") !== -1,
-    featuredRenamedSection: renamedGrid.indexOf(">Featured Channel Groups<") !== -1 && renamedGrid.indexOf(">Featured Things<") === -1,
-    guideRenamedAllOption: renamedGuideView.indexOf('value="All channel groups"') !== -1 && renamedGuideView.indexOf('value="All things"') === -1,
+    featuredSection: grid.indexOf(">Featured Groups<") !== -1,
+    featuredRenamedSection: renamedGrid.indexOf(">Featured Things<") !== -1 && renamedGrid.indexOf(">Featured Groups<") === -1,
+    listingRenamedSection: renamedGrid.indexOf(">Things<") !== -1 && renamedGrid.indexOf(">Channel Groups<") === -1,
+    guideRenamedAllOption: renamedGuideView.indexOf('value="All things"') !== -1 && renamedGuideView.indexOf('value="All channel groups"') === -1,
+    virtualRenamedBreadcrumb: renamedVirtualView.indexOf(">Things</button>") !== -1 && renamedVirtualView.indexOf(">Channel Groups</button>") === -1,
     featuredCategory: grid.indexOf("International | Argentina | Sports") !== -1,
     featuredAlphabetical: grid.indexOf(">Admin Favorites</strong>") !== -1 && grid.indexOf(">World Cup</strong>") !== -1 && grid.indexOf(">Admin Favorites</strong>") < grid.indexOf(">World Cup</strong>"),
     featuredVirtualCategory: grid.indexOf('data-category="featured:International / Argentina / Sports"') !== -1,
     featuredSourceCategory: grid.indexOf('data-category="source:cat:argentina-sports"') !== -1,
     featuredMarkerVisible: grid.indexOf("* International") !== -1,
-    featuredBreadcrumbRoot: featuredView.indexOf(">Featured Channel Groups</button>") !== -1,
+    featuredBreadcrumbRoot: featuredView.indexOf(">Featured Groups</button>") !== -1,
     featuredBreadcrumbPath: featuredView.indexOf(">International</button>") !== -1 && featuredView.indexOf(">Argentina</button>") !== -1 && featuredView.indexOf(">Sports</button>") !== -1,
     featuredGuide: featuredView.indexOf('data-channel="channel:argentina-sports"') !== -1,
     featuredGuideHeading: featuredView.indexOf(">TV Guide<") !== -1,
@@ -1087,10 +1101,10 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     featuredListView: featuredListView.indexOf(">Channels<") !== -1 && featuredListView.indexOf('class="virtual-channel-button" data-channel="channel:argentina-sports"') !== -1 && featuredListView.indexOf(">TV Guide<") === -1,
     featuredBackButton: featuredView.indexOf(">Back</button>") !== -1,
     simpleFeaturedCategory: grid.indexOf('data-category="featured:Admin Favorites"') !== -1,
-    simpleFeaturedGuide: simpleFeaturedView.indexOf(">Featured Channel Groups</button>") !== -1 && simpleFeaturedView.indexOf(">Admin Favorites</button>") !== -1 && simpleFeaturedView.indexOf('data-channel="channel:admin-favorites"') !== -1,
+    simpleFeaturedGuide: simpleFeaturedView.indexOf(">Featured Groups</button>") !== -1 && simpleFeaturedView.indexOf(">Admin Favorites</button>") !== -1 && simpleFeaturedView.indexOf('data-channel="channel:admin-favorites"') !== -1,
     simpleFeaturedViewToggle: simpleFeaturedView.indexOf('data-virtual-category-view="guide"') !== -1 && simpleFeaturedView.indexOf('data-virtual-category-view="list"') !== -1,
-    simpleFeaturedSourcePage: simpleFeaturedView.indexOf(">Featured Channel Groups<") !== -1 && simpleFeaturedView.indexOf(">Channel Groups<") !== -1 && simpleFeaturedView.indexOf(">Admin Favorites<") !== -1,
-    virtualBreadcrumbRoot: virtualView.indexOf(">Channel Groups</button>") !== -1,
+    simpleFeaturedSourcePage: simpleFeaturedView.indexOf(">Featured Groups<") !== -1 && simpleFeaturedView.indexOf(">Groups<") !== -1 && simpleFeaturedView.indexOf(">Admin Favorites<") !== -1,
+    virtualBreadcrumbRoot: virtualView.indexOf(">Groups</button>") !== -1,
     virtualGuideHeading: virtualView.indexOf(">TV Guide<") !== -1,
     virtualBackButton: virtualView.indexOf(">Back</button>") !== -1,
     channelCategoryName: channel ? channel.categoryName : "",

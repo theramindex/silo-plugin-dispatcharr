@@ -2234,7 +2234,7 @@ function categoryGrid() {
   if (featured.length) sections.push(categoryGridSection(featuredGroupLabel(), featured));
   if (custom.length) sections.push(categoryGridSection("My Groups", custom));
   if (regularListing.length) sections.push(categoryGridSection(adminListingTitle(), regularListing));
-  if (!listing.length && sourceCategories.length) sections.push(categoryGridSection("Channel Groups", sourceCategories));
+  if (!listing.length && sourceCategories.length) sections.push(categoryGridSection(adminListingTitle(), sourceCategories));
   return sections.length ? sections.join("") : "<div class=\"empty\">No groups yet.</div>";
 }
 function categoryGridSection(title, categories) {
@@ -2373,20 +2373,24 @@ function guideFilterCategories() {
 }
 function adminListingTitle() {
   const mode = adminSettings().mode || "normal";
-  if (mode === "delimiter") return organizationRootLabel();
+  if (mode === "delimiter") return configuredGroupLabel();
   return "Channel Groups";
 }
 function organizationRootLabel() {
   return useProfileGroupVirtualPaths() ? "Channel Profiles" : "Channel Groups";
 }
+function configuredGroupLabel() {
+  return virtualGroupLabelSuffix(adminSettings().virtualGroupLabel);
+}
 function virtualGroupLabel() {
-  return organizationRootLabel();
+  return configuredGroupLabel();
 }
 function featuredGroupLabel() {
-  return "Featured " + organizationRootLabel();
+  const mode = adminSettings().mode || "normal";
+  return "Featured " + (mode === "delimiter" ? configuredGroupLabel() : "Channel Groups");
 }
 function allGroupLabel() {
-  return "All " + organizationRootLabel().toLowerCase();
+  return "All " + adminListingTitle().toLowerCase();
 }
 function virtualGroupLabelSuffix(value) {
   value = String(value || "").trim().replace(/^virtual\s+/i, "").trim();
