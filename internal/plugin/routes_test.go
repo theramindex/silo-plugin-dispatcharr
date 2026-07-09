@@ -236,7 +236,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`aria-label="Live TV sections"`,
 		`<span>Guide</span>`,
 		`<span>On Later</span>`,
-		`My Stuff <small id="favorite-count">0</small>`,
+		`Favorites <small id="favorite-count">0</small>`,
 		`<span>Sports</span>`,
 		`<span>Events</span>`,
 		`id="settings-menu-button"`,
@@ -587,7 +587,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 			t.Fatalf("expected admin page to omit removed settings clutter %q", removed)
 		}
 	}
-	for _, hidden := range []string{`<span>Home</span>`, `<span>My Stuff</span>`, `<span>Guide</span>`, `aria-label="Live TV sections"`} {
+	for _, hidden := range []string{`<span>Home</span>`, `<span>Favorites</span>`, `<span>Guide</span>`, `aria-label="Live TV sections"`} {
 		if strings.Contains(body, hidden) {
 			t.Fatalf("expected admin page shell to hide user nav marker %q", hidden)
 		}
@@ -685,10 +685,10 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 		t.Fatalf("expected starred source category to render in featured section: %+v", result)
 	}
 	if !result.FeaturedRenamedSection {
-		t.Fatalf("expected featured section label to follow the virtual label suffix: %+v", result)
+		t.Fatalf("expected featured section label to retain explicit channel-group semantics: %+v", result)
 	}
 	if !result.GuideRenamedAllOption {
-		t.Fatalf("expected guide filter all option to follow the virtual label suffix: %+v", result)
+		t.Fatalf("expected guide filter all option to retain explicit channel-group semantics: %+v", result)
 	}
 	if !result.FeaturedAlphabetical {
 		t.Fatalf("expected featured categories to render alphabetically by display name: %+v", result)
@@ -737,6 +737,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	}
 	if !result.ProgramSearchMatchesEPG {
 		t.Fatalf("expected global search to match channels by EPG program title: %+v", result)
+	}
+	if !result.GuideWindowBounded {
+		t.Fatalf("expected guide windowing to stay within the 60-row DOM bound: %+v", result)
 	}
 }
 
@@ -837,6 +840,7 @@ type virtualAliasResult struct {
 	EPGOverlapResolved        bool   `json:"epgOverlapResolved"`
 	GuideStartsAtCurrentSlot  bool   `json:"guideStartsAtCurrentSlot"`
 	ProgramSearchMatchesEPG   bool   `json:"programSearchMatchesEpg"`
+	GuideWindowBounded        bool   `json:"guideWindowBounded"`
 }
 
 func extractPlayerScript(t *testing.T) string {
@@ -1021,15 +1025,15 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     channelOnlyInferredShown: channelOnlyInferredShown,
     objectParsedMode: readAdminSettingsValue({ mode: "delimiter", delimiter: "pipe" }).mode,
     stringParsedMode: readAdminSettingsValue(JSON.stringify({ mode: "delimiter", delimiter: "pipe" })).mode,
-    featuredSection: grid.indexOf(">Featured Groups<") !== -1,
-    featuredRenamedSection: renamedGrid.indexOf(">Featured Things<") !== -1 && renamedGrid.indexOf(">Featured Groups<") === -1,
-    guideRenamedAllOption: renamedGuideView.indexOf('value="All things"') !== -1 && renamedGuideView.indexOf('value="All groups"') === -1,
+    featuredSection: grid.indexOf(">Featured Channel Groups<") !== -1,
+    featuredRenamedSection: renamedGrid.indexOf(">Featured Channel Groups<") !== -1 && renamedGrid.indexOf(">Featured Things<") === -1,
+    guideRenamedAllOption: renamedGuideView.indexOf('value="All channel groups"') !== -1 && renamedGuideView.indexOf('value="All things"') === -1,
     featuredCategory: grid.indexOf("International | Argentina | Sports") !== -1,
     featuredAlphabetical: grid.indexOf(">Admin Favorites</strong>") !== -1 && grid.indexOf(">World Cup</strong>") !== -1 && grid.indexOf(">Admin Favorites</strong>") < grid.indexOf(">World Cup</strong>"),
     featuredVirtualCategory: grid.indexOf('data-category="featured:International / Argentina / Sports"') !== -1,
     featuredSourceCategory: grid.indexOf('data-category="source:cat:argentina-sports"') !== -1,
     featuredMarkerVisible: grid.indexOf("* International") !== -1,
-    featuredBreadcrumbRoot: featuredView.indexOf(">Featured Groups</button>") !== -1,
+    featuredBreadcrumbRoot: featuredView.indexOf(">Featured Channel Groups</button>") !== -1,
     featuredBreadcrumbPath: featuredView.indexOf(">International</button>") !== -1 && featuredView.indexOf(">Argentina</button>") !== -1 && featuredView.indexOf(">Sports</button>") !== -1,
     featuredGuide: featuredView.indexOf('data-channel="channel:argentina-sports"') !== -1,
     featuredGuideHeading: featuredView.indexOf(">TV Guide<") !== -1,
@@ -1037,10 +1041,10 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     featuredListView: featuredListView.indexOf(">Channels<") !== -1 && featuredListView.indexOf('class="virtual-channel-button" data-channel="channel:argentina-sports"') !== -1 && featuredListView.indexOf(">TV Guide<") === -1,
     featuredBackButton: featuredView.indexOf(">Back</button>") !== -1,
     simpleFeaturedCategory: grid.indexOf('data-category="featured:Admin Favorites"') !== -1,
-    simpleFeaturedGuide: simpleFeaturedView.indexOf(">Featured Groups</button>") !== -1 && simpleFeaturedView.indexOf(">Admin Favorites</button>") !== -1 && simpleFeaturedView.indexOf('data-channel="channel:admin-favorites"') !== -1,
+    simpleFeaturedGuide: simpleFeaturedView.indexOf(">Featured Channel Groups</button>") !== -1 && simpleFeaturedView.indexOf(">Admin Favorites</button>") !== -1 && simpleFeaturedView.indexOf('data-channel="channel:admin-favorites"') !== -1,
     simpleFeaturedViewToggle: simpleFeaturedView.indexOf('data-virtual-category-view="guide"') !== -1 && simpleFeaturedView.indexOf('data-virtual-category-view="list"') !== -1,
-    simpleFeaturedSourcePage: simpleFeaturedView.indexOf(">Featured Groups<") !== -1 && simpleFeaturedView.indexOf(">Virtual Groups<") !== -1 && simpleFeaturedView.indexOf(">Admin Favorites<") !== -1,
-    virtualBreadcrumbRoot: virtualView.indexOf(">Virtual Groups</button>") !== -1,
+    simpleFeaturedSourcePage: simpleFeaturedView.indexOf(">Featured Channel Groups<") !== -1 && simpleFeaturedView.indexOf(">Channel Groups<") !== -1 && simpleFeaturedView.indexOf(">Admin Favorites<") !== -1,
+    virtualBreadcrumbRoot: virtualView.indexOf(">Channel Groups</button>") !== -1,
     virtualGuideHeading: virtualView.indexOf(">TV Guide<") !== -1,
     virtualBackButton: virtualView.indexOf(">Back</button>") !== -1,
     channelCategoryName: channel ? channel.categoryName : "",
@@ -1051,7 +1055,11 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 		replayPlayerTag: replayPlayerView.indexOf(">Replay</span>") !== -1,
 		epgOverlapResolved: epgOverlapResolved,
 		guideStartsAtCurrentSlot: guideStartsAtCurrentSlot,
-		programSearchMatchesEpg: programSearchMatchesEPG
+		programSearchMatchesEpg: programSearchMatchesEPG,
+		guideWindowBounded: (function() {
+			const range = guideVisibleRange(2521, 90000, 700, 70, 32);
+			return range.start > 0 && range.end <= 2521 && range.end - range.start <= 60;
+		})()
 	};
 })())
 `+"`"+`, sandbox);
@@ -2081,6 +2089,105 @@ func TestHTTPRoutesServerPlayerRoute(t *testing.T) {
 	}
 	if !strings.Contains(playerAppJavaScript(), "output_profile=2") {
 		t.Fatalf("expected browser playback to request AAC Xtream profile")
+	}
+}
+
+func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
+	// Keep these assertions at the embedded-asset boundary: they protect the
+	// user-facing behavior without making formatting an API.
+	t.Parallel()
+
+	script := playerAppJavaScript()
+	styles := playerStylesCSS()
+	compactStyles := strings.NewReplacer(" ", "", "\n", "", "\t", "", "\r", "").Replace(styles)
+	requireScript := func(want string) {
+		t.Helper()
+		if !strings.Contains(script, want) {
+			t.Fatalf("expected approved UX script contract %q", want)
+		}
+	}
+	requireStyle := func(want string) {
+		t.Helper()
+		if !strings.Contains(styles, want) {
+			t.Fatalf("expected approved UX style contract %q", want)
+		}
+	}
+	functionBody := func(name string) string {
+		t.Helper()
+		start := strings.Index(script, "function "+name+"(")
+		if start < 0 {
+			t.Fatalf("expected %s function", name)
+		}
+		end := strings.Index(script[start:], "\nfunction ")
+		if end < 0 {
+			return script[start:]
+		}
+		return script[start : start+end]
+	}
+
+	// The guide should render only a bounded, overscanned channel window.
+	requireScript(`class="guide-window-spacer"`)
+	requireScript(`class="guide-window"`)
+	requireScript(`overscan`)
+	if strings.Contains(script, "function appendGuideRows(") || strings.Contains(script, "function isNearGuideEnd(") {
+		t.Fatal("guide must not retain recursive append-at-end rendering")
+	}
+
+	// Details are the first action, including when upstream guide data is absent.
+	openDetails := functionBody("openProgramDetails")
+	if !strings.Contains(openDetails, "programIsGuidePlaceholder(program)") || !strings.Contains(openDetails, "state.programDetails") {
+		t.Fatal("guide placeholders must open program details fallback state")
+	}
+	if strings.Contains(openDetails, "playChannel(channel)") {
+		t.Fatal("opening program details must not directly play a fallback channel")
+	}
+	requireScript(`Program details unavailable`)
+
+	// Playback returns people to the exact browsing context they left.
+	requireScript(`playerReturnContext`)
+	requireScript(`view: state.view`)
+	requireScript(`scrollY: window.scrollY`)
+	requireScript(`window.scrollTo(0, context.scrollY || 0)`)
+
+	for _, want := range []string{
+		`class="organization-preview"`,
+		`Profile`,
+		`Group`,
+		`data-on-later-filter-group=`,
+		`[data-onlater-time]`,
+		`onLaterTime`,
+		`class="on-later-filter-group`,
+		`class="event-card no-art`,
+		`class="recovery-panel`,
+		`>Retry<`,
+		`>Reload<`,
+		`setAttribute("aria-current", "page")`,
+	} {
+		requireScript(want)
+	}
+
+	sportsCard := functionBody("renderSportsEventCard")
+	if strings.Count(sportsCard, "event.leagueName") > 1 {
+		t.Fatal("sports card must not render the league label more than once")
+	}
+
+	for _, want := range []string{
+		`.guide-scroll {`,
+		`.guide-window-spacer`,
+		`.guide-window`,
+		`.recovery-panel`,
+		`.filter-sections`,
+		`.filter-section`,
+		`.organization-preview`,
+		`.event-card-body.no-art`,
+		`@media (max-width: 700px)`,
+		`.topbar-primary`,
+		`.topbar-actions`,
+	} {
+		requireStyle(want)
+	}
+	if !strings.Contains(compactStyles, `.sports-card,`) || !strings.Contains(compactStyles, `border-radius:0.5rem;`) {
+		t.Fatal("non-pill sports cards must keep an 8px-or-smaller radius")
 	}
 }
 
