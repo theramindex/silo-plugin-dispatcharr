@@ -445,8 +445,9 @@ button { cursor: pointer; }
 .program-modal-close:hover { background: rgba(0,0,0,0.06); color: #1f272a; }
 .program-modal-close svg { width: 1.25rem; height: 1.25rem; }
 .program-modal-head { display: grid; grid-template-columns: 13rem minmax(0, 1fr); gap: 1.35rem; align-items: start; padding: 1.55rem 4rem 1.45rem 1.55rem; }
-.program-modal-art { aspect-ratio: 16 / 9; min-width: 0; display: grid; place-items: center; background: #173a8d; border: 1px solid #d9dddf; overflow: hidden; }
-.program-modal-art .logo { width: 76%; height: 68%; object-fit: contain; background: transparent; }
+.program-modal-art { position: relative; aspect-ratio: 16 / 9; min-width: 0; display: grid; place-items: center; background: #173a8d; border: 1px solid #d9dddf; overflow: hidden; }
+.program-modal-art .logo { position: absolute; left: 50%; top: 50%; display: block; width: 76%; height: 68%; max-width: 76%; max-height: 68%; margin: 0; object-fit: contain; object-position: center; background: transparent; transform: translate(-50%, -50%); }
+.program-modal-art .logo-fallback { display: grid; place-items: center; }
 .program-modal-title { min-width: 0; display: grid; gap: 0.55rem; }
 .program-modal-title h2 { margin: 0; color: #1f272a; font-size: 1.8rem; line-height: 1.08; letter-spacing: 0; }
 .program-modal-title p { margin: 0; color: #404b50; font-size: 1.02rem; font-weight: 760; line-height: 1.25; }
@@ -454,6 +455,7 @@ button { cursor: pointer; }
 .program-modal-time svg { width: 1.1rem; height: 1.1rem; }
 .program-modal-tags { display: flex; flex-wrap: wrap; gap: 0.38rem; margin-top: 0.15rem; }
 .program-modal-tags span { border-radius: 0.28rem; background: #6e7a7f; color: white; padding: 0.22rem 0.44rem; font-size: 0.78rem; font-weight: 850; line-height: 1; }
+.program-modal-tags span.is-live { background: #b42318; color: #fff; }
 .program-modal-body { border-top: 1px solid #e0e3e4; border-bottom: 1px solid #e0e3e4; padding: 1.45rem 1.55rem; color: #333d41; font-size: 1.05rem; font-weight: 520; line-height: 1.45; background: #fbfbfb; }
 .program-modal-actions { display: flex; justify-content: flex-end; gap: 0.7rem; padding: 1.25rem 1.55rem; background: #f3f4f4; }
 .program-modal-actions button { min-height: 2.7rem; border: 1px solid #d1d6d8; border-radius: 0.32rem; background: white; color: #303a3f; display: inline-flex; align-items: center; gap: 0.46rem; padding: 0 0.95rem; font-size: 0.98rem; font-weight: 760; }
