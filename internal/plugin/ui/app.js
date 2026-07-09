@@ -3279,12 +3279,21 @@ function renderEPGCells(channel, channelIndex) {
     const canSchedule = dvrEnabled() && (program.endUnix || 0) > now;
     const isLive = start <= now && end > now;
     const programTitle = programIsGuidePlaceholder(program) ? guideUnavailableLabel() : program.title || guideUnavailableLabel();
+    const titleParts = epgProgramTitleParts(programTitle);
+    const accessibleTitle = titleParts.live ? titleParts.title + " Live" : titleParts.title;
     const programTime = epgVisibleTime(start, windowStart);
-    cells.push("<div class=\"epg-cell program" + (isLive ? " live" : "") + "\" style=\"" + epgCellStyle(start, end, windowInfo) + "\"><button class=\"epg-play\" data-program-detail-channel=\"" + escapeHTML(channel.id) + "\" data-program-detail=\"" + escapeHTML(program.id || "") + "\" aria-label=\"" + escapeHTML(programTime + " " + programTitle) + "\"><time>" + escapeHTML(programTime) + "</time><strong>" + escapeHTML(programTitle) + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>");
+    cells.push("<div class=\"epg-cell program" + (isLive ? " live" : "") + "\" style=\"" + epgCellStyle(start, end, windowInfo) + "\"><button class=\"epg-play\" data-program-detail-channel=\"" + escapeHTML(channel.id) + "\" data-program-detail=\"" + escapeHTML(program.id || "") + "\" aria-label=\"" + escapeHTML(programTime + " " + accessibleTitle) + "\"><time>" + escapeHTML(programTime) + "</time><strong>" + escapeHTML(titleParts.title) + (titleParts.live ? "<span class=\"epg-live-marker\" aria-hidden=\"true\">" + escapeHTML(titleParts.marker) + "</span>" : "") + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>");
     cursor = end;
   });
   if (cursor < windowEnd) cells.push(renderEPGGapCell(channel, cursor, windowEnd, windowInfo));
   return cells.join("");
+}
+function epgProgramTitleParts(title) {
+  const marker = "\u1d38\u1da6\u1d5b\u1d49";
+  const value = String(title || "");
+  const trimmed = value.trimEnd();
+  if (!trimmed.endsWith(marker)) return { title: value, live: false, marker: "" };
+  return { title: trimmed.slice(0, -marker.length).trimEnd(), live: true, marker: marker };
 }
 function epgVisibleTime(startUnix, windowStart) {
   return timeLabel(Math.max(startUnix || windowStart, windowStart));

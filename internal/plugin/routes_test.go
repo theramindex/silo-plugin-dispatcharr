@@ -340,6 +340,9 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`function renderEPGGapCell(channel, startUnix, endUnix, windowInfo)`,
 		`class=\"epg-cell program epg-gap\"`,
 		`program" + (isLive ? " live" : "")`,
+		`function epgProgramTitleParts(title)`,
+		`class=\"epg-live-marker\" aria-hidden=\"true\"`,
+		`.epg-live-marker { margin-left: 0.24rem;`,
 		`data-program-detail-channel=`,
 		`function renderProgramDetailsModal()`,
 		`class=\"program-modal\"`,
@@ -741,6 +744,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.EPGOverlapResolved {
 		t.Fatalf("expected overlapping EPG programs to render without overlapping cells: %+v", result)
 	}
+	if !result.EPGLiveTitleMarker {
+		t.Fatalf("expected EPG live title suffixes to render as dedicated accessible status markers: %+v", result)
+	}
 	if !result.GuideStartsAtCurrentSlot {
 		t.Fatalf("expected guide window to start at the current half-hour slot: %+v", result)
 	}
@@ -858,6 +864,7 @@ type virtualAliasResult struct {
 	ReplayPlayerControls        bool   `json:"replayPlayerControls"`
 	ReplayPlayerTag             bool   `json:"replayPlayerTag"`
 	EPGOverlapResolved          bool   `json:"epgOverlapResolved"`
+	EPGLiveTitleMarker          bool   `json:"epgLiveTitleMarker"`
 	GuideStartsAtCurrentSlot    bool   `json:"guideStartsAtCurrentSlot"`
 	ProgramSearchMatchesEPG     bool   `json:"programSearchMatchesEpg"`
 	GuideWindowBounded          bool   `json:"guideWindowBounded"`
@@ -936,7 +943,7 @@ const result = vm.runInContext(`+"`"+`
 Object.assign(state, input.state);
 const epgWindow = guideWindow();
 state.app.programs = [
-  { id: "overlap-a", channelId: "channel:argentina-sports", title: "First overlapping program with a very long title", startUnix: epgWindow.start, endUnix: epgWindow.start + 3600 },
+  { id: "overlap-a", channelId: "channel:argentina-sports", title: "First overlapping program with a very long title \u1d38\u1da6\u1d5b\u1d49", startUnix: epgWindow.start, endUnix: epgWindow.start + 3600 },
   { id: "overlap-b", channelId: "channel:argentina-sports", title: "Second overlapping program", startUnix: epgWindow.start + 1800, endUnix: epgWindow.start + 5400 }
 ];
 rebuildProgramIndex();
@@ -1028,6 +1035,7 @@ JSON.stringify((function() {
 		return { left: Number(pieces[0]), width: Number(widthPart) };
 	});
 	const epgOverlapResolved = epgProgramCells.length >= 2 && epgProgramCells[1].left + 0.001 >= epgProgramCells[0].left + epgProgramCells[0].width;
+	const epgLiveTitleMarker = epgHTML.indexOf('class="epg-live-marker" aria-hidden="true"') !== -1 && epgHTML.indexOf('First overlapping program with a very long title Live"') !== -1;
 const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(Date.now() / 1000) / 1800) * 1800;
 	state.view = "home";
 	state.category = "";
@@ -1122,6 +1130,7 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 		replayPlayerControls: replayPlayerView.indexOf('controls></video>') !== -1,
 		replayPlayerTag: replayPlayerView.indexOf(">Replay</span>") !== -1,
 		epgOverlapResolved: epgOverlapResolved,
+		epgLiveTitleMarker: epgLiveTitleMarker,
 		guideStartsAtCurrentSlot: guideStartsAtCurrentSlot,
 		programSearchMatchesEpg: programSearchMatchesEPG,
 		guideWindowBounded: guideWindowBounded,

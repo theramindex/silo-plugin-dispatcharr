@@ -427,6 +427,7 @@ button { cursor: pointer; }
 .epg-cell time, .epg-cell strong { display: block; width: 100%; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .epg-cell time { color: var(--muted); font-size: 0.72rem; font-weight: 760; line-height: 1; }
 .epg-cell strong { font-size: 0.9rem; line-height: 1.12; font-weight: 850; }
+.epg-live-marker { margin-left: 0.24rem; color: color-mix(in srgb, #ff334d 82%, var(--text)); font-weight: 950; }
 .epg-cell.program.live { background: color-mix(in srgb, var(--green) 18%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 30%, transparent); }
 .epg-cell.epg-gap { background: color-mix(in srgb, var(--panel) 76%, var(--bg)); color: var(--muted); padding: 0.56rem 0.72rem; display: grid; align-content: start; gap: 0.16rem; }
 .epg-cell .epg-play { position: absolute; inset: 0; z-index: 1; border: 0; border-radius: inherit; background: transparent; color: inherit; text-align: left; padding: 0.56rem 0.72rem; display: grid; grid-template-rows: auto auto; align-content: start; gap: 0.24rem; width: 100%; height: 100%; min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; }
