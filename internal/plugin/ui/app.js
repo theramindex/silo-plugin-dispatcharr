@@ -10,7 +10,7 @@ const adminSettingsToken = adminSettingsMeta ? String(adminSettingsMeta.content 
 const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
 
 function applySiloTheme() {
   const params = new URLSearchParams(window.location.search);
@@ -1208,11 +1208,12 @@ function guideUpdatedUnix() {
 }
 function guideFreshnessHTML() {
   if (state.refreshing) {
-    return "<span class=\"guide-freshness is-refreshing\" aria-live=\"polite\">Refreshing guide...</span>";
+    return "<span class=\"guide-freshness is-refreshing\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\">Refreshing guide...</span>";
   }
   const unix = guideUpdatedUnix();
   const title = unix ? dateTimeLabel(unix) : "Guide has not synced yet";
-  return "<span class=\"guide-freshness\" title=\"" + escapeHTML(title) + "\">" + escapeHTML(relativeUpdatedLabel(unix)) + "</span>";
+  const stale = !unix || Math.floor(Date.now() / 1000) - unix > 6 * 3600;
+  return "<span class=\"guide-freshness" + (stale ? " is-stale" : "") + "\" title=\"" + escapeHTML(title) + "\">" + escapeHTML(relativeUpdatedLabel(unix)) + "</span>";
 }
 function setSettingsMenuOpen(open) {
   const menu = byId("settings-menu");
@@ -1306,7 +1307,10 @@ function renderRail() {
     const unavailable = button.dataset.view === "recordings" && !dvrEnabled();
     const activeViews = String(button.dataset.activeViews || button.dataset.view || "").split(/\s+/).filter(Boolean);
     button.hidden = unavailable;
-    button.classList.toggle("active", !unavailable && activeViews.indexOf(state.view) !== -1);
+    const active = !unavailable && activeViews.indexOf(state.view) !== -1;
+    button.classList.toggle("active", active);
+    if (active) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
   });
   const favoriteCount = byId("favorite-count");
   if (favoriteCount) favoriteCount.textContent = Object.keys(favoriteMap()).length + Object.keys(autoFavoriteMap()).length;
@@ -1811,16 +1815,18 @@ function onLaterPrograms() {
   const endOfToday = new Date();
   endOfToday.setHours(23, 59, 59, 999);
   const todayEnd = Math.floor(endOfToday.getTime() / 1000);
+  const time = state.onLaterTime || "all";
   const type = state.onLaterType || "all";
   return programsFor("").filter(function(program) {
     if (programIsGuidePlaceholder(program)) return false;
-    if (type === "live") return programIsLive(program);
-    if (type === "today") return (program.startUnix || 0) >= now - 3600 && (program.startUnix || 0) <= todayEnd;
-    if (type === "sports") return programLooksSports(program);
-    if (type === "events") return programLooksEvent(program);
-    if (type === "movies") return programLooksMovie(program);
-    if (type === "passes") return keywordPasses().some(function(pass) { return lower(programSearchText(program)).indexOf(lower(pass.keyword)) !== -1; });
-    return (program.endUnix || 0) >= now;
+    if ((program.endUnix || 0) < now) return false;
+    if (time === "live" && !programIsLive(program)) return false;
+    if (time === "today" && ((program.startUnix || 0) < now - 3600 || (program.startUnix || 0) > todayEnd)) return false;
+    if (type === "sports" && !programLooksSports(program)) return false;
+    if (type === "events" && !programLooksEvent(program)) return false;
+    if (type === "movies" && !programLooksMovie(program)) return false;
+    if (type === "passes" && !keywordPasses().some(function(pass) { return lower(programSearchText(program)).indexOf(lower(pass.keyword)) !== -1; })) return false;
+    return true;
   }).sort(function(left, right) {
     return (left.startUnix || 0) - (right.startUnix || 0);
   });
@@ -1853,10 +1859,14 @@ function renderProgramDiscoveryCard(program) {
 }
 function renderOnLaterPage() {
   const root = byId("view");
+  const time = state.onLaterTime || "all";
   const type = state.onLaterType || "all";
-  const filters = "<div class=\"search-chip-row\">" + onLaterFilters().map(function(item) {
-    return "<button class=\"search-chip" + (type === item.id ? " active" : "") + "\" type=\"button\" data-onlater-type=\"" + escapeHTML(item.id) + "\">" + escapeHTML(item.label) + "</button>";
-  }).join("") + "</div>";
+  const filterButton = function(item, group, label) {
+    const active = (group === "time" ? time : type) === item.id;
+    return "<button class=\"search-chip" + (active ? " active" : "") + "\" type=\"button\" data-onlater-" + group + "=\"" + escapeHTML(item.id) + "\" aria-pressed=\"" + (active ? "true" : "false") + "\">" + escapeHTML(label || item.label) + "</button>";
+  };
+  const byID = function(id) { return onLaterFilters().find(function(item) { return item.id === id; }); };
+  const filters = '<div class="filter-sections"><div class="on-later-filter-group filter-section" data-on-later-filter-group="time"><span class="filter-section-label">Time</span><div class="search-chip-row">' + ["all", "live", "today"].map(function(id) { return filterButton(byID(id), "time"); }).join("") + '</div></div><div class="on-later-filter-group filter-section" data-on-later-filter-group="type"><span class="filter-section-label">Type</span><div class="search-chip-row">' + ["all", "sports", "events", "movies", "passes"].map(function(id) { return filterButton(byID(id), "type", id === "all" ? "All Types" : ""); }).join("") + "</div></div></div>";
   const programs = onLaterPrograms();
   const airings = groupedUpcomingAirings(programs, "").slice(0, 16);
   const passes = keywordPasses();
@@ -1865,12 +1875,12 @@ function renderOnLaterPage() {
   }).join("") + "</div>" : "";
   root.innerHTML = "<div class=\"search-page on-later-page\"><div class=\"search-hero\"><h2>On Later</h2><p>Upcoming guide content organized for watching and recording.</p></div>" + filters
     + (passHTML && (type === "all" || type === "passes") ? passHTML : "")
-    + (airings.length && type !== "live" ? sectionHeader("Upcoming Airings") + "<div class=\"on-later-card-grid\">" + airings.map(function(group) {
+    + (airings.length && time !== "live" ? sectionHeader("Upcoming Airings") + "<div class=\"on-later-card-grid\">" + airings.map(function(group) {
       const first = group.programs[0] || {};
       const channel = channelByID(first.channelId) || {};
       return renderSearchResultCard({ attrs: "data-search-airing=\"" + escapeHTML(group.key) + "\"", art: logoHTML(channel), title: group.title, meta: [group.programs.length + " airings", dateTimeLabel(first.startUnix), channel.name || ""].filter(Boolean).join(" - "), action: "Show" });
     }).join("") + "</div>" : "")
-    + sectionHeader(type === "all" ? "Guide Picks" : onLaterFilters().find(function(item) { return item.id === type; }).label)
+    + sectionHeader(type !== "all" ? byID(type).label : (time !== "all" ? byID(time).label : "Guide Picks"))
     + (programs.length ? "<div class=\"on-later-card-grid\">" + programs.slice(0, 60).map(renderProgramDiscoveryCard).join("") + "</div>" : "<div class=\"empty\">No matching guide entries.</div>")
     + "</div>";
 }
@@ -1926,7 +1936,7 @@ function renderSportsPage() {
   const payload = state.sports || { events: [], leagues: [] };
   const events = filteredSportsEvents(payload);
   root.innerHTML = "<div class=\"sports-page\"><div class=\"sports-pinned\">" + renderSportsTabFilters() + renderSportsLeagueFilters(payload)
-    + (payload.error ? "<div class=\"sports-error\">" + escapeHTML(payload.error) + "</div>" : "")
+    + recoveryPanelHTML(payload.error, "sports")
     + (state.sportsLoading && !events.length ? "<div class=\"empty\">Loading sports...</div>" : "")
     + "</div><div class=\"sports-score-scroll\">"
     + (events.length ? "<div class=\"sports-board\">" + events.map(renderSportsEventCard).join("") + "</div>" : (!state.sportsLoading ? "<div class=\"empty\">No sports matches.</div>" : ""))
@@ -1982,7 +1992,7 @@ function sportsEventMatchesQuery(event) {
 }
 function renderSportsEventCard(event) {
   const status = sportsStatusLabel(event);
-  return "<article class=\"sports-card" + (event.live ? " live" : "") + "\"><div class=\"sports-card-head sports-card-head-compact\"><span class=\"sports-league-pill\">" + escapeHTML(event.leagueName || "Sports") + "</span><div class=\"sports-status\">" + escapeHTML(status) + "</div></div>"
+  return "<article class=\"sports-card" + (event.live ? " live" : "") + "\"><div class=\"sports-card-head sports-card-head-compact sports-card-head-status\"><div class=\"sports-status\">" + escapeHTML(status) + "</div></div>"
     + renderSportsMatchup(event, status)
     + renderSportsChannels(event)
     + "</article>";
@@ -2020,7 +2030,7 @@ function renderSportsMatchTeam(team, score, showScore) {
   const name = team.name || team.abbreviation || "Team";
   const favorite = !!sportsFavoriteTeamMap()[team.id];
   const logo = renderSportsTeamLogo(team, "sports-match-team-logo");
-  const favoriteControl = team.id ? "<button class=\"sports-team-favorite" + (favorite ? " active" : "") + "\" type=\"button\" data-sports-favorite-team=\"" + escapeHTML(team.id || "") + "\" data-sports-favorite-enabled=\"" + (favorite ? "false" : "true") + "\" aria-label=\"" + escapeHTML(favorite ? "Remove favorite team" : "Favorite team") + "\">&#9733;<span>" + (favorite ? "Following" : "Follow") + "</span></button>" : "<span class=\"sports-team-favorite placeholder\" aria-hidden=\"true\"></span>";
+  const favoriteControl = team.id ? "<button class=\"sports-team-favorite" + (favorite ? " active" : "") + "\" type=\"button\" data-sports-favorite-team=\"" + escapeHTML(team.id || "") + "\" data-sports-favorite-enabled=\"" + (favorite ? "false" : "true") + "\" aria-label=\"" + escapeHTML(favorite ? "Unfollow " + name : "Follow " + name) + "\" aria-pressed=\"" + (favorite ? "true" : "false") + "\">" + icon(favorite ? "heart-solid" : "heart") + "<span>" + (favorite ? "Following" : "Follow") + "</span></button>" : "<span class=\"sports-team-favorite placeholder\" aria-hidden=\"true\"></span>";
   const scoreHTML = showScore ? "<span class=\"sports-match-team-score\">" + escapeHTML(score || "0") + "</span>" : "";
   return "<div class=\"sports-match-team\">" + logo + "<strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(name) + "</strong>" + scoreHTML + favoriteControl + "</div>";
 }
@@ -2109,7 +2119,7 @@ function renderEventsPage() {
   const payload = state.events || { events: [], categories: [] };
   const events = filteredBroadcastEvents(payload);
   root.innerHTML = "<div class=\"sports-page\"><div class=\"sports-pinned\">" + renderEventTabFilters() + renderEventCategoryFilters(payload)
-    + (payload.error ? "<div class=\"sports-error\">" + escapeHTML(payload.error) + "</div>" : "")
+    + recoveryPanelHTML(payload.error, "events")
     + (state.eventsLoading && !events.length ? "<div class=\"empty\">Loading events...</div>" : "")
     + "</div><div class=\"sports-score-scroll\">"
     + (events.length ? "<div class=\"sports-board\">" + events.map(renderBroadcastEventCard).join("") + "</div>" : (!state.eventsLoading ? "<div class=\"empty\">No matching events.</div>" : ""))
@@ -2143,13 +2153,20 @@ function broadcastEventMatchesQuery(event) {
 function renderBroadcastEventCard(event) {
   const status = eventStatusLabel(event);
   const title = event.shortName || event.name || "Event";
-  const poster = "<span>" + escapeHTML((event.categoryName || "Event").slice(0, 14)) + "</span>";
+  const artwork = event.artworkUrl || event.imageUrl || event.posterUrl || event.thumbnailUrl || "";
+  const poster = artwork ? "<div class=\"event-poster\"><img src=\"" + escapeHTML(artwork) + "\" alt=\"\" onerror=\"this.closest('.event-poster').remove();\"></div>" : "";
+  const cardClass = artwork ? 'class="event-card sports-card' : 'class="event-card no-art sports-card';
   const uniqueChannels = uniqueEventChannels(event.channels);
   const meta = [event.keyword || "", uniqueChannels.length ? uniqueChannels.length + " channel" + (uniqueChannels.length === 1 ? "" : "s") : ""].filter(Boolean).map(function(value, index) { return "<span" + (index === 0 && event.keyword ? " class=\"event-keyword\"" : "") + ">" + escapeHTML(value) + "</span>"; }).join("");
-  return "<article class=\"sports-card event-card" + (event.live ? " live" : "") + "\"><div class=\"sports-card-head\"><div class=\"sports-card-title\"><span class=\"sports-league-pill\">" + escapeHTML(event.categoryName || "Events") + "</span><strong data-overflow-tooltip=\"" + escapeHTML(event.name || title) + "\">" + escapeHTML(title) + "</strong></div><div class=\"sports-status\">" + escapeHTML(status) + "</div></div>"
-    + "<div class=\"event-card-body\"><div class=\"event-poster\">" + poster + "</div><div class=\"event-details\"><p data-overflow-description=\"true\">" + escapeHTML(event.description || "No event details available.") + "</p><div class=\"event-meta\">" + meta + "</div></div></div>"
+  return "<article " + cardClass + (event.live ? " live" : "") + '"><div class="sports-card-head"><div class="sports-card-title"><span class="sports-league-pill">' + escapeHTML(event.categoryName || "Events") + "</span><strong data-overflow-tooltip=\"" + escapeHTML(event.name || title) + "\">" + escapeHTML(title) + "</strong></div><div class=\"sports-status\">" + escapeHTML(status) + "</div></div>"
+    + "<div class=\"event-card-body" + (artwork ? "" : " no-art") + "\">" + poster + "<div class=\"event-details\"><p data-overflow-description=\"true\">" + escapeHTML(event.description || "No event details available.") + "</p><div class=\"event-meta\">" + meta + "</div></div></div>"
     + renderBroadcastEventChannels(event)
     + "</article>";
+}
+function recoveryPanelHTML(error, kind) {
+  if (!error) return "";
+  const label = kind === "sports" ? "sports" : "events";
+  return '<div class="recovery-panel" role="status" aria-live="polite"><span>' + escapeHTML(error) + "</span><div class=\"recovery-actions\"><button type=\"button\" data-recovery-retry=\"" + label + "\" aria-label=\"Retry loading " + label + "\">Retry</button><button type=\"button\" data-recovery-reload=\"true\" aria-label=\"Reload Live TV\">Reload</button></div></div>";
 }
 function eventStatusLabel(event) {
   if (event.live) return "Live";
@@ -2351,17 +2368,20 @@ function guideFilterCategories() {
 }
 function adminListingTitle() {
   const mode = adminSettings().mode || "normal";
-  if (mode === "delimiter") return virtualGroupLabel();
+  if (mode === "delimiter") return organizationRootLabel();
   return "Channel Groups";
 }
+function organizationRootLabel() {
+  return useProfileGroupVirtualPaths() ? "Channel Profiles" : "Channel Groups";
+}
 function virtualGroupLabel() {
-  return "Virtual " + virtualGroupLabelSuffix(adminSettings().virtualGroupLabel);
+  return organizationRootLabel();
 }
 function featuredGroupLabel() {
-  return "Featured " + virtualGroupLabelSuffix(adminSettings().virtualGroupLabel);
+  return "Featured " + organizationRootLabel();
 }
 function allGroupLabel() {
-  return "All " + virtualGroupLabelSuffix(adminSettings().virtualGroupLabel).toLowerCase();
+  return "All " + organizationRootLabel().toLowerCase();
 }
 function virtualGroupLabelSuffix(value) {
   value = String(value || "").trim().replace(/^virtual\s+/i, "").trim();
@@ -2657,18 +2677,20 @@ function scheduleProgram(channelID, programID, button) {
 function programDetailsState() {
   if (!state.programDetails) return null;
   const channel = channelByID(state.programDetails.channelID);
-  const program = programByID(state.programDetails.channelID, state.programDetails.programID);
+  const program = programByID(state.programDetails.channelID, state.programDetails.programID) || state.programDetails.fallbackProgram;
   if (!channel || !program) return null;
   return { channel: channel, program: program };
 }
 function openProgramDetails(channelID, programID) {
   const program = programByID(channelID, programID);
+  const channel = channelByID(channelID);
+  if (!channel) return;
+  programModalReturnFocus = document.activeElement;
   if (!program || programIsGuidePlaceholder(program)) {
-    const channel = channelByID(channelID);
-    if (channel) playChannel(channel);
+    state.programDetails = { channelID: channelID, programID: programID, fallbackProgram: { id: "", title: "Program details unavailable", description: "Program details are not available for this guide entry. You can still watch the channel.", startUnix: 0, endUnix: 0 } };
+    renderProgramDetailsModal();
     return;
   }
-  programModalReturnFocus = document.activeElement;
   state.programDetails = { channelID: channelID, programID: programID };
   renderProgramDetailsModal();
 }
@@ -3162,17 +3184,15 @@ function renderGuidePage() {
   const categories = guideFilterCategories();
   const slots = guideSlots();
   state.guideLastSlotStart = guideSlotStart();
-  byId("view").innerHTML = "<div class=\"guide-page\">" + sectionHeaderWithActions("TV Guide", guideFreshnessHTML()) + "<div class=\"guide-tools\"><label class=\"guide-category-filter\"><span>" + icon("search") + "</span><input id=\"category-select\" list=\"guide-category-options\" placeholder=\"Filter categories\" value=\"" + escapeHTML(guideCategoryInputValue(categories)) + "\" autocomplete=\"off\" aria-label=\"Filter categories\"><datalist id=\"guide-category-options\"><option value=\"" + escapeHTML(allGroupLabel()) + "\"></option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.name || category.id) + "\"></option>"; }).join("") + "</datalist></label><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program or channel\" value=\"" + escapeHTML(state.query) + "\"></div><div id=\"guide-scroll\" class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + "</div><div id=\"epg\"></div></div></div></div>";
+  byId("view").innerHTML = '<div class="guide-page">' + sectionHeaderWithActions("TV Guide", guideFreshnessHTML()) + "<div class=\"guide-tools\"><label class=\"guide-category-filter\"><span>" + icon("search") + "</span><input id=\"category-select\" list=\"guide-category-options\" placeholder=\"Filter categories\" value=\"" + escapeHTML(guideCategoryInputValue(categories)) + "\" autocomplete=\"off\" aria-label=\"Filter categories\"><datalist id=\"guide-category-options\"><option value=\"" + escapeHTML(allGroupLabel()) + "\"></option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.name || category.id) + "\"></option>"; }).join("") + "</datalist></label><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program or channel\" value=\"" + escapeHTML(state.query) + "\"></div><div id=\"guide-scroll\" class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + '</div><div id="epg" class="guide-window-spacer" style="height:0px"><div class="guide-window" style="transform:translateY(0px)"></div></div></div></div></div>';
   byId("category-select").oninput = function(event) { updateGuideCategoryFilter(event.target.value, categories, false); };
   byId("category-select").onchange = function(event) { updateGuideCategoryFilter(event.target.value, categories, true); };
   byId("category-select").onblur = function(event) { event.target.value = guideCategoryInputValue(categories); };
   byId("guide-search").oninput = function(event) { state.query = event.target.value; resetGuideRows(); renderEPG(); };
   const guideScroll = byId("guide-scroll");
-  if (guideScroll) guideScroll.onscroll = function() {
-    if (isNearGuideEnd()) appendGuideRows();
-  };
+  if (guideScroll) guideScroll.onscroll = scheduleGuideWindowRender;
   resetGuideRows();
-  maybeWarmGuideForChannels(state.guideChannels.slice(0, guideBatchSize()), "guide:" + (state.category || "all"));
+  maybeWarmGuideForChannels(state.guideChannels.slice(0, guideWindowOverscan() * 2), "guide:" + (state.category || "all"));
   renderEPG();
 }
 function guideCategoryInputValue(categories) {
@@ -3199,11 +3219,22 @@ function updateGuideCategoryFilter(value, categories, forceReset) {
   state.category = next;
   renderGuidePage();
 }
-function guideBatchSize() { return 24; }
+function guideWindowOverscan() { return 8; }
+function guideRowHeight() {
+  const scroll = byId("guide-scroll");
+  const value = scroll ? getComputedStyle(scroll).getPropertyValue("--epg-row-h").trim() : "";
+  const number = parseFloat(value);
+  if (!number) return 70;
+  return value.indexOf("rem") !== -1 ? number * parseFloat(getComputedStyle(document.documentElement).fontSize || "16") : number;
+}
 function resetGuideRows() {
   state.guideChannels = visibleChannels(true).filter(guideChannelMatchesQuery);
   state.guideRendered = 0;
   state.guideLoading = false;
+  state.guideWindowStart = -1;
+  state.guideWindowEnd = -1;
+  if (state.guideRenderFrame) cancelAnimationFrame(state.guideRenderFrame);
+  state.guideRenderFrame = 0;
 }
 function renderEPGCells(channel, channelIndex) {
   const windowInfo = guideWindow();
@@ -3259,36 +3290,51 @@ function renderEPGRow(channel, channelIndex) {
   return "<div class=\"epg-row\">" + renderGuideChannelButton(channel) + "<div class=\"epg-programs\">" + renderEPGCells(channel, channelIndex) + "</div></div>";
 }
 function renderEPG() {
-  const root = byId("epg");
-  root.innerHTML = "";
-  appendGuideRows();
+  renderGuideWindow(true);
 }
-function appendGuideRows() {
+function scheduleGuideWindowRender() {
+  if (state.guideRenderFrame) return;
+  state.guideRenderFrame = requestAnimationFrame(function() {
+    state.guideRenderFrame = 0;
+    renderGuideWindow(false);
+  });
+}
+function guideVisibleRange(totalRows, scrollTop, viewportHeight, rowHeight, headerHeight) {
+  const visibleRows = Math.max(1, Math.ceil(Math.max(0, viewportHeight) / rowHeight));
+  const overscan = guideWindowOverscan();
+  const rowsScrollTop = Math.max(0, scrollTop - headerHeight);
+  const start = Math.max(0, Math.floor(rowsScrollTop / rowHeight) - overscan);
+  const end = Math.min(totalRows, start + Math.min(60, visibleRows + overscan * 2));
+  return { start: start, end: end };
+}
+function renderGuideWindow(force) {
   if (state.view !== "guide" || state.guideLoading) return;
   const root = byId("epg");
   if (!root) return;
   if (!state.guideChannels.length) {
-    root.innerHTML = "<div class=\"empty\">No guide matches.</div>";
+    state.guideWindowStart = -1;
+    state.guideWindowEnd = -1;
+    root.style.height = "auto";
+    root.innerHTML = "<div class=\"guide-window\" style=\"transform:translateY(0px)\"><div class=\"empty\">No guide matches.</div></div>";
     return;
   }
-  if (state.guideRendered >= state.guideChannels.length) return;
+  const guideScroll = byId("guide-scroll");
+  const rowHeight = guideRowHeight();
+  const timeHead = guideScroll ? guideScroll.querySelector(".time-head") : null;
+  const range = guideVisibleRange(state.guideChannels.length, guideScroll ? guideScroll.scrollTop : 0, guideScroll ? guideScroll.clientHeight : window.innerHeight, rowHeight, timeHead ? timeHead.offsetHeight : 0);
+  const start = range.start;
+  const end = range.end;
+  if (!force && start === state.guideWindowStart && end === state.guideWindowEnd) return;
   state.guideLoading = true;
-  const start = state.guideRendered;
-  const end = Math.min(start + guideBatchSize(), state.guideChannels.length);
   const rows = state.guideChannels.slice(start, end).map(function(channel, offset) {
     return renderEPGRow(channel, start + offset);
   }).join("");
-  root.insertAdjacentHTML("beforeend", rows);
   state.guideRendered = end;
+  state.guideWindowStart = start;
+  state.guideWindowEnd = end;
+  root.style.height = (state.guideChannels.length * rowHeight) + "px";
+  root.innerHTML = "<div class=\"guide-window\" style=\"transform:translateY(" + (start * rowHeight) + "px)\">" + rows + "</div>";
   state.guideLoading = false;
-  if (isNearGuideEnd()) appendGuideRows();
-}
-function isNearGuideEnd() {
-  const guideScroll = byId("guide-scroll");
-  if (guideScroll && guideScroll.scrollHeight > guideScroll.clientHeight + 10) {
-    return guideScroll.scrollTop + guideScroll.clientHeight > guideScroll.scrollHeight - 900;
-  }
-  return window.innerHeight + window.scrollY > document.documentElement.scrollHeight - 900;
 }
 function renderSettings() {
   ensureSelectedCustomGroup();
@@ -3458,7 +3504,33 @@ function renderAdminCategorySettings() {
     + nested
     + "<div class=\"settings-row settings-form-row settings-source-row\"><span class=\"settings-field-copy\"><strong>Virtual group source</strong><small>" + escapeHTML(sourceHelp) + "</small></span><select data-admin-category-field=\"virtualGroupSource\"><option value=\"group\"" + (virtualGroupSourceMode() === "group" ? " selected" : "") + ">Group pipe</option><option value=\"group_channel\"" + (virtualGroupSourceMode() === "group_channel" ? " selected" : "") + ">Group pipe + channel pipe</option><option value=\"profile_group\"" + (virtualGroupSourceMode() === "profile_group" ? " selected" : "") + ">Profile pipe + group pipe</option><option value=\"channel\"" + (virtualGroupSourceMode() === "channel" ? " selected" : "") + ">Channel pipe</option></select></div>"
     + "<label class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Collapse duplicate virtual groups</strong><small>Skip repeated names when group, profile, or channel path labels overlap.</small></span><input type=\"checkbox\" data-admin-category-field=\"collapseDuplicateVirtualGroups\"" + (settings.collapseDuplicateVirtualGroups !== false ? " checked" : "") + "></label>"
+    + renderOrganizationPreview(settings)
     + (settings.mode === "normal" ? "<div class=\"settings-note\">Channel groups are shown as provided, without remapping or resorting.</div>" : "");
+}
+function organizationPreviewPath(settings) {
+  const channel = effectiveChannels(false)[0] || {};
+  const separator = settings.delimiter === "dash" ? " - " : " | ";
+  const split = function(value, fallback) {
+    const parts = String(value || fallback || "").split(separator).map(function(part) { return part.trim(); }).filter(Boolean);
+    return parts.length ? parts : [fallback || "Unassigned"];
+  };
+  const profile = profilePathsForChannel(channel)[0] || "Profile";
+  const group = sourceCategoryOriginalLabel(channel) || sourceCategoryLabel(channel) || "Group";
+  const channelPath = channel.name || "Channel";
+  const source = normalizeVirtualGroupSource(settings.virtualGroupSource, settings.inferChannelNameGroups === true);
+  const stages = [];
+  if (source === "profile_group") stages.push({ label: "Profile path", value: split(profile, "Profile").join(" / ") });
+  if (source === "group" || source === "group_channel" || source === "profile_group") stages.push({ label: "Group path", value: split(group, "Group").join(" / ") });
+  if (source === "channel" || source === "group_channel") stages.push({ label: "Channel path", value: split(channelPath, "Channel").join(" / ") });
+  return stages;
+}
+function renderOrganizationPreview(settings) {
+  const stages = organizationPreviewPath(settings);
+  const finalPath = stages.map(function(stage) { return stage.value; }).join(" / ") || organizationRootLabel();
+  const inputs = stages.map(function(stage) {
+    return '<div class="organization-stage"><strong>' + escapeHTML(stage.label) + "</strong><span>" + escapeHTML(stage.value) + "</span></div>";
+  }).join('<span class="organization-arrow" aria-hidden="true">→</span>');
+  return '<div id="organization-preview" class="organization-preview" aria-live="polite">' + inputs + (inputs ? '<span class="organization-arrow" aria-hidden="true">→</span>' : "") + '<div class="organization-result"><strong>Browse path</strong><span>' + escapeHTML(finalPath) + "</span></div></div>";
 }
 function adminSourceGroups() {
   const groups = {};
@@ -3922,6 +3994,20 @@ function setVideoSource(url, options) {
   video.play().then(updateCenterPlayButton).catch(function() { updateCenterPlayButton(); });
 }
 async function playChannel(channel) {
+  if (state.view !== "player") {
+    const main = document.querySelector(".main");
+    const guideScroll = byId("guide-scroll");
+    state.playerReturnContext = {
+      view: state.view,
+      category: state.category,
+      query: state.query,
+      folderQuery: state.folderQuery,
+      scrollY: window.scrollY,
+      mainScrollTop: main ? main.scrollTop : 0,
+      guideScrollTop: guideScroll ? guideScroll.scrollTop : 0,
+      guideScrollLeft: guideScroll ? guideScroll.scrollLeft : 0
+    };
+  }
   state.currentChannel = channel;
   state.view = "player";
   render();
@@ -3953,7 +4039,7 @@ function handlePlayerAction(action, button) {
   const video = byId("player");
   wakePlayerChrome();
   if (action === "back") {
-    setView("live");
+    returnFromPlayer();
     return;
   }
   if (action === "guide") {
@@ -4057,6 +4143,32 @@ function handlePlayerAction(action, button) {
     }
     renderRail();
   }
+}
+function returnFromPlayer() {
+  const context = state.playerReturnContext;
+  if (!context) {
+    setView("live");
+    return;
+  }
+  state.playerReturnContext = null;
+  state.category = context.category || "";
+  state.query = context.query || "";
+  state.folderQuery = context.folderQuery || "";
+  setView(context.view || "live");
+  state.category = context.category || "";
+  state.query = context.query || "";
+  state.folderQuery = context.folderQuery || "";
+  requestAnimationFrame(function() {
+    window.scrollTo(0, context.scrollY || 0);
+    const main = document.querySelector(".main");
+    if (main) main.scrollTop = context.mainScrollTop || 0;
+    const guideScroll = byId("guide-scroll");
+    if (guideScroll) {
+      guideScroll.scrollLeft = context.guideScrollLeft || 0;
+      guideScroll.scrollTop = context.guideScrollTop || 0;
+      renderGuideWindow(true);
+    }
+  });
 }
 document.addEventListener("click", function(event) {
   const settingsMenuButton = event.target.closest("#settings-menu-button");
@@ -4231,6 +4343,13 @@ document.addEventListener("click", function(event) {
     renderOnLaterPage();
     return;
   }
+  const onLaterTime = event.target.closest("[data-onlater-time]");
+  if (onLaterTime) {
+    event.preventDefault();
+    state.onLaterTime = onLaterTime.getAttribute("data-onlater-time") || "all";
+    renderOnLaterPage();
+    return;
+  }
   const sportsTab = event.target.closest("[data-sports-tab]");
   if (sportsTab) {
     event.preventDefault();
@@ -4248,6 +4367,20 @@ document.addEventListener("click", function(event) {
     event.preventDefault();
     loadSports(true);
     renderSportsPage();
+    return;
+  }
+  const recoveryRetry = event.target.closest("[data-recovery-retry]");
+  if (recoveryRetry) {
+    event.preventDefault();
+    const kind = recoveryRetry.getAttribute("data-recovery-retry");
+    if (kind === "sports") loadSports(true);
+    else loadEvents(true);
+    return;
+  }
+  const recoveryReload = event.target.closest("[data-recovery-reload]");
+  if (recoveryReload) {
+    event.preventDefault();
+    window.location.reload();
     return;
   }
   const sportsExpand = event.target.closest("[data-sports-expand-event]");
@@ -4527,6 +4660,16 @@ document.addEventListener("input", function(event) {
     }
     return;
   }
+  const adminCategoryField = event.target.getAttribute("data-admin-category-field");
+  if (adminCategoryField) {
+    const settings = state.adminCategorySettings || defaultAdminCategorySettings();
+    settings[adminCategoryField] = event.target.type === "checkbox" ? !!event.target.checked : event.target.value;
+    state.adminCategorySettings = settings;
+    normalizeAdminCategorySettings();
+    const preview = byId("organization-preview");
+    if (preview) preview.outerHTML = renderOrganizationPreview(adminSettings());
+    return;
+  }
   const adminEventKeywordIndex = event.target.getAttribute("data-admin-event-keyword-index");
   if (adminEventKeywordIndex !== null) {
     updateAdminEventKeywords(Number(adminEventKeywordIndex), event.target.value || "");
@@ -4564,11 +4707,8 @@ if (globalSearch) {
     setView("search");
   };
 }
-window.addEventListener("scroll", function() {
-  if (state.view === "guide" && isNearGuideEnd()) appendGuideRows();
-}, { passive: true });
 window.addEventListener("resize", function() {
-  if (state.view === "guide" && isNearGuideEnd()) appendGuideRows();
+  if (state.view === "guide") scheduleGuideWindowRender();
 });
 window.addEventListener("beforeunload", function() {
   if (state.currentSession) navigator.sendBeacon(route("/dispatcharr/api/watch/stop"), JSON.stringify({ sessionId: state.currentSession.id, reason: "page_unload" }));
