@@ -1432,8 +1432,12 @@ function sectionActions(actions) {
 }
 function rowCards(channels) {
   if (!channels.length) return emptyStateHTML("No channels yet.", catalogEmptyDetail());
-  return "<div class=\"row-scroll\">" + channels.map(function(channel) {
-    return "<button class=\"continue-card\" data-channel=\"" + escapeHTML(channel.id) + "\"><div class=\"poster-box\">" + (channel.logoUrl ? "<img src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">" : "<span>" + escapeHTML((channel.name || "TV").slice(0, 5)) + "</span>") + "</div><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><div class=\"muted\">" + escapeHTML(channel.categoryName || "Live TV") + "</div></button>";
+  return "<div class=\"row-scroll recent-channel-row\">" + channels.map(function(channel) {
+    const program = currentProgram(channel) || {};
+    const channelName = channel.name || "Untitled";
+    const programTitle = String(program.title || "").trim();
+    const subtitle = programTitle && lower(programTitle) !== lower(channelName) ? programTitle : "Live channel";
+    return "<button type=\"button\" class=\"continue-card recent-channel-card\" data-channel=\"" + escapeHTML(channel.id) + "\" aria-label=\"Watch " + escapeHTML(channelName + " - " + subtitle) + "\"><div class=\"poster-box\">" + (channel.logoUrl ? "<img src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">" : "<span>" + escapeHTML(channelName.slice(0, 5)) + "</span>") + "</div><span class=\"recent-channel-copy\"><strong>" + escapeHTML(channelName) + "</strong><span class=\"muted\" data-overflow-tooltip=\"" + escapeHTML(subtitle) + "\">" + escapeHTML(subtitle) + "</span></span></button>";
   }).join("") + "</div>";
 }
 function homeFavoriteChannels() {
