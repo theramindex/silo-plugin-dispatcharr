@@ -154,6 +154,12 @@ type RecordingsPayload struct {
 	Items     []json.RawMessage `json:"items"`
 }
 
+type RecordingCapabilityPayload struct {
+	Available   bool   `json:"available"`
+	CanSchedule bool   `json:"canSchedule"`
+	Reason      string `json:"reason,omitempty"`
+}
+
 type scheduleRecordingRequest struct {
 	ChannelID   string `json:"channelId"`
 	ProgramID   string `json:"programId"`
@@ -235,6 +241,8 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 	case "/dispatcharr/api/series":
 		s.ensureCatalogHydrated(ctx)
 		return s.respondJSON(http.StatusOK, s.seriesPayload())
+	case "/dispatcharr/api/recordings/capability":
+		return s.handleRecordingCapability(ctx)
 	case "/dispatcharr/api/recordings":
 		s.ensureCatalogHydrated(ctx)
 		if request.GetMethod() == http.MethodPost {
@@ -572,6 +580,42 @@ func (s *HTTPRoutesServer) handleRecordings(ctx context.Context) (*pluginv1.Hand
 		return s.respondJSON(http.StatusBadGateway, RecordingsPayload{Available: false, Reason: err.Error(), Items: []json.RawMessage{}})
 	}
 	return s.respondJSON(http.StatusOK, RecordingsPayload{Available: true, Items: enrichRecordings(client, recordings)})
+}
+
+func (s *HTTPRoutesServer) handleRecordingCapability(ctx context.Context) (*pluginv1.HandleHTTPResponse, error) {
+	snapshot := s.store.Current()
+	if !dvrEnabledForSource(snapshot.Catalog.Source.Mode) {
+		return s.respondJSON(http.StatusOK, RecordingCapabilityPayload{
+			Reason: "Recordings require Dispatcharr Direct Connect.",
+		})
+	}
+	if s.settingsProvider == nil {
+		return s.respondJSON(http.StatusOK, RecordingCapabilityPayload{
+			Available: true,
+			Reason:    "Unable to verify Dispatcharr recording permissions.",
+		})
+	}
+	client, err := s.dispatcharrClient()
+	if err != nil {
+		return s.respondJSON(http.StatusOK, RecordingCapabilityPayload{
+			Available: true,
+			Reason:    "Unable to verify Dispatcharr recording permissions.",
+		})
+	}
+	user, err := client.CurrentUser(ctx)
+	if err != nil {
+		return s.respondJSON(http.StatusOK, RecordingCapabilityPayload{
+			Available: true,
+			Reason:    "Unable to verify Dispatcharr recording permissions.",
+		})
+	}
+	if user.UserLevel < 10 {
+		return s.respondJSON(http.StatusOK, RecordingCapabilityPayload{
+			Available: true,
+			Reason:    "Scheduling requires a Dispatcharr admin account or Admin API Key.",
+		})
+	}
+	return s.respondJSON(http.StatusOK, RecordingCapabilityPayload{Available: true, CanSchedule: true})
 }
 
 func (s *HTTPRoutesServer) handleScheduleRecording(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {

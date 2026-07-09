@@ -10,7 +10,7 @@ const adminSettingsToken = adminSettingsMeta ? String(adminSettingsMeta.content 
 const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
 
 function applySiloTheme() {
   const params = new URLSearchParams(window.location.search);
@@ -160,6 +160,23 @@ function isDispatcharrDirectSource() {
 }
 function dvrEnabled() {
   return !!(state.app && state.app.capabilities && state.app.capabilities.recordings && isDispatcharrDirectSource() && adminSettings().allowRecordingsByDefault !== false);
+}
+function recordingSchedulingEnabled() {
+  return !!(dvrEnabled() && state.recordingCapability && state.recordingCapability.canSchedule);
+}
+function recordingScheduleReason() {
+  const capability = state.recordingCapability || {};
+  return capability.reason || "Scheduling requires a Dispatcharr admin account or Admin API Key.";
+}
+async function loadRecordingCapability() {
+  if (!dvrEnabled()) {
+    state.recordingCapability = { available: false, canSchedule: false, reason: "Recordings require Dispatcharr Direct Connect." };
+    return state.recordingCapability;
+  }
+  state.recordingCapability = await getJSON("/dispatcharr/api/recordings/capability").catch(function() {
+    return { available: true, canSchedule: false, reason: "Unable to verify Dispatcharr recording permissions." };
+  });
+  return state.recordingCapability;
 }
 function favoriteMap() { return prefs().favorites || {}; }
 function autoFavoriteMap() { return prefs().autoFavorites || {}; }
@@ -576,8 +593,11 @@ async function requestError(response) {
 function readableError(error) {
   const status = Number(error && error.status || 0);
   const message = String(error && error.message ? error.message : error || "unknown error");
-  if (status === 401 || status === 403 || /request failed \((401|403)\)|unexpected status (401|403)|unauthorized|forbidden/i.test(message)) {
+  if (status === 401 || /request failed \(401\)|unexpected status 401|unauthorized/i.test(message)) {
     return "Your Silo session expired. Refresh the page or sign in again.";
+  }
+  if (status === 403 || /request failed \(403\)|unexpected status 403|forbidden|permission/i.test(message)) {
+    return message;
   }
   return message;
 }
@@ -1187,6 +1207,7 @@ async function loadApp() {
   try {
     await hydrateApp(await getJSON("/dispatcharr/api/app"));
     state.appLoadedFromCache = false;
+    await loadRecordingCapability();
     render();
     await refreshSupplementalData(true);
     render();
@@ -1596,7 +1617,7 @@ function searchResultSections(query) {
         title: program.title || "Untitled program",
         meta: [(programIsLive(program) ? "Live now" : dateTimeLabel(program.startUnix)), channel.name || "Live TV"].filter(Boolean).join(" - "),
         action: "Details",
-        recordable: dvrEnabled() && programIsUpcoming(program),
+        recordable: recordingSchedulingEnabled() && programIsUpcoming(program),
         channelId: program.channelId,
         programId: program.id || ""
       };
@@ -1844,7 +1865,7 @@ function renderProgramDiscoveryRow(program) {
     title: program.title || "Untitled program",
     meta: [(programIsLive(program) ? "Live now" : dateTimeLabel(program.startUnix)), channel.name || ""].filter(Boolean).join(" - "),
     action: "Details",
-    recordable: dvrEnabled() && programIsUpcoming(program),
+    recordable: recordingSchedulingEnabled() && programIsUpcoming(program),
     channelId: program.channelId,
     programId: program.id || ""
   });
@@ -1857,7 +1878,7 @@ function renderProgramDiscoveryCard(program) {
     title: program.title || "Untitled program",
     meta: [(programIsLive(program) ? "Live now" : dateTimeLabel(program.startUnix)), channel.name || ""].filter(Boolean).join(" - "),
     action: "Details",
-    recordable: dvrEnabled() && programIsUpcoming(program),
+    recordable: recordingSchedulingEnabled() && programIsUpcoming(program),
     channelId: program.channelId,
     programId: program.id || ""
   });
@@ -2647,6 +2668,10 @@ function scheduleProgram(channelID, programID, button) {
     showAppToast(sourceMode() === "direct_login" ? "Recordings are turned off by the Live TV admin." : "Recordings require Dispatcharr Direct Connect.");
     return;
   }
+  if (!recordingSchedulingEnabled()) {
+    showAppToast(recordingScheduleReason());
+    return;
+  }
   const channel = channelByID(channelID);
   const program = programByID(channelID, programID);
   if (!channel || !program) {
@@ -2666,16 +2691,24 @@ function scheduleProgram(channelID, programID, button) {
     loadRecordings(true);
     showAppToast("Recording scheduled in Dispatcharr.");
   }).catch(function(error) {
-    const message = readableError(error);
-    const lowerMessage = message.toLowerCase();
-    if (lowerMessage.indexOf("admin account or api key") >= 0
-      || lowerMessage.indexOf("request failed (401)") >= 0
+    const rawMessage = String(error && error.message ? error.message : error || "");
+    const lowerMessage = rawMessage.toLowerCase();
+    const status = Number(error && error.status || 0);
+    if (status === 403
+      || lowerMessage.indexOf("admin account or api key") >= 0
       || lowerMessage.indexOf("request failed (403)") >= 0
-      || lowerMessage.indexOf("unexpected status 401") >= 0
       || lowerMessage.indexOf("unexpected status 403") >= 0
-      || lowerMessage.indexOf("unauthorized") >= 0
+      || lowerMessage.indexOf("forbidden") >= 0
       || lowerMessage.indexOf("permission") >= 0) {
-      showAppToast("Dispatcharr requires an admin account or API key to schedule recordings.");
+      state.recordingCapability = { available: true, canSchedule: false, reason: "Scheduling requires a Dispatcharr admin account or Admin API Key." };
+      render();
+      renderProgramDetailsModal();
+      showAppToast(state.recordingCapability.reason);
+      return;
+    }
+    const message = readableError(error);
+    if (status === 401 || message.toLowerCase().indexOf("session expired") >= 0) {
+      showAppToast(message);
       return;
     }
     showAppToast("Dispatcharr could not schedule that recording.");
@@ -2738,7 +2771,7 @@ function programDetailsModalHTML(details) {
   const timeText = [start ? dateTimeLabel(start) : "", duration ? programDurationLabel(duration * 60) : ""].filter(Boolean).join(", ");
   const channelName = channel.name || channel.categoryName || "Live TV";
   const tags = programDetailTags(program, channel);
-  const canSchedule = dvrEnabled() && end > Math.floor(Date.now() / 1000);
+  const canSchedule = recordingSchedulingEnabled() && end > Math.floor(Date.now() / 1000);
   return "<div class=\"program-modal-backdrop\" data-program-modal-close=\"true\"></div><section class=\"program-modal\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"program-modal-title\" aria-describedby=\"program-modal-description\">"
     + "<button class=\"program-modal-close\" type=\"button\" data-program-modal-close=\"true\" aria-label=\"Close\">" + icon("x") + "</button>"
     + "<div class=\"program-modal-head\"><div class=\"program-modal-art\">" + logoHTML(channel) + "</div><div class=\"program-modal-title\"><h2 id=\"program-modal-title\">" + escapeHTML(title) + "</h2><p>" + escapeHTML(channelName) + "</p><div class=\"program-modal-time\">" + icon("clock") + "<span>" + escapeHTML(timeText || (programIsLive(program) ? "Live now" : "Guide airing")) + "</span></div><div class=\"program-modal-tags\">" + tags.map(function(tag) { return "<span" + (tag === "Live now" ? " class=\"is-live\"" : "") + ">" + escapeHTML(tag) + "</span>"; }).join("") + "</div></div></div>"
@@ -3276,7 +3309,7 @@ function renderEPGCells(channel, channelIndex) {
     const end = entry.end;
     if (end <= start) return;
     if (start > cursor) cells.push(renderEPGGapCell(channel, cursor, start, windowInfo));
-    const canSchedule = dvrEnabled() && (program.endUnix || 0) > now;
+    const canSchedule = recordingSchedulingEnabled() && (program.endUnix || 0) > now;
     const isLive = start <= now && end > now;
     const programTitle = programIsGuidePlaceholder(program) ? guideUnavailableLabel() : program.title || guideUnavailableLabel();
     const titleParts = epgProgramTitleParts(programTitle);
@@ -3467,7 +3500,9 @@ function renderAdminRecordingSettings() {
   if (!root) return;
   const settings = adminSettings();
   const available = !!(state.app && state.app.capabilities && state.app.capabilities.recordings && isDispatcharrDirectSource());
-  root.innerHTML = "<label class=\"settings-row compact-row\"><span><strong>Allow recordings by default</strong><small>" + (available ? "Show recording controls for Dispatcharr Direct users." : "Recordings require Dispatcharr Direct Connect.") + "</small></span><input type=\"checkbox\" data-admin-recording-field=\"default\"" + (settings.allowRecordingsByDefault !== false ? " checked" : "") + (available ? "" : " disabled") + "></label>";
+  const canSchedule = recordingSchedulingEnabled();
+  const description = !available ? "Recordings require Dispatcharr Direct Connect." : (canSchedule ? "Show recording controls for Dispatcharr Direct users." : recordingScheduleReason());
+  root.innerHTML = "<label class=\"settings-row compact-row\"><span><strong>Allow recordings by default</strong><small>" + escapeHTML(description) + "</small></span><input type=\"checkbox\" data-admin-recording-field=\"default\"" + (settings.allowRecordingsByDefault !== false ? " checked" : "") + (canSchedule ? "" : " disabled") + "></label>";
 }
 function renderAdminIntegrationsTab() {
   return ""

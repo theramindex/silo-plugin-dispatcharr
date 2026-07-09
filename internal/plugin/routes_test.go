@@ -270,6 +270,10 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`data-keyword-pass-add=`,
 		`keywordPasses`,
 		`allowRecordingsByDefault`,
+		`recordingCapability: null`,
+		`function recordingSchedulingEnabled()`,
+		`/dispatcharr/api/recordings/capability`,
+		`Scheduling requires a Dispatcharr admin account or Admin API Key.`,
 		`Search movies, tv shows, channels and more`,
 		`function renderSportsPage()`,
 		`function renderSportsTopbarTabs()`,
@@ -448,6 +452,7 @@ func TestManifestDeclaresPublicApplicationRoutesOnly(t *testing.T) {
 	for _, route := range []string{
 		"GET /dispatcharr/api/sports",
 		"GET /dispatcharr/api/events",
+		"GET /dispatcharr/api/recordings/capability",
 		"GET /dispatcharr/assets/app.js",
 		"GET /dispatcharr/assets/lineup.js",
 		"GET /dispatcharr/assets/app.css",
@@ -762,6 +767,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.DetailsLiveTag {
 		t.Fatalf("expected live program details to render a dedicated live-status tag: %+v", result)
 	}
+	if !result.RecordingDeniedHidden || !result.RecordingAdminShown {
+		t.Fatalf("expected recording controls to follow verified Dispatcharr permissions: %+v", result)
+	}
 	if !result.PlayerReturnContextRestored {
 		t.Fatalf("expected player exit to restore browse and scroll context: %+v", result)
 	}
@@ -870,6 +878,8 @@ type virtualAliasResult struct {
 	GuideWindowBounded          bool   `json:"guideWindowBounded"`
 	DetailsFirstProgramClick    bool   `json:"detailsFirstProgramClick"`
 	DetailsLiveTag              bool   `json:"detailsLiveTag"`
+	RecordingDeniedHidden       bool   `json:"recordingDeniedHidden"`
+	RecordingAdminShown         bool   `json:"recordingAdminShown"`
 	PlayerReturnContextRestored bool   `json:"playerReturnContextRestored"`
 }
 
@@ -1054,6 +1064,20 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 	const programModal = document.getElementById("program-details-root");
 	const detailsFirstProgramClick = !!state.programDetails && state.programDetails.programID === "overlap-a" && programModal.innerHTML.indexOf("Watch Now") !== -1 && state.currentChannel === null && state.view === "search";
 	const detailsLiveTag = programModal.innerHTML.indexOf('<span class="is-live">Live now</span>') !== -1;
+	const originalSource = state.app.source;
+	const originalCapabilities = state.app.capabilities;
+	const originalRecordingCapability = state.recordingCapability;
+	state.app.source = { mode: "direct_login" };
+	state.app.capabilities = { recordings: true };
+	state.recordingCapability = { available: true, canSchedule: false, reason: "Scheduling requires a Dispatcharr admin account or Admin API Key." };
+	renderProgramDetailsModal();
+	const recordingDeniedControlsHidden = programModal.innerHTML.indexOf("data-program-detail-schedule") === -1 && !recordingSchedulingEnabled();
+	state.recordingCapability = { available: true, canSchedule: true };
+	renderProgramDetailsModal();
+	const recordingAdminControlsShown = programModal.innerHTML.indexOf("data-program-detail-schedule") !== -1 && recordingSchedulingEnabled();
+	state.app.source = originalSource;
+	state.app.capabilities = originalCapabilities;
+	state.recordingCapability = originalRecordingCapability;
 	state.programDetails = null;
 	renderProgramDetailsModal();
 
@@ -1136,6 +1160,8 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 		guideWindowBounded: guideWindowBounded,
 		detailsFirstProgramClick: detailsFirstProgramClick,
 		detailsLiveTag: detailsLiveTag,
+		recordingDeniedHidden: recordingDeniedControlsHidden,
+		recordingAdminShown: recordingAdminControlsShown,
 		playerReturnContextRestored: playerReturnContextRestored
 	};
 })())
@@ -1203,6 +1229,111 @@ func TestHTTPRoutesServerRecordingsDisabledForXtream(t *testing.T) {
 	}
 	if response.GetStatusCode() != 409 {
 		t.Fatalf("expected 409, got %d", response.GetStatusCode())
+	}
+}
+
+func TestHTTPRoutesServerRecordingCapabilityRequiresDispatcharrAdmin(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name        string
+		userLevel   int
+		canSchedule bool
+	}{
+		{name: "standard user", userLevel: 1, canSchedule: false},
+		{name: "admin user", userLevel: 10, canSchedule: true},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/api/accounts/token/":
+					_, _ = w.Write([]byte(`{"access":"access-token","refresh":"refresh-token"}`))
+				case "/api/accounts/users/me/":
+					if r.Header.Get("Authorization") != "Bearer access-token" {
+						http.Error(w, "missing auth", http.StatusUnauthorized)
+						return
+					}
+					_, _ = fmt.Fprintf(w, `{"id":7,"username":"viewer","user_level":%d}`, tt.userLevel)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer upstream.Close()
+
+			store := cache.NewStore()
+			store.Replace(cache.Snapshot{Catalog: model.CatalogState{Source: model.LiveTVSource(model.SourceModeDirectLogin)}})
+			server := NewHTTPRoutesServerWithSettings(store, func() config.Settings {
+				return config.Settings{
+					SourceMode:      config.SourceModeDirectLogin,
+					DispatcharrURL:  upstream.URL,
+					DispatcharrUser: "viewer",
+					DispatcharrPass: "secret",
+				}
+			})
+
+			response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/dispatcharr/api/recordings/capability"})
+			if err != nil {
+				t.Fatalf("recording capability route: %v", err)
+			}
+			if response.GetStatusCode() != http.StatusOK {
+				t.Fatalf("expected 200, got %d", response.GetStatusCode())
+			}
+			var payload RecordingCapabilityPayload
+			if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+				t.Fatalf("decode recording capability: %v", err)
+			}
+			if !payload.Available || payload.CanSchedule != tt.canSchedule {
+				t.Fatalf("unexpected recording capability: %+v", payload)
+			}
+			if !tt.canSchedule && !strings.Contains(payload.Reason, "admin account or Admin API Key") {
+				t.Fatalf("expected actionable permission reason, got %+v", payload)
+			}
+		})
+	}
+}
+
+func TestHTTPRoutesServerRecordingCapabilityAllowsAdminAPIKeyMode(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/accounts/users/me/" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Header.Get("X-API-Key") != "secret" || r.Header.Get("Authorization") != "ApiKey secret" {
+			http.Error(w, "missing API key", http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":7,"username":"admin","user_level":10}`))
+	}))
+	defer upstream.Close()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{Source: model.LiveTVSource(model.SourceModeDirectLogin)}})
+	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings {
+		return config.Settings{
+			SourceMode:        config.SourceModeAPIKey,
+			DispatcharrURL:    upstream.URL,
+			DispatcharrAPIKey: "secret",
+			ChannelRefreshH:   config.DefaultChannelRefreshHours,
+			EPGRefreshH:       config.DefaultEPGRefreshHours,
+		}
+	})
+
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/dispatcharr/api/recordings/capability"})
+	if err != nil {
+		t.Fatalf("recording capability route: %v", err)
+	}
+	var payload RecordingCapabilityPayload
+	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+		t.Fatalf("decode recording capability: %v", err)
+	}
+	if !payload.Available || !payload.CanSchedule {
+		t.Fatalf("expected Admin API Key mode to allow scheduling, got %+v", payload)
 	}
 }
 

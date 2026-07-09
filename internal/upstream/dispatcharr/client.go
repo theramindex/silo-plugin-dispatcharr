@@ -65,6 +65,11 @@ func (c *Client) ChannelProfiles(ctx context.Context) ([]ChannelProfile, error) 
 	return profiles, c.getList(ctx, "/api/channels/profiles/", &profiles)
 }
 
+func (c *Client) CurrentUser(ctx context.Context) (CurrentUser, error) {
+	var user CurrentUser
+	return user, c.getJSON(ctx, "/api/accounts/users/me/", &user)
+}
+
 func (c *Client) Programs(ctx context.Context) ([]Program, error) {
 	var response struct {
 		Data []Program `json:"data"`
