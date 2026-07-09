@@ -53,6 +53,12 @@ type ChannelProfile struct {
 	Channels []String `json:"channels"`
 }
 
+type CurrentUser struct {
+	ID        String `json:"id"`
+	Username  String `json:"username"`
+	UserLevel int    `json:"user_level"`
+}
+
 type VersionInfo struct {
 	Version   String `json:"version"`
 	Timestamp String `json:"timestamp"`

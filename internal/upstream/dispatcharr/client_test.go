@@ -25,6 +25,37 @@ func TestEndpointPreservesPaginationQuery(t *testing.T) {
 	}
 }
 
+func TestCurrentUserReturnsRecordingPermissionLevel(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/accounts/token/":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access":"access-token","refresh":"refresh-token"}`))
+		case "/api/accounts/users/me/":
+			if r.Header.Get("Authorization") != "Bearer access-token" {
+				http.Error(w, "missing auth", http.StatusUnauthorized)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":7,"username":"viewer","user_level":1}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := NewLoginClient(server.URL, "viewer", "secret")
+	user, err := client.CurrentUser(t.Context())
+	if err != nil {
+		t.Fatalf("current user: %v", err)
+	}
+	if user.ID.String() != "7" || user.Username.String() != "viewer" || user.UserLevel != 1 {
+		t.Fatalf("unexpected current user: %+v", user)
+	}
+}
+
 func TestGetListRejectsCrossOriginPaginationWithoutForwardingCredentials(t *testing.T) {
 	t.Parallel()
 
