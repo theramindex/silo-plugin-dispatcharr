@@ -54,59 +54,15 @@ func (s *runtimeServer) Configure(_ context.Context, request *pluginv1.Configure
 		values := entry.GetValue().AsMap()
 		switch entry.GetKey() {
 		case "connection":
-			if stringValue, ok := values["source_mode"].(string); ok {
-				current.SourceMode = config.SourceMode(stringValue)
-			}
-			current.DispatcharrURL = asString(values["base_url"])
-			current.DispatcharrUser = asString(values["username"])
-			current.DispatcharrPass = asString(values["password"])
-			current.DispatcharrAPIKey = asString(values["api_key"])
-			current.ChannelProfile = asString(values["channel_profile"])
-			current.XtreamBaseURL = firstString(values["xtream_base_url"], values["base_url"])
-			current.XtreamUsername = firstString(values["xtream_username"], values["username"])
-			current.XtreamPassword = firstString(values["xtream_password"], values["password"])
-			current.M3UURL = asString(values["m3u_url"])
-			current.EPGXMLURL = asString(values["epg_xml_url"])
-			if current.SourceMode == "" && current.DispatcharrAPIKey != "" {
-				current.SourceMode = config.SourceModeAPIKey
-			} else if current.SourceMode == "" {
-				current.SourceMode = config.SourceModeDirectLogin
-			}
-			if boolValue, ok := values["live_tv_enabled"].(bool); ok {
-				current.LiveTVEnabled = boolValue
-			}
-			if numberValue, ok := values["channel_refresh_hours"].(float64); ok {
-				current.ChannelRefreshH = int(numberValue)
-			}
-			if numberValue, ok := values["epg_refresh_hours"].(float64); ok {
-				current.EPGRefreshH = int(numberValue)
-			}
+			applyConnectionConfig(&current, values)
 		case "general":
-			if stringValue, ok := values["source_mode"].(string); ok {
-				current.SourceMode = config.SourceMode(stringValue)
-			}
-			if boolValue, ok := values["live_tv_enabled"].(bool); ok {
-				current.LiveTVEnabled = boolValue
-			}
-			if numberValue, ok := values["channel_refresh_hours"].(float64); ok {
-				current.ChannelRefreshH = int(numberValue)
-			}
-			if numberValue, ok := values["epg_refresh_hours"].(float64); ok {
-				current.EPGRefreshH = int(numberValue)
-			}
+			applyLegacyGeneralConfig(&current, values)
 		case "dispatcharr":
-			current.DispatcharrURL = asString(values["base_url"])
-			current.DispatcharrUser = asString(values["username"])
-			current.DispatcharrPass = asString(values["password"])
-			current.DispatcharrAPIKey = asString(values["api_key"])
-			current.ChannelProfile = asString(values["channel_profile"])
+			applyDispatcharrConfig(&current, values)
 		case "xtream":
-			current.XtreamBaseURL = asString(values["base_url"])
-			current.XtreamUsername = asString(values["username"])
-			current.XtreamPassword = asString(values["password"])
+			applyXtreamConfig(&current, values)
 		case "m3u_xmltv":
-			current.M3UURL = asString(values["m3u_url"])
-			current.EPGXMLURL = asString(values["epg_xml_url"])
+			applyM3UConfig(&current, values)
 		case "category_settings":
 			if encoded, err := json.Marshal(values); err == nil {
 				current.AdminSettings = encoded
@@ -121,6 +77,85 @@ func (s *runtimeServer) Configure(_ context.Context, request *pluginv1.Configure
 	}
 	s.settings.Set(current)
 	return &pluginv1.ConfigureResponse{}, nil
+}
+
+func applyConnectionConfig(settings *config.Settings, values map[string]any) {
+	applySourceMode(settings, values)
+	applyDispatcharrConfig(settings, values)
+	applyFirstPresentString(&settings.XtreamBaseURL, values, "xtream_base_url", "base_url")
+	applyFirstPresentString(&settings.XtreamUsername, values, "xtream_username", "username")
+	applyFirstPresentString(&settings.XtreamPassword, values, "xtream_password", "password")
+	applyM3UConfig(settings, values)
+	applyLegacyScheduleConfig(settings, values)
+	if settings.SourceMode == "" && settings.DispatcharrAPIKey != "" {
+		settings.SourceMode = config.SourceModeAPIKey
+	} else if settings.SourceMode == "" {
+		settings.SourceMode = config.SourceModeDirectLogin
+	}
+}
+
+func applyLegacyGeneralConfig(settings *config.Settings, values map[string]any) {
+	applySourceMode(settings, values)
+	applyLegacyScheduleConfig(settings, values)
+}
+
+func applySourceMode(settings *config.Settings, values map[string]any) {
+	if value, ok := values["source_mode"].(string); ok {
+		settings.SourceMode = config.SourceMode(value)
+	}
+}
+
+func applyDispatcharrConfig(settings *config.Settings, values map[string]any) {
+	applyStringIfPresent(&settings.DispatcharrURL, values, "base_url")
+	applyStringIfPresent(&settings.DispatcharrUser, values, "username")
+	applyStringIfPresent(&settings.DispatcharrPass, values, "password")
+	applyStringIfPresent(&settings.DispatcharrAPIKey, values, "api_key")
+	applyStringIfPresent(&settings.ChannelProfile, values, "channel_profile")
+}
+
+func applyXtreamConfig(settings *config.Settings, values map[string]any) {
+	applyStringIfPresent(&settings.XtreamBaseURL, values, "base_url")
+	applyStringIfPresent(&settings.XtreamUsername, values, "username")
+	applyStringIfPresent(&settings.XtreamPassword, values, "password")
+}
+
+func applyM3UConfig(settings *config.Settings, values map[string]any) {
+	applyStringIfPresent(&settings.M3UURL, values, "m3u_url")
+	applyStringIfPresent(&settings.EPGXMLURL, values, "epg_xml_url")
+}
+
+func applyStringIfPresent(target *string, values map[string]any, key string) {
+	value, exists := values[key]
+	if !exists {
+		return
+	}
+	*target = asString(value)
+}
+
+func applyFirstPresentString(target *string, values map[string]any, keys ...string) {
+	for _, key := range keys {
+		value, exists := values[key]
+		if !exists {
+			continue
+		}
+		if stringValue := asString(value); stringValue != "" {
+			*target = stringValue
+			return
+		}
+		*target = ""
+	}
+}
+
+func applyLegacyScheduleConfig(settings *config.Settings, values map[string]any) {
+	if value, ok := values["live_tv_enabled"].(bool); ok {
+		settings.LiveTVEnabled = value
+	}
+	if value, ok := values["channel_refresh_hours"].(float64); ok {
+		settings.ChannelRefreshH = int(value)
+	}
+	if value, ok := values["epg_refresh_hours"].(float64); ok {
+		settings.EPGRefreshH = int(value)
+	}
 }
 
 func (s *settingsState) Get() config.Settings {
@@ -149,12 +184,13 @@ func main() {
 	}
 	settings := &settingsState{settings: config.Settings{SourceMode: config.SourceModeDirectLogin, LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
 	service := app.NewService(app.Dependencies{Store: store, SnapshotStorage: snapshotStorage})
+	coordinator := pluginimpl.NewRefreshCoordinator(service)
 
 	sdkruntime.Serve(sdkruntime.ServeConfig{
 		Servers: sdkruntime.CapabilityServers{
 			Runtime:       &runtimeServer{manifest: manifest, settings: settings},
-			ScheduledTask: pluginimpl.NewScheduledTaskServerWithProvider(service, settings.Get),
-			HttpRoutes:    pluginimpl.NewHTTPRoutesServerWithSyncerAndAdminSettingsFile(store, settings.Get, service, ""),
+			ScheduledTask: pluginimpl.NewScheduledTaskServerWithCoordinator(coordinator, settings.Get),
+			HttpRoutes:    pluginimpl.NewHTTPRoutesServerWithCoordinatorAndAdminSettingsFile(store, settings.Get, coordinator, ""),
 		},
 	})
 }
@@ -195,15 +231,6 @@ func loadManifest() (*pluginv1.PluginManifest, error) {
 func asString(value any) string {
 	if stringValue, ok := value.(string); ok {
 		return stringValue
-	}
-	return ""
-}
-
-func firstString(values ...any) string {
-	for _, value := range values {
-		if stringValue := asString(value); stringValue != "" {
-			return stringValue
-		}
 	}
 	return ""
 }

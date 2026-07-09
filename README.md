@@ -2,19 +2,19 @@
 
 Dispatcharr-specific Silo plugin that runs as a Silo-hosted Live TV app.
 
-> **Important:** This app does **not** manage IPTV streams. It must be used
-> with Dispatcharr, and production installs should connect with a Dispatcharr
-> **Admin API Key**.
+> **Important:** This app does **not** manage IPTV streams. Dispatcharr Direct
+> with an **Admin API Key** is the recommended full-feature source. Xtream Codes
+> and M3U/XMLTV are supported as reduced-capability source modes.
 
 The plugin owns the Silo presentation layer for Live TV. It does not ingest,
-host, remux, transcode, or manage IPTV streams. Dispatcharr remains the required
-stream, channel, guide, proxy/output, and recording system.
+host, remux, transcode, or manage IPTV streams. The configured upstream remains
+responsible for streams, channels, guide data, and output URLs; Dispatcharr also
+owns recording behavior in Direct mode.
 
 ## Requirements and ownership boundaries
 
-- **Dispatcharr is required.** This plugin is designed to be used with a
-  Dispatcharr-backed Live TV environment and should be configured with a
-  Dispatcharr Admin API key.
+- **Dispatcharr Direct is preferred.** It is required for DVR scheduling and
+  recordings. Xtream and M3U/XMLTV expose playback and guide capabilities only.
 - **Dispatcharr manages streams.** Stream health, stream ordering, channel
   mapping, logos, guide IDs, output profiles, proxy/output URLs, and recording
   behavior are Dispatcharr responsibilities.
@@ -57,7 +57,14 @@ first-class Live TV provider capability.
 - Syncs Live TV channels, groups, guide data, VOD, and series through Dispatcharr REST
 - Keeps Xtream VOD and series support available when Xtream Codes mode is selected
 - Resolves playback targets fresh at play time
-- Tracks favorites, auto-favorites, hidden categories, recent channels, continue watching, and playback preferences in the plugin preference model
+- Stores favorites, hidden categories, recent channels, custom groups, and
+  playback preferences in Silo's per-user plugin configuration
+- Keeps backend app/status responses user-neutral because the current HTTP
+  route SDK does not provide a user identity to plugin handlers
+- Coordinates manual, scheduled, channel-only, and guide-only refreshes through
+  one serialized job state and preserves the last known good guide on failure
+- Loads guide, VOD, and series separately from the lightweight app bootstrap;
+  refresh polling uses only the status endpoint
 - Keeps stale metadata visible when sync fails
 - Exposes a plugin status route at `/dispatcharr/status`
 - Exposes a Silo-hosted IPTV app:
@@ -70,26 +77,45 @@ first-class Live TV provider capability.
   - `/dispatcharr/api/vod`
   - `/dispatcharr/api/series`
   - `/dispatcharr/api/recordings` (`GET` lists Dispatcharr DVR rows, `POST` schedules an EPG program on Dispatcharr)
-  - `/dispatcharr/api/favorites`
-  - `/dispatcharr/api/hidden-categories`
-  - `/dispatcharr/api/playback`
+  - `/dispatcharr/api/sports`
+  - `/dispatcharr/api/events`
+  - `/dispatcharr/api/status`
   - `/dispatcharr/stream?channel_id=...`
   - `/dispatcharr/vod/stream?item_id=...`
-- Supports a scheduled sync task with key `dispatcharr-sync`
+- Exposes host-scheduled task keys `dispatcharr-sync`,
+  `dispatcharr-refresh-channels`, and `dispatcharr-refresh-epg`
 - Shows Dispatcharr-managed DVR recordings in the plugin app when using Dispatcharr Direct Login or API Key mode. Like AerioTV's Dispatcharr server-side DVR flow, the plugin schedules recordings through Dispatcharr and opens Dispatcharr-owned playback URLs for completed or in-progress server recordings. It does not expose cancel/delete/stop controls.
-  - Recommended Silo task trigger: `interval`, `interval_ms: 86400000`
+  - Silo owns task cadence; the plugin cannot declare or change intervals
   - A `startup` trigger is useful after install/restart so channels and EPG populate immediately
+
+## Profile and group organization
+
+- Leave **Channel Profile** blank to ingest all Dispatcharr profiles and attach
+  every profile membership to each channel. Enter one profile ID or exact name
+  to scope both the lineup and browse tree to that profile.
+- Profiles answer “which lineup?” and channel groups answer “what kind of
+  channel?” In `Profile pipe + group pipe` mode the browser combines them as
+  `Profile / Group`, for example `US TV / NY / Locals / Buffalo`.
+- **Collapse duplicate virtual groups** removes only repeated adjacent path
+  labels such as `International TV / International TV`; it never drops a
+  channel. Sports/event channel matches also collapse repeated channel IDs.
 
 ## v1 limitations
 
 - Exactly one Dispatcharr-backed source
 - EPG is required for setup in Xtream and M3U/XMLTV-compatible modes
-- Per-user preference persistence depends on Silo exposing plugin-side user config writes; until then this repo keeps an in-memory preference store behind the route handlers
+- HTTP route requests do not include a Silo user identifier. Per-user state is
+  therefore read and written by the browser through Silo's user config API,
+  never through process-global plugin state.
 - Source-mode changes reset cached channel/guide state before rebuilding
 - Dispatcharr Direct does not silently fall back to Xtream Codes; Direct failures are surfaced in plugin health/status
 - Silo host integration still needs real environment validation
 - Native Jellyfin `/LiveTv/*` export is not available until Silo exposes a Live TV provider SDK/host capability
 - Backend proxy/remux/transcode is not enabled because the current HTTP route SDK response is buffered; playback uses direct redirect URLs
+- HTTP routes and navigation are static manifest declarations. Settings cannot
+  dynamically add/remove navigation entries.
+- Scheduled-task cadence and retry policy are host-owned. The plugin only
+  implements task execution.
 
 ## Silo host notes
 
@@ -99,7 +125,7 @@ Silo shows plugin Apps entries in the normal user sidebar when an HTTP route is 
 {
   "access": "authenticated",
   "navigable": true,
-  "navigation_label": "IPTV",
+    "navigation_label": "Live TV",
   "navigation_kind": "user"
 }
 ```
@@ -149,16 +175,25 @@ The repository includes `.gitlab-ci.yml` to run tests and produce versioned plug
 
 The repository also includes `.github/workflows/ci.yml` for GitHub-hosted runners.
 
-- Runs tests on every pull request and push.
+- Runs vet, unit tests, the race detector, JavaScript syntax checks, and manifest
+  validation on every pull request and push.
 - Builds Linux binaries for `amd64` and `arm64`.
-- Publishes a GitHub Release on every push:
-  - `main` branch pushes publish prerelease snapshots (`snapshot-<sha>` tags).
-  - `v*` tags publish normal releases.
+- Publishes a GitHub Release only for a `v*` tag after confirming the tag and
+  manifest versions match. Branch builds remain downloadable workflow artifacts.
+- When `CATALOG_PUSH_TOKEN` is configured, the tagged workflow updates and
+  validates `theramindex/silo-plugins` from the published binary checksums, then
+  commits the catalog change as `ramindex-ci <github@ramindex.org>`.
 
 ## Test
 
 ```bash
-go test ./... -v
+./scripts/verify-release.sh
+```
+
+For a tagged release candidate, also verify the intended version:
+
+```bash
+./scripts/verify-release.sh 0.2.204 --version-only
 ```
 
 ## Inspect manifest

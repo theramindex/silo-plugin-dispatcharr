@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 const DefaultSnapshotFile = "/var/lib/continuum/plugins/silo.ramindex.dispatcharr/catalog-snapshot.json"
@@ -19,6 +20,7 @@ type SnapshotStorage interface {
 
 type FileSnapshotStorage struct {
 	path string
+	mu   sync.Mutex
 }
 
 func NewFileSnapshotStorage(path string) *FileSnapshotStorage {
@@ -57,6 +59,9 @@ func (s *FileSnapshotStorage) Load() (Snapshot, bool, error) {
 }
 
 func (s *FileSnapshotStorage) Save(snapshot Snapshot) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if len(snapshot.Catalog.Channels) == 0 {
 		return nil
 	}
@@ -68,9 +73,26 @@ func (s *FileSnapshotStorage) Save(snapshot Snapshot) error {
 		return fmt.Errorf("encode catalog snapshot file: %w", err)
 	}
 	data = append(data, '\n')
-	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+	tmp, err := os.CreateTemp(filepath.Dir(s.path), ".catalog-snapshot-*")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, s.path)
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, s.path)
 }

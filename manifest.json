@@ -91,6 +91,27 @@
       "navigable": false
     },
     {
+      "id": "dispatcharr-asset-app-js",
+      "method": "GET",
+      "path": "/dispatcharr/assets/app.js",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-asset-lineup-js",
+      "method": "GET",
+      "path": "/dispatcharr/assets/lineup.js",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-asset-app-css",
+      "method": "GET",
+      "path": "/dispatcharr/assets/app.css",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
       "id": "dispatcharr-channels",
       "method": "GET",
       "path": "/dispatcharr/channels",
@@ -196,30 +217,9 @@
       "navigable": false
     },
     {
-      "id": "dispatcharr-api-sports-favorites",
-      "method": "POST",
-      "path": "/dispatcharr/api/sports/favorites",
-      "access": "authenticated",
-      "navigable": false
-    },
-    {
       "id": "dispatcharr-api-events",
       "method": "GET",
       "path": "/dispatcharr/api/events",
-      "access": "authenticated",
-      "navigable": false
-    },
-    {
-      "id": "dispatcharr-api-preferences",
-      "method": "GET",
-      "path": "/dispatcharr/api/preferences",
-      "access": "authenticated",
-      "navigable": false
-    },
-    {
-      "id": "dispatcharr-api-preferences-update",
-      "method": "POST",
-      "path": "/dispatcharr/api/preferences",
       "access": "authenticated",
       "navigable": false
     },
@@ -234,34 +234,6 @@
       "id": "dispatcharr-api-admin-settings-update",
       "method": "POST",
       "path": "/dispatcharr/api/admin-settings",
-      "access": "authenticated",
-      "navigable": false
-    },
-    {
-      "id": "dispatcharr-api-favorites",
-      "method": "POST",
-      "path": "/dispatcharr/api/favorites",
-      "access": "authenticated",
-      "navigable": false
-    },
-    {
-      "id": "dispatcharr-api-hidden-categories",
-      "method": "POST",
-      "path": "/dispatcharr/api/hidden-categories",
-      "access": "authenticated",
-      "navigable": false
-    },
-    {
-      "id": "dispatcharr-api-playback",
-      "method": "GET",
-      "path": "/dispatcharr/api/playback",
-      "access": "authenticated",
-      "navigable": false
-    },
-    {
-      "id": "dispatcharr-api-playback-update",
-      "method": "POST",
-      "path": "/dispatcharr/api/playback",
       "access": "authenticated",
       "navigable": false
     },

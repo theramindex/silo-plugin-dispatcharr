@@ -3,15 +3,14 @@ package app
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/dispatcharr"
+	sharedhttp "github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/httpclient"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
 )
 
@@ -54,8 +53,6 @@ type Service struct {
 	xtreamFactory      func(baseURL, username, password string) XtreamClient
 	dispatcharrFactory func(settings config.Settings) DispatcharrClient
 	fetchURL           func(ctx context.Context, rawURL string) ([]byte, error)
-	epgMu              sync.Mutex
-	epgRunning         bool
 }
 
 const SourceModeResetWarning = "Changing source mode resets cached channel and guide data before rebuilding Live TV."
@@ -92,52 +89,55 @@ func NewService(deps Dependencies) *Service {
 			}
 			response, err := client.Do(req)
 			if err != nil {
-				return nil, err
+				return nil, sharedhttp.RedactErrorURL(err)
 			}
 			defer response.Body.Close()
 			if response.StatusCode < 200 || response.StatusCode >= 300 {
 				return nil, fmt.Errorf("unexpected status %d", response.StatusCode)
 			}
-			return io.ReadAll(response.Body)
+			return sharedhttp.ReadAllLimit(response.Body, sharedhttp.MaxCatalogResponseBytes)
 		}
 	}
 
 	return &Service{store: store, snapshotStorage: deps.SnapshotStorage, xtreamFactory: factory, dispatcharrFactory: dispatcharrFactory, fetchURL: fetcher}
 }
 
-func (s *Service) replaceSnapshot(snapshot cache.Snapshot) {
+func (s *Service) replaceSnapshot(snapshot cache.Snapshot) error {
 	s.store.Replace(snapshot)
-	s.persistSnapshot()
+	return s.persistSnapshot()
 }
 
-func (s *Service) replaceSnapshotExact(snapshot cache.Snapshot) {
+func (s *Service) replaceSnapshotExact(snapshot cache.Snapshot) error {
 	s.store.ReplaceExact(snapshot)
-	s.persistSnapshot()
+	return s.persistSnapshot()
 }
 
-func (s *Service) replaceSnapshotAfterSync(snapshot cache.Snapshot, exactGuide bool) {
+func (s *Service) replaceSnapshotAfterSync(snapshot cache.Snapshot, exactGuide bool) error {
 	if exactGuide && len(snapshot.Catalog.Programs) > 0 {
-		s.replaceSnapshotExact(snapshot)
-		return
+		return s.replaceSnapshotExact(snapshot)
 	}
-	s.replaceSnapshot(snapshot)
+	return s.replaceSnapshot(snapshot)
 }
 
-func (s *Service) replacePrograms(programs []model.Program, atUnix int64) {
+func (s *Service) replacePrograms(programs []model.Program, atUnix int64) error {
+	if len(programs) == 0 {
+		err := fmt.Errorf("no guide programs were returned")
+		s.store.RecordEPGFailure(atUnix, err.Error())
+		_ = s.persistSnapshot()
+		return err
+	}
 	s.store.ReplacePrograms(programs, atUnix)
-	s.persistSnapshot()
+	return s.persistSnapshot()
 }
 
-func (s *Service) clearGuidePrograms(atUnix int64) {
-	s.store.ClearGuidePrograms(atUnix)
-	s.persistSnapshot()
-}
-
-func (s *Service) persistSnapshot() {
+func (s *Service) persistSnapshot() error {
 	if s.snapshotStorage == nil {
-		return
+		return nil
 	}
-	_ = s.snapshotStorage.Save(s.store.Current())
+	if err := s.snapshotStorage.Save(s.store.Current()); err != nil {
+		return fmt.Errorf("persist catalog snapshot: %w", err)
+	}
+	return nil
 }
 
 func (s *Service) SwitchSourceMode(ctx context.Context, previous, next config.Settings, nowUnix int64) (string, error) {

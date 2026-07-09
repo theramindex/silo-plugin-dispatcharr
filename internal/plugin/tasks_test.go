@@ -19,13 +19,14 @@ func TestScheduledTaskServerRunsSyncTask(t *testing.T) {
 	t.Parallel()
 
 	store := cache.NewStore()
+	client := &scheduledStubClient{
+		streams: []xtream.LiveStream{{Num: 1, Name: "News HD", StreamID: 1001, EPGChannelID: "news.hd"}},
+		epg:     xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "epg-1", Title: "Morning News", StartTimestamp: "1700000000", StopTimestamp: "1700003600"}}},
+	}
 	service := app.NewService(app.Dependencies{
 		Store: store,
 		XtreamFactory: func(string, string, string) app.XtreamClient {
-			return &scheduledStubClient{
-				streams: []xtream.LiveStream{{Num: 1, Name: "News HD", StreamID: 1001, EPGChannelID: "news.hd"}},
-				epg:     xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "epg-1", Title: "Morning News", StartTimestamp: "1700000000", StopTimestamp: "1700003600"}}},
-			}
+			return client
 		},
 	})
 	server := NewScheduledTaskServer(service, config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://dispatcharr.example.com", XtreamUsername: "demo", XtreamPassword: "secret", ChannelRefreshH: 24, EPGRefreshH: 6})
@@ -51,13 +52,14 @@ func TestScheduledTaskServerRunsSiloNamespacedSyncTask(t *testing.T) {
 	t.Parallel()
 
 	store := cache.NewStore()
+	client := &scheduledStubClient{
+		streams: []xtream.LiveStream{{Num: 1, Name: "News HD", StreamID: 1001, EPGChannelID: "news.hd"}},
+		epg:     xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "epg-1", Title: "Morning News", StartTimestamp: "1700000000", StopTimestamp: "1700003600"}}},
+	}
 	service := app.NewService(app.Dependencies{
 		Store: store,
 		XtreamFactory: func(string, string, string) app.XtreamClient {
-			return &scheduledStubClient{
-				streams: []xtream.LiveStream{{Num: 1, Name: "News HD", StreamID: 1001, EPGChannelID: "news.hd"}},
-				epg:     xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "epg-1", Title: "Morning News", StartTimestamp: "1700000000", StopTimestamp: "1700003600"}}},
-			}
+			return client
 		},
 	})
 	server := NewScheduledTaskServer(service, config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://dispatcharr.example.com", XtreamUsername: "demo", XtreamPassword: "secret", ChannelRefreshH: 24, EPGRefreshH: 6})
@@ -76,24 +78,46 @@ func TestScheduledTaskServerRunsChannelRefreshTask(t *testing.T) {
 	t.Parallel()
 
 	store := cache.NewStore()
+	settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://dispatcharr.example.com", XtreamUsername: "demo", XtreamPassword: "secret", ChannelRefreshH: 24, EPGRefreshH: 6}
+	store.Replace(cache.Snapshot{
+		Catalog: model.CatalogState{
+			Source:   model.LiveTVSource(model.SourceModeXtream),
+			Channels: []model.Channel{{ID: "xtream:1001", Name: "Old News"}},
+			Programs: []model.Program{{ID: "program:old", ChannelID: "xtream:1001", Title: "Old Morning"}},
+			Health:   model.SyncHealth{LastSuccessUnix: 100, EPGStatus: "ok", EPGProgramCount: 1, EPGLastSuccessUnix: 90},
+		},
+		Health:    model.SyncHealth{LastSuccessUnix: 100, EPGStatus: "ok", EPGProgramCount: 1, EPGLastSuccessUnix: 90},
+		ConfigKey: config.CatalogCacheKey(settings),
+	})
+	client := &scheduledStubClient{
+		streams: []xtream.LiveStream{{Num: 1, Name: "News HD", StreamID: 1001, EPGChannelID: "news.hd"}},
+		epg:     xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "epg-1", Title: "Morning News", StartTimestamp: "1700000000", StopTimestamp: "1700003600"}}},
+	}
 	service := app.NewService(app.Dependencies{
 		Store: store,
 		XtreamFactory: func(string, string, string) app.XtreamClient {
-			return &scheduledStubClient{
-				streams: []xtream.LiveStream{{Num: 1, Name: "News HD", StreamID: 1001, EPGChannelID: "news.hd"}},
-				epg:     xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "epg-1", Title: "Morning News", StartTimestamp: "1700000000", StopTimestamp: "1700003600"}}},
-			}
+			return client
 		},
 	})
-	server := NewScheduledTaskServer(service, config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://dispatcharr.example.com", XtreamUsername: "demo", XtreamPassword: "secret", ChannelRefreshH: 24, EPGRefreshH: 6})
+	server := NewScheduledTaskServer(service, settings)
 
-	if _, err := server.Run(context.Background(), &pluginv1.RunScheduledTaskRequest{TaskKey: ChannelRefreshTaskKey}); err != nil {
+	response, err := server.Run(context.Background(), &pluginv1.RunScheduledTaskRequest{TaskKey: ChannelRefreshTaskKey})
+	if err != nil {
 		t.Fatalf("run channel refresh task: %v", err)
+	}
+	if response.GetOutput().AsMap()["task"] != "channels" {
+		t.Fatalf("expected channels task output, got %+v", response.GetOutput().AsMap())
 	}
 
 	snapshot := store.Current()
 	if len(snapshot.Catalog.Channels) != 1 {
 		t.Fatalf("expected channel refresh to populate channels, got %+v", snapshot.Catalog)
+	}
+	if client.epgCalls != 0 {
+		t.Fatalf("channel refresh fetched guide data %d times", client.epgCalls)
+	}
+	if snapshot.Health.EPGLastSuccessUnix != 90 || snapshot.Health.EPGProgramCount != 1 {
+		t.Fatalf("channel refresh changed guide freshness: %+v", snapshot.Health)
 	}
 }
 
@@ -174,8 +198,9 @@ func TestScheduledTaskServerEPGRefreshKeepsGuideOnDirectFailure(t *testing.T) {
 }
 
 type scheduledStubClient struct {
-	streams []xtream.LiveStream
-	epg     xtream.ShortEPGResponse
+	streams  []xtream.LiveStream
+	epg      xtream.ShortEPGResponse
+	epgCalls int
 }
 
 func (s *scheduledStubClient) TestConnection(context.Context) error { return nil }
@@ -183,6 +208,7 @@ func (s *scheduledStubClient) LiveStreams(context.Context) ([]xtream.LiveStream,
 	return s.streams, nil
 }
 func (s *scheduledStubClient) ShortEPG(context.Context, int64) (xtream.ShortEPGResponse, error) {
+	s.epgCalls++
 	return s.epg, nil
 }
 func (s *scheduledStubClient) ResolveLiveStreamURL(streamID int64) string {

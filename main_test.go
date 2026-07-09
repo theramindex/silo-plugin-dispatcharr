@@ -35,6 +35,37 @@ func TestRuntimeConfigureReadsObjectShapedConfigEntries(t *testing.T) {
 	}
 }
 
+func TestRuntimeConfigurePreservesSecretsOmittedByHost(t *testing.T) {
+	t.Parallel()
+
+	state := &settingsState{settings: config.Settings{
+		SourceMode:        config.SourceModeAPIKey,
+		DispatcharrURL:    "https://dispatcharr.example.com",
+		DispatcharrAPIKey: "existing-secret",
+		ChannelRefreshH:   config.DefaultChannelRefreshHours,
+		EPGRefreshH:       config.DefaultEPGRefreshHours,
+	}}
+	server := &runtimeServer{settings: state}
+	request := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{
+		{Key: "connection", Value: mustStruct(t, map[string]any{
+			"source_mode":     "api_key",
+			"base_url":        "https://dispatcharr.example.com",
+			"channel_profile": "The Ramindex | NY",
+		})},
+	}}
+
+	if _, err := server.Configure(context.Background(), request); err != nil {
+		t.Fatalf("configure: %v", err)
+	}
+	settings := state.Get()
+	if settings.DispatcharrAPIKey != "existing-secret" {
+		t.Fatalf("omitted secret was erased: %+v", settings)
+	}
+	if settings.ChannelProfile != "The Ramindex | NY" {
+		t.Fatalf("expected present profile field to update: %+v", settings)
+	}
+}
+
 func TestRuntimeConfigureMapsXtreamSharedConnectionFields(t *testing.T) {
 	t.Parallel()
 
@@ -126,29 +157,63 @@ func TestManifestGlobalConfigSchemasValidateExpectedObjects(t *testing.T) {
 		t.Fatalf("load manifest: %v", err)
 	}
 
-	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "api_key", "base_url": "https://dispatcharr.example.com", "api_key": "secret", "live_tv_enabled": true}); err != nil {
+	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "api_key", "base_url": "https://dispatcharr.example.com", "api_key": "secret"}); err != nil {
 		t.Fatalf("validate connection schema: %v", err)
 	}
-	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "xtream", "base_url": "https://provider.example.com", "username": "demo", "password": "secret", "epg_xml_url": "https://provider.example.com/guide.xml", "live_tv_enabled": true}); err != nil {
+	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "xtream", "base_url": "https://provider.example.com", "username": "demo", "password": "secret", "epg_xml_url": "https://provider.example.com/guide.xml"}); err != nil {
 		t.Fatalf("validate xtream connection schema: %v", err)
 	}
-	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "m3u_xmltv", "m3u_url": "https://provider.example.com/playlist.m3u", "epg_xml_url": "https://provider.example.com/guide.xml", "live_tv_enabled": true}); err != nil {
+	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "m3u_xmltv", "m3u_url": "https://provider.example.com/playlist.m3u", "epg_xml_url": "https://provider.example.com/guide.xml"}); err != nil {
 		t.Fatalf("validate m3u/xmltv connection schema: %v", err)
 	}
 	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "m3u_xmltv", "m3u_url": "https://provider.example.com/playlist.m3u"}); err == nil {
 		t.Fatalf("expected incomplete m3u/xmltv connection to fail validation")
 	}
 	if err := configsdk.ValidateManifestGlobalValue(manifest, "category_settings", map[string]any{
-		"mode":       "delimiter",
-		"delimiter":  "pipe",
-		"ecmEnabled": false,
-		"ecmURL":     "https://ecm.example.test/manage",
+		"mode":                           "delimiter",
+		"delimiter":                      "pipe",
+		"virtualGroupSource":             "profile_group",
+		"collapseDuplicateVirtualGroups": true,
+		"ecmEnabled":                     false,
+		"ecmURL":                         "https://ecm.example.test/manage",
 		"categoryAliases": []any{
 			map[string]any{"sourcePath": "International | Arabic | Sports", "aliasPath": "Sports | Arabic"},
 			map[string]any{"sourcePath": "International | Arabic | Sports", "aliasPath": "World Cup | Arabic"},
 		},
+		"eventKeywords": []any{
+			map[string]any{"categoryId": "entertainment", "categoryName": "Entertainment", "keywords": []any{"Festival"}},
+		},
 	}); err != nil {
 		t.Fatalf("validate category settings schema: %v", err)
+	}
+}
+
+func TestManifestUserPreferenceSchemaAcceptsBrowserPayload(t *testing.T) {
+	t.Parallel()
+
+	manifest, err := loadManifest()
+	if err != nil {
+		t.Fatalf("load manifest: %v", err)
+	}
+	preferences := map[string]any{
+		"favorites":           map[string]any{"channel:1": true},
+		"favoriteOrder":       []any{"channel:1"},
+		"autoFavorites":       map[string]any{},
+		"hiddenCategories":    map[string]any{},
+		"sportsFavoriteTeams": map[string]any{},
+		"keywordPasses":       []any{map[string]any{"id": "pass:1", "keyword": "World Cup", "createdAt": float64(100)}},
+		"recentSearches":      []any{"World Cup"},
+		"recentChannels":      []any{"channel:1"},
+		"continueWatching":    map[string]any{"channel:1": map[string]any{"plays": float64(1)}},
+		"playback":            map[string]any{"streamMode": "redirect", "outputFormat": "ts"},
+		"categoryParsing":     map[string]any{"enabled": true, "mode": "delimiter", "delimiter": "pipe", "regex": "", "output": ""},
+		"customGroups":        []any{map[string]any{"id": "group:news", "name": "News", "order": float64(1)}},
+		"customGroupMemberships": map[string]any{
+			"group:news": []any{"channel:1"},
+		},
+	}
+	if err := configsdk.ValidateManifestUserValue(manifest, "preferences", preferences); err != nil {
+		t.Fatalf("validate browser preference payload: %v", err)
 	}
 }
 
