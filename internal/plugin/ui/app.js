@@ -252,6 +252,7 @@ function normalizeAdminCategorySettings() {
   state.adminCategorySettings.collapseDuplicateVirtualGroups = state.adminCategorySettings.collapseDuplicateVirtualGroups !== false;
   delete state.adminCategorySettings.collapseDuplicateProfileGroups;
   state.adminCategorySettings.virtualGroupSource = normalizeVirtualGroupSource(state.adminCategorySettings.virtualGroupSource, state.adminCategorySettings.inferChannelNameGroups === true);
+  if (state.adminCategorySettings.virtualGroupSource === "profile_group") state.adminCategorySettings.mode = "delimiter";
   state.adminCategorySettings.inferChannelNameGroups = state.adminCategorySettings.virtualGroupSource !== "group";
   state.adminCategorySettings.ecmURL = normalizeAdminECMURL(state.adminCategorySettings.ecmURL);
   state.adminCategorySettings.ecmEnabled = !!state.adminCategorySettings.ecmURL;
@@ -3511,8 +3512,8 @@ function renderAdminIntegrationsTab() {
 }
 function adminStatusPill(status) {
   status = String(status || "ok").toLowerCase();
-  const label = status === "failed" ? "Error" : (status === "loading" ? "Updating" : (status === "error" ? "Error" : "Healthy"));
-  const cls = status === "loading" ? " loading" : ((status === "error" || status === "failed") ? " error" : "");
+  const label = status === "failed" ? "Error" : (status === "loading" ? "Updating" : (status === "error" ? "Error" : (status === "unavailable" ? "Unavailable" : (status === "all_access" ? "All access" : (status === "empty" ? "Not assigned" : (status === "available" ? "Available" : "Healthy"))))));
+  const cls = status === "loading" ? " loading" : ((status === "error" || status === "failed" || status === "unavailable") ? " error" : ((status === "empty" || status === "all_access") ? " warning" : ""));
   return "<span class=\"admin-status-pill" + cls + "\">" + escapeHTML(label) + "</span>";
 }
 function plainTextFromHTML(value) {
@@ -3524,14 +3525,22 @@ function adminStatusItem(label, value, detail) {
 function adminStatusPanel() {
   const status = state.app && state.app.status ? state.app.status : {};
   const source = state.app && state.app.source ? state.app.source : {};
+  const profileAccess = source.profileAccess || {};
   const guideStatus = String(status.epgStatus || (status.epgProgramCount ? "ok" : "unknown"));
   const error = status.lastError || status.epgLastError || "";
+  const profileStatus = String(profileAccess.status || (items(source.profiles).length ? "available" : "empty"));
+  const profileCount = Number(profileAccess.profileCount || items(source.profiles).length || 0);
+  const membershipCount = Number(profileAccess.channelMembershipCount || 0);
+  const profileValue = profileStatus === "available" ? escapeHTML(String(profileCount)) : adminStatusPill(profileStatus);
+  const profileDetail = profileStatus === "available" ? String(membershipCount) + " channel memberships" : (profileAccess.message || "No profile information returned by Dispatcharr.");
   return "<div class=\"admin-status-strip\" aria-label=\"Connection Status\"><div class=\"settings-card-head\"><div><h2>Connection Status</h2></div></div><div class=\"admin-status-grid\">"
     + adminStatusItem("Connection", adminStatusPill(status.status || "ok"), sourceModeLabel(source.mode))
     + adminStatusItem("Channels", escapeHTML(String(status.channelCount || items(state.app.channels).length || 0)), "Last catalog sync: " + dateTimeLabel(status.lastSuccessUnix))
     + adminStatusItem("Guide", adminStatusPill(guideStatus), String(status.epgProgramCount || items(state.app.programs).length || 0) + " programs · " + dateTimeLabel(status.epgLastSuccessUnix))
+    + (isDispatcharrDirectSource() ? adminStatusItem("Profiles", profileValue, profileDetail) : "")
     + "</div>"
     + (error ? "<div class=\"settings-note settings-warning admin-status-note\">" + escapeHTML(error) + "</div>" : "")
+    + (isDispatcharrDirectSource() && profileStatus !== "available" ? "<div class=\"settings-note settings-warning admin-status-note\">" + escapeHTML(profileDetail) + "</div>" : "")
     + "</div>";
 }
 function renderExternalChannelManager() {
@@ -3547,6 +3556,7 @@ function renderAdminECMSettings() {
 function renderAdminCategorySettings() {
   const settings = adminSettings();
   const root = byId("admin-category-settings");
+  const profileAccess = state.app && state.app.source && state.app.source.profileAccess ? state.app.source.profileAccess : {};
   const sourceHelp = "Choose whether virtual groups come from Dispatcharr groups, profiles, channel names, or a combination.";
   const nested = settings.mode !== "normal" ? "<div class=\"settings-list-nested\">"
     + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Delimiter</strong><small>Split source names into nested virtual groups.</small></span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Sports - NHL Teams</option></select></div>"
@@ -3558,6 +3568,7 @@ function renderAdminCategorySettings() {
     + "<div class=\"settings-row settings-form-row settings-source-row\"><span class=\"settings-field-copy\"><strong>Virtual group source</strong><small>" + escapeHTML(sourceHelp) + "</small></span><select data-admin-category-field=\"virtualGroupSource\"><option value=\"group\"" + (virtualGroupSourceMode() === "group" ? " selected" : "") + ">Group pipe</option><option value=\"group_channel\"" + (virtualGroupSourceMode() === "group_channel" ? " selected" : "") + ">Group pipe + channel pipe</option><option value=\"profile_group\"" + (virtualGroupSourceMode() === "profile_group" ? " selected" : "") + ">Profile pipe + group pipe</option><option value=\"channel\"" + (virtualGroupSourceMode() === "channel" ? " selected" : "") + ">Channel pipe</option></select></div>"
     + "<label class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Collapse duplicate virtual groups</strong><small>Skip repeated names when group, profile, or channel path labels overlap.</small></span><input type=\"checkbox\" data-admin-category-field=\"collapseDuplicateVirtualGroups\"" + (settings.collapseDuplicateVirtualGroups !== false ? " checked" : "") + "></label>"
     + renderOrganizationPreview(settings)
+    + (virtualGroupSourceMode() === "profile_group" && profileAccess.status !== "available" ? "<div class=\"settings-note settings-warning\">" + escapeHTML(profileAccess.message || "No Channel Profiles are available to the configured Dispatcharr account. Assign profiles in Dispatcharr, then refresh Live TV.") + "</div>" : "")
     + (settings.mode === "normal" ? "<div class=\"settings-note\">Channel groups are shown as provided, without remapping or resorting.</div>" : "");
 }
 function organizationPreviewPath(settings) {

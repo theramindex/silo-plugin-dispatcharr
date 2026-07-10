@@ -377,6 +377,9 @@ func TestSyncDirectLoginScopesChannelsAndGuideToChannelProfile(t *testing.T) {
 	if snapshot.Catalog.Source.ChannelProfile == nil || snapshot.Catalog.Source.ChannelProfile.Name != "The Ramindex - NYC" {
 		t.Fatalf("expected selected profile on source, got %+v", snapshot.Catalog.Source)
 	}
+	if access := snapshot.Catalog.Source.ProfileAccess; access == nil || access.Status != "available" || access.ProfileCount != 1 || access.ChannelMembershipCount != 1 {
+		t.Fatalf("expected available profile access metadata, got %+v", access)
+	}
 	if len(snapshot.Catalog.Programs) != 2 {
 		t.Fatalf("expected two NYC guide programs, got %+v", snapshot.Catalog.Programs)
 	}
@@ -384,6 +387,74 @@ func TestSyncDirectLoginScopesChannelsAndGuideToChannelProfile(t *testing.T) {
 		if strings.HasPrefix(program.Title, "LA ") {
 			t.Fatalf("expected LA programs to be filtered out, got %+v", snapshot.Catalog.Programs)
 		}
+	}
+}
+
+func TestSyncDirectLoginReportsEmptyChannelProfileAccess(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	service := NewService(Dependencies{
+		Store: store,
+		DispatcharrFactory: func(config.Settings) DispatcharrClient {
+			return &stubDispatcharrClient{
+				channels: []dispatcharr.Channel{{ID: "1", UUID: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", Name: "News"}},
+				currentUser: dispatcharr.CurrentUser{
+					ID:        "7",
+					Username:  "viewer",
+					UserLevel: 1,
+				},
+			}
+		},
+	})
+
+	err := service.SyncNow(context.Background(), config.Settings{
+		SourceMode:      config.SourceModeDirectLogin,
+		DispatcharrURL:  "https://dispatcharr.example.com",
+		DispatcharrUser: "demo",
+		DispatcharrPass: "secret",
+		ChannelRefreshH: 24,
+		EPGRefreshH:     24,
+	}, 611)
+	if err != nil {
+		t.Fatalf("expected sync without assigned profiles to succeed, got %v", err)
+	}
+
+	access := store.Current().Catalog.Source.ProfileAccess
+	if access == nil || access.Status != "all_access" || !strings.Contains(access.Message, "does not enumerate") {
+		t.Fatalf("expected explicit unrestricted profile access metadata, got %+v", access)
+	}
+}
+
+func TestSyncDirectLoginReportsUnavailableChannelProfiles(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	service := NewService(Dependencies{
+		Store: store,
+		DispatcharrFactory: func(config.Settings) DispatcharrClient {
+			return &stubDispatcharrClient{
+				channels:    []dispatcharr.Channel{{ID: "1", UUID: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", Name: "News"}},
+				profilesErr: errors.New("request failed (403): Forbidden"),
+			}
+		},
+	})
+
+	err := service.SyncNow(context.Background(), config.Settings{
+		SourceMode:      config.SourceModeDirectLogin,
+		DispatcharrURL:  "https://dispatcharr.example.com",
+		DispatcharrUser: "demo",
+		DispatcharrPass: "secret",
+		ChannelRefreshH: 24,
+		EPGRefreshH:     24,
+	}, 612)
+	if err != nil {
+		t.Fatalf("expected profile metadata failure not to block channel sync, got %v", err)
+	}
+
+	access := store.Current().Catalog.Source.ProfileAccess
+	if access == nil || access.Status != "unavailable" || !strings.Contains(access.Message, "403") {
+		t.Fatalf("expected unavailable profile access metadata, got %+v", access)
 	}
 }
 
@@ -808,6 +879,9 @@ type stubDispatcharrClient struct {
 	channelsErr    error
 	groups         []dispatcharr.ChannelGroup
 	profiles       []dispatcharr.ChannelProfile
+	profilesErr    error
+	currentUser    dispatcharr.CurrentUser
+	currentUserErr error
 	programs       []dispatcharr.Program
 	searchPrograms []dispatcharr.ProgramSearchResult
 	vodCategories  []dispatcharr.VODCategory
@@ -833,7 +907,13 @@ func (s *stubDispatcharrClient) ChannelGroups(context.Context) ([]dispatcharr.Ch
 	return s.groups, nil
 }
 func (s *stubDispatcharrClient) ChannelProfiles(context.Context) ([]dispatcharr.ChannelProfile, error) {
-	return s.profiles, nil
+	return s.profiles, s.profilesErr
+}
+func (s *stubDispatcharrClient) CurrentUser(context.Context) (dispatcharr.CurrentUser, error) {
+	if s.currentUser.UserLevel == 0 && s.currentUserErr == nil {
+		return dispatcharr.CurrentUser{ID: "1", Username: "admin", UserLevel: 10}, nil
+	}
+	return s.currentUser, s.currentUserErr
 }
 func (s *stubDispatcharrClient) Programs(context.Context) ([]dispatcharr.Program, error) {
 	return s.programs, nil

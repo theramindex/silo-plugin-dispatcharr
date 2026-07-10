@@ -230,6 +230,9 @@ func (s *scheduledDispatcharrFailureClient) ChannelGroups(context.Context) ([]di
 func (s *scheduledDispatcharrFailureClient) ChannelProfiles(context.Context) ([]dispatcharr.ChannelProfile, error) {
 	return nil, nil
 }
+func (s *scheduledDispatcharrFailureClient) CurrentUser(context.Context) (dispatcharr.CurrentUser, error) {
+	return dispatcharr.CurrentUser{ID: "1", Username: "admin", UserLevel: 10}, nil
+}
 func (s *scheduledDispatcharrFailureClient) Programs(context.Context) ([]dispatcharr.Program, error) {
 	return nil, nil
 }
