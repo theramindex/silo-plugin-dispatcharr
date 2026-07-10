@@ -223,7 +223,7 @@ func GlobalConfigSchema() []*ConfigSchema {
 			{Key: "m3u_url", Label: "M3U Playlist URL", Description: "Only used by M3U + XMLTV. Leave this blank for Direct Connect, API Key, and Xtream Codes.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_TEXT, Placeholder: "https://provider.example.com/playlist.m3u"},
 			{Key: "epg_xml_url", Label: "Custom XMLTV URL", Description: "Required for M3U + XMLTV. Optional for Xtream Codes if you want to override the provider's built-in EPG.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_TEXT, Placeholder: "https://provider.example.com/guide.xml"},
 		}, "Save Dispatcharr for Silo settings"),
-		objectSchema("category_settings", "Live TV Category Settings", "Admin-managed Live TV category presentation mode and delimiter.", categorySettingsJSONSchema, false, []*pluginv1.AdminFormField{}, "Save category settings"),
+		objectSchema("category_settings", "Live TV Admin Settings", "Admin-managed Live TV organization, recording, event, and ECM settings.", categorySettingsJSONSchema, false, []*pluginv1.AdminFormField{}, "Save admin settings"),
 	}
 }
 

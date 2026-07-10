@@ -733,8 +733,13 @@ func (s *HTTPRoutesServer) handleAdminSettings(ctx context.Context, request *plu
 			return textResponse(http.StatusInternalServerError, "could not save admin settings"), nil
 		}
 	}
+	persistCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if err := s.persistAdminSettings(persistCtx, normalized); err != nil {
+		log.Printf("dispatcharr: persist admin plugin settings failed: %v", err)
+		return textResponse(http.StatusBadGateway, "could not save plugin settings"), nil
+	}
 	saved := s.store.SetAdminSettings(encoded)
-	s.persistAdminSettingsAsync(normalized)
 	return s.respondJSON(http.StatusOK, json.RawMessage(saved))
 }
 
@@ -776,26 +781,6 @@ func (s *HTTPRoutesServer) persistAdminSettings(ctx context.Context, payload map
 		return fmt.Errorf("runtime host unavailable")
 	}
 	return host.SetGlobalConfigEntry(ctx, "category_settings", payload)
-}
-
-func (s *HTTPRoutesServer) persistAdminSettingsAsync(payload map[string]any) {
-	if s.adminPersister != nil {
-		if err := s.persistAdminSettings(context.Background(), payload); err != nil {
-			log.Printf("dispatcharr: persist admin settings failed: %v", err)
-		}
-		return
-	}
-	copyPayload := make(map[string]any, len(payload))
-	for key, value := range payload {
-		copyPayload[key] = value
-	}
-	go func() {
-		persistCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-		defer cancel()
-		if err := s.persistAdminSettings(persistCtx, copyPayload); err != nil {
-			log.Printf("dispatcharr: persist admin settings failed: %v", err)
-		}
-	}()
 }
 
 func (s *HTTPRoutesServer) handleFavorite(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {

@@ -548,13 +548,13 @@ function saveAdminCategorySettings() {
   }).then(function() {
     state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
     state.adminSaveStatus = "saved";
-    state.adminSaveMessage = "Saved group settings.";
+    state.adminSaveMessage = "Saved plugin settings.";
     if (state.view === "admin") renderAdminPage();
   }).catch(function(error) {
     state.adminSaveStatus = "error";
-    state.adminSaveMessage = "Could not save group settings: " + readableError(error);
+    state.adminSaveMessage = "Could not save plugin settings: " + readableError(error);
     if (state.view === "admin") renderAdminPage();
-    try { console.warn("Dispatcharr admin group settings save failed", error); } catch (_) {}
+    try { console.warn("Dispatcharr admin plugin settings save failed", error); } catch (_) {}
   });
 }
 function discardAdminCategorySettings() {
@@ -3542,7 +3542,7 @@ function renderAdminECMSettings() {
   const settings = adminSettings();
   const root = byId("admin-ecm-settings");
   if (!root) return;
-  root.innerHTML = "<div class=\"settings-row ecm-url-row compact-row\"><span><strong>ECM URL</strong><small>Leave blank to hide Channel Manager.</small></span><input type=\"url\" data-admin-ecm-field=\"url\" value=\"" + escapeHTML(settings.ecmURL || "") + "\"></div>";
+  root.innerHTML = adminSaveStatusHTML() + "<div class=\"settings-row ecm-url-row compact-row\"><span><strong>ECM URL</strong><small>Leave blank to hide Channel Manager.</small></span><input type=\"url\" data-admin-ecm-field=\"url\" value=\"" + escapeHTML(settings.ecmURL || "") + "\"></div>";
 }
 function renderAdminCategorySettings() {
   const settings = adminSettings();
