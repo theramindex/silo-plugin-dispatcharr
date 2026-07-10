@@ -507,6 +507,13 @@ async function savePluginSettingValue(key, value) {
   values[key] = value;
   await corePutNoContent("/api/v1/settings/plugins/" + encodeURIComponent(pluginInstallationID), { values: values });
 }
+async function persistAdminCategorySettingsInSilo(settings) {
+  if (!pluginInstallationID) throw new Error("plugin installation settings unavailable");
+  await corePutNoContent("/api/v1/admin/plugins/installations/" + encodeURIComponent(pluginInstallationID) + "/config", {
+    key: "category_settings",
+    value: settings
+  });
+}
 function savePrefs(options) {
   if (!state.app || !state.app.preferences) return;
   options = options || {};
@@ -539,6 +546,7 @@ function saveAdminCategorySettings() {
   postJSON(adminSettingsURL(), state.adminCategorySettings).then(function(saved) {
     state.adminCategorySettings = readAdminSettingsValue(saved);
     normalizeAdminCategorySettings();
+    return persistAdminCategorySettingsInSilo(state.adminCategorySettings);
   }).then(function() {
     state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
     state.adminSaveStatus = "saved";

@@ -458,6 +458,50 @@ func TestSyncDirectLoginReportsUnavailableChannelProfiles(t *testing.T) {
 	}
 }
 
+func TestSyncAPIKeyProfileFailurePreservesLastGoodCatalog(t *testing.T) {
+	t.Parallel()
+
+	settings := config.Settings{
+		SourceMode:        config.SourceModeAPIKey,
+		DispatcharrURL:    "https://dispatcharr.example.com",
+		DispatcharrAPIKey: "secret",
+		ChannelRefreshH:   24,
+		EPGRefreshH:       24,
+	}
+	store := cache.NewStore()
+	source := model.LiveTVSource(model.SourceModeDirectLogin)
+	source.ProfileAccess = &model.ProfileAccess{Status: "available", ProfileCount: 1, ChannelMembershipCount: 1}
+	source.Profiles = []model.ChannelProfile{{ID: "10", Name: "US TV | NY", ChannelCount: 1}}
+	store.Replace(cache.Snapshot{
+		ConfigKey: config.CatalogCacheKey(settings),
+		Catalog: model.CatalogState{
+			Source:   source,
+			Channels: []model.Channel{{ID: "dispatcharr:old", Name: "Old Channel", ProfileIDs: []string{"10"}}},
+		},
+	})
+	service := NewService(Dependencies{
+		Store: store,
+		DispatcharrFactory: func(config.Settings) DispatcharrClient {
+			return &stubDispatcharrClient{
+				channels:    []dispatcharr.Channel{{ID: "2", UUID: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", Name: "Replacement Channel"}},
+				profilesErr: context.Canceled,
+			}
+		},
+	})
+
+	err := service.RefreshChannelsNow(context.Background(), settings, 613)
+	if err == nil || !strings.Contains(err.Error(), "channel profiles unavailable") {
+		t.Fatalf("expected API key profile failure, got %v", err)
+	}
+	current := store.Current()
+	if len(current.Catalog.Channels) != 1 || current.Catalog.Channels[0].ID != "dispatcharr:old" {
+		t.Fatalf("expected last good channel catalog to remain intact, got %+v", current.Catalog.Channels)
+	}
+	if access := current.Catalog.Source.ProfileAccess; access == nil || access.Status != "available" || access.ProfileCount != 1 {
+		t.Fatalf("expected last good profile access to remain intact, got %+v", access)
+	}
+}
+
 func TestProfileMembershipDeduplicatesRepeatedChannelRows(t *testing.T) {
 	t.Parallel()
 
