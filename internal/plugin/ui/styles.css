@@ -635,6 +635,10 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .admin-status-pill.loading { background: rgba(74,54,110,0.48); color: #eee4ff; }
 .admin-status-pill.warning { background: rgba(113,79,24,0.48); color: #fff0c2; }
 .admin-status-note { margin-top: 0.65rem; }
+.admin-status-note.is-actionable { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.admin-status-note.is-actionable button { flex: 0 0 auto; border: 1px solid var(--line); border-radius: 0.4rem; background: var(--panel); color: var(--text); padding: 0.42rem 0.65rem; font-weight: 820; }
+.admin-status-note.is-actionable button:hover { background: var(--panel-2); }
+.admin-status-note.is-actionable button:disabled { opacity: 0.55; }
 .alias-add-row { display: grid; grid-template-columns: 8rem minmax(13rem, 1.3fr) minmax(12rem, 1fr) auto; }
 .alias-add-row input, .alias-add-row select { width: 100%; min-width: 0; }
 .alias-builder { display: grid; grid-template-columns: minmax(16rem, 1.15fr) minmax(16rem, 1fr) auto; gap: 0.7rem; align-items: end; padding: 0.72rem; border-radius: 0.5rem; background: var(--panel); }

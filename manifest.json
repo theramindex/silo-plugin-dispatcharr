@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.dispatcharr",
-  "version": "0.3.12",
+  "version": "0.3.13",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -158,6 +158,13 @@
       "method": "POST",
       "path": "/dispatcharr/api/refresh",
       "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-refresh-channels",
+      "method": "POST",
+      "path": "/dispatcharr/api/refresh-channels",
+      "access": "admin",
       "navigable": false
     },
     {

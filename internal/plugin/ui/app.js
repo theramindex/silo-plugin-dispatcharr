@@ -8,7 +8,7 @@ const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuff
 const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "" };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminProfileRefreshing: false };
 
 function applySiloTheme() {
   const params = new URLSearchParams(window.location.search);
@@ -3541,8 +3541,35 @@ function adminStatusPanel() {
     + (isDispatcharrDirectSource() ? adminStatusItem("Profiles", profileValue, profileDetail) : "")
     + "</div>"
     + (error ? "<div class=\"settings-note settings-warning admin-status-note\">" + escapeHTML(error) + "</div>" : "")
-    + (isDispatcharrDirectSource() && profileStatus !== "available" ? "<div class=\"settings-note settings-warning admin-status-note\">" + escapeHTML(profileDetail) + "</div>" : "")
+    + (isDispatcharrDirectSource() && profileStatus !== "available" ? "<div class=\"settings-note settings-warning admin-status-note is-actionable\"><span>" + escapeHTML(profileDetail) + "</span><button type=\"button\" data-admin-profile-refresh=\"true\"" + (state.adminProfileRefreshing ? " disabled" : "") + ">" + (state.adminProfileRefreshing ? "Refreshing..." : "Retry profiles") + "</button></div>" : "")
     + "</div>";
+}
+
+async function refreshAdminProfiles() {
+  if (state.adminProfileRefreshing) return;
+  state.adminProfileRefreshing = true;
+  renderAdminPage();
+  try {
+    await hydrateApp(await postJSON("/dispatcharr/api/refresh-channels", {}), { reuseSettings: true });
+    for (let attempt = 0; attempt < 150; attempt++) {
+      const profileAccess = state.app && state.app.source ? state.app.source.profileAccess || {} : {};
+      const refresh = state.app && state.app.status ? state.app.status.refresh || {} : {};
+      const refreshState = String(refresh.state || "").toLowerCase();
+      if (profileAccess.status === "available") {
+        showAppToast("Channel profiles refreshed.");
+        return;
+      }
+      if (refreshState === "failed" || refreshState === "canceled") throw new Error(refresh.error || "profile refresh did not complete");
+      await new Promise(function(resolve) { setTimeout(resolve, 2000); });
+      await refreshStatusData();
+    }
+    throw new Error("profile refresh timed out");
+  } catch (error) {
+    showAppToast("Dispatcharr profile refresh failed.");
+  } finally {
+    state.adminProfileRefreshing = false;
+    renderAdminPage();
+  }
 }
 function renderExternalChannelManager() {
   const managerURL = adminECMURL();
@@ -4510,6 +4537,12 @@ document.addEventListener("click", function(event) {
     const action = adminAliasAction.getAttribute("data-admin-alias-action");
     if (action === "add") addAdminCategoryAlias();
     if (action === "remove") removeAdminCategoryAlias(Number(adminAliasAction.getAttribute("data-admin-alias-index")));
+    return;
+  }
+  const adminProfileRefresh = event.target.closest("[data-admin-profile-refresh]");
+  if (adminProfileRefresh) {
+    event.preventDefault();
+    refreshAdminProfiles();
     return;
   }
   const adminSettingsAction = event.target.closest("[data-admin-settings-action]");
