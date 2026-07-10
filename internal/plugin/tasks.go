@@ -3,7 +3,6 @@ package plugin
 import (
 	"context"
 	"strings"
-	"time"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/app"
@@ -40,28 +39,41 @@ func NewScheduledTaskServerWithCoordinator(coordinator *RefreshCoordinator, prov
 func (s *ScheduledTaskServer) Run(ctx context.Context, request *pluginv1.RunScheduledTaskRequest) (*pluginv1.RunScheduledTaskResponse, error) {
 	taskKey := request.GetTaskKey()
 	taskKind := "unknown"
-	now := time.Now().Unix()
+	operation := RefreshCatalog
 	switch {
 	case isTaskKey(taskKey, SyncTaskKey):
 		taskKind = "catalog"
-		if err := s.coordinator.Run(ctx, RefreshCatalog, s.settingsProvider(), now); err != nil {
-			return nil, err
-		}
 	case isTaskKey(taskKey, ChannelRefreshTaskKey):
 		taskKind = "channels"
-		if err := s.coordinator.Run(ctx, RefreshChannels, s.settingsProvider(), now); err != nil {
-			return nil, err
-		}
+		operation = RefreshChannels
 	case isTaskKey(taskKey, EPGRefreshTaskKey):
 		taskKind = "epg"
-		if err := s.coordinator.Run(ctx, RefreshGuide, s.settingsProvider(), now); err != nil {
-			return nil, err
-		}
+		operation = RefreshGuide
 	default:
 		return nil, status.Errorf(codes.InvalidArgument, "unknown scheduled task %q", taskKey)
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	settings := s.settingsProvider()
+	if err := settings.Validate(); err != nil {
+		return nil, err
+	}
+	job, started := s.coordinator.Start(operation, settings)
+	if !started && job.State == RefreshFailed {
+		return nil, status.Error(codes.FailedPrecondition, job.Error)
+	}
+	statusLabel := "queued"
+	if !started {
+		statusLabel = "coalesced"
+	}
 
-	output, err := structpb.NewStruct(map[string]any{"status": "ok", "task": taskKind})
+	output, err := structpb.NewStruct(map[string]any{
+		"status":    statusLabel,
+		"task":      taskKind,
+		"jobId":     job.ID,
+		"operation": string(job.Operation),
+	})
 	if err != nil {
 		return nil, err
 	}
