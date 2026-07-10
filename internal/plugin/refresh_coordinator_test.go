@@ -123,6 +123,34 @@ func TestRefreshCoordinatorDoesNotReplaceFullRefreshWithGuideWarm(t *testing.T) 
 	}
 }
 
+func TestRefreshCoordinatorDoesNotCancelChannelRecoveryForGuideWarm(t *testing.T) {
+	t.Parallel()
+
+	target := &controlledRefreshTarget{started: make(chan RefreshOperation, 2), release: make(chan struct{})}
+	coordinator := NewRefreshCoordinator(target)
+	t.Cleanup(coordinator.Close)
+	settings := config.Settings{SourceMode: config.SourceModeAPIKey, DispatcharrURL: "https://dispatcharr.example", DispatcharrAPIKey: "secret"}
+	channelJob, started := coordinator.Start(RefreshChannels, settings)
+	if !started {
+		t.Fatal("expected channel recovery to start")
+	}
+	if operation := <-target.started; operation != RefreshChannels {
+		t.Fatalf("expected channel refresh, got %s", operation)
+	}
+	if job, started := coordinator.Start(RefreshGuide, settings); started || job.ID != channelJob.ID {
+		t.Fatalf("guide warm canceled channel recovery: job=%+v started=%v", job, started)
+	}
+	select {
+	case operation := <-target.started:
+		t.Fatalf("unexpected replacement refresh started: %s", operation)
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(target.release)
+	if err := coordinator.Wait(t.Context()); err != nil {
+		t.Fatalf("wait for channel recovery: %v", err)
+	}
+}
+
 func TestRefreshCoordinatorSerializesDifferentTasksForSameConfig(t *testing.T) {
 	t.Parallel()
 

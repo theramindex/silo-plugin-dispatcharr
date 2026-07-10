@@ -96,10 +96,12 @@ func (c *RefreshCoordinator) Start(operation RefreshOperation, settings config.S
 		c.mu.Unlock()
 		return job, false
 	}
-	if isActiveRefresh(c.job.State) && c.job.ConfigKey == configKey && refreshOperationCovers(c.job.Operation, operation) {
-		job := c.job
-		c.mu.Unlock()
-		return job, false
+	if isActiveRefresh(c.job.State) && c.job.ConfigKey == configKey {
+		if refreshOperationCovers(c.job.Operation, operation) || refreshOperationPriority(c.job.Operation) >= refreshOperationPriority(operation) {
+			job := c.job
+			c.mu.Unlock()
+			return job, false
+		}
 	}
 	if c.cancel != nil {
 		c.cancel()
@@ -111,6 +113,21 @@ func (c *RefreshCoordinator) Start(operation RefreshOperation, settings config.S
 
 	go c.execute(ctx, cancel, job, run, settings, time.Now().Unix())
 	return job, true
+}
+
+func refreshOperationPriority(operation RefreshOperation) int {
+	switch operation {
+	case RefreshForce:
+		return 4
+	case RefreshCatalog:
+		return 3
+	case RefreshChannels:
+		return 2
+	case RefreshGuide:
+		return 1
+	default:
+		return 0
+	}
 }
 
 func (c *RefreshCoordinator) Run(ctx context.Context, operation RefreshOperation, settings config.Settings, nowUnix int64) error {
