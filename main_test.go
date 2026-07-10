@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"reflect"
 	"testing"
 
@@ -250,7 +251,11 @@ func TestManifestExposesAdminSettingsAPIRoutes(t *testing.T) {
 		if route.GetPath() != "/dispatcharr/api/admin-settings" {
 			continue
 		}
-		if route.GetAccess() != "authenticated" || route.GetNavigable() {
+		expectedAccess := "authenticated"
+		if route.GetMethod() == http.MethodPost {
+			expectedAccess = "admin"
+		}
+		if route.GetAccess() != expectedAccess || route.GetNavigable() {
 			t.Fatalf("unexpected admin settings route metadata: %+v", route)
 		}
 		found[route.GetMethod()] = true

@@ -2,7 +2,6 @@ package plugin
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
@@ -41,7 +40,6 @@ type HTTPRoutesServer struct {
 	settingsProvider  func() config.Settings
 	adminPersister    func(context.Context, map[string]any) error
 	adminStorage      adminSettingsStorage
-	adminToken        string
 	coordinator       *RefreshCoordinator
 	hydrateMu         sync.Mutex
 	refreshMu         sync.Mutex
@@ -89,7 +87,7 @@ func NewHTTPRoutesServerWithCoordinatorAndAdminSettingsFile(store *cache.Store, 
 }
 
 func newHTTPRoutesServer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
-	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, adminToken: newAdminToken(), sportsProvider: newESPNSportsProvider(&http.Client{Timeout: 8 * time.Second})}
+	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, sportsProvider: newESPNSportsProvider(&http.Client{Timeout: 8 * time.Second})}
 	if syncer != nil {
 		server.coordinator = NewRefreshCoordinator(syncer)
 	}
@@ -694,7 +692,7 @@ func (s *HTTPRoutesServer) handlePreferences(request *pluginv1.HandleHTTPRequest
 
 func (s *HTTPRoutesServer) handleAdminSettings(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
 	if request.GetMethod() == http.MethodPost && !s.adminSettingsAuthorized(request) {
-		return textResponse(http.StatusForbidden, "admin settings token is required"), nil
+		return textResponse(http.StatusForbidden, "Silo administrator access is required"), nil
 	}
 	if request.GetMethod() != http.MethodPost {
 		if s.adminStorage != nil {
@@ -757,10 +755,7 @@ func (s *HTTPRoutesServer) respondAdminSettings(request *pluginv1.HandleHTTPRequ
 }
 
 func (s *HTTPRoutesServer) adminSettingsAuthorized(request *pluginv1.HandleHTTPRequest) bool {
-	if s.adminToken == "" {
-		return false
-	}
-	return headerValue(request.GetHeaders(), "x-dispatcharr-admin-token") == s.adminToken
+	return strings.EqualFold(strings.TrimSpace(headerValue(request.GetHeaders(), "x-silo-user-role")), "admin")
 }
 
 func headerValue(headers map[string]string, key string) string {
@@ -901,11 +896,6 @@ func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) s
 	body = strings.ReplaceAll(body, "__ASSET_PREFIX__", assetPrefix)
 	body = strings.ReplaceAll(body, "__ASSET_VERSION__", pluginAssetVersion())
 	if request.GetPath() == "/dispatcharr/admin" {
-		body = strings.Replace(body, "__ADMIN_SETTINGS_TOKEN__", html.EscapeString(s.adminToken), 1)
-	} else {
-		body = strings.Replace(body, "__ADMIN_SETTINGS_TOKEN__", "", 1)
-	}
-	if request.GetPath() == "/dispatcharr/admin" {
 		body = removeTemplateBlock(body, "<!-- USER_NAV_START -->", "<!-- USER_NAV_END -->")
 		body = replaceTemplateBlock(body, "<!-- USER_TOPBAR_START -->", "<!-- USER_TOPBAR_END -->", adminTopbarHTML())
 		body = strings.Replace(body, "__APP_TITLE__", "Live TV Admin", 2)
@@ -935,14 +925,6 @@ func pluginAssetVersion() string {
 		assetVersionValue = hex.EncodeToString(hash.Sum(nil))[:16]
 	})
 	return assetVersionValue
-}
-
-func newAdminToken() string {
-	var token [16]byte
-	if _, err := rand.Read(token[:]); err != nil {
-		return ""
-	}
-	return hex.EncodeToString(token[:])
 }
 
 func removeTemplateBlock(body string, startMarker string, endMarker string) string {

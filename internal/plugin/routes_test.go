@@ -566,8 +566,6 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`function effectiveChannel(channel)`,
 		`/dispatcharr/api/admin-settings`,
 		`state.adminCategorySettings = await loadAdminCategorySettings().catch(function()`,
-		`meta[name="dispatcharr-admin-token"]`,
-		`x-dispatcharr-admin-token`,
 		`row.keywords.join("\n")`,
 	} {
 		if !strings.Contains(body, want) {
@@ -576,6 +574,9 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	}
 	if strings.Contains(body, `row.keywords.join("\\n")`) {
 		t.Fatal("expected event keyword textareas to render real line breaks, not escaped newline text")
+	}
+	if strings.Contains(body, "dispatcharr-admin-token") {
+		t.Fatal("expected admin page to rely on Silo route authorization, not a custom browser token")
 	}
 	if strings.Contains(body, `class="nav admin-nav"`) || strings.Contains(body, `function renderAdminSidebarTabs()`) {
 		t.Fatal("expected admin tabs to render in the topbar, not the sidebar")
@@ -1807,7 +1808,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
 		Method:  "POST",
 		Path:    "/dispatcharr/api/admin-settings",
-		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
+		Headers: map[string]string{"x-silo-user-role": "admin"},
 		Body:    []byte(`{"mode":"normal","delimiter":"pipe","virtualGroupLabel":" Virtual Categories ","virtualGroupSource":"profile_group","ecmURL":" https://ecm.example.test/manage ","allowRecordingsByDefault":false,"collapseDuplicateVirtualGroups":false,"inferChannelNameGroups":true,"categoryRenames":[{"sourcePath":" International | Arabic | Sports ","displayName":" International Sports "},{"sourcePath":"International | Arabic | Sports","displayName":"Duplicate Ignored"},{"sourcePath":"","displayName":"Nowhere"},{"sourcePath":"International | TV","displayName":""}],"categoryAliases":[{"sourcePath":" International | Arabic | Sports ","aliasPath":" Sports | Arabic "},{"sourcePath":"International | Arabic | Sports","aliasPath":"Sports | Arabic"},{"sourcePath":"International | Arabic | Sports","aliasPath":"World Cup | Arabic"},{"sourcePath":"","aliasPath":"Nowhere"},{"sourcePath":"International | Arabic | Sports","aliasPath":""}]}`),
 	})
 	if err != nil {
@@ -1820,7 +1821,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	response, err = server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
 		Method:  "GET",
 		Path:    "/dispatcharr/api/admin-settings",
-		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
+		Headers: map[string]string{"x-silo-user-role": "admin"},
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
@@ -1912,7 +1913,7 @@ func TestHTTPRoutesServerAdminSettingsRouteReportsHostPersistFailure(t *testing.
 	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
 		Method:  "POST",
 		Path:    "/dispatcharr/api/admin-settings",
-		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
+		Headers: map[string]string{"x-silo-user-role": "admin"},
 		Body:    []byte(`{"mode":"delimiter","delimiter":"pipe","ecmURL":"https://ecm.example.test/manage"}`),
 	})
 	if err != nil {
@@ -1944,7 +1945,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayloadToFile(t *testing.T) {
 	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
 		Method:  "POST",
 		Path:    "/dispatcharr/api/admin-settings",
-		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
+		Headers: map[string]string{"x-silo-user-role": "admin"},
 		Body:    []byte(`{"mode":"admin_delimiter","delimiter":"dash","ecmEnabled":false,"ecmURL":" https://ecm.example.test/manage ","categoryAliases":[{"sourcePath":"International | Argentina | Sports","aliasPath":"Sports | Argentina"}],"groupAliases":[{"from":"International | Argentina | Sports"}]}`),
 	})
 	if err != nil {
@@ -1985,7 +1986,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayloadToFile(t *testing.T) {
 	response, err = nextServer.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
 		Method:  "GET",
 		Path:    "/dispatcharr/api/admin-settings",
-		Headers: map[string]string{"x-dispatcharr-admin-token": nextServer.adminToken},
+		Headers: map[string]string{"x-silo-user-role": "admin"},
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
@@ -2014,7 +2015,7 @@ func TestHTTPRoutesServerAdminSettingsRouteReadsConfiguredPayload(t *testing.T) 
 	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
 		Method:  "GET",
 		Path:    "/dispatcharr/api/admin-settings",
-		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
+		Headers: map[string]string{"x-silo-user-role": "admin"},
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
@@ -2053,7 +2054,7 @@ func TestHTTPRoutesServerAdminSettingsRouteAllowsUserRead(t *testing.T) {
 	}
 }
 
-func TestHTTPRoutesServerAdminSettingsRouteRequiresAdminPageTokenForPost(t *testing.T) {
+func TestHTTPRoutesServerAdminSettingsRouteRequiresSiloAdminRoleForPost(t *testing.T) {
 	t.Parallel()
 
 	response, err := NewHTTPRoutesServer(cache.NewStore()).Handle(context.Background(), &pluginv1.HandleHTTPRequest{
@@ -2065,7 +2066,7 @@ func TestHTTPRoutesServerAdminSettingsRouteRequiresAdminPageTokenForPost(t *test
 		t.Fatalf("admin settings route: %v", err)
 	}
 	if response.GetStatusCode() != 403 {
-		t.Fatalf("expected 403 without admin settings token, got %d", response.GetStatusCode())
+		t.Fatalf("expected 403 without Silo admin role, got %d", response.GetStatusCode())
 	}
 }
 
@@ -2087,11 +2088,11 @@ func TestHTTPRoutesServerAdminSettingsPublicReadHidesManagerURL(t *testing.T) {
 	}
 }
 
-func TestHTTPRoutesServerAdminSettingsRouteRejectsQueryTokenForWrite(t *testing.T) {
+func TestHTTPRoutesServerAdminSettingsRouteRejectsLegacyQueryTokenForWrite(t *testing.T) {
 	t.Parallel()
 
 	server := NewHTTPRoutesServer(cache.NewStore())
-	query, _ := structpb.NewStruct(map[string]any{"admin_token": server.adminToken})
+	query, _ := structpb.NewStruct(map[string]any{"admin_token": "legacy-token"})
 	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
 		Method: http.MethodPost,
 		Path:   "/dispatcharr/api/admin-settings",
