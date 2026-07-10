@@ -18,7 +18,6 @@ import (
 	"time"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
-	sdkruntime "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/runtime"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
@@ -36,17 +35,18 @@ var (
 
 type HTTPRoutesServer struct {
 	pluginv1.UnimplementedHttpRoutesServer
-	store             *cache.Store
-	settingsProvider  func() config.Settings
-	adminPersister    func(context.Context, map[string]any) error
-	adminStorage      adminSettingsStorage
-	coordinator       *RefreshCoordinator
-	hydrateMu         sync.Mutex
-	refreshMu         sync.Mutex
-	guideWarmLastUnix int64
-	sportsProvider    sportsProvider
-	sportsCache       sportsEventCache
-	sportsMu          sync.Mutex
+	store               *cache.Store
+	settingsProvider    func() config.Settings
+	adminPersister      func(context.Context, map[string]any) error
+	adminStorage        adminSettingsStorage
+	coordinator         *RefreshCoordinator
+	hydrateMu           sync.Mutex
+	refreshMu           sync.Mutex
+	guideWarmLastUnix   int64
+	profileWarmLastUnix int64
+	sportsProvider      sportsProvider
+	sportsCache         sportsEventCache
+	sportsMu            sync.Mutex
 }
 
 type catalogSyncer interface {
@@ -307,6 +307,7 @@ func (s *HTTPRoutesServer) ensureCatalogHydrated(ctx context.Context) {
 	settings := s.settingsProvider()
 	current := s.store.Current()
 	if len(current.Catalog.Channels) > 0 && catalogSnapshotMatchesSettings(current, settings) {
+		s.startBackgroundProfileWarm(current, settings)
 		return
 	}
 
@@ -315,6 +316,7 @@ func (s *HTTPRoutesServer) ensureCatalogHydrated(ctx context.Context) {
 
 	current = s.store.Current()
 	if len(current.Catalog.Channels) > 0 && catalogSnapshotMatchesSettings(current, settings) {
+		s.startBackgroundProfileWarm(current, settings)
 		return
 	}
 	if len(current.Catalog.Channels) > 0 && !catalogSnapshotMatchesSettings(current, settings) {
@@ -341,6 +343,32 @@ func catalogSnapshotMatchesSettings(snapshot cache.Snapshot, settings config.Set
 		return false
 	}
 	return snapshot.Catalog.Source.Mode == modelSourceModeForSettings(settings) && snapshot.ConfigKey == config.CatalogCacheKey(settings)
+}
+
+func profileCatalogNeedsRefresh(snapshot cache.Snapshot, settings config.Settings) bool {
+	if settings.EffectiveSourceMode() != config.SourceModeAPIKey {
+		return false
+	}
+	access := snapshot.Catalog.Source.ProfileAccess
+	return access == nil || access.Status == "unavailable"
+}
+
+func (s *HTTPRoutesServer) startBackgroundProfileWarm(snapshot cache.Snapshot, settings config.Settings) bool {
+	if s.coordinator == nil || !profileCatalogNeedsRefresh(snapshot, settings) {
+		return false
+	}
+
+	now := time.Now().Unix()
+	s.refreshMu.Lock()
+	if s.profileWarmLastUnix > 0 && now-s.profileWarmLastUnix < 300 {
+		s.refreshMu.Unlock()
+		return false
+	}
+	s.profileWarmLastUnix = now
+	s.refreshMu.Unlock()
+
+	_, started := s.coordinator.Start(RefreshChannels, settings)
+	return started
 }
 
 func modelSourceModeForSettings(settings config.Settings) model.SourceMode {
@@ -768,14 +796,10 @@ func headerValue(headers map[string]string, key string) string {
 }
 
 func (s *HTTPRoutesServer) persistAdminSettings(ctx context.Context, payload map[string]any) error {
-	if s.adminPersister != nil {
-		return s.adminPersister(ctx, payload)
+	if s.adminPersister == nil {
+		return nil
 	}
-	host := sdkruntime.Host()
-	if host == nil {
-		return fmt.Errorf("runtime host unavailable")
-	}
-	return host.SetGlobalConfigEntry(ctx, "category_settings", payload)
+	return s.adminPersister(ctx, payload)
 }
 
 func (s *HTTPRoutesServer) handleFavorite(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {

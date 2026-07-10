@@ -179,6 +179,25 @@ func TestCatalogSnapshotMatchesAPIKeyDirectAppMode(t *testing.T) {
 	}
 }
 
+func TestProfileCatalogNeedsRefreshOnlyForUnavailableAPIKeySnapshot(t *testing.T) {
+	t.Parallel()
+
+	snapshot := cache.Snapshot{Catalog: model.CatalogState{Source: model.LiveTVSource(model.SourceModeDirectLogin)}}
+	snapshot.Catalog.Source.ProfileAccess = &model.ProfileAccess{Status: "unavailable"}
+	apiKeySettings := config.Settings{SourceMode: config.SourceModeAPIKey}
+	if !profileCatalogNeedsRefresh(snapshot, apiKeySettings) {
+		t.Fatal("expected unavailable API key profile snapshot to need refresh")
+	}
+	directSettings := config.Settings{SourceMode: config.SourceModeDirectLogin}
+	if profileCatalogNeedsRefresh(snapshot, directSettings) {
+		t.Fatal("expected direct-login profile permissions to remain an observable status")
+	}
+	snapshot.Catalog.Source.ProfileAccess.Status = "available"
+	if profileCatalogNeedsRefresh(snapshot, apiKeySettings) {
+		t.Fatal("expected available API key profile snapshot to remain warm")
+	}
+}
+
 func TestPublicStreamFormatUsesUpstreamPathWithoutExposingIt(t *testing.T) {
 	t.Parallel()
 
@@ -565,6 +584,8 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`Discard`,
 		`function effectiveChannel(channel)`,
 		`/dispatcharr/api/admin-settings`,
+		`/api/v1/admin/plugins/installations/`,
+		`key: "category_settings"`,
 		`state.adminCategorySettings = await loadAdminCategorySettings().catch(function()`,
 		`row.keywords.join("\n")`,
 	} {
@@ -1496,6 +1517,43 @@ func TestHTTPRoutesServerAppRouteHydratesColdCatalog(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerAppRouteWarmsUnavailableAPIKeyProfilesInBackground(t *testing.T) {
+	t.Parallel()
+
+	settings := config.Settings{
+		SourceMode:        config.SourceModeAPIKey,
+		DispatcharrURL:    "https://dispatcharr.example.com",
+		DispatcharrAPIKey: "secret",
+		ChannelRefreshH:   24,
+		EPGRefreshH:       24,
+	}
+	store := cache.NewStore()
+	source := model.LiveTVSource(model.SourceModeDirectLogin)
+	source.ProfileAccess = &model.ProfileAccess{Status: "unavailable", Message: "context canceled"}
+	store.Replace(cache.Snapshot{
+		ConfigKey: config.CatalogCacheKey(settings),
+		Catalog: model.CatalogState{
+			Source:   source,
+			Channels: []model.Channel{{ID: "dispatcharr:old", Name: "Old Channel"}},
+		},
+	})
+	done := make(chan struct{}, 1)
+	syncer := &stubCatalogSyncer{store: store, done: done}
+	server := NewHTTPRoutesServerWithSyncer(store, func() config.Settings { return settings }, syncer)
+
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/dispatcharr/api/app"})
+	if err != nil {
+		t.Fatalf("app route: %v", err)
+	}
+	if response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("expected app route to return immediately, got %d", response.GetStatusCode())
+	}
+	waitForStubSync(t, done)
+	if syncer.callCount() != 1 {
+		t.Fatalf("expected one background profile refresh, got %d", syncer.callCount())
+	}
+}
+
 func TestHTTPRoutesServerAppRouteRefreshesStalePersistedSnapshotForCurrentSettings(t *testing.T) {
 	t.Parallel()
 
@@ -1733,6 +1791,10 @@ func (s *stubCatalogSyncer) RefreshGuideOnlyNow(ctx context.Context, settings co
 	return s.SyncNow(ctx, settings, nowUnix)
 }
 
+func (s *stubCatalogSyncer) RefreshChannelsNow(ctx context.Context, settings config.Settings, nowUnix int64) error {
+	return s.SyncNow(ctx, settings, nowUnix)
+}
+
 func (s *stubCatalogSyncer) SyncNow(_ context.Context, settings config.Settings, nowUnix int64) error {
 	if s.block != nil {
 		<-s.block
@@ -1931,6 +1993,35 @@ func TestHTTPRoutesServerAdminSettingsRouteReportsHostPersistFailure(t *testing.
 	}
 	if server.store.HasAdminSettings() {
 		t.Fatal("expected failed host persistence not to update the in-memory settings")
+	}
+}
+
+func TestHTTPRoutesServerAdminSettingsRouteUsesDurableFileWithoutRuntimeHost(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "category-settings.json")
+	server := NewHTTPRoutesServerWithSyncerAndAdminSettingsFile(cache.NewStore(), nil, nil, path)
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method:  http.MethodPost,
+		Path:    "/dispatcharr/api/admin-settings",
+		Headers: map[string]string{"x-silo-user-role": "admin"},
+		Body:    []byte(`{"mode":"delimiter","delimiter":"pipe","ecmURL":"https://ecm.example.test/manage"}`),
+	})
+	if err != nil {
+		t.Fatalf("admin settings route: %v", err)
+	}
+	if response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("expected durable local save without a runtime host, got %d: %s", response.GetStatusCode(), response.GetBody())
+	}
+	if !server.store.HasAdminSettings() {
+		t.Fatal("expected durable local save to update in-memory settings")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read durable settings file: %v", err)
+	}
+	if !strings.Contains(string(data), `"ecmURL":"https://ecm.example.test/manage"`) {
+		t.Fatalf("expected ECM URL in durable settings file: %s", data)
 	}
 }
 

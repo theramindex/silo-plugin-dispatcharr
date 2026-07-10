@@ -127,7 +127,7 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 	}
 	profiles, profilesErr := client.ChannelProfiles(ctx)
 	if profilesErr != nil {
-		if strings.TrimSpace(settings.ChannelProfile) != "" {
+		if settings.EffectiveSourceMode() == config.SourceModeAPIKey || strings.TrimSpace(settings.ChannelProfile) != "" {
 			err := fmt.Errorf("dispatcharr channel profiles unavailable: %w", profilesErr)
 			s.store.RecordFailure(nowUnix, err.Error())
 			return err
