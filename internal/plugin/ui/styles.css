@@ -104,6 +104,10 @@ button { cursor: pointer; }
 .shell.is-sports .topbar .search, .shell.is-events .topbar .search { display: none; }
 .shell.is-sports .main, .shell.is-events .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
 .shell.is-sports #view, .shell.is-events #view { min-height: 0; overflow: hidden; }
+.shell.is-guide .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; padding-bottom: 0; }
+.shell.is-guide #view { min-height: 0; overflow: hidden; }
+.shell.is-guide .guide-page { min-height: 0; height: 100%; max-height: none; }
+.shell.is-guide .guide-scroll { min-height: 0; }
 .shell.is-multiview .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
 .shell.is-multiview #view { min-height: 0; overflow: hidden; }
 .shell.is-admin { grid-template-columns: minmax(0, 1fr); }

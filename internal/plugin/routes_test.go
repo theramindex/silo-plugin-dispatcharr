@@ -512,6 +512,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`Presentation Overrides`,
 		`function renderAdminCategoryAliasSettings()`,
 		`function renderAdminECMSettings()`,
+		`root.innerHTML = adminSaveStatusHTML() + "<div class=\"settings-row ecm-url-row compact-row\"`,
 		`function adminECMURL()`,
 		`virtualGroupSource: "group"`,
 		`ecmEnabled: false`,
@@ -551,6 +552,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`data-admin-alias-action=\"remove\"`,
 		`data-admin-settings-action=\"save\"`,
 		`data-admin-settings-action=\"discard\"`,
+		`Saved plugin settings.`,
 		`renderAdminTopbarActions();`,
 		`function renderExternalChannelManager()`,
 		`classList.toggle("is-admin-manager"`,
@@ -1798,7 +1800,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 		Method:  "POST",
 		Path:    "/dispatcharr/api/admin-settings",
 		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
-		Body:    []byte(`{"mode":"delimiter","delimiter":"pipe","virtualGroupLabel":" Virtual Categories ","virtualGroupSource":"profile_group","allowRecordingsByDefault":false,"collapseDuplicateVirtualGroups":false,"inferChannelNameGroups":true,"categoryRenames":[{"sourcePath":" International | Arabic | Sports ","displayName":" International Sports "},{"sourcePath":"International | Arabic | Sports","displayName":"Duplicate Ignored"},{"sourcePath":"","displayName":"Nowhere"},{"sourcePath":"International | TV","displayName":""}],"categoryAliases":[{"sourcePath":" International | Arabic | Sports ","aliasPath":" Sports | Arabic "},{"sourcePath":"International | Arabic | Sports","aliasPath":"Sports | Arabic"},{"sourcePath":"International | Arabic | Sports","aliasPath":"World Cup | Arabic"},{"sourcePath":"","aliasPath":"Nowhere"},{"sourcePath":"International | Arabic | Sports","aliasPath":""}]}`),
+		Body:    []byte(`{"mode":"delimiter","delimiter":"pipe","virtualGroupLabel":" Virtual Categories ","virtualGroupSource":"profile_group","ecmURL":" https://ecm.example.test/manage ","allowRecordingsByDefault":false,"collapseDuplicateVirtualGroups":false,"inferChannelNameGroups":true,"categoryRenames":[{"sourcePath":" International | Arabic | Sports ","displayName":" International Sports "},{"sourcePath":"International | Arabic | Sports","displayName":"Duplicate Ignored"},{"sourcePath":"","displayName":"Nowhere"},{"sourcePath":"International | TV","displayName":""}],"categoryAliases":[{"sourcePath":" International | Arabic | Sports ","aliasPath":" Sports | Arabic "},{"sourcePath":"International | Arabic | Sports","aliasPath":"Sports | Arabic"},{"sourcePath":"International | Arabic | Sports","aliasPath":"World Cup | Arabic"},{"sourcePath":"","aliasPath":"Nowhere"},{"sourcePath":"International | Arabic | Sports","aliasPath":""}]}`),
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
@@ -1827,6 +1829,9 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	}
 	if payload["virtualGroupSource"] != "profile_group" {
 		t.Fatalf("expected virtual group source to persist: %+v", payload)
+	}
+	if payload["ecmEnabled"] != true || payload["ecmURL"] != "https://ecm.example.test/manage" {
+		t.Fatalf("expected ECM URL to persist: %+v", payload)
 	}
 	if payload["allowRecordingsByDefault"] != false {
 		t.Fatalf("expected admin recording default to persist: %+v", payload)
@@ -1866,6 +1871,9 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	if persisted["virtualGroupSource"] != "profile_group" {
 		t.Fatalf("expected virtual group source to write through to host config: %+v", persisted)
 	}
+	if persisted["ecmEnabled"] != true || persisted["ecmURL"] != "https://ecm.example.test/manage" {
+		t.Fatalf("expected ECM URL to write through to host config: %+v", persisted)
+	}
 	if persisted["allowRecordingsByDefault"] != false {
 		t.Fatalf("expected admin recording default to write through to host config: %+v", persisted)
 	}
@@ -1885,10 +1893,11 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	}
 }
 
-func TestHTTPRoutesServerAdminSettingsRouteReturnsSavedPayloadWhenHostPersistFails(t *testing.T) {
+func TestHTTPRoutesServerAdminSettingsRouteReportsHostPersistFailure(t *testing.T) {
 	t.Parallel()
 
-	server := NewHTTPRoutesServer(cache.NewStore())
+	path := filepath.Join(t.TempDir(), "category-settings.json")
+	server := NewHTTPRoutesServerWithSyncerAndAdminSettingsFile(cache.NewStore(), nil, nil, path)
 	server.adminPersister = func(context.Context, map[string]any) error {
 		return fmt.Errorf("host timeout")
 	}
@@ -1896,16 +1905,23 @@ func TestHTTPRoutesServerAdminSettingsRouteReturnsSavedPayloadWhenHostPersistFai
 		Method:  "POST",
 		Path:    "/dispatcharr/api/admin-settings",
 		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
-		Body:    []byte(`{"mode":"delimiter","delimiter":"pipe"}`),
+		Body:    []byte(`{"mode":"delimiter","delimiter":"pipe","ecmURL":"https://ecm.example.test/manage"}`),
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
 	}
-	if response.GetStatusCode() != 200 {
-		t.Fatalf("expected 200 when host persistence fails, got %d", response.GetStatusCode())
+	if response.GetStatusCode() != http.StatusBadGateway {
+		t.Fatalf("expected 502 when host persistence fails, got %d", response.GetStatusCode())
 	}
-	if !server.store.HasAdminSettings() {
-		t.Fatal("expected admin settings to be saved in plugin store")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("expected private file fallback to be saved: %v", err)
+	}
+	if !strings.Contains(string(data), `"ecmURL":"https://ecm.example.test/manage"`) {
+		t.Fatalf("expected ECM URL in private file fallback: %s", data)
+	}
+	if server.store.HasAdminSettings() {
+		t.Fatal("expected failed host persistence not to update the in-memory settings")
 	}
 }
 
@@ -2389,6 +2405,10 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 
 	for _, want := range []string{
 		`.guide-scroll {`,
+		`.shell.is-guide .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; padding-bottom: 0; }`,
+		`.shell.is-guide #view { min-height: 0; overflow: hidden; }`,
+		`.shell.is-guide .guide-page { min-height: 0; height: 100%; max-height: none; }`,
+		`.shell.is-guide .guide-scroll { min-height: 0; }`,
 		`.guide-window-spacer`,
 		`.guide-window`,
 		`.recovery-panel`,

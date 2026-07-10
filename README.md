@@ -193,7 +193,7 @@ The repository also includes `.github/workflows/ci.yml` for GitHub-hosted runner
 For a tagged release candidate, also verify the intended version:
 
 ```bash
-./scripts/verify-release.sh 0.3.5 --version-only
+./scripts/verify-release.sh 0.3.6 --version-only
 ```
 
 ## Inspect manifest
