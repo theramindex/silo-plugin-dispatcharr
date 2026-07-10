@@ -35,12 +35,13 @@ func TestScheduledTaskServerRunsSyncTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run task: %v", err)
 	}
-	if response.GetOutput().AsMap()["status"] != "ok" {
+	if response.GetOutput().AsMap()["status"] != "queued" {
 		t.Fatalf("unexpected task output: %+v", response.GetOutput().AsMap())
 	}
 	if response.GetOutput().AsMap()["task"] != "catalog" {
 		t.Fatalf("expected catalog task output, got %+v", response.GetOutput().AsMap())
 	}
+	waitForScheduledTask(t, server)
 
 	snapshot := store.Current()
 	if len(snapshot.Catalog.Channels) != 1 || len(snapshot.Catalog.Programs) != 1 {
@@ -67,6 +68,7 @@ func TestScheduledTaskServerRunsSiloNamespacedSyncTask(t *testing.T) {
 	if _, err := server.Run(context.Background(), &pluginv1.RunScheduledTaskRequest{TaskKey: "plugin:14:dispatcharr-sync"}); err != nil {
 		t.Fatalf("run namespaced task: %v", err)
 	}
+	waitForScheduledTask(t, server)
 
 	snapshot := store.Current()
 	if len(snapshot.Catalog.Channels) != 1 || len(snapshot.Catalog.Programs) != 1 {
@@ -108,6 +110,7 @@ func TestScheduledTaskServerRunsChannelRefreshTask(t *testing.T) {
 	if response.GetOutput().AsMap()["task"] != "channels" {
 		t.Fatalf("expected channels task output, got %+v", response.GetOutput().AsMap())
 	}
+	waitForScheduledTask(t, server)
 
 	snapshot := store.Current()
 	if len(snapshot.Catalog.Channels) != 1 {
@@ -148,6 +151,7 @@ func TestScheduledTaskServerRunsEPGRefreshTask(t *testing.T) {
 	if response.GetOutput().AsMap()["task"] != "epg" {
 		t.Fatalf("expected epg task output, got %+v", response.GetOutput().AsMap())
 	}
+	waitForScheduledTask(t, server)
 
 	snapshot := store.Current()
 	if len(snapshot.Catalog.Programs) != 1 || snapshot.Catalog.Programs[0].Title != "Morning News" {
@@ -183,9 +187,11 @@ func TestScheduledTaskServerEPGRefreshKeepsGuideOnDirectFailure(t *testing.T) {
 		EPGRefreshH:     6,
 	})
 
-	_, err := server.Run(context.Background(), &pluginv1.RunScheduledTaskRequest{TaskKey: EPGRefreshTaskKey})
-	if err == nil {
-		t.Fatal("expected direct EPG refresh failure")
+	if _, err := server.Run(context.Background(), &pluginv1.RunScheduledTaskRequest{TaskKey: EPGRefreshTaskKey}); err != nil {
+		t.Fatalf("queue direct EPG refresh: %v", err)
+	}
+	if err := waitForScheduledTaskResult(t, server); err == nil {
+		t.Fatal("expected background direct EPG refresh failure")
 	}
 
 	snapshot := store.Current()
@@ -195,6 +201,46 @@ func TestScheduledTaskServerEPGRefreshKeepsGuideOnDirectFailure(t *testing.T) {
 	if snapshot.Health.EPGStatus != "failed" || snapshot.Health.EPGLastError == "" {
 		t.Fatalf("expected failed epg health, got %+v", snapshot.Health)
 	}
+}
+
+func TestScheduledTaskServerReturnsBeforeSlowRefreshCompletes(t *testing.T) {
+	t.Parallel()
+
+	target := &controlledRefreshTarget{started: make(chan RefreshOperation, 1), release: make(chan struct{})}
+	coordinator := NewRefreshCoordinator(target)
+	settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://dispatcharr.example.com", XtreamUsername: "demo", XtreamPassword: "secret", ChannelRefreshH: 24, EPGRefreshH: 6}
+	server := NewScheduledTaskServerWithCoordinator(coordinator, func() config.Settings { return settings })
+
+	startedAt := time.Now()
+	response, err := server.Run(context.Background(), &pluginv1.RunScheduledTaskRequest{TaskKey: ChannelRefreshTaskKey})
+	if err != nil {
+		t.Fatalf("queue slow channel refresh: %v", err)
+	}
+	if elapsed := time.Since(startedAt); elapsed > 250*time.Millisecond {
+		t.Fatalf("scheduled task waited for background refresh: %s", elapsed)
+	}
+	if response.GetOutput().AsMap()["status"] != "queued" || response.GetOutput().AsMap()["jobId"] == "" {
+		t.Fatalf("unexpected queued task output: %+v", response.GetOutput().AsMap())
+	}
+	if operation := waitForRefreshOperation(t, target.started); operation != RefreshChannels {
+		t.Fatalf("expected channel refresh, got %q", operation)
+	}
+	close(target.release)
+	waitForScheduledTask(t, server)
+}
+
+func waitForScheduledTask(t *testing.T, server *ScheduledTaskServer) {
+	t.Helper()
+	if err := waitForScheduledTaskResult(t, server); err != nil {
+		t.Fatalf("background scheduled task: %v", err)
+	}
+}
+
+func waitForScheduledTaskResult(t *testing.T, server *ScheduledTaskServer) error {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return server.coordinator.Wait(ctx)
 }
 
 type scheduledStubClient struct {
