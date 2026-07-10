@@ -5,8 +5,6 @@ const adminSettingsKey = "adminCategorySettings";
 const pluginInstallationID = (base.match(/\/api\/v1\/plugins\/(\d+)/) || [])[1] || "";
 const localCacheSuffix = pluginInstallationID || "default";
 const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuffix;
-const adminSettingsMeta = document.querySelector('meta[name="dispatcharr-admin-token"]');
-const adminSettingsToken = adminSettingsMeta ? String(adminSettingsMeta.content || "") : "";
 const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
@@ -52,11 +50,6 @@ function ensurePlayerLibraries(format) {
     loadPlayerLibrary("hls.min.js", "Hls"),
     loadPlayerLibrary("mpegts.min.js", "mpegts")
   ]);
-}
-function routeHeaders(extra) {
-  const headers = Object.assign({}, extra || {});
-  if (isAdminRoute && adminSettingsToken) headers["x-dispatcharr-admin-token"] = adminSettingsToken;
-  return headers;
 }
 function byId(id) { return document.getElementById(id); }
 function items(value) { return Array.isArray(value) ? value : []; }
@@ -566,12 +559,12 @@ function discardAdminCategorySettings() {
   renderAdminPage();
 }
 async function getJSON(url) {
-  const response = await fetch(route(url), { credentials: "include", headers: routeHeaders() });
+  const response = await fetch(route(url), { credentials: "include" });
   if (!response.ok) throw await requestError(response);
   return response.json();
 }
 async function postJSON(url, body) {
-  const response = await fetch(route(url), { method: "POST", credentials: "include", headers: routeHeaders({ "content-type": "application/json" }), body: JSON.stringify(body) });
+  const response = await fetch(route(url), { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   if (!response.ok) throw await requestError(response);
   return response.json();
 }

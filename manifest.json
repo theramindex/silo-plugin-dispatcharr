@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.dispatcharr",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -241,7 +241,7 @@
       "id": "dispatcharr-api-admin-settings-update",
       "method": "POST",
       "path": "/dispatcharr/api/admin-settings",
-      "access": "authenticated",
+      "access": "admin",
       "navigable": false
     },
     {
