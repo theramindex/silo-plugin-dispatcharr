@@ -134,6 +134,11 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 		}
 		profiles = nil
 	}
+	var currentUser dispatcharr.CurrentUser
+	var currentUserErr error
+	if profilesErr == nil && len(profiles) == 0 {
+		currentUser, currentUserErr = client.CurrentUser(ctx)
+	}
 	profile, allowedChannels, err := selectedChannelProfile(settings.ChannelProfile, profiles)
 	if err != nil {
 		s.store.RecordFailure(nowUnix, err.Error())
@@ -255,7 +260,7 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 	}
 
 	catalog := model.CatalogState{
-		Source:   directSourceWithProfiles(profiles, profile),
+		Source:   directSourceWithProfiles(profiles, profile, profilesErr, currentUser, currentUserErr),
 		Channels: channels,
 		Programs: programs,
 		Health:   s.syncHealthForOperation(settings, nowUnix, len(programs), options),
@@ -409,11 +414,28 @@ func profileIDsByDispatcharrChannel(profiles []dispatcharr.ChannelProfile) map[s
 	return membership
 }
 
-func directSourceWithProfiles(profiles []dispatcharr.ChannelProfile, selected *dispatcharr.ChannelProfile) model.Source {
+func directSourceWithProfiles(profiles []dispatcharr.ChannelProfile, selected *dispatcharr.ChannelProfile, profilesErr error, currentUser dispatcharr.CurrentUser, currentUserErr error) model.Source {
 	source := model.LiveTVSource(model.SourceModeDirectLogin)
+	access := &model.ProfileAccess{}
+	source.ProfileAccess = access
+	if profilesErr != nil {
+		access.Status = "unavailable"
+		access.Message = "Dispatcharr channel profiles could not be loaded: " + profilesErr.Error()
+		return source
+	}
+	access.Status = "empty"
+	access.Message = "No Channel Profiles are assigned to the configured Dispatcharr account."
+	if currentUserErr == nil && currentUser.UserLevel > 0 && currentUser.UserLevel < 10 {
+		access.Status = "all_access"
+		access.Message = "Dispatcharr grants this account All profile access, but does not enumerate unrestricted profiles for non-admin users. Assign specific profiles or connect with a Dispatcharr admin/API key."
+	}
 	if len(profiles) > 0 {
+		access.Status = "available"
+		access.ProfileCount = len(profiles)
+		access.Message = ""
 		source.Profiles = make([]model.ChannelProfile, 0, len(profiles))
 		for _, profile := range profiles {
+			access.ChannelMembershipCount += len(profile.Channels)
 			source.Profiles = append(source.Profiles, model.ChannelProfile{
 				ID:           profile.ID.String(),
 				Name:         profile.Name.String(),

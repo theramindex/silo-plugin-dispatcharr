@@ -508,6 +508,8 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`function renderAdminIntegrationsTab()`,
 		`Connection Status`,
 		`function adminStatusPanel()`,
+		`adminStatusItem("Profiles", profileValue, profileDetail)`,
+		`Dispatcharr account. Assign profiles in Dispatcharr, then refresh Live TV.`,
 		`admin-status-strip`,
 		`Presentation Overrides`,
 		`function renderAdminCategoryAliasSettings()`,
@@ -663,6 +665,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	}
 	if !result.ProfileGroupPath || !result.ProfileGroupRoot {
 		t.Fatalf("expected profile plus channel group virtual paths to be present: %+v", result)
+	}
+	if result.ProfileOrganizationMode != "delimiter" {
+		t.Fatalf("expected profile organization to require delimiter mode: %+v", result)
 	}
 	if !result.ProfileLocalMarketPath {
 		t.Fatalf("expected profile locals to include inferred market path: %+v", result)
@@ -822,6 +827,7 @@ type virtualAliasResult struct {
 	SourcePath                  bool   `json:"sourcePath"`
 	ProfileGroupPath            bool   `json:"profileGroupPath"`
 	ProfileGroupRoot            bool   `json:"profileGroupRoot"`
+	ProfileOrganizationMode     string `json:"profileOrganizationMode"`
 	ProfileLocalMarketPath      bool   `json:"profileLocalMarketPath"`
 	SelectedProfileScoped       bool   `json:"selectedProfileScoped"`
 	DuplicateProfileCollapsed   bool   `json:"duplicateProfileCollapsed"`
@@ -963,6 +969,7 @@ JSON.stringify((function() {
   const all = virtualCategoriesFromPaths("", function() { return true; }, true);
   state.adminCategorySettings.virtualGroupSource = "profile_group";
   normalizeAdminCategorySettings();
+  const profileOrganizationMode = state.adminCategorySettings.mode;
   const profileAll = virtualCategoriesFromPaths("", function() { return true; }, true);
   const nyLocalProfilePaths = virtualPathsForChannel(channelByID("channel:ny-local"));
   state.app.source.channelProfile = { id: "profile-ny", name: "US TV | NY" };
@@ -1104,6 +1111,7 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     sourcePath: !!source,
     profileGroupPath: !!profileGroup,
     profileGroupRoot: !!profileRoot,
+    profileOrganizationMode: profileOrganizationMode,
     profileLocalMarketPath: nyLocalProfilePaths.indexOf("US TV / NY / Locals / New York City") !== -1,
     selectedProfileScoped: selectedProfilePaths.length === 1 && selectedProfilePaths[0] === "US TV / NY",
     duplicateProfileCollapsed: duplicateProfilePaths.indexOf("US TV") !== -1 && duplicateProfilePaths.indexOf("US TV / US TV") === -1,
@@ -1800,7 +1808,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 		Method:  "POST",
 		Path:    "/dispatcharr/api/admin-settings",
 		Headers: map[string]string{"x-dispatcharr-admin-token": server.adminToken},
-		Body:    []byte(`{"mode":"delimiter","delimiter":"pipe","virtualGroupLabel":" Virtual Categories ","virtualGroupSource":"profile_group","ecmURL":" https://ecm.example.test/manage ","allowRecordingsByDefault":false,"collapseDuplicateVirtualGroups":false,"inferChannelNameGroups":true,"categoryRenames":[{"sourcePath":" International | Arabic | Sports ","displayName":" International Sports "},{"sourcePath":"International | Arabic | Sports","displayName":"Duplicate Ignored"},{"sourcePath":"","displayName":"Nowhere"},{"sourcePath":"International | TV","displayName":""}],"categoryAliases":[{"sourcePath":" International | Arabic | Sports ","aliasPath":" Sports | Arabic "},{"sourcePath":"International | Arabic | Sports","aliasPath":"Sports | Arabic"},{"sourcePath":"International | Arabic | Sports","aliasPath":"World Cup | Arabic"},{"sourcePath":"","aliasPath":"Nowhere"},{"sourcePath":"International | Arabic | Sports","aliasPath":""}]}`),
+		Body:    []byte(`{"mode":"normal","delimiter":"pipe","virtualGroupLabel":" Virtual Categories ","virtualGroupSource":"profile_group","ecmURL":" https://ecm.example.test/manage ","allowRecordingsByDefault":false,"collapseDuplicateVirtualGroups":false,"inferChannelNameGroups":true,"categoryRenames":[{"sourcePath":" International | Arabic | Sports ","displayName":" International Sports "},{"sourcePath":"International | Arabic | Sports","displayName":"Duplicate Ignored"},{"sourcePath":"","displayName":"Nowhere"},{"sourcePath":"International | TV","displayName":""}],"categoryAliases":[{"sourcePath":" International | Arabic | Sports ","aliasPath":" Sports | Arabic "},{"sourcePath":"International | Arabic | Sports","aliasPath":"Sports | Arabic"},{"sourcePath":"International | Arabic | Sports","aliasPath":"World Cup | Arabic"},{"sourcePath":"","aliasPath":"Nowhere"},{"sourcePath":"International | Arabic | Sports","aliasPath":""}]}`),
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)

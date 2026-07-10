@@ -150,6 +150,9 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 			virtualGroupSource = "group"
 		}
 	}
+	if virtualGroupSource == "profile_group" {
+		mode = "delimiter"
+	}
 	inferChannelNameGroups = virtualGroupSource != "group"
 	ecmURL, _ := payload["ecmURL"].(string)
 	ecmURL = normalizeAdminECMURL(ecmURL)
