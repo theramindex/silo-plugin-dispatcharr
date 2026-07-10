@@ -179,7 +179,7 @@ func TestCatalogSnapshotMatchesAPIKeyDirectAppMode(t *testing.T) {
 	}
 }
 
-func TestProfileCatalogNeedsRefreshOnlyForUnavailableAPIKeySnapshot(t *testing.T) {
+func TestProfileCatalogNeedsRefreshForUnavailableDispatcharrSnapshot(t *testing.T) {
 	t.Parallel()
 
 	snapshot := cache.Snapshot{Catalog: model.CatalogState{Source: model.LiveTVSource(model.SourceModeDirectLogin)}}
@@ -189,8 +189,8 @@ func TestProfileCatalogNeedsRefreshOnlyForUnavailableAPIKeySnapshot(t *testing.T
 		t.Fatal("expected unavailable API key profile snapshot to need refresh")
 	}
 	directSettings := config.Settings{SourceMode: config.SourceModeDirectLogin}
-	if profileCatalogNeedsRefresh(snapshot, directSettings) {
-		t.Fatal("expected direct-login profile permissions to remain an observable status")
+	if !profileCatalogNeedsRefresh(snapshot, directSettings) {
+		t.Fatal("expected direct-login profile snapshots to self-heal too")
 	}
 	snapshot.Catalog.Source.ProfileAccess.Status = "available"
 	if profileCatalogNeedsRefresh(snapshot, apiKeySettings) {
@@ -584,6 +584,9 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`Discard`,
 		`function effectiveChannel(channel)`,
 		`/dispatcharr/api/admin-settings`,
+		`/dispatcharr/api/refresh-channels`,
+		`Retry profiles`,
+		`data-admin-profile-refresh`,
 		`/api/v1/admin/plugins/installations/`,
 		`key: "category_settings"`,
 		`state.adminCategorySettings = await loadAdminCategorySettings().catch(function()`,
@@ -1702,6 +1705,41 @@ func TestHTTPRoutesServerRefreshRouteStartsBackgroundCatalogSync(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerChannelRefreshRouteStartsChannelOnlySync(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	settings := config.Settings{
+		SourceMode:        config.SourceModeAPIKey,
+		DispatcharrURL:    "https://dispatcharr.example.com",
+		DispatcharrAPIKey: "secret",
+		ChannelRefreshH:   24,
+		EPGRefreshH:       24,
+	}
+	store.Replace(cache.Snapshot{
+		ConfigKey: config.CatalogCacheKey(settings),
+		Catalog: model.CatalogState{
+			Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+			Channels: []model.Channel{{ID: "dispatcharr:old", Name: "Old Channel"}},
+		},
+	})
+	done := make(chan struct{}, 1)
+	syncer := &stubCatalogSyncer{store: store, done: done}
+	server := NewHTTPRoutesServerWithSyncer(store, func() config.Settings { return settings }, syncer)
+
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodPost, Path: "/dispatcharr/api/refresh-channels"})
+	if err != nil {
+		t.Fatalf("channel refresh route: %v", err)
+	}
+	if response.GetStatusCode() != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d", response.GetStatusCode())
+	}
+	waitForStubSync(t, done)
+	if syncer.channelCallCount() != 1 || syncer.forceCallCount() != 0 {
+		t.Fatalf("expected channel-only refresh, got channels=%d force=%d", syncer.channelCallCount(), syncer.forceCallCount())
+	}
+}
+
 func TestHTTPRoutesServerGuidePingRefreshesWhenAnyCheckedChannelIsMissingGuide(t *testing.T) {
 	t.Parallel()
 
@@ -1715,8 +1753,10 @@ func TestHTTPRoutesServerGuidePingRefreshesWhenAnyCheckedChannelIsMissingGuide(t
 		ChannelRefreshH: 24,
 		EPGRefreshH:     24,
 	}
+	source := model.LiveTVSource(model.SourceModeDirectLogin)
+	source.ProfileAccess = &model.ProfileAccess{Status: "available", ProfileCount: 1}
 	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
-		Source: model.LiveTVSource(model.SourceModeDirectLogin),
+		Source: source,
 		Channels: []model.Channel{
 			{ID: "dispatcharr:news", Name: "News HD"},
 			{ID: "dispatcharr:sports", Name: "Sports HD"},
@@ -1772,12 +1812,13 @@ func TestHTTPRoutesServerLegacyFavoriteRouteRejectsProcessGlobalState(t *testing
 }
 
 type stubCatalogSyncer struct {
-	store      *cache.Store
-	calls      int
-	forceCalls int
-	mu         sync.Mutex
-	block      <-chan struct{}
-	done       chan<- struct{}
+	store        *cache.Store
+	calls        int
+	forceCalls   int
+	channelCalls int
+	mu           sync.Mutex
+	block        <-chan struct{}
+	done         chan<- struct{}
 }
 
 func (s *stubCatalogSyncer) ForceSyncNow(ctx context.Context, settings config.Settings, nowUnix int64) error {
@@ -1792,6 +1833,9 @@ func (s *stubCatalogSyncer) RefreshGuideOnlyNow(ctx context.Context, settings co
 }
 
 func (s *stubCatalogSyncer) RefreshChannelsNow(ctx context.Context, settings config.Settings, nowUnix int64) error {
+	s.mu.Lock()
+	s.channelCalls++
+	s.mu.Unlock()
 	return s.SyncNow(ctx, settings, nowUnix)
 }
 
@@ -1802,10 +1846,12 @@ func (s *stubCatalogSyncer) SyncNow(_ context.Context, settings config.Settings,
 	s.mu.Lock()
 	s.calls++
 	s.mu.Unlock()
+	source := model.LiveTVSource(model.SourceModeDirectLogin)
+	source.ProfileAccess = &model.ProfileAccess{Status: "available", ProfileCount: 1}
 	s.store.Replace(cache.Snapshot{
 		ConfigKey: config.CatalogCacheKey(settings),
 		Catalog: model.CatalogState{
-			Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+			Source:   source,
 			Channels: []model.Channel{{ID: "dispatcharr:news", Name: "News HD"}},
 			Programs: []model.Program{{ID: "program:1", ChannelID: "dispatcharr:news", Title: "Morning News", StartUnix: 100, EndUnix: 200}},
 		},
@@ -1830,6 +1876,12 @@ func (s *stubCatalogSyncer) forceCallCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.forceCalls
+}
+
+func (s *stubCatalogSyncer) channelCallCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.channelCalls
 }
 
 func waitForStubSync(t *testing.T, done <-chan struct{}) {

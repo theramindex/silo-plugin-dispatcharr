@@ -214,6 +214,8 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return s.respondJSON(http.StatusOK, s.healthPayload())
 	case "/dispatcharr/api/refresh":
 		return s.handleRefresh(ctx, request)
+	case "/dispatcharr/api/refresh-channels":
+		return s.handleChannelRefresh(ctx, request)
 	case "/dispatcharr/api/app":
 		s.ensureCatalogHydrated(ctx)
 		return s.respondJSON(http.StatusOK, s.buildAppPayload())
@@ -346,11 +348,32 @@ func catalogSnapshotMatchesSettings(snapshot cache.Snapshot, settings config.Set
 }
 
 func profileCatalogNeedsRefresh(snapshot cache.Snapshot, settings config.Settings) bool {
-	if settings.EffectiveSourceMode() != config.SourceModeAPIKey {
+	if modelSourceModeForSettings(settings) != model.SourceModeDirectLogin {
 		return false
 	}
 	access := snapshot.Catalog.Source.ProfileAccess
 	return access == nil || access.Status == "unavailable"
+}
+
+func (s *HTTPRoutesServer) handleChannelRefresh(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if request.GetMethod() != http.MethodPost {
+		return textResponse(http.StatusMethodNotAllowed, "channel refresh requires POST"), nil
+	}
+	if s.coordinator == nil || s.settingsProvider == nil {
+		return textResponse(http.StatusServiceUnavailable, "catalog sync is not available"), nil
+	}
+
+	settings := s.settingsProvider()
+	if err := settings.Validate(); err != nil {
+		s.store.RecordFailure(time.Now().Unix(), err.Error())
+		return textResponse(http.StatusBadRequest, err.Error()), nil
+	}
+	_, started := s.coordinator.Start(RefreshChannels, settings)
+	status := http.StatusAccepted
+	if !started {
+		status = http.StatusOK
+	}
+	return s.respondJSON(status, s.buildAppPayload())
 }
 
 func (s *HTTPRoutesServer) startBackgroundProfileWarm(snapshot cache.Snapshot, settings config.Settings) bool {
