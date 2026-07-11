@@ -29,24 +29,35 @@ type EventCategory struct {
 }
 
 type BroadcastEvent struct {
-	ID           string               `json:"id"`
-	CategoryID   string               `json:"categoryId"`
-	CategoryName string               `json:"categoryName"`
-	Name         string               `json:"name"`
-	ShortName    string               `json:"shortName,omitempty"`
-	Description  string               `json:"description,omitempty"`
-	Keyword      string               `json:"keyword,omitempty"`
-	StartUnix    int64                `json:"startUnix"`
-	EndUnix      int64                `json:"endUnix,omitempty"`
-	Live         bool                 `json:"live"`
-	Completed    bool                 `json:"completed"`
-	Channels     []SportsChannelMatch `json:"channels"`
+	ID           string                 `json:"id"`
+	CategoryID   string                 `json:"categoryId"`
+	CategoryName string                 `json:"categoryName"`
+	Name         string                 `json:"name"`
+	ShortName    string                 `json:"shortName,omitempty"`
+	Description  string                 `json:"description,omitempty"`
+	Keyword      string                 `json:"keyword,omitempty"`
+	StartUnix    int64                  `json:"startUnix"`
+	EndUnix      int64                  `json:"endUnix,omitempty"`
+	Live         bool                   `json:"live"`
+	Completed    bool                   `json:"completed"`
+	Channels     []SportsChannelMatch   `json:"channels"`
+	EventSeries  bool                   `json:"eventSeries,omitempty"`
+	Windows      []EventBroadcastWindow `json:"windows,omitempty"`
+}
+
+type EventBroadcastWindow struct {
+	StartUnix int64                `json:"startUnix"`
+	EndUnix   int64                `json:"endUnix,omitempty"`
+	Channels  []SportsChannelMatch `json:"channels"`
 }
 
 type EventKeywordRule struct {
-	CategoryID   string   `json:"categoryId"`
-	CategoryName string   `json:"categoryName"`
-	Keywords     []string `json:"keywords"`
+	CategoryID         string   `json:"categoryId"`
+	CategoryName       string   `json:"categoryName"`
+	Keywords           []string `json:"keywords"`
+	ExcludeKeywords    []string `json:"excludeKeywords,omitempty"`
+	EventSeries        bool     `json:"eventSeries,omitempty"`
+	GroupWindowMinutes int      `json:"groupWindowMinutes,omitempty"`
 }
 
 func (s *HTTPRoutesServer) handleEvents(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
@@ -110,6 +121,10 @@ func defaultEventKeywordRules() []EventKeywordRule {
 		{CategoryID: "civic", CategoryName: "Civic", Keywords: []string{"State of the Union", "Presidential Address", "Joint Session", "Inauguration", "Election Night", "Presidential Debate"}},
 		{CategoryID: "parades", CategoryName: "Parades", Keywords: []string{"Thanksgiving Day Parade", "Macy's Thanksgiving Day Parade", "Rose Parade", "Christmas Parade"}},
 		{CategoryID: "entertainment", CategoryName: "Entertainment", Keywords: []string{"Live Special", "Special Presentation", "Red Carpet", "Ceremony", "Tribute Concert", "Benefit Concert", "Festival"}},
+		{CategoryID: "golf", CategoryName: "Golf", Keywords: []string{"PGA Tour", "LPGA Tour", "DP World Tour", "The Masters", "U.S. Open Golf", "The Open Championship", "Ryder Cup"}, ExcludeKeywords: []string{"Golf Central", "highlights", "replay", "preview", "recap", "best of"}, EventSeries: true, GroupWindowMinutes: 60},
+		{CategoryID: "motor-racing", CategoryName: "Motor Racing", Keywords: []string{"Formula 1", "F1 Grand Prix", "Grand Prix"}, ExcludeKeywords: []string{"highlights", "replay", "practice recap", "post race", "pre race"}, EventSeries: true, GroupWindowMinutes: 60},
+		{CategoryID: "combat-sports", CategoryName: "Combat Sports", Keywords: []string{"UFC", "Ultimate Fighting Championship", "MMA"}, ExcludeKeywords: []string{"highlights", "replay", "countdown", "weigh-in", "preview", "recap"}, EventSeries: true, GroupWindowMinutes: 60},
+		{CategoryID: "tennis", CategoryName: "Tennis", Keywords: []string{"ATP Tour", "WTA Tour", "Wimbledon", "US Open Tennis", "French Open Tennis", "Australian Open Tennis"}, ExcludeKeywords: []string{"highlights", "replay", "preview", "recap", "best of"}, EventSeries: true, GroupWindowMinutes: 60},
 	}
 }
 
@@ -130,10 +145,16 @@ func normalizeEventKeywordRules(value any) []EventKeywordRule {
 		categoryID, _ := object["categoryId"].(string)
 		categoryName, _ := object["categoryName"].(string)
 		keywords := normalizeKeywordValues(object["keywords"])
+		excludeKeywords := normalizeKeywordValues(object["excludeKeywords"])
+		eventSeries, _ := object["eventSeries"].(bool)
+		groupWindowMinutes := normalizeEventGroupWindowMinutes(object["groupWindowMinutes"], eventSeries)
 		rule := EventKeywordRule{
-			CategoryID:   normalizeEventCategoryID(categoryID, categoryName),
-			CategoryName: strings.TrimSpace(categoryName),
-			Keywords:     keywords,
+			CategoryID:         normalizeEventCategoryID(categoryID, categoryName),
+			CategoryName:       strings.TrimSpace(categoryName),
+			Keywords:           keywords,
+			ExcludeKeywords:    excludeKeywords,
+			EventSeries:        eventSeries,
+			GroupWindowMinutes: groupWindowMinutes,
 		}
 		if rule.CategoryName == "" {
 			rule.CategoryName = eventCategoryName(rule.CategoryID)
@@ -154,11 +175,38 @@ func normalizeTypedEventKeywordRules(values []EventKeywordRule) []EventKeywordRu
 			rule.CategoryName = eventCategoryName(rule.CategoryID)
 		}
 		rule.Keywords = normalizeKeywordStrings(rule.Keywords)
+		rule.ExcludeKeywords = normalizeKeywordStrings(rule.ExcludeKeywords)
+		rule.GroupWindowMinutes = normalizeEventGroupWindowMinutes(rule.GroupWindowMinutes, rule.EventSeries)
 		if rule.CategoryID != "" && len(rule.Keywords) > 0 {
 			normalized = append(normalized, rule)
 		}
 	}
 	return normalized
+}
+
+func normalizeEventGroupWindowMinutes(value any, eventSeries bool) int {
+	minutes := 0
+	switch typed := value.(type) {
+	case int:
+		minutes = typed
+	case int64:
+		minutes = int(typed)
+	case float64:
+		minutes = int(typed)
+	}
+	if !eventSeries {
+		return 0
+	}
+	if minutes == 0 {
+		return 60
+	}
+	if minutes < 15 {
+		return 15
+	}
+	if minutes > 360 {
+		return 360
+	}
+	return minutes
 }
 
 func normalizeKeywordValues(value any) []string {
@@ -245,7 +293,14 @@ func detectGuideBroadcastEvents(snapshot cache.Snapshot, now time.Time, rules []
 		categoryNames[category.ID] = category.Name
 	}
 	byKey := map[string]*BroadcastEvent{}
-	for _, program := range snapshot.Catalog.Programs {
+	programs := append([]model.Program(nil), snapshot.Catalog.Programs...)
+	sort.SliceStable(programs, func(i, j int) bool {
+		if programs[i].StartUnix != programs[j].StartUnix {
+			return programs[i].StartUnix < programs[j].StartUnix
+		}
+		return programs[i].ID < programs[j].ID
+	})
+	for _, program := range programs {
 		if program.EndUnix > 0 && program.EndUnix < nowUnix-6*3600 {
 			continue
 		}
@@ -273,34 +328,27 @@ func detectGuideBroadcastEvents(snapshot cache.Snapshot, now time.Time, rules []
 				Keyword:      keyword,
 				StartUnix:    program.StartUnix,
 				EndUnix:      program.EndUnix,
+				EventSeries:  rule.EventSeries,
 			}
-			event.Live = broadcastEventIsLive(*event, now)
-			event.Completed = event.EndUnix > 0 && event.EndUnix < nowUnix
 			byKey[key] = event
 		}
 		if event.Description == "" {
 			event.Description = program.Summary
 		}
-		if program.EndUnix > event.EndUnix {
-			event.EndUnix = program.EndUnix
-		}
-		event.Channels = appendEventChannelMatch(event.Channels, SportsChannelMatch{
+		match := SportsChannelMatch{
 			ID:           channel.ID,
 			Name:         channel.Name,
 			CategoryName: firstNonEmpty(categoryNames[channel.CategoryID], channel.CategoryName),
 			LogoURL:      channel.LogoURL,
 			Reason:       "guide: " + keyword,
 			Score:        100,
-		})
+		}
+		event.Channels = appendEventChannelMatch(event.Channels, match)
+		appendEventBroadcastWindow(event, program, match, rule)
 	}
 	events := make([]BroadcastEvent, 0, len(byKey))
 	for _, event := range byKey {
-		sort.Slice(event.Channels, func(i, j int) bool {
-			if event.Channels[i].Score != event.Channels[j].Score {
-				return event.Channels[i].Score > event.Channels[j].Score
-			}
-			return event.Channels[i].Name < event.Channels[j].Name
-		})
+		finalizeBroadcastEvent(event, now)
 		events = append(events, *event)
 	}
 	return events
@@ -312,11 +360,75 @@ func matchEventKeyword(program model.Program, rules []EventKeywordRule) (EventKe
 		for _, keyword := range rule.Keywords {
 			normalizedKeyword := normalizeMatchText(keyword)
 			if normalizedKeyword != "" && strings.Contains(" "+text+" ", " "+normalizedKeyword+" ") {
+				if matchEventExclusion(text, rule.ExcludeKeywords) {
+					break
+				}
 				return rule, keyword, true
 			}
 		}
 	}
 	return EventKeywordRule{}, "", false
+}
+
+func matchEventExclusion(normalizedText string, exclusions []string) bool {
+	for _, exclusion := range exclusions {
+		normalizedExclusion := normalizeMatchText(exclusion)
+		if normalizedExclusion != "" && strings.Contains(" "+normalizedText+" ", " "+normalizedExclusion+" ") {
+			return true
+		}
+	}
+	return false
+}
+
+func appendEventBroadcastWindow(event *BroadcastEvent, program model.Program, match SportsChannelMatch, rule EventKeywordRule) {
+	windowIndex := 0
+	if rule.EventSeries {
+		windowIndex = -1
+		windowSeconds := int64(normalizeEventGroupWindowMinutes(rule.GroupWindowMinutes, true) * 60)
+		for index := range event.Windows {
+			if program.StartUnix >= event.Windows[index].StartUnix && program.StartUnix-event.Windows[index].StartUnix <= windowSeconds {
+				windowIndex = index
+				break
+			}
+		}
+		if windowIndex < 0 {
+			event.Windows = append(event.Windows, EventBroadcastWindow{StartUnix: program.StartUnix, EndUnix: program.EndUnix, Channels: []SportsChannelMatch{}})
+			windowIndex = len(event.Windows) - 1
+		}
+	} else if len(event.Windows) == 0 {
+		event.Windows = append(event.Windows, EventBroadcastWindow{StartUnix: program.StartUnix, EndUnix: program.EndUnix, Channels: []SportsChannelMatch{}})
+	}
+	window := &event.Windows[windowIndex]
+	if window.StartUnix == 0 || (program.StartUnix > 0 && program.StartUnix < window.StartUnix) {
+		window.StartUnix = program.StartUnix
+	}
+	if program.EndUnix > window.EndUnix {
+		window.EndUnix = program.EndUnix
+	}
+	window.Channels = appendEventChannelMatch(window.Channels, match)
+}
+
+func finalizeBroadcastEvent(event *BroadcastEvent, now time.Time) {
+	sort.Slice(event.Windows, func(i, j int) bool { return event.Windows[i].StartUnix < event.Windows[j].StartUnix })
+	for index := range event.Windows {
+		sortEventChannelMatches(event.Windows[index].Channels)
+	}
+	sortEventChannelMatches(event.Channels)
+	if len(event.Windows) > 0 {
+		event.StartUnix = event.Windows[0].StartUnix
+		event.EndUnix = event.Windows[len(event.Windows)-1].EndUnix
+	}
+	event.Live = broadcastEventIsLive(*event, now)
+	event.Completed = broadcastEventIsCompleted(*event, now)
+}
+
+func sortEventChannelMatches(matches []SportsChannelMatch) {
+	sort.Slice(matches, func(i, j int) bool {
+		if matches[i].Score != matches[j].Score {
+			return matches[i].Score > matches[j].Score
+		}
+		return matches[i].Name < matches[j].Name
+	})
 }
 
 func appendEventChannelMatch(matches []SportsChannelMatch, match SportsChannelMatch) []SportsChannelMatch {
@@ -390,6 +502,15 @@ func eventCategories(events []BroadcastEvent) []EventCategory {
 
 func broadcastEventIsLive(event BroadcastEvent, now time.Time) bool {
 	nowUnix := now.Unix()
+	for _, window := range event.Windows {
+		end := window.EndUnix
+		if end == 0 {
+			end = window.StartUnix + 3*3600
+		}
+		if window.StartUnix > 0 && window.StartUnix <= nowUnix && end >= nowUnix {
+			return true
+		}
+	}
 	if event.StartUnix == 0 {
 		return false
 	}
@@ -398,4 +519,20 @@ func broadcastEventIsLive(event BroadcastEvent, now time.Time) bool {
 		end = event.StartUnix + 3*3600
 	}
 	return event.StartUnix <= nowUnix && end >= nowUnix
+}
+
+func broadcastEventIsCompleted(event BroadcastEvent, now time.Time) bool {
+	if len(event.Windows) == 0 {
+		return event.EndUnix > 0 && event.EndUnix < now.Unix()
+	}
+	for _, window := range event.Windows {
+		end := window.EndUnix
+		if end == 0 {
+			end = window.StartUnix + 3*3600
+		}
+		if end >= now.Unix() {
+			return false
+		}
+	}
+	return true
 }

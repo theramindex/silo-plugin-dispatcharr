@@ -84,6 +84,96 @@ func TestHTTPRoutesServerEventsUsesAdminKeywordRules(t *testing.T) {
 	assertBroadcastEventMatch(t, event.Channels, "ch:local")
 }
 
+func TestHTTPRoutesServerEventsExcludesEventSeriesStudioPrograms(t *testing.T) {
+	t.Parallel()
+
+	start := time.Now().Add(24 * time.Hour).Unix()
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{
+			{ID: "ch:golf", Name: "Golf Network", CategoryID: "golf", CategoryName: "Sports | Golf"},
+			{ID: "ch:studio", Name: "Sports Studio", CategoryID: "studio", CategoryName: "Sports"},
+		},
+		Programs: []model.Program{
+			{ID: "p:coverage", ChannelID: "ch:golf", Title: "PGA Tour: Second Round", Summary: "Live tournament coverage", StartUnix: start, EndUnix: start + 4*3600},
+			{ID: "p:studio", ChannelID: "ch:studio", Title: "Golf Central", Summary: "PGA Tour highlights and recap", StartUnix: start, EndUnix: start + 3600},
+		},
+		Content: model.ContentState{LiveCategories: []model.Category{
+			{ID: "golf", Name: "Sports | Golf", Kind: "live"},
+			{ID: "studio", Name: "Sports", Kind: "live"},
+		}},
+	}})
+
+	payload := fetchEventsPayload(t, NewHTTPRoutesServer(store))
+	if len(payload.Events) != 1 {
+		t.Fatalf("expected one tournament event after exclusions, got %+v", payload.Events)
+	}
+	event := payload.Events[0]
+	if !event.EventSeries || event.CategoryID != "golf" {
+		t.Fatalf("expected golf event series, got %+v", event)
+	}
+	assertBroadcastEventMatch(t, event.Channels, "ch:golf")
+	assertNoBroadcastEventMatch(t, event.Channels, "ch:studio")
+}
+
+func TestHTTPRoutesServerEventsGroupsEventSeriesBroadcastWindows(t *testing.T) {
+	t.Parallel()
+
+	day := time.Now().UTC().AddDate(0, 0, 2)
+	start := time.Date(day.Year(), day.Month(), day.Day(), 12, 0, 0, 0, time.UTC).Unix()
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{
+			{ID: "ch:one", Name: "Golf One", CategoryID: "golf", CategoryName: "Sports | Golf"},
+			{ID: "ch:two", Name: "Golf Two", CategoryID: "golf", CategoryName: "Sports | Golf"},
+		},
+		Programs: []model.Program{
+			{ID: "p:late", ChannelID: "ch:one", Title: "PGA Tour Championship", StartUnix: start + 4*3600, EndUnix: start + 6*3600},
+			{ID: "p:early-two", ChannelID: "ch:two", Title: "PGA Tour Championship", StartUnix: start + 30*60, EndUnix: start + 2*3600},
+			{ID: "p:early-one", ChannelID: "ch:one", Title: "PGA Tour Championship", StartUnix: start, EndUnix: start + 2*3600},
+		},
+		Content: model.ContentState{LiveCategories: []model.Category{{ID: "golf", Name: "Sports | Golf", Kind: "live"}}},
+	}})
+
+	payload := fetchEventsPayload(t, NewHTTPRoutesServer(store))
+	if len(payload.Events) != 1 {
+		t.Fatalf("expected one event-series card, got %+v", payload.Events)
+	}
+	event := payload.Events[0]
+	if len(event.Windows) != 2 {
+		t.Fatalf("expected two coverage windows, got %+v", event.Windows)
+	}
+	if event.Windows[0].StartUnix != start || event.Windows[1].StartUnix != start+4*3600 {
+		t.Fatalf("expected deterministic window order, got %+v", event.Windows)
+	}
+	if len(event.Windows[0].Channels) != 2 || len(event.Channels) != 2 {
+		t.Fatalf("expected deduplicated window and flat channels, got windows=%+v channels=%+v", event.Windows, event.Channels)
+	}
+	if event.StartUnix != start || event.EndUnix != start+6*3600 {
+		t.Fatalf("expected legacy bounds to span the coverage windows, got %+v", event)
+	}
+}
+
+func TestHTTPRoutesServerEventsKeepsDifferentSeriesTitlesSeparate(t *testing.T) {
+	t.Parallel()
+
+	start := time.Now().Add(72 * time.Hour).Unix()
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{{ID: "ch:tennis", Name: "Tennis", CategoryID: "tennis", CategoryName: "Sports | Tennis"}},
+		Programs: []model.Program{
+			{ID: "p:one", ChannelID: "ch:tennis", Title: "Wimbledon: Centre Court", StartUnix: start, EndUnix: start + 3*3600},
+			{ID: "p:two", ChannelID: "ch:tennis", Title: "Wimbledon: Court One", StartUnix: start + 20*60, EndUnix: start + 3*3600},
+		},
+		Content: model.ContentState{LiveCategories: []model.Category{{ID: "tennis", Name: "Sports | Tennis", Kind: "live"}}},
+	}})
+
+	payload := fetchEventsPayload(t, NewHTTPRoutesServer(store))
+	if len(payload.Events) != 2 {
+		t.Fatalf("expected distinct tournament titles to remain separate, got %+v", payload.Events)
+	}
+}
+
 func fetchEventsPayload(t *testing.T, server *HTTPRoutesServer) EventsPayload {
 	t.Helper()
 

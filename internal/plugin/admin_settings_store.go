@@ -130,6 +130,18 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	if enabled, ok := payload["allowRecordingsByDefault"].(bool); ok {
 		allowRecordingsByDefault = enabled
 	}
+	sportsFirstPlayerEnabled := false
+	if enabled, ok := payload["sportsFirstPlayerEnabled"].(bool); ok {
+		sportsFirstPlayerEnabled = enabled
+	}
+	liveRewindEnabled := false
+	if enabled, ok := payload["liveRewindEnabled"].(bool); ok {
+		liveRewindEnabled = enabled
+	}
+	liveRewindCacheGB := clampNumber(payload["liveRewindCacheGB"], 5, 1, 500)
+	liveRewindWindowMinutes := clampChoice(payload["liveRewindWindowMinutes"], 30, []int{15, 30, 60, 90, 120})
+	liveRewindMinFreeGB := clampNumber(payload["liveRewindMinFreeGB"], 2, 1, 100)
+	liveRewindMaxChannels := int(clampNumber(payload["liveRewindMaxChannels"], 20, 1, 100))
 	collapseDuplicateVirtualGroups := true
 	if enabled, ok := payload["collapseDuplicateVirtualGroups"].(bool); ok {
 		collapseDuplicateVirtualGroups = enabled
@@ -159,9 +171,9 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	ecmEnabled := ecmURL != ""
 	categoryRenames := normalizeCategoryRenames(payload["categoryRenames"])
 	categoryAliases := normalizeCategoryAliases(payload["categoryAliases"])
-	eventKeywords := normalizeEventKeywordRules(payload["eventKeywords"])
+	eventKeywords := normalizeAdminEventKeywordRules(payload["eventKeywords"])
 	if len(eventKeywords) == 0 {
-		eventKeywords = defaultEventKeywordRules()
+		eventKeywords = normalizeDefaultAdminEventKeywordRules()
 	}
 
 	return map[string]any{
@@ -172,6 +184,12 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 		"ecmEnabled":                     ecmEnabled,
 		"ecmURL":                         ecmURL,
 		"allowRecordingsByDefault":       allowRecordingsByDefault,
+		"sportsFirstPlayerEnabled":       sportsFirstPlayerEnabled,
+		"liveRewindEnabled":              liveRewindEnabled,
+		"liveRewindCacheGB":              liveRewindCacheGB,
+		"liveRewindWindowMinutes":        liveRewindWindowMinutes,
+		"liveRewindMinFreeGB":            liveRewindMinFreeGB,
+		"liveRewindMaxChannels":          liveRewindMaxChannels,
 		"collapseDuplicateVirtualGroups": collapseDuplicateVirtualGroups,
 		"inferChannelNameGroups":         inferChannelNameGroups,
 		"categoryRenames":                categoryRenames,
@@ -252,4 +270,98 @@ func normalizeCategoryRenames(value any) []map[string]string {
 func asStringValue(value any) string {
 	text, _ := value.(string)
 	return text
+}
+
+func normalizeAdminEventKeywordRules(value any) []map[string]any {
+	rows, ok := value.([]any)
+	if !ok {
+		return []map[string]any{}
+	}
+	rules := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		object, ok := row.(map[string]any)
+		if !ok {
+			continue
+		}
+		categoryID := strings.TrimSpace(asStringValue(object["categoryId"]))
+		categoryName := strings.TrimSpace(asStringValue(object["categoryName"]))
+		keywords := normalizeKeywordValues(object["keywords"])
+		if categoryID == "" || len(keywords) == 0 {
+			continue
+		}
+		categoryID = normalizeEventCategoryID(categoryID, categoryName)
+		if categoryName == "" {
+			categoryName = eventCategoryName(categoryID)
+		}
+		rules = append(rules, map[string]any{
+			"categoryId":         categoryID,
+			"categoryName":       categoryName,
+			"keywords":           keywords,
+			"excludeKeywords":    normalizeKeywordValues(object["excludeKeywords"]),
+			"eventSeries":        boolValue(object["eventSeries"]),
+			"groupWindowMinutes": clampInteger(object["groupWindowMinutes"], 60, 15, 360),
+		})
+	}
+	return rules
+}
+
+func normalizeDefaultAdminEventKeywordRules() []map[string]any {
+	data, err := json.Marshal(defaultEventKeywordRules())
+	if err != nil {
+		return []map[string]any{}
+	}
+	var rows []any
+	if err := json.Unmarshal(data, &rows); err != nil {
+		return []map[string]any{}
+	}
+	return normalizeAdminEventKeywordRules(rows)
+}
+
+func boolValue(value any) bool {
+	enabled, _ := value.(bool)
+	return enabled
+}
+
+func clampInteger(value any, fallback, minimum, maximum int) int {
+	number, ok := value.(float64)
+	if !ok {
+		return fallback
+	}
+	if number < float64(minimum) {
+		return minimum
+	}
+	if number > float64(maximum) {
+		return maximum
+	}
+	if number != float64(int(number)) {
+		return fallback
+	}
+	return int(number)
+}
+
+func clampNumber(value any, fallback, minimum, maximum float64) float64 {
+	number, ok := value.(float64)
+	if !ok {
+		return fallback
+	}
+	if number < minimum {
+		return minimum
+	}
+	if number > maximum {
+		return maximum
+	}
+	return number
+}
+
+func clampChoice(value any, fallback int, choices []int) int {
+	number, ok := value.(float64)
+	if !ok {
+		return fallback
+	}
+	for _, choice := range choices {
+		if int(number) == choice {
+			return choice
+		}
+	}
+	return fallback
 }

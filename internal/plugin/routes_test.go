@@ -26,9 +26,11 @@ func TestHTTPRoutesServerStatusRoute(t *testing.T) {
 	t.Parallel()
 
 	store := cache.NewStore()
+	source := model.LiveTVSource(model.SourceModeDirectLogin)
+	source.ProfileAccess = &model.ProfileAccess{Status: "available", ProfileCount: 2, ChannelMembershipCount: 8}
 	store.Replace(cache.Snapshot{
 		Catalog: model.CatalogState{
-			Source:   model.LiveTVSource(model.SourceModeXtream),
+			Source:   source,
 			Channels: []model.Channel{{ID: "xtream:1", Name: "News HD"}},
 			Programs: []model.Program{{ID: "program:1", ChannelID: "xtream:1", Title: "Morning News", StartUnix: 1700000000}},
 		},
@@ -50,6 +52,9 @@ func TestHTTPRoutesServerStatusRoute(t *testing.T) {
 	}
 	if payload.SourceName != "Live TV" || payload.ChannelCount != 1 {
 		t.Fatalf("unexpected payload: %+v", payload)
+	}
+	if payload.ProfileAccess == nil || payload.ProfileAccess.ProfileCount != 2 || payload.ProfileAccess.ChannelMembershipCount != 8 {
+		t.Fatalf("expected profile access summary, got %+v", payload.ProfileAccess)
 	}
 }
 
@@ -260,7 +265,15 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`<span>Events</span>`,
 		`id="settings-menu-button"`,
 		`class="settings-dropdown"`,
+		`data-view="settings" role="menuitem">Settings</button>`,
 		`Refresh guide</button>`,
+		`profileSelection: { mode: "all", profileIds: [] }`,
+		`function renderProfileSettings()`,
+		`function updateSelectedProfile(profileID, enabled)`,
+		`function channelMatchesProfileSelection(channel)`,
+		`data-profile-selection-id=`,
+		`Use all profiles`,
+		`.profile-selection-list`,
 		`id="sports-topbar-tabs"`,
 		`id="app-search-button"`,
 		`data-view="search"`,
@@ -527,9 +540,14 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`function renderAdminIntegrationsTab()`,
 		`Connection Status`,
 		`function adminStatusPanel()`,
+		`function refreshAdminStatus()`,
 		`adminStatusItem("Profiles", profileValue, profileDetail)`,
 		`Dispatcharr account. Assign profiles in Dispatcharr, then refresh Live TV.`,
 		`admin-status-strip`,
+		`admin-status-refresh`,
+		`data-admin-status-refresh`,
+		`Refresh connection status`,
+		`Connection status refreshed.`,
 		`Presentation Overrides`,
 		`function renderAdminCategoryAliasSettings()`,
 		`function renderAdminECMSettings()`,
@@ -651,6 +669,7 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 					{"id": "channel:us-tv-dup", "name": "TV | Demo Channel", "categoryId": "cat:us-tv-pipe", "categoryName": "US | TV"},
 					{"id": "channel:argentina-city", "name": "Argentina | Buenos Aires | Sports 1", "categoryId": "cat:intl-sports", "categoryName": "International Sports"},
 					{"id": "channel:us-sports-mlb", "name": "MLB Teams Network", "categoryId": "cat:us-sports-mlb", "categoryName": "US | Sports | MLB Teams", "profileIds": []string{"profile-ny"}},
+					{"id": "channel:ny-news-sports", "name": "NY Sports News", "categoryId": "cat:news-sports", "categoryName": "News | Sports | Regional", "profileIds": []string{"profile-ny"}},
 				},
 				"categories": []map[string]any{
 					{"id": "cat:world-cup", "name": "* World Cup"},
@@ -662,10 +681,11 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 					{"id": "cat:us-tv-pipe", "name": "US | TV"},
 					{"id": "cat:intl-sports", "name": "International Sports"},
 					{"id": "cat:us-sports-mlb", "name": "US | Sports | MLB Teams"},
+					{"id": "cat:news-sports", "name": "News | Sports | Regional"},
 				},
 				"source": map[string]any{
 					"profiles": []map[string]any{
-						{"id": "profile-ny", "name": "US TV | NY", "channelCount": 2},
+						{"id": "profile-ny", "name": "US TV | NY", "channelCount": 3},
 						{"id": "profile-us-tv", "name": "US TV", "channelCount": 1},
 					},
 				},
@@ -679,6 +699,7 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 					{"sourcePath": "International | Argentina | Sports", "aliasPath": "Sports | Argentina"},
 					{"sourcePath": "International | Argentina | Sports", "aliasPath": "World Cup | Argentina"},
 					{"sourcePath": "US | Sports", "aliasPath": "Sports | US"},
+					{"sourcePath": "News | Sports", "aliasPath": "Information | Athletics"},
 				},
 			},
 		},
@@ -690,6 +711,15 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	}
 	if !result.ProfileGroupPath || !result.ProfileGroupRoot {
 		t.Fatalf("expected profile plus channel group virtual paths to be present: %+v", result)
+	}
+	if !result.ProfileNestedGroupPath {
+		t.Fatalf("expected every nested channel group segment beneath the profile path: %+v", result)
+	}
+	if !result.ProfileOverridePath {
+		t.Fatalf("expected presentation overrides to remain scoped beneath each profile path: %+v", result)
+	}
+	if !result.ProfileSelectionDefaultsAll || !result.ProfileSelectionFiltersChannels || !result.ProfileSelectionFiltersPaths || !result.ProfileSelectionFiltersPrograms || !result.ProfileSelectionFiltersEventChannels || !result.ProfileSelectionDropsStaleIDs {
+		t.Fatalf("expected per-user profile selection to filter every Live TV discovery surface: %+v", result)
 	}
 	if result.ProfileOrganizationMode != "delimiter" {
 		t.Fatalf("expected profile organization to require delimiter mode: %+v", result)
@@ -849,71 +879,79 @@ func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
 }
 
 type virtualAliasResult struct {
-	SourcePath                  bool   `json:"sourcePath"`
-	ProfileGroupPath            bool   `json:"profileGroupPath"`
-	ProfileGroupRoot            bool   `json:"profileGroupRoot"`
-	ProfileOrganizationMode     string `json:"profileOrganizationMode"`
-	ProfileLocalMarketPath      bool   `json:"profileLocalMarketPath"`
-	SelectedProfileScoped       bool   `json:"selectedProfileScoped"`
-	DuplicateProfileCollapsed   bool   `json:"duplicateProfileCollapsed"`
-	DuplicateProfileExpanded    bool   `json:"duplicateProfileExpanded"`
-	DuplicateGroupCollapsed     bool   `json:"duplicateGroupCollapsed"`
-	DuplicateGroupExpanded      bool   `json:"duplicateGroupExpanded"`
-	AliasPath                   bool   `json:"aliasPath"`
-	SecondAliasPath             bool   `json:"secondAliasPath"`
-	PrefixAliasPath             bool   `json:"prefixAliasPath"`
-	SourceCount                 int    `json:"sourceCount"`
-	AliasCount                  int    `json:"aliasCount"`
-	SecondAliasCount            int    `json:"secondAliasCount"`
-	PrefixAliasCount            int    `json:"prefixAliasCount"`
-	InferredLocalGroup          bool   `json:"inferredLocalGroup"`
-	InferredLocalCityGroup      bool   `json:"inferredLocalCityGroup"`
-	InferredCountryGroup        bool   `json:"inferredCountryGroup"`
-	InferredCountryCityGroup    bool   `json:"inferredCountryCityGroup"`
-	ChannelOnlySourceHidden     bool   `json:"channelOnlySourceHidden"`
-	ChannelOnlyInferredShown    bool   `json:"channelOnlyInferredShown"`
-	ObjectParsedMode            string `json:"objectParsedMode"`
-	StringParsedMode            string `json:"stringParsedMode"`
-	FeaturedSection             bool   `json:"featuredSection"`
-	FeaturedRenamedSection      bool   `json:"featuredRenamedSection"`
-	ListingRenamedSection       bool   `json:"listingRenamedSection"`
-	GuideRenamedAllOption       bool   `json:"guideRenamedAllOption"`
-	VirtualRenamedBreadcrumb    bool   `json:"virtualRenamedBreadcrumb"`
-	FeaturedCategory            bool   `json:"featuredCategory"`
-	FeaturedAlphabetical        bool   `json:"featuredAlphabetical"`
-	FeaturedVirtualCategory     bool   `json:"featuredVirtualCategory"`
-	FeaturedSourceCategory      bool   `json:"featuredSourceCategory"`
-	FeaturedMarkerVisible       bool   `json:"featuredMarkerVisible"`
-	FeaturedBreadcrumbRoot      bool   `json:"featuredBreadcrumbRoot"`
-	FeaturedBreadcrumbPath      bool   `json:"featuredBreadcrumbPath"`
-	FeaturedGuide               bool   `json:"featuredGuide"`
-	FeaturedGuideHeading        bool   `json:"featuredGuideHeading"`
-	FeaturedViewToggle          bool   `json:"featuredViewToggle"`
-	FeaturedListView            bool   `json:"featuredListView"`
-	FeaturedBackButton          bool   `json:"featuredBackButton"`
-	SimpleFeaturedCategory      bool   `json:"simpleFeaturedCategory"`
-	SimpleFeaturedGuide         bool   `json:"simpleFeaturedGuide"`
-	SimpleFeaturedViewToggle    bool   `json:"simpleFeaturedViewToggle"`
-	SimpleFeaturedSourcePage    bool   `json:"simpleFeaturedSourcePage"`
-	VirtualBreadcrumbRoot       bool   `json:"virtualBreadcrumbRoot"`
-	VirtualGuideHeading         bool   `json:"virtualGuideHeading"`
-	VirtualBackButton           bool   `json:"virtualBackButton"`
-	ChannelCategoryName         string `json:"channelCategoryName"`
-	ReplayRewindable            bool   `json:"replayRewindable"`
-	NormalRewindable            bool   `json:"normalRewindable"`
-	ReplayPlayerClass           bool   `json:"replayPlayerClass"`
-	ReplayPlayerControls        bool   `json:"replayPlayerControls"`
-	ReplayPlayerTag             bool   `json:"replayPlayerTag"`
-	EPGOverlapResolved          bool   `json:"epgOverlapResolved"`
-	EPGLiveTitleMarker          bool   `json:"epgLiveTitleMarker"`
-	GuideStartsAtCurrentSlot    bool   `json:"guideStartsAtCurrentSlot"`
-	ProgramSearchMatchesEPG     bool   `json:"programSearchMatchesEpg"`
-	GuideWindowBounded          bool   `json:"guideWindowBounded"`
-	DetailsFirstProgramClick    bool   `json:"detailsFirstProgramClick"`
-	DetailsLiveTag              bool   `json:"detailsLiveTag"`
-	RecordingDeniedHidden       bool   `json:"recordingDeniedHidden"`
-	RecordingAdminShown         bool   `json:"recordingAdminShown"`
-	PlayerReturnContextRestored bool   `json:"playerReturnContextRestored"`
+	SourcePath                           bool   `json:"sourcePath"`
+	ProfileGroupPath                     bool   `json:"profileGroupPath"`
+	ProfileGroupRoot                     bool   `json:"profileGroupRoot"`
+	ProfileNestedGroupPath               bool   `json:"profileNestedGroupPath"`
+	ProfileOverridePath                  bool   `json:"profileOverridePath"`
+	ProfileSelectionDefaultsAll          bool   `json:"profileSelectionDefaultsAll"`
+	ProfileSelectionFiltersChannels      bool   `json:"profileSelectionFiltersChannels"`
+	ProfileSelectionFiltersPaths         bool   `json:"profileSelectionFiltersPaths"`
+	ProfileSelectionFiltersPrograms      bool   `json:"profileSelectionFiltersPrograms"`
+	ProfileSelectionFiltersEventChannels bool   `json:"profileSelectionFiltersEventChannels"`
+	ProfileSelectionDropsStaleIDs        bool   `json:"profileSelectionDropsStaleIds"`
+	ProfileOrganizationMode              string `json:"profileOrganizationMode"`
+	ProfileLocalMarketPath               bool   `json:"profileLocalMarketPath"`
+	SelectedProfileScoped                bool   `json:"selectedProfileScoped"`
+	DuplicateProfileCollapsed            bool   `json:"duplicateProfileCollapsed"`
+	DuplicateProfileExpanded             bool   `json:"duplicateProfileExpanded"`
+	DuplicateGroupCollapsed              bool   `json:"duplicateGroupCollapsed"`
+	DuplicateGroupExpanded               bool   `json:"duplicateGroupExpanded"`
+	AliasPath                            bool   `json:"aliasPath"`
+	SecondAliasPath                      bool   `json:"secondAliasPath"`
+	PrefixAliasPath                      bool   `json:"prefixAliasPath"`
+	SourceCount                          int    `json:"sourceCount"`
+	AliasCount                           int    `json:"aliasCount"`
+	SecondAliasCount                     int    `json:"secondAliasCount"`
+	PrefixAliasCount                     int    `json:"prefixAliasCount"`
+	InferredLocalGroup                   bool   `json:"inferredLocalGroup"`
+	InferredLocalCityGroup               bool   `json:"inferredLocalCityGroup"`
+	InferredCountryGroup                 bool   `json:"inferredCountryGroup"`
+	InferredCountryCityGroup             bool   `json:"inferredCountryCityGroup"`
+	ChannelOnlySourceHidden              bool   `json:"channelOnlySourceHidden"`
+	ChannelOnlyInferredShown             bool   `json:"channelOnlyInferredShown"`
+	ObjectParsedMode                     string `json:"objectParsedMode"`
+	StringParsedMode                     string `json:"stringParsedMode"`
+	FeaturedSection                      bool   `json:"featuredSection"`
+	FeaturedRenamedSection               bool   `json:"featuredRenamedSection"`
+	ListingRenamedSection                bool   `json:"listingRenamedSection"`
+	GuideRenamedAllOption                bool   `json:"guideRenamedAllOption"`
+	VirtualRenamedBreadcrumb             bool   `json:"virtualRenamedBreadcrumb"`
+	FeaturedCategory                     bool   `json:"featuredCategory"`
+	FeaturedAlphabetical                 bool   `json:"featuredAlphabetical"`
+	FeaturedVirtualCategory              bool   `json:"featuredVirtualCategory"`
+	FeaturedSourceCategory               bool   `json:"featuredSourceCategory"`
+	FeaturedMarkerVisible                bool   `json:"featuredMarkerVisible"`
+	FeaturedBreadcrumbRoot               bool   `json:"featuredBreadcrumbRoot"`
+	FeaturedBreadcrumbPath               bool   `json:"featuredBreadcrumbPath"`
+	FeaturedGuide                        bool   `json:"featuredGuide"`
+	FeaturedGuideHeading                 bool   `json:"featuredGuideHeading"`
+	FeaturedViewToggle                   bool   `json:"featuredViewToggle"`
+	FeaturedListView                     bool   `json:"featuredListView"`
+	FeaturedBackButton                   bool   `json:"featuredBackButton"`
+	SimpleFeaturedCategory               bool   `json:"simpleFeaturedCategory"`
+	SimpleFeaturedGuide                  bool   `json:"simpleFeaturedGuide"`
+	SimpleFeaturedViewToggle             bool   `json:"simpleFeaturedViewToggle"`
+	SimpleFeaturedSourcePage             bool   `json:"simpleFeaturedSourcePage"`
+	VirtualBreadcrumbRoot                bool   `json:"virtualBreadcrumbRoot"`
+	VirtualGuideHeading                  bool   `json:"virtualGuideHeading"`
+	VirtualBackButton                    bool   `json:"virtualBackButton"`
+	ChannelCategoryName                  string `json:"channelCategoryName"`
+	ReplayRewindable                     bool   `json:"replayRewindable"`
+	NormalRewindable                     bool   `json:"normalRewindable"`
+	ReplayPlayerClass                    bool   `json:"replayPlayerClass"`
+	ReplayPlayerControls                 bool   `json:"replayPlayerControls"`
+	ReplayPlayerTag                      bool   `json:"replayPlayerTag"`
+	EPGOverlapResolved                   bool   `json:"epgOverlapResolved"`
+	EPGLiveTitleMarker                   bool   `json:"epgLiveTitleMarker"`
+	GuideStartsAtCurrentSlot             bool   `json:"guideStartsAtCurrentSlot"`
+	ProgramSearchMatchesEPG              bool   `json:"programSearchMatchesEpg"`
+	GuideWindowBounded                   bool   `json:"guideWindowBounded"`
+	DetailsFirstProgramClick             bool   `json:"detailsFirstProgramClick"`
+	DetailsLiveTag                       bool   `json:"detailsLiveTag"`
+	RecordingDeniedHidden                bool   `json:"recordingDeniedHidden"`
+	RecordingAdminShown                  bool   `json:"recordingAdminShown"`
+	PlayerReturnContextRestored          bool   `json:"playerReturnContextRestored"`
 }
 
 func extractPlayerScript(t *testing.T) string {
@@ -997,6 +1035,8 @@ JSON.stringify((function() {
   const profileOrganizationMode = state.adminCategorySettings.mode;
   const profileAll = virtualCategoriesFromPaths("", function() { return true; }, true);
   const nyLocalProfilePaths = virtualPathsForChannel(channelByID("channel:ny-local"));
+  const nestedProfileGroupPaths = virtualPathsForChannel(channelByID("channel:ny-news-sports"));
+  const profileOverride = profileAll.find(function(item) { return item.name === "US TV / NY / Information / Athletics / Regional"; });
   state.app.source.channelProfile = { id: "profile-ny", name: "US TV | NY" };
   const selectedProfilePaths = profilePathsForChannel(channelByID("channel:ny-local"));
   delete state.app.source.channelProfile;
@@ -1132,10 +1172,44 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 	renderGuideWindow(true);
 	const renderedGuideRows = (document.getElementById("epg").innerHTML.match(/class="epg-row"/g) || []).length;
 	const guideWindowBounded = state.guideWindowStart > 0 && renderedGuideRows > 0 && renderedGuideRows <= 60 && renderedGuideRows === state.guideWindowEnd - state.guideWindowStart;
+	const originalPreferences = state.app.preferences;
+	const originalPrograms = state.app.programs;
+	state.app.preferences = defaultPrefs();
+	normalizePreferences();
+	const defaultProfileChannelIDs = effectiveChannels(false).map(function(channel) { return channel.id; });
+	const profileSelectionDefaultsAll = defaultProfileChannelIDs.indexOf("channel:ny-local") !== -1 && defaultProfileChannelIDs.indexOf("channel:profile-us-tv-dup") !== -1;
+	state.app.preferences.profileSelection = { mode: "selected", profileIds: ["profile-ny", "profile-stale"] };
+	normalizePreferences();
+	state.app.programs = [
+	  { id: "program-profile-ny", channelId: "channel:ny-local", title: "NY News", startUnix: epgWindow.start, endUnix: epgWindow.end },
+	  { id: "program-profile-us", channelId: "channel:profile-us-tv-dup", title: "US News", startUnix: epgWindow.start, endUnix: epgWindow.end }
+	];
+	rebuildProgramIndex();
+	const selectedProfileChannelIDs = effectiveChannels(false).map(function(channel) { return channel.id; });
+	const userSelectedProfilePaths = profilePathsForChannel(channelByID("channel:ny-local"));
+	const selectedProgramIDs = programsFor("").map(function(program) { return program.id; });
+	const selectedEventChannels = uniqueEventChannels([channelByID("channel:ny-local"), channelByID("channel:profile-us-tv-dup")]);
+	const profileSelectionFiltersChannels = selectedProfileChannelIDs.indexOf("channel:ny-local") !== -1 && selectedProfileChannelIDs.indexOf("channel:profile-us-tv-dup") === -1;
+	const profileSelectionFiltersPaths = userSelectedProfilePaths.length === 1 && userSelectedProfilePaths[0] === "US TV / NY";
+	const profileSelectionFiltersPrograms = selectedProgramIDs.length === 1 && selectedProgramIDs[0] === "program-profile-ny";
+	const profileSelectionFiltersEventChannels = selectedEventChannels.length === 1 && selectedEventChannels[0].id === "channel:ny-local";
+	const profileSelectionDropsStaleIDs = profileSelection().profileIds.length === 1 && profileSelection().profileIds[0] === "profile-ny";
+	state.app.preferences = originalPreferences;
+	state.app.programs = originalPrograms;
+	normalizePreferences();
+	rebuildProgramIndex();
 	return {
     sourcePath: !!source,
     profileGroupPath: !!profileGroup,
     profileGroupRoot: !!profileRoot,
+    profileNestedGroupPath: nestedProfileGroupPaths.indexOf("US TV / NY / News / Sports / Regional") !== -1,
+    profileOverridePath: !!profileOverride && nestedProfileGroupPaths.indexOf("US TV / NY / Information / Athletics / Regional") !== -1,
+    profileSelectionDefaultsAll: profileSelectionDefaultsAll,
+    profileSelectionFiltersChannels: profileSelectionFiltersChannels,
+    profileSelectionFiltersPaths: profileSelectionFiltersPaths,
+    profileSelectionFiltersPrograms: profileSelectionFiltersPrograms,
+    profileSelectionFiltersEventChannels: profileSelectionFiltersEventChannels,
+    profileSelectionDropsStaleIds: profileSelectionDropsStaleIDs,
     profileOrganizationMode: profileOrganizationMode,
     profileLocalMarketPath: nyLocalProfilePaths.indexOf("US TV / NY / Locals / New York City") !== -1,
     selectedProfileScoped: selectedProfilePaths.length === 1 && selectedProfilePaths[0] === "US TV / NY",
@@ -2554,6 +2628,32 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	if strings.Count(sportsCard, "event.leagueName") > 1 {
 		t.Fatal("sports card must not render the league label more than once")
 	}
+	playerSports := functionBody("renderPlayerSportsDrawer")
+	for _, want := range []string{`player-sports-drawer`, `Live &amp; upcoming`, `Sports channels`} {
+		if !strings.Contains(playerSports, want) {
+			t.Fatalf("sports-first player drawer must include %q", want)
+		}
+	}
+	playerSportsEvents := functionBody("playerSportsEvents")
+	if !strings.Contains(playerSportsEvents, `Number(channel.score || 0) >= 60`) {
+		t.Fatal("sports-first player must hide low-confidence channel matches")
+	}
+	startSportsRefresh := functionBody("startPlayerSportsRefresh")
+	if !strings.Contains(startSportsRefresh, `30000`) || !strings.Contains(startSportsRefresh, `state.playerSportsOpen`) {
+		t.Fatal("sports-first player score refresh must be scoped to the open drawer")
+	}
+	eventWindows := functionBody("renderEventBroadcastWindows")
+	for _, want := range []string{`event.windows`, `event-broadcast-window`, `Broadcast coverage windows`} {
+		if !strings.Contains(eventWindows, want) {
+			t.Fatalf("event cards must expose grouped coverage marker %q", want)
+		}
+	}
+	normalizeEventRules := functionBody("normalizeEventKeywordRows")
+	for _, want := range []string{`excludeKeywords`, `eventSeries`, `groupWindowMinutes`} {
+		if !strings.Contains(normalizeEventRules, want) {
+			t.Fatalf("event-series admin rules must preserve %q", want)
+		}
+	}
 
 	for _, want := range []string{
 		`.guide-scroll {`,
@@ -2576,6 +2676,11 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`@media (max-width: 700px)`,
 		`.topbar-primary`,
 		`.topbar-actions`,
+		`.player-sports-drawer`,
+		`.player-sports-event.live`,
+		`.event-broadcast-windows`,
+		`.event-keyword-options`,
+		`@media (prefers-reduced-motion: reduce)`,
 	} {
 		requireStyle(want)
 	}

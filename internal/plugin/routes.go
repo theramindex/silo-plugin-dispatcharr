@@ -21,6 +21,7 @@ import (
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/timeshift"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/dispatcharr"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
 )
@@ -47,6 +48,7 @@ type HTTPRoutesServer struct {
 	sportsProvider      sportsProvider
 	sportsCache         sportsEventCache
 	sportsMu            sync.Mutex
+	timeShift           *timeshift.Manager
 }
 
 type catalogSyncer interface {
@@ -87,7 +89,7 @@ func NewHTTPRoutesServerWithCoordinatorAndAdminSettingsFile(store *cache.Store, 
 }
 
 func newHTTPRoutesServer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
-	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, sportsProvider: newESPNSportsProvider(&http.Client{Timeout: 8 * time.Second})}
+	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, sportsProvider: newESPNSportsProvider(&http.Client{Timeout: 8 * time.Second}), timeShift: timeshift.NewManager("")}
 	if syncer != nil {
 		server.coordinator = NewRefreshCoordinator(syncer)
 	}
@@ -197,6 +199,9 @@ type watchRequest struct {
 }
 
 func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if strings.HasPrefix(request.GetPath(), "/dispatcharr/timeshift/") {
+		return s.handleTimeShiftMedia(request), nil
+	}
 	switch request.GetPath() {
 	case "/dispatcharr", "/dispatcharr/player", "/dispatcharr/admin":
 		return htmlResponse(http.StatusOK, s.playerPageHTML(request)), nil
@@ -249,6 +254,18 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 			return s.handleScheduleRecording(ctx, request)
 		}
 		return s.handleRecordings(ctx)
+	case "/dispatcharr/api/timeshift/start":
+		return s.handleTimeShiftStart(request), nil
+	case "/dispatcharr/api/timeshift/status":
+		return s.handleTimeShiftStatus(request), nil
+	case "/dispatcharr/api/timeshift/heartbeat":
+		return s.handleTimeShiftHeartbeat(request), nil
+	case "/dispatcharr/api/timeshift/stop":
+		return s.handleTimeShiftStop(request), nil
+	case "/dispatcharr/api/timeshift/admin-status":
+		return s.handleTimeShiftAdminStatus(request), nil
+	case "/dispatcharr/api/timeshift/clear":
+		return s.handleTimeShiftClear(request), nil
 	case "/dispatcharr/api/sports":
 		s.ensureCatalogHydrated(ctx)
 		return s.handleSports(ctx, request)
@@ -789,6 +806,7 @@ func (s *HTTPRoutesServer) handleAdminSettings(ctx context.Context, request *plu
 		return textResponse(http.StatusBadGateway, "could not save plugin settings"), nil
 	}
 	saved := s.store.SetAdminSettings(encoded)
+	s.timeShiftConfig()
 	return s.respondJSON(http.StatusOK, json.RawMessage(saved))
 }
 

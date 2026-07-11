@@ -125,6 +125,37 @@ const categorySettingsJSONSchema = `{
       "type": "boolean",
       "default": true
     },
+    "sportsFirstPlayerEnabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "liveRewindEnabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "liveRewindCacheGB": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 500,
+      "default": 5
+    },
+    "liveRewindWindowMinutes": {
+      "type": "integer",
+      "enum": [15, 30, 60, 90, 120],
+      "default": 30
+    },
+    "liveRewindMinFreeGB": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 2
+    },
+    "liveRewindMaxChannels": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 20
+    },
     "virtualGroupSource": {
       "type": "string",
       "enum": ["group", "group_channel", "profile_group", "channel"],
@@ -195,6 +226,24 @@ const categorySettingsJSONSchema = `{
               "type": "string",
               "minLength": 1
             }
+          },
+          "excludeKeywords": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "default": []
+          },
+          "eventSeries": {
+            "type": "boolean",
+            "default": false
+          },
+          "groupWindowMinutes": {
+            "type": "integer",
+            "minimum": 15,
+            "maximum": 360,
+            "default": 60
           }
         },
         "required": ["categoryId", "categoryName", "keywords"],
@@ -229,7 +278,7 @@ func GlobalConfigSchema() []*ConfigSchema {
 
 func UserConfigSchema() []*ConfigSchema {
 	return []*ConfigSchema{
-		objectSchema("preferences", "Preferences", "Per-user Dispatcharr plugin preferences stored by Silo.", `{"type":"object","properties":{"favorites":{"type":"object","additionalProperties":{"type":"boolean"}},"favoriteOrder":{"type":"array","items":{"type":"string"}},"autoFavorites":{"type":"object","additionalProperties":{"type":"boolean"}},"hiddenCategories":{"type":"object","additionalProperties":{"type":"boolean"}},"sportsFavoriteTeams":{"type":"object","additionalProperties":{"type":"boolean"}},"keywordPasses":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"keyword":{"type":"string"},"createdAt":{"type":"integer"}},"required":["id","keyword"],"additionalProperties":false}},"recentSearches":{"type":"array","items":{"type":"string"}},"recentChannels":{"type":"array","items":{"type":"string"}},"continueWatching":{"type":"object","additionalProperties":true},"playback":{"type":"object","additionalProperties":true},"categoryParsing":{"type":"object","properties":{"enabled":{"type":"boolean"},"mode":{"type":"string","enum":["off","delimiter","regex"]},"delimiter":{"type":"string","enum":["dash","pipe"]},"regex":{"type":"string"},"output":{"type":"string"}},"additionalProperties":false},"customGroups":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"order":{"type":"integer"}},"required":["id","name"],"additionalProperties":false}},"customGroupMemberships":{"type":"object","additionalProperties":{"type":"array","items":{"type":"string"}}}},"additionalProperties":false}`, false, []*pluginv1.AdminFormField{}, "Save preferences"),
+		objectSchema("preferences", "Preferences", "Per-user Dispatcharr plugin preferences stored by Silo.", `{"type":"object","properties":{"favorites":{"type":"object","additionalProperties":{"type":"boolean"}},"favoriteOrder":{"type":"array","items":{"type":"string"}},"autoFavorites":{"type":"object","additionalProperties":{"type":"boolean"}},"hiddenCategories":{"type":"object","additionalProperties":{"type":"boolean"}},"sportsFavoriteTeams":{"type":"object","additionalProperties":{"type":"boolean"}},"keywordPasses":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"keyword":{"type":"string"},"createdAt":{"type":"integer"}},"required":["id","keyword"],"additionalProperties":false}},"recentSearches":{"type":"array","items":{"type":"string"}},"recentChannels":{"type":"array","items":{"type":"string"}},"continueWatching":{"type":"object","additionalProperties":true},"playback":{"type":"object","additionalProperties":true},"categoryParsing":{"type":"object","properties":{"enabled":{"type":"boolean"},"mode":{"type":"string","enum":["off","delimiter","regex"]},"delimiter":{"type":"string","enum":["dash","pipe"]},"regex":{"type":"string"},"output":{"type":"string"}},"additionalProperties":false},"profileSelection":{"type":"object","properties":{"mode":{"type":"string","enum":["all","selected"]},"profileIds":{"type":"array","items":{"type":"string"},"uniqueItems":true}},"required":["mode","profileIds"],"additionalProperties":false},"customGroups":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"order":{"type":"integer"}},"required":["id","name"],"additionalProperties":false}},"customGroupMemberships":{"type":"object","additionalProperties":{"type":"array","items":{"type":"string"}}}},"additionalProperties":false}`, false, []*pluginv1.AdminFormField{}, "Save preferences"),
 		objectSchema("adminCategorySettings", "Admin Category Settings", "Admin-managed Live TV category mode saved through Silo plugin settings.", categorySettingsJSONSchema, false, []*pluginv1.AdminFormField{}, "Save category settings"),
 	}
 }
