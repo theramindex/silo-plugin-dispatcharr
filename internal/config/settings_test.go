@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
+	sdkconfig "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/config"
 )
 
 func TestValidate_XtreamRequiresCredentials(t *testing.T) {
@@ -176,13 +179,28 @@ func TestUserConfigSchema_DeclaresCurrentPreferenceShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected preferences schema properties, got %q", preferences.GetJsonSchema())
 	}
-	for _, key := range []string{"favorites", "autoFavorites", "hiddenCategories", "sportsFavoriteTeams", "keywordPasses", "recentSearches", "recentChannels", "continueWatching", "playback", "categoryParsing", "customGroups", "customGroupMemberships"} {
+	for _, key := range []string{"favorites", "autoFavorites", "hiddenCategories", "sportsFavoriteTeams", "keywordPasses", "recentSearches", "recentChannels", "continueWatching", "playback", "categoryParsing", "profileSelection", "customGroups", "customGroupMemberships"} {
 		if _, ok := properties[key]; !ok {
 			t.Fatalf("expected preferences schema to declare %q", key)
 		}
 	}
 	if _, ok := properties["auto_favorites"]; ok {
 		t.Fatal("preferences schema should use the camelCase frontend preference keys")
+	}
+}
+
+func TestUserConfigSchema_AcceptsProfileSelection(t *testing.T) {
+	t.Parallel()
+
+	manifest := &pluginv1.PluginManifest{UserConfigSchema: UserConfigSchema()}
+	value := map[string]any{
+		"profileSelection": map[string]any{
+			"mode":       "selected",
+			"profileIds": []any{"profile-ny", "profile-arabic"},
+		},
+	}
+	if err := sdkconfig.ValidateManifestUserValue(manifest, "preferences", value); err != nil {
+		t.Fatalf("expected profile selection to satisfy the SDK user config schema: %v", err)
 	}
 }
 
@@ -198,13 +216,42 @@ func TestUserConfigSchema_DeclaresAdminCategorySettingsShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected admin category settings schema properties, got %q", adminSettings.GetJsonSchema())
 	}
-	for _, key := range []string{"mode", "delimiter", "virtualGroupLabel", "virtualGroupSource", "ecmEnabled", "ecmURL", "allowRecordingsByDefault", "collapseDuplicateVirtualGroups", "inferChannelNameGroups", "categoryRenames", "categoryAliases", "eventKeywords"} {
+	for _, key := range []string{"mode", "delimiter", "virtualGroupLabel", "virtualGroupSource", "ecmEnabled", "ecmURL", "allowRecordingsByDefault", "sportsFirstPlayerEnabled", "liveRewindEnabled", "liveRewindCacheGB", "liveRewindWindowMinutes", "liveRewindMinFreeGB", "liveRewindMaxChannels", "collapseDuplicateVirtualGroups", "inferChannelNameGroups", "categoryRenames", "categoryAliases", "eventKeywords"} {
 		if _, ok := properties[key]; !ok {
 			t.Fatalf("expected admin category settings schema to declare %q", key)
 		}
 	}
+	if property, ok := properties["sportsFirstPlayerEnabled"].(map[string]any); !ok || property["default"] != false {
+		t.Fatalf("expected sportsFirstPlayerEnabled schema default to be false, got %+v", properties["sportsFirstPlayerEnabled"])
+	}
 	if additionalProperties, ok := schema["additionalProperties"].(bool); !ok || additionalProperties {
 		t.Fatalf("expected admin category settings schema to reject unknown keys, got %+v", schema["additionalProperties"])
+	}
+}
+
+func TestUserConfigSchema_DeclaresEventKeywordRuleOptions(t *testing.T) {
+	t.Parallel()
+
+	adminSettings := mustFindSchema(t, UserConfigSchema(), "adminCategorySettings")
+	var schema map[string]any
+	if err := json.Unmarshal([]byte(adminSettings.GetJsonSchema()), &schema); err != nil {
+		t.Fatalf("decode admin category settings schema: %v", err)
+	}
+	properties := schema["properties"].(map[string]any)
+	eventKeywords := properties["eventKeywords"].(map[string]any)
+	items := eventKeywords["items"].(map[string]any)
+	ruleProperties := items["properties"].(map[string]any)
+
+	for _, key := range []string{"excludeKeywords", "eventSeries", "groupWindowMinutes"} {
+		if _, ok := ruleProperties[key]; !ok {
+			t.Fatalf("expected event keyword rule schema to declare %q", key)
+		}
+	}
+	if property := ruleProperties["eventSeries"].(map[string]any); property["default"] != false {
+		t.Fatalf("expected eventSeries default false, got %+v", property["default"])
+	}
+	if property := ruleProperties["groupWindowMinutes"].(map[string]any); property["default"] != float64(60) || property["minimum"] != float64(15) || property["maximum"] != float64(360) {
+		t.Fatalf("expected groupWindowMinutes bounds/default, got %+v", property)
 	}
 }
 

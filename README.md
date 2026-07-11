@@ -77,6 +77,7 @@ first-class Live TV provider capability.
   - `/dispatcharr/api/vod`
   - `/dispatcharr/api/series`
   - `/dispatcharr/api/recordings` (`GET` lists Dispatcharr DVR rows, `POST` schedules an EPG program on Dispatcharr)
+  - `/dispatcharr/api/timeshift/*` (shared Live Rewind leases, status, and administration)
   - `/dispatcharr/api/sports`
   - `/dispatcharr/api/events`
   - `/dispatcharr/api/status`
@@ -88,6 +89,24 @@ first-class Live TV provider capability.
   - Silo owns task cadence; the plugin cannot declare or change intervals
   - A `startup` trigger is useful after install/restart so channels and EPG populate immediately
 
+## Live Rewind
+
+- Live Rewind is opt-in and limited to Dispatcharr Direct MPEG-TS channels with
+  H.264 video. Unsupported streams retain the normal direct playback path.
+- The plugin copies MPEG-TS packets into keyframe-aligned HLS segments without
+  transcoding. Segments live under
+  `/var/lib/continuum/plugins/silo.ramindex.dispatcharr/timeshift`.
+- One channel has one shared ring buffer. Browser leases keep independent
+  playheads while viewers of the same channel reuse the ingest and disk cache.
+- Administrators control the global cache budget, maximum rewind window,
+  minimum free-space reserve, and maximum distinct buffered channels. Defaults
+  are 5 GB, 30 minutes, 2 GB free, and 20 channels.
+- Old segments are evicted first. If the hard disk budget cannot be maintained,
+  the least recently used channel buffer is stopped and affected players fall
+  back to direct live playback.
+- Buffers expire after their viewer leases stop heartbeating and are removed
+  after a short idle period. Multiview never starts rewind buffers.
+
 ## Profile and group organization
 
 - Leave **Channel Profile** blank to ingest all Dispatcharr profiles and attach
@@ -96,9 +115,38 @@ first-class Live TV provider capability.
 - Profiles answer “which lineup?” and channel groups answer “what kind of
   channel?” In `Profile pipe + group pipe` mode the browser combines them as
   `Profile / Group`, for example `US TV / NY / Locals / Buffalo`.
+- Each Silo user can choose which imported Dispatcharr profiles appear under
+  **Live TV Settings**. Existing users default to all profiles; selecting a
+  subset filters browse folders, guide programs, search, On Later, sports,
+  events, favorites, custom-group pickers, and multiview suggestions. This is
+  presentation filtering, not a server-side channel entitlement boundary.
 - **Collapse duplicate virtual groups** removes only repeated adjacent path
   labels such as `International TV / International TV`; it never drops a
   channel. Sports/event channel matches also collapse repeated channel IDs.
+
+## Sports-first player
+
+- Administrators can opt into a score and channel drawer in the video player.
+- The drawer reuses the existing sports feed, prioritizes the current channel,
+  live games, and favorite teams, and refreshes only while it is open.
+- Event and channel actions require a medium-or-better guide match.
+  [Teamarr](https://github.com/Pharaoh-Labs/teamarr) and the
+  [Dispatcharr Sports Event Autocreator](https://github.com/titooo7/dispatcharr-sports-event-autocreator)
+  remain upstream organizers; the plugin does not create, rename, or delete
+  Dispatcharr channels.
+
+## Event-series guide detection
+
+- The Events view recognizes selected guide-driven series such as golf,
+  Formula 1, combat sports, and tennis without adding another schedule service.
+- Event rules support inclusion keywords, exclusion keywords for replays and
+  studio programming, and a configurable 15-360 minute coverage window.
+- Same-day airings inside a coverage window share one event window and
+  deduplicate channels. Later coverage remains a separate ordered window on the
+  same event card while the legacy flat event fields remain available.
+- This adapts the EPG matching approach used by
+  [Alertle V2](https://github.com/Deekerman/Alertle-V2); alerts, notification
+  endpoints, and its scheduler remain outside the plugin.
 
 ## v1 limitations
 
@@ -111,7 +159,9 @@ first-class Live TV provider capability.
 - Dispatcharr Direct does not silently fall back to Xtream Codes; Direct failures are surfaced in plugin health/status
 - Silo host integration still needs real environment validation
 - Native Jellyfin `/LiveTv/*` export is not available until Silo exposes a Live TV provider SDK/host capability
-- Backend proxy/remux/transcode is not enabled because the current HTTP route SDK response is buffered; playback uses direct redirect URLs
+- Continuous backend proxying and transcoding are not enabled because the HTTP
+  route SDK buffers each response. Live Rewind serves bounded, immutable HLS
+  segments through that interface instead.
 - HTTP routes and navigation are static manifest declarations. Settings cannot
   dynamically add/remove navigation entries.
 - Scheduled-task cadence and retry policy are host-owned. The plugin only

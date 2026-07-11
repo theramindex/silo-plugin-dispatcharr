@@ -1,22 +1,26 @@
 package plugin
 
-import "github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
+import (
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
+)
 
 type HealthPayload struct {
-	Status             string     `json:"status"`
-	SourceID           string     `json:"sourceId"`
-	SourceName         string     `json:"sourceName"`
-	ChannelCount       int        `json:"channelCount"`
-	ProgramCount       int        `json:"programCount"`
-	LastSuccessUnix    int64      `json:"lastSuccessUnix"`
-	LastFailureUnix    int64      `json:"lastFailureUnix"`
-	LastError          string     `json:"lastError,omitempty"`
-	EPGStatus          string     `json:"epgStatus,omitempty"`
-	EPGProgramCount    int        `json:"epgProgramCount,omitempty"`
-	EPGLastSuccessUnix int64      `json:"epgLastSuccessUnix,omitempty"`
-	EPGLastFailureUnix int64      `json:"epgLastFailureUnix,omitempty"`
-	EPGLastError       string     `json:"epgLastError,omitempty"`
-	Refresh            RefreshJob `json:"refresh"`
+	Status             string               `json:"status"`
+	SourceID           string               `json:"sourceId"`
+	SourceName         string               `json:"sourceName"`
+	ChannelCount       int                  `json:"channelCount"`
+	ProgramCount       int                  `json:"programCount"`
+	LastSuccessUnix    int64                `json:"lastSuccessUnix"`
+	LastFailureUnix    int64                `json:"lastFailureUnix"`
+	LastError          string               `json:"lastError,omitempty"`
+	EPGStatus          string               `json:"epgStatus,omitempty"`
+	EPGProgramCount    int                  `json:"epgProgramCount,omitempty"`
+	EPGLastSuccessUnix int64                `json:"epgLastSuccessUnix,omitempty"`
+	EPGLastFailureUnix int64                `json:"epgLastFailureUnix,omitempty"`
+	EPGLastError       string               `json:"epgLastError,omitempty"`
+	ProfileAccess      *model.ProfileAccess `json:"profileAccess,omitempty"`
+	Refresh            RefreshJob           `json:"refresh"`
 }
 
 func BuildHealthPayload(snapshot cache.Snapshot) HealthPayload {
@@ -38,5 +42,6 @@ func BuildHealthPayload(snapshot cache.Snapshot) HealthPayload {
 		EPGLastSuccessUnix: snapshot.Health.EPGLastSuccessUnix,
 		EPGLastFailureUnix: snapshot.Health.EPGLastFailureUnix,
 		EPGLastError:       snapshot.Health.EPGLastError,
+		ProfileAccess:      snapshot.Catalog.Source.ProfileAccess,
 	}
 }

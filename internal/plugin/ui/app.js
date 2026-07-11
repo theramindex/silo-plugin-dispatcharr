@@ -8,7 +8,7 @@ const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuff
 const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminProfileRefreshing: false };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 
 function applySiloTheme() {
   const params = new URLSearchParams(window.location.search);
@@ -89,6 +89,7 @@ function icon(name) {
     "guide": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M4.5 6.75h15M4.5 12h15M4.5 17.25h15M8.25 4.5v15M15.75 4.5v15'/></svg>",
     "clock": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z'/><path stroke-linecap='round' stroke-linejoin='round' d='M12 7.5V12l3 2.25'/></svg>",
     "multiview": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M4.5 5.75h6.25v5.75H4.5zM13.25 5.75h6.25v5.75h-6.25zM4.5 14h6.25v4.25H4.5zM13.25 14h6.25v4.25h-6.25z'/></svg>",
+    "trophy": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M8 4.5h8v4.25a4 4 0 0 1-8 0V4.5ZM9.5 14.5h5M12 12.75V18M8.5 20h7'/><path stroke-linecap='round' stroke-linejoin='round' d='M8 6H5.25v1.5A3.5 3.5 0 0 0 8.5 11M16 6h2.75v1.5A3.5 3.5 0 0 1 15.5 11'/></svg>",
     "settings": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M12 8.25a3.75 3.75 0 1 1 0 7.5 3.75 3.75 0 0 1 0-7.5Z'/><path stroke-linecap='round' stroke-linejoin='round' d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.23.64.84 1 1.51 1H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z'/></svg>",
     "fullscreen": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M8.25 4.5H4.5v3.75M15.75 4.5h3.75v3.75M19.5 15.75v3.75h-3.75M4.5 15.75v3.75h3.75M9 9 4.5 4.5M15 9l4.5-4.5M15 15l4.5 4.5M9 15l-4.5 4.5'/></svg>",
     "fullscreen-exit": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M4.5 9h4.25V4.75M15.25 4.75V9h4.25M19.5 15h-4.25v4.25M8.75 19.25V15H4.5M8.75 9 4.5 4.75M15.25 9l4.25-4.25M15.25 15l4.25 4.25M8.75 15 4.5 19.25'/></svg>",
@@ -98,6 +99,8 @@ function icon(name) {
     "captions": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M4.5 7.5A2.5 2.5 0 0 1 7 5h10a2.5 2.5 0 0 1 2.5 2.5v9A2.5 2.5 0 0 1 17 19H7a2.5 2.5 0 0 1-2.5-2.5v-9Z'/><path stroke-linecap='round' stroke-linejoin='round' d='M8.25 10.5h3M8.25 14h2.25M13.5 14h2.25'/></svg>",
     "language": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z'/><path stroke-linecap='round' stroke-linejoin='round' d='M3.75 9h16.5M3.75 15h16.5M12 3c2.25 2.35 3.25 5.25 3.25 9S14.25 18.65 12 21c-2.25-2.35-3.25-5.25-3.25-9S9.75 5.35 12 3Z'/></svg>",
     "aspect": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M4.5 7.25A2.75 2.75 0 0 1 7.25 4.5h9.5a2.75 2.75 0 0 1 2.75 2.75v9.5a2.75 2.75 0 0 1-2.75 2.75h-9.5a2.75 2.75 0 0 1-2.75-2.75v-9.5Z'/><path stroke-linecap='round' stroke-linejoin='round' d='M8 8h3M8 8v3M16 16h-3M16 16v-3'/></svg>",
+    "rewind": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M8 8H4V4M4.75 8.5A8 8 0 1 1 4 14'/><path stroke-linecap='round' stroke-linejoin='round' d='M9 10.5v5M9 10.5H7.75M13 11.25a1.75 1.75 0 0 1 3.5 0v3a1.75 1.75 0 0 1-3.5 0v-3Z'/></svg>",
+    "forward": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M16 8h4V4M19.25 8.5A8 8 0 1 0 20 14'/><path stroke-linecap='round' stroke-linejoin='round' d='M8 10.5v5M8 10.5H6.75M12 11.25a1.75 1.75 0 0 1 3.5 0v3a1.75 1.75 0 0 1-3.5 0v-3Z'/></svg>",
     "search": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m20 20-4.5-4.5M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z'/></svg>",
     "copy": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M8 8h9.25A1.75 1.75 0 0 1 19 9.75v9.5A1.75 1.75 0 0 1 17.25 21h-9.5A1.75 1.75 0 0 1 6 19.25V10'/><path stroke-linecap='round' stroke-linejoin='round' d='M5.75 16H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v.75'/></svg>",
     "external": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M13.5 4.5H19.5V10.5M19.25 4.75 11 13M10.5 6H6.75A2.25 2.25 0 0 0 4.5 8.25v9A2.25 2.25 0 0 0 6.75 19.5h9A2.25 2.25 0 0 0 18 17.25V13.5'/></svg>",
@@ -108,19 +111,83 @@ function icon(name) {
 }
 function menuIcon(name) { return "<span class=\"menu-icon\">" + icon(name) + "</span>"; }
 function defaultPrefs() {
-  return { favorites: {}, favoriteOrder: [], autoFavorites: {}, hiddenCategories: {}, sportsFavoriteTeams: {}, keywordPasses: [], recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, customGroups: [], customGroupMemberships: {} };
+  return { favorites: {}, favoriteOrder: [], autoFavorites: {}, hiddenCategories: {}, sportsFavoriteTeams: {}, keywordPasses: [], recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, profileSelection: { mode: "all", profileIds: [] }, customGroups: [], customGroupMemberships: {} };
 }
 function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
+function availableChannelProfiles() {
+  return items(state.app && state.app.source && state.app.source.profiles).filter(function(profile) {
+    return profile && profile.id && profile.name;
+  }).slice().sort(function(left, right) {
+    return String(left.name || left.id).localeCompare(String(right.name || right.id));
+  });
+}
+function normalizeProfileSelection(value) {
+  value = value || {};
+  let mode = value.mode === "selected" ? "selected" : "all";
+  let profileIDs = uniqueIDs(items(value.profileIds).map(function(id) { return String(id || "").trim(); }).filter(Boolean));
+  const profiles = availableChannelProfiles();
+  if (profiles.length) {
+    const valid = {};
+    profiles.forEach(function(profile) { valid[profile.id] = true; });
+    profileIDs = profileIDs.filter(function(id) { return !!valid[id]; });
+  }
+  if (mode === "selected" && !profileIDs.length) mode = "all";
+  return { mode: mode, profileIds: mode === "all" ? [] : profileIDs };
+}
+function profileSelection() { return normalizeProfileSelection(prefs().profileSelection); }
+function selectedProfileMap() {
+  if (state.profileSelectionIDMap !== null) return state.profileSelectionIDMap || null;
+  const selection = profileSelection();
+  if (selection.mode !== "selected") {
+    state.profileSelectionIDMap = false;
+    return null;
+  }
+  const selected = {};
+  selection.profileIds.forEach(function(id) { selected[id] = true; });
+  state.profileSelectionIDMap = selected;
+  return selected;
+}
+function profileSelectionIsAll() { return !selectedProfileMap(); }
+function invalidateProfileSelectionCache() {
+  state.profileSelectionIDMap = null;
+  state.profileChannelFilterMap = null;
+}
+function selectedProfileChannelMap() {
+  if (state.profileChannelFilterMap !== null) return state.profileChannelFilterMap || null;
+  const selected = selectedProfileMap();
+  if (!selected) {
+    state.profileChannelFilterMap = false;
+    return null;
+  }
+  const channels = {};
+  items(state.app && state.app.channels).forEach(function(channel) {
+    if (items(channel && channel.profileIds).some(function(id) { return !!selected[id]; })) channels[channel.id] = true;
+  });
+  state.profileChannelFilterMap = channels;
+  return channels;
+}
+function channelMatchesProfileSelection(channel) {
+  const allowed = selectedProfileChannelMap();
+  if (!allowed) return true;
+  if (!channel) return false;
+  if (channel.id && allowed[channel.id]) return true;
+  const selected = selectedProfileMap();
+  return !channel.id && items(channel.profileIds).some(function(id) { return !!selected[id]; });
+}
 function defaultEventKeywordRules() {
   return [
     { categoryId: "awards", categoryName: "Awards", keywords: ["Academy Awards", "The Oscars", "Oscars", "Tony Awards", "The Tonys", "Golden Globes", "Grammy Awards", "Grammys", "Emmy Awards", "Emmys", "CMA Awards", "ACM Awards", "Billboard Music Awards", "American Music Awards", "BET Awards", "MTV Video Music Awards", "Critics Choice Awards", "SAG Awards"] },
     { categoryId: "civic", categoryName: "Civic", keywords: ["State of the Union", "Presidential Address", "Joint Session", "Inauguration", "Election Night", "Presidential Debate"] },
     { categoryId: "parades", categoryName: "Parades", keywords: ["Thanksgiving Day Parade", "Macy's Thanksgiving Day Parade", "Rose Parade", "Christmas Parade"] },
-    { categoryId: "entertainment", categoryName: "Entertainment", keywords: ["Live Special", "Special Presentation", "Red Carpet", "Ceremony", "Tribute Concert", "Benefit Concert", "Festival"] }
+    { categoryId: "entertainment", categoryName: "Entertainment", keywords: ["Live Special", "Special Presentation", "Red Carpet", "Ceremony", "Tribute Concert", "Benefit Concert", "Festival"] },
+    { categoryId: "golf", categoryName: "Golf", keywords: ["PGA Tour", "LPGA Tour", "DP World Tour", "The Masters", "U.S. Open Golf", "The Open Championship", "Ryder Cup"], excludeKeywords: ["Golf Central", "highlights", "replay", "preview", "recap", "best of"], eventSeries: true, groupWindowMinutes: 60 },
+    { categoryId: "motor-racing", categoryName: "Motor Racing", keywords: ["Formula 1", "F1 Grand Prix", "Grand Prix"], excludeKeywords: ["highlights", "replay", "practice recap", "post race", "pre race"], eventSeries: true, groupWindowMinutes: 60 },
+    { categoryId: "combat-sports", categoryName: "Combat Sports", keywords: ["UFC", "Ultimate Fighting Championship", "MMA"], excludeKeywords: ["highlights", "replay", "countdown", "weigh-in", "preview", "recap"], eventSeries: true, groupWindowMinutes: 60 },
+    { categoryId: "tennis", categoryName: "Tennis", keywords: ["ATP Tour", "WTA Tour", "Wimbledon", "US Open Tennis", "French Open Tennis", "Australian Open Tennis"], excludeKeywords: ["highlights", "replay", "preview", "recap", "best of"], eventSeries: true, groupWindowMinutes: 60 }
   ];
 }
 function defaultAdminCategorySettings() {
-  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, allowRecordingsByDefault: true, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
+  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, allowRecordingsByDefault: true, sportsFirstPlayerEnabled: false, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
 }
 function cloneAdminCategorySettings(settings) {
   try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -150,6 +217,12 @@ function sourceMode() { return state.app && state.app.source ? String(state.app.
 function isDispatcharrDirectSource() {
   const mode = sourceMode();
   return mode === "direct_login" || mode === "api_key";
+}
+function liveRewindEnabled() {
+  return !!(isDispatcharrDirectSource() && adminSettings().liveRewindEnabled === true);
+}
+function sportsFirstPlayerEnabled() {
+  return adminSettings().sportsFirstPlayerEnabled === true;
 }
 function dvrEnabled() {
   return !!(state.app && state.app.capabilities && state.app.capabilities.recordings && isDispatcharrDirectSource() && adminSettings().allowRecordingsByDefault !== false);
@@ -203,6 +276,7 @@ function mergePrefs(remote) {
     continueWatching: Object.assign({}, remote.continueWatching),
     playback: Object.assign({}, remote.playback),
     categoryParsing: Object.assign({}, remote.categoryParsing),
+    profileSelection: normalizeProfileSelection(remote.profileSelection),
     customGroups: items(remote.customGroups),
     customGroupMemberships: Object.assign({}, remote.customGroupMemberships)
   };
@@ -211,6 +285,7 @@ function normalizePreferences() {
   if (!state.app || !state.app.preferences) return;
   state.app.preferences = Object.assign(defaultPrefs(), state.app.preferences || {});
   state.app.preferences.categoryParsing = Object.assign(defaultPrefs().categoryParsing, state.app.preferences.categoryParsing || {});
+  state.app.preferences.profileSelection = normalizeProfileSelection(state.app.preferences.profileSelection);
   state.app.preferences.sportsFavoriteTeams = state.app.preferences.sportsFavoriteTeams || {};
   state.app.preferences.keywordPasses = normalizeKeywordPasses(state.app.preferences.keywordPasses);
   state.app.preferences.recentSearches = uniqueIDs(items(state.app.preferences.recentSearches).map(function(value) { return String(value || "").trim(); }).filter(Boolean)).slice(0, 12);
@@ -230,6 +305,7 @@ function normalizePreferences() {
   Object.keys(state.app.preferences.customGroupMemberships).forEach(function(groupID) {
     state.app.preferences.customGroupMemberships[groupID] = uniqueIDs(items(state.app.preferences.customGroupMemberships[groupID]).filter(function(id) { return !!valid[id]; }));
   });
+  invalidateProfileSelectionCache();
 }
 function normalizeAdminCategorySettings() {
   state.adminCategorySettings = Object.assign(defaultAdminCategorySettings(), state.adminCategorySettings || {});
@@ -239,6 +315,12 @@ function normalizeAdminCategorySettings() {
   if (state.adminCategorySettings.delimiter !== "pipe" && state.adminCategorySettings.delimiter !== "dash") state.adminCategorySettings.delimiter = "pipe";
   state.adminCategorySettings.virtualGroupLabel = virtualGroupLabelSuffix(state.adminCategorySettings.virtualGroupLabel);
   state.adminCategorySettings.allowRecordingsByDefault = state.adminCategorySettings.allowRecordingsByDefault !== false;
+  state.adminCategorySettings.sportsFirstPlayerEnabled = state.adminCategorySettings.sportsFirstPlayerEnabled === true;
+  state.adminCategorySettings.liveRewindEnabled = state.adminCategorySettings.liveRewindEnabled === true;
+  state.adminCategorySettings.liveRewindCacheGB = Math.max(1, Math.min(500, Number(state.adminCategorySettings.liveRewindCacheGB) || 5));
+  state.adminCategorySettings.liveRewindWindowMinutes = [15, 30, 60, 90, 120].indexOf(Number(state.adminCategorySettings.liveRewindWindowMinutes)) !== -1 ? Number(state.adminCategorySettings.liveRewindWindowMinutes) : 30;
+  state.adminCategorySettings.liveRewindMinFreeGB = Math.max(1, Math.min(100, Number(state.adminCategorySettings.liveRewindMinFreeGB) || 2));
+  state.adminCategorySettings.liveRewindMaxChannels = Math.max(1, Math.min(100, Math.round(Number(state.adminCategorySettings.liveRewindMaxChannels) || 20)));
   if (typeof state.adminCategorySettings.collapseDuplicateVirtualGroups === "undefined" && typeof state.adminCategorySettings.collapseDuplicateProfileGroups !== "undefined") {
     state.adminCategorySettings.collapseDuplicateVirtualGroups = state.adminCategorySettings.collapseDuplicateProfileGroups;
   }
@@ -310,19 +392,29 @@ function normalizeEventKeywordRows(value) {
     const categoryId = normalizeEventCategoryId(row.categoryId || row.categoryName || "");
     const categoryName = String(row.categoryName || eventCategoryName(categoryId)).trim();
     const keywords = normalizeKeywordList(row.keywords);
-    return { categoryId: categoryId, categoryName: categoryName, keywords: keywords };
+    const excludeKeywords = normalizeKeywordList(row.excludeKeywords);
+    const eventSeries = row.eventSeries === true;
+    const groupWindowMinutes = eventSeries ? Math.max(15, Math.min(360, Number(row.groupWindowMinutes) || 60)) : 0;
+    return { categoryId: categoryId, categoryName: categoryName, keywords: keywords, excludeKeywords: excludeKeywords, eventSeries: eventSeries, groupWindowMinutes: groupWindowMinutes };
   }).filter(function(row) { return row.categoryId && row.keywords.length; });
   const byID = {};
   defaults.concat(rows).forEach(function(row) {
     const id = normalizeEventCategoryId(row.categoryId || row.categoryName);
     if (!id) return;
-    const existing = byID[id] || { categoryId: id, categoryName: row.categoryName || eventCategoryName(id), keywords: [] };
+    const existing = byID[id] || { categoryId: id, categoryName: row.categoryName || eventCategoryName(id), keywords: [], excludeKeywords: [], eventSeries: false, groupWindowMinutes: 0 };
     existing.keywords = normalizeKeywordList(existing.keywords.concat(row.keywords || []));
+    existing.excludeKeywords = normalizeKeywordList(existing.excludeKeywords.concat(row.excludeKeywords || []));
+    existing.eventSeries = existing.eventSeries || row.eventSeries === true;
+    existing.groupWindowMinutes = existing.eventSeries ? Math.max(15, Math.min(360, Number(row.groupWindowMinutes || existing.groupWindowMinutes) || 60)) : 0;
     byID[id] = existing;
   });
   return Object.keys(byID).sort(function(left, right) {
     return eventCategoryName(left).localeCompare(eventCategoryName(right));
-  }).map(function(id) { return byID[id]; });
+  }).map(function(id) {
+    const row = byID[id];
+    if (!row.eventSeries) delete row.groupWindowMinutes;
+    return row;
+  });
 }
 function normalizeKeywordList(value) {
   const rows = Array.isArray(value)
@@ -345,7 +437,7 @@ function normalizeEventCategoryId(value) {
   return value.replace(/\s+/g, "-");
 }
 function eventCategoryName(categoryId) {
-  return ({ awards: "Awards", civic: "Civic", parades: "Parades", entertainment: "Entertainment" })[categoryId] || String(categoryId || "Events");
+  return ({ awards: "Awards", civic: "Civic", parades: "Parades", entertainment: "Entertainment", golf: "Golf", "motor-racing": "Motor Racing", "combat-sports": "Combat Sports", tennis: "Tennis" })[categoryId] || String(categoryId || "Events");
 }
 function categoryAliases() {
   return normalizeCategoryAliases(adminSettings().categoryAliases);
@@ -625,7 +717,7 @@ function effectiveChannel(channel) {
   return copy;
 }
 function effectiveChannels(includeHidden) {
-  return items(state.app.channels).map(function(channel, index) {
+  return items(state.app.channels).filter(channelMatchesProfileSelection).map(function(channel, index) {
     const copy = effectiveChannel(channel);
     copy.sourceIndex = index;
     return copy;
@@ -835,13 +927,18 @@ function profileVirtualPathsForChannel(channel) {
   const sourcePath = sourceGroupPathForChannel(channel);
   if (!sourcePath) return [];
   const paths = [];
+  const sourceParts = String(sourcePath || "").split(" / ").map(normalizedNameToken).filter(Boolean);
+  const groupPaths = [sourcePath].concat(aliasVirtualPathsForSourcePath(sourcePath));
+  const marketParts = localMarketPathPartsForChannel(channel, sourceParts);
   profilePathsForChannel(channel).forEach(function(profilePath) {
     paths.push(profilePath);
-    const sourceParts = String(sourcePath || "").split(" / ").map(normalizedNameToken).filter(Boolean);
-    const combinedPath = appendVirtualPathParts(profilePath, sourceParts);
-    if (combinedPath) paths.push(combinedPath);
-    const marketPath = appendVirtualPathParts(combinedPath || (profilePath + " / " + sourcePath), localMarketPathPartsForChannel(channel, sourceParts));
-    if (marketPath) paths.push(marketPath);
+    groupPaths.forEach(function(groupPath) {
+      const groupParts = String(groupPath || "").split(" / ").map(normalizedNameToken).filter(Boolean);
+      const combinedPath = appendVirtualPathParts(profilePath, groupParts);
+      if (combinedPath) paths.push(combinedPath);
+      const marketPath = appendVirtualPathParts(combinedPath || (profilePath + " / " + groupPath), marketParts);
+      if (marketPath) paths.push(marketPath);
+    });
   });
   return uniqueIDs(paths);
 }
@@ -851,7 +948,11 @@ function sourceGroupPathForChannel(channel) {
 function profilePathsForChannel(channel) {
   const profiles = profileMapByID();
   const selectedProfile = state.app && state.app.source && state.app.source.channelProfile;
-  const profileIDs = selectedProfile && selectedProfile.id ? [selectedProfile.id] : items(channel && channel.profileIds);
+  let profileIDs = selectedProfile && selectedProfile.id ? [selectedProfile.id] : items(channel && channel.profileIds);
+  if (!profileSelectionIsAll()) {
+    const selected = selectedProfileMap();
+    profileIDs = profileIDs.filter(function(profileID) { return !!selected[profileID]; });
+  }
   return profileIDs.map(function(profileID) {
     return profileVirtualPathForName((profiles[profileID] || {}).name || profileID);
   }).filter(Boolean);
@@ -970,9 +1071,11 @@ function rebuildProgramIndex() {
 }
 function programsFor(channelID) {
   const now = Math.floor(Date.now() / 1000);
+  const allowed = selectedProfileChannelMap();
+  if (channelID && allowed && !allowed[channelID]) return [];
   const source = channelID ? items(state.programsByChannel[channelID]) : items(state.sortedPrograms);
   return source.filter(function(program) {
-    return (!channelID || program.channelId === channelID) && (!program.endUnix || program.endUnix >= now - 3600);
+    return (!allowed || !!allowed[program.channelId]) && (!channelID || program.channelId === channelID) && (!program.endUnix || program.endUnix >= now - 3600);
   });
 }
 function timeLabel(unix) {
@@ -1036,11 +1139,14 @@ function stopPlayback() {
     state.playerChromeTimer = null;
   }
   state.playerChromeIdle = false;
+  state.playerSportsOpen = false;
+  stopPlayerSportsRefresh();
   if (video) {
     video.pause();
     video.removeAttribute("src");
     video.load();
   }
+  stopTimeShiftSession();
 }
 function stopCurrentWatch(reason) {
   if (!state.currentSession) return;
@@ -1177,7 +1283,10 @@ async function hydrateApp(payload, options) {
 }
 async function refreshStatusData() {
   const status = await getJSON("/dispatcharr/api/status");
-  if (state.app) state.app.status = status || {};
+  if (state.app) {
+    state.app.status = status || {};
+    if (state.app.source && status && status.profileAccess) state.app.source.profileAccess = status.profileAccess;
+  }
   return status || {};
 }
 async function refreshSupplementalData(includeContent) {
@@ -1929,6 +2038,7 @@ function loadSports(force) {
   }).finally(function() {
     state.sportsLoading = false;
     if (state.view === "sports") renderSportsPage();
+    if (state.view === "player" && state.playerSportsOpen) renderPlayerSportsDrawer();
   });
 }
 function applySportsFavoritesToPayload() {
@@ -1983,6 +2093,7 @@ function renderSportsLeagueFilters(payload) {
 function filteredSportsEvents(payload) {
   const now = Math.floor(Date.now() / 1000);
   return items(payload && payload.events).filter(function(event) {
+    if (!profileSelectionIsAll() && !uniqueEventChannels(event.channels).length) return false;
     if (state.sportsLeague && event.leagueId !== state.sportsLeague) return false;
     if (state.sportsTab === "live" && !event.live) return false;
     const startUnix = Number(event.startUnix || 0);
@@ -2079,11 +2190,113 @@ function renderSportsChannelChip(channel) {
 function uniqueEventChannels(channels) {
   const seen = {};
   return items(channels).filter(function(channel) {
+    if (!channelMatchesProfileSelection(channel)) return false;
     const key = channel && channel.id ? "id:" + channel.id : "label:" + lower([channel && channel.name, channel && channel.categoryName, channel && channel.reason].join("|"));
     if (!key || seen[key]) return false;
     seen[key] = true;
     return true;
   });
+}
+function playerSportsChannelMatches(event, channelID) {
+  return uniqueEventChannels(event && event.channels).some(function(channel) {
+    return String(channel.id || "") === String(channelID || "") && Number(channel.score || 0) >= 60;
+  });
+}
+function playerSportsEvents() {
+  const now = Math.floor(Date.now() / 1000);
+  const currentID = state.currentChannel && state.currentChannel.id;
+  return items(state.sports && state.sports.events).filter(function(event) {
+    const channels = uniqueEventChannels(event.channels).filter(function(channel) { return Number(channel.score || 0) >= 60; });
+    const startsSoon = Number(event.startUnix || 0) <= now + 12 * 3600;
+    return channels.length && !event.completed && (event.live || startsSoon || playerSportsChannelMatches(event, currentID));
+  }).sort(function(left, right) {
+    const leftCurrent = playerSportsChannelMatches(left, currentID) ? 1 : 0;
+    const rightCurrent = playerSportsChannelMatches(right, currentID) ? 1 : 0;
+    if (leftCurrent !== rightCurrent) return rightCurrent - leftCurrent;
+    const leftFavorite = sportsEventHasFavoriteTeam(left) ? 1 : 0;
+    const rightFavorite = sportsEventHasFavoriteTeam(right) ? 1 : 0;
+    if (leftFavorite !== rightFavorite) return rightFavorite - leftFavorite;
+    if (left.live !== right.live) return left.live ? -1 : 1;
+    return sportsEventStartSort(left, Number.MAX_SAFE_INTEGER) - sportsEventStartSort(right, Number.MAX_SAFE_INTEGER);
+  }).slice(0, 12);
+}
+function playerSportsEventChannel(event) {
+  const currentID = state.currentChannel && state.currentChannel.id;
+  const channels = uniqueEventChannels(event && event.channels).filter(function(channel) { return Number(channel.score || 0) >= 60; });
+  return channels.find(function(channel) { return String(channel.id || "") === String(currentID || ""); }) || channels[0] || null;
+}
+function renderPlayerSportsEvent(event) {
+  const channel = playerSportsEventChannel(event);
+  const away = event.away || {};
+  const home = event.home || {};
+  const scored = event.live || event.completed;
+  const current = playerSportsChannelMatches(event, state.currentChannel && state.currentChannel.id);
+  return "<button class=\"player-sports-event" + (event.live ? " live" : "") + (current ? " current" : "") + "\" type=\"button\" data-player-sports-channel=\"" + escapeHTML(channel && channel.id) + "\"><span class=\"player-sports-event-top\"><span class=\"player-sports-league\">" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</span><span class=\"player-sports-status\">" + escapeHTML(sportsStatusLabel(event)) + "</span></span><span class=\"player-sports-team\"><span>" + escapeHTML(sportsTeamAbbreviation(away)) + "</span><strong>" + (scored ? escapeHTML(event.awayScore || "0") : "") + "</strong></span><span class=\"player-sports-team\"><span>" + escapeHTML(sportsTeamAbbreviation(home)) + "</span><strong>" + (scored ? escapeHTML(event.homeScore || "0") : "") + "</strong></span><small>" + escapeHTML((channel && channel.name) || event.shortName || event.name || "Sports") + "</small></button>";
+}
+function playerSportsChannels(events) {
+  const seen = {};
+  const channels = [];
+  items(events).forEach(function(event) {
+    uniqueEventChannels(event.channels).filter(function(channel) { return Number(channel.score || 0) >= 60; }).forEach(function(match) {
+      if (!match.id || seen[match.id]) return;
+      const channel = channelByID(match.id) || match;
+      seen[match.id] = true;
+      channels.push(channel);
+    });
+  });
+  return channels.slice(0, 12);
+}
+function renderPlayerSportsChannel(channel) {
+  const program = currentProgram(channel) || {};
+  return "<button class=\"player-sports-channel\" type=\"button\" data-player-sports-channel=\"" + escapeHTML(channel.id) + "\"><span>" + logoHTML(channel) + "</span><span><strong>" + escapeHTML(channel.name || "Sports channel") + "</strong><small>" + escapeHTML(program.title || channel.categoryName || "Live TV") + "</small></span></button>";
+}
+function renderPlayerSportsDrawer() {
+  const root = byId("player-sports-drawer");
+  const shell = document.querySelector(".playback-shell");
+  const button = byId("player-sports-button");
+  if (shell) shell.classList.toggle("sports-open", !!state.playerSportsOpen);
+  if (button) {
+    button.classList.toggle("active", !!state.playerSportsOpen);
+    button.setAttribute("aria-expanded", state.playerSportsOpen ? "true" : "false");
+  }
+  if (!root) return;
+  root.classList.toggle("open", !!state.playerSportsOpen);
+  if (!state.playerSportsOpen) {
+    root.innerHTML = "";
+    return;
+  }
+  const events = playerSportsEvents();
+  const channels = playerSportsChannels(events);
+  const loading = state.sportsLoading && !state.sports;
+  root.innerHTML = "<div class=\"player-sports-head\"><div><strong>Live Sports</strong><span>Scores and matched channels</span></div><button type=\"button\" data-player-action=\"sports-close\" aria-label=\"Close live sports\">" + icon("x") + "</button></div>"
+    + (loading ? "<div class=\"player-sports-loading\"><span></span><span></span><span></span></div>" : "")
+    + (!loading && !events.length ? "<div class=\"player-sports-empty\">No live or upcoming events have a confident channel match.</div>" : "")
+    + (events.length ? "<div class=\"player-sports-section\"><div class=\"player-sports-section-title\">Live &amp; upcoming</div><div class=\"player-sports-rail\">" + events.map(renderPlayerSportsEvent).join("") + "</div></div>" : "")
+    + (channels.length ? "<div class=\"player-sports-section\"><div class=\"player-sports-section-title\">Sports channels</div><div class=\"player-sports-channel-rail\">" + channels.map(renderPlayerSportsChannel).join("") + "</div></div>" : "");
+}
+function stopPlayerSportsRefresh() {
+  if (state.playerSportsTimer) clearInterval(state.playerSportsTimer);
+  state.playerSportsTimer = null;
+}
+function startPlayerSportsRefresh() {
+  stopPlayerSportsRefresh();
+  if (!state.playerSportsOpen) return;
+  state.playerSportsTimer = setInterval(function() {
+    if (state.view === "player" && state.playerSportsOpen) loadSports(true);
+    else stopPlayerSportsRefresh();
+  }, 30000);
+}
+function togglePlayerSports(open) {
+  if (!sportsFirstPlayerEnabled()) return;
+  state.playerSportsOpen = typeof open === "boolean" ? open : !state.playerSportsOpen;
+  state.playerGuideOpen = false;
+  closePlayerPopovers();
+  renderPlayerGuidePanel();
+  renderPlayerSportsDrawer();
+  if (state.playerSportsOpen) {
+    loadSports(false).then(renderPlayerSportsDrawer);
+    startPlayerSportsRefresh();
+  } else stopPlayerSportsRefresh();
 }
 function setSportsTab(tab) {
   state.sportsTab = tab || "live";
@@ -2166,6 +2379,7 @@ function renderEventCategoryFilters(payload) {
 function filteredBroadcastEvents(payload) {
   const now = Math.floor(Date.now() / 1000);
   return items(payload && payload.events).filter(function(event) {
+    if (!profileSelectionIsAll() && !uniqueEventChannels(event.channels).length) return false;
     if (state.eventCategory && event.categoryId !== state.eventCategory) return false;
     if (state.eventsTab === "live" && !event.live) return false;
     const startUnix = Number(event.startUnix || 0);
@@ -2185,11 +2399,24 @@ function renderBroadcastEventCard(event) {
   const poster = artwork ? "<div class=\"event-poster\"><img src=\"" + escapeHTML(artwork) + "\" alt=\"\" onerror=\"this.closest('.event-poster').remove();\"></div>" : "";
   const cardClass = artwork ? 'class="event-card sports-card' : 'class="event-card no-art sports-card';
   const uniqueChannels = uniqueEventChannels(event.channels);
-  const meta = [event.keyword || "", uniqueChannels.length ? uniqueChannels.length + " channel" + (uniqueChannels.length === 1 ? "" : "s") : ""].filter(Boolean).map(function(value, index) { return "<span" + (index === 0 && event.keyword ? " class=\"event-keyword\"" : "") + ">" + escapeHTML(value) + "</span>"; }).join("");
+  const windows = items(event.windows);
+  const meta = [event.keyword || "", windows.length > 1 ? windows.length + " coverage windows" : "", uniqueChannels.length ? uniqueChannels.length + " channel" + (uniqueChannels.length === 1 ? "" : "s") : ""].filter(Boolean).map(function(value, index) { return "<span" + (index === 0 && event.keyword ? " class=\"event-keyword\"" : "") + ">" + escapeHTML(value) + "</span>"; }).join("");
   return "<article " + cardClass + (event.live ? " live" : "") + '"><div class="sports-card-head"><div class="sports-card-title"><span class="sports-league-pill">' + escapeHTML(event.categoryName || "Events") + "</span><strong data-overflow-tooltip=\"" + escapeHTML(event.name || title) + "\">" + escapeHTML(title) + "</strong></div><div class=\"sports-status\">" + escapeHTML(status) + "</div></div>"
-    + "<div class=\"event-card-body" + (artwork ? "" : " no-art") + "\">" + poster + "<div class=\"event-details\"><p data-overflow-description=\"true\">" + escapeHTML(event.description || "No event details available.") + "</p><div class=\"event-meta\">" + meta + "</div></div></div>"
+    + "<div class=\"event-card-body" + (artwork ? "" : " no-art") + "\">" + poster + "<div class=\"event-details\"><p data-overflow-description=\"true\">" + escapeHTML(event.description || "No event details available.") + "</p><div class=\"event-meta\">" + meta + "</div>" + renderEventBroadcastWindows(event) + "</div></div>"
     + renderBroadcastEventChannels(event)
     + "</article>";
+}
+function renderEventBroadcastWindows(event) {
+  const windows = items(event && event.windows);
+  if (windows.length < 2) return "";
+  const visible = windows.slice(0, 4);
+  const rows = visible.map(function(windowInfo, index) {
+    const channels = uniqueEventChannels(windowInfo.channels);
+    const end = windowInfo.endUnix ? " to " + timeLabel(windowInfo.endUnix) : "";
+    return "<div class=\"event-broadcast-window\"><strong>" + escapeHTML(sportsDateLabel(windowInfo.startUnix)) + escapeHTML(end) + "</strong><small>" + escapeHTML(channels.length + " channel" + (channels.length === 1 ? "" : "s")) + "</small></div>";
+  }).join("");
+  const more = windows.length > visible.length ? "<div class=\"event-broadcast-more\">+" + (windows.length - visible.length) + " later</div>" : "";
+  return "<div class=\"event-broadcast-windows\" aria-label=\"Broadcast coverage windows\">" + rows + more + "</div>";
 }
 function recoveryPanelHTML(error, kind) {
   if (!error) return "";
@@ -2302,7 +2529,7 @@ function sourceCategoriesWithChannels(includeChannel) {
 }
 function customGroupCategories() {
   return customGroups().map(function(group) {
-    return { id: customCategoryID(group.id), name: group.name, kind: "custom", count: customMemberships(group.id).filter(channelByID).length };
+    return { id: customCategoryID(group.id), name: group.name, kind: "custom", count: customMemberships(group.id).filter(function(id) { return channelMatchesProfileSelection(channelByID(id)); }).length };
   }).filter(function(group) {
     return group.count > 0;
   });
@@ -2436,7 +2663,7 @@ function recentChannels(limit) {
   items(prefs().recentChannels).forEach(function(id) {
     if (seen[id]) return;
     const channel = channelByID(id);
-    if (!channel) return;
+    if (!channel || !channelMatchesProfileSelection(channel)) return;
     seen[id] = true;
     channels.push(channel);
   });
@@ -2920,14 +3147,17 @@ function renderPlayerPage() {
   const description = program.description || categoryNameText;
   const start = timeLabel(program.startUnix) || "LIVE";
   const end = timeLabel(program.endUnix) || "Now";
-  const playbackShellClass = replayMode ? "playback-shell is-replay" : "playback-shell";
+  const playbackShellClass = (replayMode ? "playback-shell is-replay" : "playback-shell") + (sportsFirstPlayerEnabled() ? " sports-enabled" : "");
   const videoAttributes = replayMode ? " autoplay playsinline controls" : " autoplay playsinline";
   const modeTag = replayMode ? "Replay" : "AV";
   const timelineEnd = replayMode ? escapeHTML(end) : "<span class=\"live-dot\"></span>LIVE&nbsp;&nbsp;" + escapeHTML(end);
-  byId("view").innerHTML = "<section class=\"" + playbackShellClass + "\"><div class=\"playback-stage\"><video id=\"player\" class=\"playback-video\"" + videoAttributes + "></video><div class=\"playback-scrim\"></div><button id=\"player-center-button\" class=\"player-center-button hidden\" data-player-action=\"play-toggle\" aria-label=\"Play\">" + icon("play") + "</button><div class=\"player-top\"><button class=\"player-exit\" data-player-action=\"back\" aria-label=\"Back to Live TV browse\"><span class=\"player-icon\">" + icon("x") + "</span><span>Exit</span></button><div class=\"player-top-actions\"><div class=\"player-audio\"><button id=\"player-audio-button\" class=\"player-chip\" data-player-action=\"audio-menu\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "<span>Audio</span>" + icon("chevron-down") + "</button><div id=\"player-audio-menu\" class=\"player-menu\" role=\"menu\"></div></div><div class=\"player-volume\"><button id=\"player-volume-button\" class=\"player-icon\" data-player-action=\"volume-menu\" aria-label=\"Volume\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("speaker") + "</button><div id=\"player-volume-popover\" class=\"volume-popover\"><span>VOL</span><input id=\"player-volume-slider\" type=\"range\" min=\"0\" max=\"100\" step=\"1\" value=\"" + Math.round(state.volume * 100) + "\" aria-label=\"Volume\"><span id=\"player-volume-value\" class=\"volume-value\"></span></div></div><button class=\"player-icon\" data-player-action=\"cast\" aria-label=\"AirPlay or Cast\">" + icon("airplay") + "</button><button id=\"player-guide-button\" class=\"player-icon player-guide-button\" data-player-action=\"guide\" aria-label=\"Guide\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("guide") + "</button><button class=\"player-icon\" data-player-action=\"add-multiview\" aria-label=\"Add current channel to multiview\">" + icon("multiview") + "</button><button id=\"player-fullscreen-button\" class=\"player-icon\" data-player-action=\"fullscreen\" aria-label=\"Fullscreen\" aria-pressed=\"false\">" + icon("fullscreen") + "</button><div class=\"player-more\"><button id=\"player-more-button\" class=\"player-icon\" data-player-action=\"more\" aria-label=\"More\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("ellipsis") + "</button><div id=\"player-more-menu\" class=\"player-more-menu\"></div></div></div></div><div id=\"player-toast\" class=\"player-toast\" role=\"status\"></div><div id=\"player-guide-panel\" class=\"player-guide-panel\"></div><div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel) + "<div class=\"player-kicker\">" + escapeHTML(channelName) + "</div><h2 class=\"player-title\">" + escapeHTML(title) + "</h2><p class=\"player-description\" data-overflow-description=\"true\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span class=\"player-tag\">" + escapeHTML(modeTag) + "</span></div></div><div class=\"player-bottom-actions\">" + playerFavoriteButtonHTML(channel) + "<button class=\"player-icon\" data-player-action=\"pip\" aria-label=\"Picture in Picture\">" + icon("pip") + "</button><button id=\"player-subtitles-button\" class=\"player-icon\" data-player-action=\"subtitles\" aria-label=\"Subtitles\" aria-pressed=\"false\">" + icon("captions") + "</button><button id=\"player-language-button\" class=\"player-icon\" data-player-action=\"language-menu\" aria-label=\"Audio language\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "</button></div></div><div class=\"timeline\"><span>" + escapeHTML(start) + "</span><div class=\"timeline-bar\"><div class=\"timeline-fill\"></div><div class=\"timeline-knob\"></div></div><span>" + timelineEnd + "</span></div></div></div></section>";
+  const timeShiftControls = "<div id=\"player-timeshift-controls\" class=\"player-timeshift-controls hidden\"><button class=\"player-icon\" data-player-action=\"rewind-30\" aria-label=\"Rewind 30 seconds\">" + icon("rewind") + "</button><button class=\"player-icon\" data-player-action=\"play-toggle\" aria-label=\"Play or pause\">" + icon("play") + "</button><button class=\"player-icon\" data-player-action=\"forward-30\" aria-label=\"Forward 30 seconds\">" + icon("forward") + "</button><input id=\"player-timeshift-range\" type=\"range\" min=\"0\" max=\"1\" step=\"0.25\" value=\"1\" aria-label=\"Live Rewind position\"><button class=\"player-live-button\" data-player-action=\"go-live\"><span class=\"live-dot\"></span><span id=\"player-timeshift-label\">LIVE</span></button></div>";
+  const sportsButton = sportsFirstPlayerEnabled() ? "<button id=\"player-sports-button\" class=\"player-icon\" data-player-action=\"sports\" aria-label=\"Sports center\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("trophy") + "</button>" : "";
+  byId("view").innerHTML = "<section class=\"" + playbackShellClass + "\"><div class=\"playback-stage\"><video id=\"player\" class=\"playback-video\"" + videoAttributes + "></video><div class=\"playback-scrim\"></div><button id=\"player-center-button\" class=\"player-center-button hidden\" data-player-action=\"play-toggle\" aria-label=\"Play\">" + icon("play") + "</button><div class=\"player-top\"><button class=\"player-exit\" data-player-action=\"back\" aria-label=\"Back to Live TV browse\"><span class=\"player-icon\">" + icon("x") + "</span><span>Exit</span></button><div class=\"player-top-actions\"><div class=\"player-audio\"><button id=\"player-audio-button\" class=\"player-chip\" data-player-action=\"audio-menu\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "<span>Audio</span>" + icon("chevron-down") + "</button><div id=\"player-audio-menu\" class=\"player-menu\" role=\"menu\"></div></div><div class=\"player-volume\"><button id=\"player-volume-button\" class=\"player-icon\" data-player-action=\"volume-menu\" aria-label=\"Volume\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("speaker") + "</button><div id=\"player-volume-popover\" class=\"volume-popover\"><span>VOL</span><input id=\"player-volume-slider\" type=\"range\" min=\"0\" max=\"100\" step=\"1\" value=\"" + Math.round(state.volume * 100) + "\" aria-label=\"Volume\"><span id=\"player-volume-value\" class=\"volume-value\"></span></div></div><button class=\"player-icon\" data-player-action=\"cast\" aria-label=\"AirPlay or Cast\">" + icon("airplay") + "</button><button id=\"player-guide-button\" class=\"player-icon player-guide-button\" data-player-action=\"guide\" aria-label=\"Guide\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("guide") + "</button>" + sportsButton + "<button class=\"player-icon\" data-player-action=\"add-multiview\" aria-label=\"Add current channel to multiview\">" + icon("multiview") + "</button><button id=\"player-fullscreen-button\" class=\"player-icon\" data-player-action=\"fullscreen\" aria-label=\"Fullscreen\" aria-pressed=\"false\">" + icon("fullscreen") + "</button><div class=\"player-more\"><button id=\"player-more-button\" class=\"player-icon\" data-player-action=\"more\" aria-label=\"More\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("ellipsis") + "</button><div id=\"player-more-menu\" class=\"player-more-menu\"></div></div></div></div><div id=\"player-toast\" class=\"player-toast\" role=\"status\"></div><div id=\"player-guide-panel\" class=\"player-guide-panel\"></div><div id=\"player-sports-drawer\" class=\"player-sports-drawer\" aria-live=\"polite\"></div><div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel) + "<div class=\"player-kicker\">" + escapeHTML(channelName) + "</div><h2 class=\"player-title\">" + escapeHTML(title) + "</h2><p class=\"player-description\" data-overflow-description=\"true\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span id=\"player-mode-tag\" class=\"player-tag\">" + escapeHTML(modeTag) + "</span></div></div><div class=\"player-bottom-actions\">" + playerFavoriteButtonHTML(channel) + "<button class=\"player-icon\" data-player-action=\"pip\" aria-label=\"Picture in Picture\">" + icon("pip") + "</button><button id=\"player-subtitles-button\" class=\"player-icon\" data-player-action=\"subtitles\" aria-label=\"Subtitles\" aria-pressed=\"false\">" + icon("captions") + "</button><button id=\"player-language-button\" class=\"player-icon\" data-player-action=\"language-menu\" aria-label=\"Audio language\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "</button></div></div>" + timeShiftControls + "<div class=\"timeline\"><span>" + escapeHTML(start) + "</span><div class=\"timeline-bar\"><div class=\"timeline-fill\"></div><div class=\"timeline-knob\"></div></div><span>" + timelineEnd + "</span></div></div></div></section>";
   updateAudioMenu();
   updateVolumeMenu();
   renderPlayerGuidePanel();
+  renderPlayerSportsDrawer();
   renderPlayerMoreMenu();
   updateFullscreenButton();
   wakePlayerChrome(1800);
@@ -3122,6 +3352,94 @@ function currentStreamURL() {
 function browserStreamURL(channel) {
   return route("/dispatcharr/stream?channel_id=" + encodeURIComponent(channel.id) + "&output_profile=2");
 }
+function stopTimeShiftSession() {
+  state.timeShiftAttempt += 1;
+  const session = state.timeShiftSession;
+  state.timeShiftSession = null;
+  if (state.timeShiftHeartbeat) {
+    clearInterval(state.timeShiftHeartbeat);
+    state.timeShiftHeartbeat = null;
+  }
+  if (state.timeShiftTimelineTimer) {
+    clearInterval(state.timeShiftTimelineTimer);
+    state.timeShiftTimelineTimer = null;
+  }
+  if (session && session.leaseId) postJSON("/dispatcharr/api/timeshift/stop", { leaseId: session.leaseId }).catch(function() {});
+  updateTimeShiftUI();
+}
+async function prepareTimeShift(channel) {
+  if (!liveRewindEnabled() || !channel || channel.streamFormat === "hls") return null;
+  const attemptID = state.timeShiftAttempt;
+  const session = await postJSON("/dispatcharr/api/timeshift/start", { channelId: channel.id });
+  if (attemptID !== state.timeShiftAttempt || state.view !== "player" || !state.currentChannel || state.currentChannel.id !== channel.id) {
+    postJSON("/dispatcharr/api/timeshift/stop", { leaseId: session.leaseId }).catch(function() {});
+    const stale = new Error("rewind attempt superseded");
+    stale.superseded = true;
+    throw stale;
+  }
+  state.timeShiftSession = session;
+  state.timeShiftHeartbeat = setInterval(function() {
+    if (state.timeShiftSession && state.timeShiftSession.leaseId) postJSON("/dispatcharr/api/timeshift/heartbeat", { leaseId: state.timeShiftSession.leaseId }).catch(function() {});
+  }, 30000);
+  for (let pollAttempt = 0; pollAttempt < 30; pollAttempt++) {
+    await new Promise(function(resolve) { setTimeout(resolve, 500); });
+    if (attemptID !== state.timeShiftAttempt || state.view !== "player" || !state.timeShiftSession || state.timeShiftSession.leaseId !== session.leaseId) {
+      const stale = new Error("rewind attempt superseded");
+      stale.superseded = true;
+      throw stale;
+    }
+    const status = await getJSON("/dispatcharr/api/timeshift/status?lease_id=" + encodeURIComponent(session.leaseId));
+    if (status.state === "failed") throw new Error(status.error || "rewind buffer failed");
+    if (status.segmentCount >= 2) {
+      session.status = status;
+      session.ready = true;
+      return route(session.manifestPath);
+    }
+  }
+  throw new Error("rewind buffer startup timed out");
+}
+function fallbackFromTimeShift(channel, message) {
+  if (state.view !== "player" || !channel || !state.currentChannel || channel.id !== state.currentChannel.id) return;
+  stopTimeShiftSession();
+  setVideoSource(browserStreamURL(channel), { rewindable: isRewindableChannel(channel), format: channel.streamFormat });
+  if (message) showPlayerToast(message);
+}
+function timeShiftSeek(delta) {
+  const video = byId("player");
+  if (!video || !video.seekable || !video.seekable.length) return;
+  const start = video.seekable.start(0);
+  const end = video.seekable.end(video.seekable.length - 1);
+  video.currentTime = Math.max(start, Math.min(end - 0.25, video.currentTime + delta));
+  updateTimeShiftUI();
+}
+function timeShiftGoLive() {
+  const video = byId("player");
+  if (!video || !video.seekable || !video.seekable.length) return;
+  video.currentTime = Math.max(video.seekable.start(0), video.seekable.end(video.seekable.length - 1) - 0.5);
+  video.play().catch(function() {});
+  updateTimeShiftUI();
+}
+function updateTimeShiftUI() {
+  const controls = byId("player-timeshift-controls");
+  const range = byId("player-timeshift-range");
+  const label = byId("player-timeshift-label");
+  const tag = byId("player-mode-tag");
+  const video = byId("player");
+  const active = !!(state.timeShiftSession && state.timeShiftSession.ready && video && video.seekable && video.seekable.length);
+  if (controls) controls.classList.toggle("hidden", !active);
+  if (tag) tag.textContent = active ? "Live Rewind" : (isRewindableChannel(state.currentChannel) ? "Replay" : "AV");
+  if (!active) return;
+  const start = video.seekable.start(0);
+  const end = video.seekable.end(video.seekable.length - 1);
+  const position = Math.max(start, Math.min(end, video.currentTime || end));
+  const windowSeconds = Math.max(0, end - start);
+  const behind = Math.max(0, end - position);
+  if (range) {
+    range.max = String(windowSeconds);
+    range.value = String(Math.max(0, position - start));
+  }
+  if (label) label.textContent = behind < 3 ? "LIVE" : "-" + Math.floor(behind / 60) + ":" + String(Math.floor(behind % 60)).padStart(2, "0");
+}
 function applyAspectMode() {
   const video = byId("player");
   if (video) video.style.objectFit = state.aspectMode === "fit" ? "contain" : "cover";
@@ -3143,7 +3461,16 @@ function attachVideoSource(video, url, options) {
   };
   const isHLS = (options && options.format === "hls") || url.indexOf(".m3u8") !== -1;
   if (window.Hls && Hls.isSupported() && isHLS) {
-    attachment.hls = new Hls();
+    attachment.hls = new Hls(rewindable ? { liveSyncDurationCount: 1, liveMaxLatencyDurationCount: 5, maxBufferLength: 60 } : {});
+    if (options && typeof options.onFatal === "function") {
+      let fatalHandled = false;
+      attachment.hls.on(Hls.Events.ERROR, function(_, data) {
+        if (!fatalHandled && data && data.fatal) {
+          fatalHandled = true;
+          options.onFatal(data);
+        }
+      });
+    }
     attachment.hls.loadSource(url);
     attachment.hls.attachMedia(video);
   } else if (window.mpegts && mpegts.isSupported() && !isHLS) {
@@ -3393,9 +3720,11 @@ function renderSettings() {
   ensureSelectedCustomGroup();
   const showSourceCategorySettings = !virtualCategoriesActive();
   byId("view").innerHTML = "<div class=\"settings-stack\">"
+    + (isDispatcharrDirectSource() ? "<div class=\"settings-card profile-settings-card\"><div class=\"settings-card-head\"><div><h2>Live TV profiles</h2><p>Choose which Dispatcharr profile lineups appear in your Live TV experience.</p></div><span id=\"profile-selection-summary\" class=\"profile-selection-summary\"></span></div><div id=\"profile-settings\"></div></div>" : "")
     + "<div class=\"settings-card custom-groups-card\"><h2>Custom groups</h2><div id=\"custom-group-settings\"></div></div>"
     + (showSourceCategorySettings ? "<div class=\"settings-card\"><h2>Hidden channel groups</h2><div id=\"settings-list\" class=\"settings-list\"></div></div>" : "")
     + "</div>";
+  renderProfileSettings();
   renderCustomGroupSettings();
   if (!showSourceCategorySettings) return;
   const root = byId("settings-list");
@@ -3403,6 +3732,63 @@ function renderSettings() {
   root.innerHTML = categories.map(function(category) {
     return "<label><span>" + escapeHTML(category.name || category.sourceID) + "</span><input type=\"checkbox\" data-hide=\"" + escapeHTML(category.sourceID) + "\"" + (hiddenMap()[category.sourceID] ? " checked" : "") + "></label>";
   }).join("") || "<div class=\"empty\">No channel groups available for this connection.</div>";
+}
+function renderProfileSettings() {
+  const root = byId("profile-settings");
+  if (!root) return;
+  const profiles = availableChannelProfiles();
+  const selection = profileSelection();
+  const allProfiles = selection.mode !== "selected";
+  const selected = selectedProfileMap();
+  const summary = byId("profile-selection-summary");
+  if (summary) summary.textContent = allProfiles ? "All " + profiles.length + " profiles" : selection.profileIds.length + " of " + profiles.length + " profiles";
+  if (!profiles.length) {
+    root.innerHTML = profileSaveStatusHTML() + "<div class=\"empty\">No Dispatcharr channel profiles are available.</div>";
+    return;
+  }
+  const query = lower(state.profileSettingsQuery);
+  const visibleProfiles = profiles.filter(function(profile) {
+    return !query || lower([profile.name, profile.id].join(" ")).indexOf(query) !== -1;
+  });
+  const rows = visibleProfiles.map(function(profile) {
+    const checked = allProfiles || !!selected[profile.id];
+    const count = Number(profile.channelCount || 0);
+    return "<label class=\"profile-selection-row\"><span><strong>" + escapeHTML(profile.name || profile.id) + "</strong><small>" + escapeHTML(count + " channel" + (count === 1 ? "" : "s")) + "</small></span><input type=\"checkbox\" data-profile-selection-id=\"" + escapeHTML(profile.id) + "\"" + (checked ? " checked" : "") + "></label>";
+  }).join("");
+  root.innerHTML = profileSaveStatusHTML()
+    + "<div class=\"profile-settings-toolbar\"><label class=\"profile-settings-search\"><span>" + icon("search") + "</span><input id=\"profile-settings-filter\" placeholder=\"Filter profiles\" value=\"" + escapeHTML(state.profileSettingsQuery) + "\" autocomplete=\"off\"></label><button type=\"button\" data-profile-selection-action=\"all\"" + (allProfiles ? " disabled" : "") + ">Use all profiles</button></div>"
+    + "<div class=\"profile-selection-list\">" + (rows || "<div class=\"empty\">No profiles match that filter.</div>") + "</div>";
+}
+function applyProfileSelection(selection) {
+  if (!state.app || !state.app.preferences) return;
+  state.app.preferences.profileSelection = normalizeProfileSelection(selection);
+  invalidateProfileSelectionCache();
+  state.guideChannels = [];
+  state.guideWindowStart = -1;
+  state.guideWindowEnd = -1;
+  state.sportsExpandedEvents = {};
+  state.expandedEvents = {};
+  if (state.category && !categoryName(state.category)) state.category = "";
+  savePrefs();
+  render();
+}
+function useAllProfiles() {
+  applyProfileSelection({ mode: "all", profileIds: [] });
+}
+function updateSelectedProfile(profileID, enabled) {
+  profileID = String(profileID || "");
+  const profiles = availableChannelProfiles();
+  const allIDs = profiles.map(function(profile) { return profile.id; });
+  let selectedIDs = profileSelectionIsAll() ? allIDs.slice() : profileSelection().profileIds.slice();
+  if (enabled && selectedIDs.indexOf(profileID) === -1) selectedIDs.push(profileID);
+  if (!enabled) selectedIDs = selectedIDs.filter(function(id) { return id !== profileID; });
+  selectedIDs = uniqueIDs(selectedIDs).filter(function(id) { return allIDs.indexOf(id) !== -1; });
+  if (!selectedIDs.length) {
+    showAppToast("Select at least one Live TV profile.");
+    renderProfileSettings();
+    return;
+  }
+  applyProfileSelection(selectedIDs.length === allIDs.length ? { mode: "all", profileIds: [] } : { mode: "selected", profileIds: selectedIDs });
 }
 function categoryName(id) {
   if (String(id || "").indexOf("source:") === 0) return sourceCategoryName(String(id || "").slice("source:".length));
@@ -3446,6 +3832,26 @@ function updateAdminRecordingField(field, target) {
   markAdminSettingsDraft();
   renderAdminPage();
 }
+function updateAdminPlayerField(field, target) {
+  const settings = state.adminCategorySettings || defaultAdminCategorySettings();
+  if (field === "sports") settings.sportsFirstPlayerEnabled = !!target.checked;
+  state.adminCategorySettings = settings;
+  normalizeAdminCategorySettings();
+  markAdminSettingsDraft();
+  renderAdminPage();
+}
+function updateAdminTimeShiftField(field, target) {
+  const settings = state.adminCategorySettings || defaultAdminCategorySettings();
+  if (field === "enabled") settings.liveRewindEnabled = !!target.checked;
+  if (field === "cache") settings.liveRewindCacheGB = Number(target.value || 5);
+  if (field === "window") settings.liveRewindWindowMinutes = Number(target.value || 30);
+  if (field === "free") settings.liveRewindMinFreeGB = Number(target.value || 2);
+  if (field === "channels") settings.liveRewindMaxChannels = Number(target.value || 20);
+  state.adminCategorySettings = settings;
+  normalizeAdminCategorySettings();
+  markAdminSettingsDraft();
+  renderAdminPage();
+}
 function renderAdminPage() {
   normalizeAdminCategorySettings();
   if (!adminECMEnabled() && state.adminTab === "manager") state.adminTab = "integrations";
@@ -3456,6 +3862,8 @@ function renderAdminPage() {
   byId("view").innerHTML = state.adminTab === "manager" ? renderExternalChannelManager() : "<div class=\"settings-stack\">" + (state.adminTab === "integrations" ? renderAdminIntegrationsTab() : renderAdminSettingsTab()) + "</div>";
   if (state.adminTab === "settings") {
     renderAdminRecordingSettings();
+    renderAdminPlayerSettings();
+    renderAdminTimeShiftSettings();
     renderAdminCategorySettings();
     renderAdminCategoryAliasSettings();
     renderAdminEventKeywordSettings();
@@ -3492,6 +3900,8 @@ function renderAdminSettingsTab() {
   return ""
     + adminStatusPanel()
     + "<div class=\"settings-card settings-card-compact\"><h2>Recordings</h2><div id=\"admin-recording-settings\" class=\"settings-list\"></div></div>"
+    + "<div class=\"settings-card settings-card-compact\"><h2>Player</h2><div id=\"admin-player-settings\" class=\"settings-list\"></div></div>"
+    + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Live Rewind</h2><p>Bounded shared channel buffers for pause and rewind.</p></div></div><div id=\"admin-timeshift-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card settings-card-compact\"><h2>Group method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Presentation Overrides</h2><p>Add alternate virtual group paths without changing the original Dispatcharr groups.</p></div></div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Event Keywords</h2><p>Events are detected from the Dispatcharr guide. One keyword per line or comma-separated.</p></div></div><div id=\"admin-event-keyword-settings\" class=\"settings-list event-keyword-list\"></div></div>"
@@ -3505,6 +3915,59 @@ function renderAdminRecordingSettings() {
   const canSchedule = recordingSchedulingEnabled();
   const description = !available ? "Recordings require Dispatcharr Direct Connect." : (canSchedule ? "Show recording controls for Dispatcharr Direct users." : recordingScheduleReason());
   root.innerHTML = "<label class=\"settings-row compact-row\"><span><strong>Allow recordings by default</strong><small>" + escapeHTML(description) + "</small></span><input type=\"checkbox\" data-admin-recording-field=\"default\"" + (settings.allowRecordingsByDefault !== false ? " checked" : "") + (canSchedule ? "" : " disabled") + "></label>";
+}
+function renderAdminPlayerSettings() {
+  const root = byId("admin-player-settings");
+  if (!root) return;
+  const settings = adminSettings();
+  root.innerHTML = "<label class=\"settings-row compact-row\"><span><strong>Sports-first player</strong><small>Add a live score and matched-channel drawer to the video player.</small></span><input type=\"checkbox\" data-admin-player-field=\"sports\"" + (settings.sportsFirstPlayerEnabled ? " checked" : "") + "></label>";
+}
+function byteSizeLabel(value) {
+  const bytes = Number(value || 0);
+  if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(bytes >= 10737418240 ? 0 : 1) + " GB";
+  if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + " MB";
+  return Math.max(0, Math.round(bytes / 1024)) + " KB";
+}
+function renderAdminTimeShiftSettings() {
+  const root = byId("admin-timeshift-settings");
+  if (!root) return;
+  const settings = adminSettings();
+  const status = state.timeShiftAdminStatus || {};
+  const direct = isDispatcharrDirectSource();
+  const usage = state.timeShiftAdminLoading ? "Loading cache usage..." : (status.unavailable ? "Cache status is unavailable." : (state.timeShiftAdminStatus ? byteSizeLabel(status.bytes) + " of " + byteSizeLabel(status.maxBytes) + " · " + String(status.activeBuffers || 0) + " buffered channels · " + String(status.activeLeases || 0) + " viewers" : "Usage has not been checked yet."));
+  const windows = [15, 30, 60, 90, 120].map(function(minutes) { return "<option value=\"" + minutes + "\"" + (Number(settings.liveRewindWindowMinutes) === minutes ? " selected" : "") + ">" + minutes + " minutes</option>"; }).join("");
+  root.innerHTML = adminSaveStatusHTML()
+    + "<label class=\"settings-row compact-row\"><span><strong>Enable Live Rewind</strong><small>Dispatcharr Direct MPEG-TS only. Unsupported channels fall back to normal playback.</small></span><input type=\"checkbox\" data-admin-timeshift-field=\"enabled\"" + (settings.liveRewindEnabled ? " checked" : "") + (direct ? "" : " disabled") + "></label>"
+    + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Total cache budget</strong><small>Shared across every user and buffered channel.</small></span><div class=\"settings-number-unit\"><input type=\"number\" min=\"1\" max=\"500\" step=\"1\" data-admin-timeshift-field=\"cache\" value=\"" + escapeHTML(String(settings.liveRewindCacheGB)) + "\"><span>GB</span></div></div>"
+    + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Maximum rewind window</strong><small>Oldest segments are removed first.</small></span><select data-admin-timeshift-field=\"window\">" + windows + "</select></div>"
+    + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Minimum free disk space</strong><small>Eviction starts before the server reaches this reserve.</small></span><div class=\"settings-number-unit\"><input type=\"number\" min=\"1\" max=\"100\" step=\"1\" data-admin-timeshift-field=\"free\" value=\"" + escapeHTML(String(settings.liveRewindMinFreeGB)) + "\"><span>GB</span></div></div>"
+    + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Maximum buffered channels</strong><small>Additional channels continue with normal live playback.</small></span><input type=\"number\" min=\"1\" max=\"100\" step=\"1\" data-admin-timeshift-field=\"channels\" value=\"" + escapeHTML(String(settings.liveRewindMaxChannels)) + "\"></div>"
+    + "<div class=\"settings-row compact-row timeshift-usage-row\"><span><strong>Cache usage</strong><small>" + escapeHTML(usage) + "</small></span><div class=\"settings-inline-actions\"><button type=\"button\" data-timeshift-admin-action=\"refresh\">Refresh</button><button type=\"button\" data-timeshift-admin-action=\"clear\" class=\"danger\">Clear cache</button></div></div>";
+  if (!state.timeShiftAdminStatus && !state.timeShiftAdminLoading) refreshAdminTimeShiftStatus(true);
+}
+async function refreshAdminTimeShiftStatus(quiet) {
+  if (state.timeShiftAdminLoading) return;
+  state.timeShiftAdminLoading = true;
+  if (!quiet) renderAdminPage();
+  try {
+    state.timeShiftAdminStatus = await getJSON("/dispatcharr/api/timeshift/admin-status");
+  } catch (_) {
+    state.timeShiftAdminStatus = { unavailable: true };
+    if (!quiet) showAppToast("Live Rewind cache status is unavailable.");
+  } finally {
+    state.timeShiftAdminLoading = false;
+    if (state.view === "admin" && state.adminTab === "settings") renderAdminPage();
+  }
+}
+async function clearAdminTimeShiftCache() {
+  try {
+    await postJSON("/dispatcharr/api/timeshift/clear", {});
+    state.timeShiftAdminStatus = null;
+    showAppToast("Live Rewind cache cleared.");
+    refreshAdminTimeShiftStatus(true);
+  } catch (_) {
+    showAppToast("Live Rewind cache could not be cleared.");
+  }
 }
 function renderAdminIntegrationsTab() {
   return ""
@@ -3534,7 +3997,9 @@ function adminStatusPanel() {
   const membershipCount = Number(profileAccess.channelMembershipCount || 0);
   const profileValue = profileStatus === "available" ? escapeHTML(String(profileCount)) : adminStatusPill(profileStatus);
   const profileDetail = profileStatus === "available" ? String(membershipCount) + " channel memberships" : (profileAccess.message || "No profile information returned by Dispatcharr.");
-  return "<div class=\"admin-status-strip\" aria-label=\"Connection Status\"><div class=\"settings-card-head\"><div><h2>Connection Status</h2></div></div><div class=\"admin-status-grid\">"
+  const refreshClass = "admin-status-refresh" + (state.adminStatusRefreshing ? " is-loading" : "");
+  const refreshLabel = state.adminStatusRefreshing ? "Refreshing..." : "Refresh";
+  return "<div class=\"admin-status-strip\" aria-label=\"Connection Status\"><div class=\"settings-card-head\"><div><h2>Connection Status</h2></div><button type=\"button\" class=\"" + refreshClass + "\" data-admin-status-refresh=\"true\" aria-label=\"Refresh connection status\"" + (state.adminStatusRefreshing ? " disabled aria-busy=\"true\"" : "") + ">" + icon("loader") + "<span>" + refreshLabel + "</span></button></div><div class=\"admin-status-grid\">"
     + adminStatusItem("Connection", adminStatusPill(status.status || "ok"), sourceModeLabel(source.mode))
     + adminStatusItem("Channels", escapeHTML(String(status.channelCount || items(state.app.channels).length || 0)), "Last catalog sync: " + dateTimeLabel(status.lastSuccessUnix))
     + adminStatusItem("Guide", adminStatusPill(guideStatus), String(status.epgProgramCount || items(state.app.programs).length || 0) + " programs · " + dateTimeLabel(status.epgLastSuccessUnix))
@@ -3543,6 +4008,22 @@ function adminStatusPanel() {
     + (error ? "<div class=\"settings-note settings-warning admin-status-note\">" + escapeHTML(error) + "</div>" : "")
     + (isDispatcharrDirectSource() && profileStatus !== "available" ? "<div class=\"settings-note settings-warning admin-status-note is-actionable\"><span>" + escapeHTML(profileDetail) + "</span><button type=\"button\" data-admin-profile-refresh=\"true\"" + (state.adminProfileRefreshing ? " disabled" : "") + ">" + (state.adminProfileRefreshing ? "Refreshing..." : "Retry profiles") + "</button></div>" : "")
     + "</div>";
+}
+
+async function refreshAdminStatus() {
+  if (state.adminStatusRefreshing) return;
+  state.adminStatusRefreshing = true;
+  renderAdminPage();
+  try {
+    await refreshStatusData();
+    showAppToast("Connection status refreshed.");
+  } catch (error) {
+    showAppToast("Could not refresh connection status.");
+    try { console.warn("Dispatcharr admin status refresh failed", error); } catch (_) {}
+  } finally {
+    state.adminStatusRefreshing = false;
+    renderAdminPage();
+  }
 }
 
 async function refreshAdminProfiles() {
@@ -3585,7 +4066,7 @@ function renderAdminCategorySettings() {
   const settings = adminSettings();
   const root = byId("admin-category-settings");
   const profileAccess = state.app && state.app.source && state.app.source.profileAccess ? state.app.source.profileAccess : {};
-  const sourceHelp = "Choose whether virtual groups come from Dispatcharr groups, profiles, channel names, or a combination.";
+  const sourceHelp = "Choose whether virtual groups come from Dispatcharr groups, profiles, channel names, or a combination. Every profile and group pipe segment becomes a nested folder.";
   const nested = settings.mode !== "normal" ? "<div class=\"settings-list-nested\">"
     + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Delimiter</strong><small>Split source names into nested virtual groups.</small></span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Sports - NHL Teams</option></select></div>"
     + "<div class=\"settings-row settings-form-row virtual-label-row\"><span class=\"settings-field-copy\"><strong>Virtual groups label</strong><small>Only the suffix after Virtual is editable.</small></span><div class=\"virtual-label-control\"><span>Virtual</span><input data-admin-category-field=\"virtualGroupLabel\" value=\"" + escapeHTML(virtualGroupLabelSuffix(settings.virtualGroupLabel)) + "\" placeholder=\"Groups\"></div></div>"
@@ -3693,14 +4174,19 @@ function renderAdminEventKeywordSettings() {
   if (!root) return;
   const rows = normalizeEventKeywordRows(adminSettings().eventKeywords);
   root.innerHTML = rows.map(function(row, index) {
-    return "<div class=\"settings-row event-keyword-row\"><span class=\"event-keyword-label\">" + escapeHTML(row.categoryName || eventCategoryName(row.categoryId)) + "</span><textarea data-admin-event-keyword-index=\"" + index + "\" aria-label=\"" + escapeHTML((row.categoryName || row.categoryId) + " event keywords") + "\">" + escapeHTML(row.keywords.join("\n")) + "</textarea></div>";
+    const label = row.categoryName || eventCategoryName(row.categoryId);
+    const series = row.eventSeries ? "<div class=\"event-keyword-options\"><label><span>Exclude</span><textarea data-admin-event-keyword-index=\"" + index + "\" data-admin-event-keyword-field=\"excludeKeywords\" aria-label=\"" + escapeHTML(label + " exclusion keywords") + "\">" + escapeHTML(row.excludeKeywords.join("\n")) + "</textarea></label><label class=\"event-window-field\"><span>Coverage window</span><span><input type=\"number\" min=\"15\" max=\"360\" step=\"15\" data-admin-event-keyword-index=\"" + index + "\" data-admin-event-keyword-field=\"groupWindowMinutes\" value=\"" + escapeHTML(String(row.groupWindowMinutes || 60)) + "\"><small>minutes</small></span></label></div>" : "";
+    return "<div class=\"settings-row event-keyword-row" + (row.eventSeries ? " event-series-rule" : "") + "\"><span class=\"event-keyword-label\">" + escapeHTML(label) + (row.eventSeries ? "<small>Event series</small>" : "") + "</span><div class=\"event-keyword-fields\"><label><span>Match</span><textarea data-admin-event-keyword-index=\"" + index + "\" data-admin-event-keyword-field=\"keywords\" aria-label=\"" + escapeHTML(label + " event keywords") + "\">" + escapeHTML(row.keywords.join("\n")) + "</textarea></label>" + series + "</div></div>";
   }).join("");
 }
-function updateAdminEventKeywords(index, value) {
+function updateAdminEventKeywords(index, field, value) {
   const settings = state.adminCategorySettings || defaultAdminCategorySettings();
   const rows = normalizeEventKeywordRows(settings.eventKeywords);
   if (!rows[index]) return;
-  rows[index] = Object.assign({}, rows[index], { keywords: normalizeKeywordList(value) });
+  const update = {};
+  if (field === "groupWindowMinutes") update.groupWindowMinutes = Math.max(15, Math.min(360, Number(value) || 60));
+  else update[field === "excludeKeywords" ? "excludeKeywords" : "keywords"] = normalizeKeywordList(value);
+  rows[index] = Object.assign({}, rows[index], update);
   settings.eventKeywords = rows;
   state.adminCategorySettings = settings;
   state.events = null;
@@ -3722,7 +4208,7 @@ function renderCustomGroupSettings() {
   const selected = selectedCustomGroup();
   const memberships = selected ? customMemberships(selected.id) : [];
   const query = lower(state.customGroupQuery);
-  const availableChannels = items(state.app.channels).filter(function(channel) {
+  const availableChannels = effectiveChannels(false).filter(function(channel) {
     if (selected && memberships.indexOf(channel.id) !== -1) return false;
     if (!query) return true;
     return lower(channel.name || channel.id).indexOf(query) !== -1 || lower(sourceCategoryLabel(channel)).indexOf(query) !== -1;
@@ -4074,7 +4560,7 @@ function setVideoSource(url, options) {
   }
   if (state.hls) { state.hls.destroy(); state.hls = null; }
   if (state.tsPlayer) { state.tsPlayer.destroy(); state.tsPlayer = null; }
-  const attachment = attachVideoSource(video, url, { rewindable: rewindable, format: options && options.format });
+  const attachment = attachVideoSource(video, url, { rewindable: rewindable, format: options && options.format, onFatal: options && options.onFatal });
   state.hls = attachment.hls;
   state.tsPlayer = attachment.tsPlayer;
   setTimeout(updateAudioMenu, 500);
@@ -4100,18 +4586,41 @@ async function playChannel(channel) {
       guideScrollLeft: guideScroll ? guideScroll.scrollLeft : 0
     };
   }
+  stopTimeShiftSession();
+  const timeShiftAttempt = state.timeShiftAttempt;
   state.currentChannel = channel;
   state.view = "player";
   render();
   try {
-    await ensurePlayerLibraries(channel.streamFormat);
+    await ensurePlayerLibraries(liveRewindEnabled() && channel.streamFormat !== "hls" ? "hls" : channel.streamFormat);
   } catch (_) {
     showPlayerToast("Playback components could not be loaded.");
     return;
   }
-  setVideoSource(browserStreamURL(channel), { rewindable: isRewindableChannel(channel), format: channel.streamFormat });
+  if (timeShiftAttempt !== state.timeShiftAttempt || !state.currentChannel || state.currentChannel.id !== channel.id) return;
   startWatch(channel);
+  if (liveRewindEnabled() && channel.streamFormat !== "hls") {
+    showPlayerToast("Preparing Live Rewind...");
+    try {
+      const manifestURL = await prepareTimeShift(channel);
+      setVideoSource(manifestURL, { rewindable: true, format: "hls", onFatal: function() { fallbackFromTimeShift(channel, "Live Rewind stopped. Continuing live."); } });
+      state.timeShiftTimelineTimer = setInterval(updateTimeShiftUI, 1000);
+      const video = byId("player");
+      if (video) {
+        video.addEventListener("timeupdate", updateTimeShiftUI);
+        video.addEventListener("progress", updateTimeShiftUI);
+      }
+      updateTimeShiftUI();
+      showPlayerToast("Live Rewind ready.");
+    } catch (error) {
+      if (timeShiftAttempt === state.timeShiftAttempt && !(error && error.superseded)) fallbackFromTimeShift(channel, "Live Rewind unavailable. Playing live.");
+    }
+  } else {
+    setVideoSource(browserStreamURL(channel), { rewindable: isRewindableChannel(channel), format: channel.streamFormat });
+  }
+  if (timeShiftAttempt !== state.timeShiftAttempt || !state.currentChannel || state.currentChannel.id !== channel.id) return;
   const guide = await getJSON("/dispatcharr/api/guide?channel_id=" + encodeURIComponent(channel.id)).catch(function() { return { programs: [] }; });
+  if (!state.currentChannel || state.currentChannel.id !== channel.id) return;
   const nowGuide = byId("now-guide");
   if (nowGuide) nowGuide.innerHTML = items(guide.programs).slice(0, 6).map(function(program) { return "<div class=\"program\"><time>" + escapeHTML(timeLabel(program.startUnix)) + "</time><strong>" + escapeHTML(program.title || "Untitled") + "</strong></div>"; }).join("") || "<div class=\"empty\">No guide entries.</div>";
 }
@@ -4136,13 +4645,24 @@ function handlePlayerAction(action, button) {
   }
   if (action === "guide") {
     state.playerGuideOpen = !state.playerGuideOpen;
+    state.playerSportsOpen = false;
+    stopPlayerSportsRefresh();
     closePlayerPopovers();
     renderPlayerGuidePanel();
+    renderPlayerSportsDrawer();
     return;
   }
   if (action === "guide-close") {
     state.playerGuideOpen = false;
     renderPlayerGuidePanel();
+    return;
+  }
+  if (action === "sports") {
+    togglePlayerSports();
+    return;
+  }
+  if (action === "sports-close") {
+    togglePlayerSports(false);
     return;
   }
   if (action === "cast") {
@@ -4156,6 +4676,18 @@ function handlePlayerAction(action, button) {
   }
   if (action === "play-toggle") {
     togglePlayPause();
+    return;
+  }
+  if (action === "rewind-30") {
+    timeShiftSeek(-30);
+    return;
+  }
+  if (action === "forward-30") {
+    timeShiftSeek(30);
+    return;
+  }
+  if (action === "go-live") {
+    timeShiftGoLive();
     return;
   }
   if (action === "fullscreen") {
@@ -4260,6 +4792,13 @@ function returnFromPlayer() {
   });
 }
 document.addEventListener("click", function(event) {
+  const timeShiftAdminAction = event.target.closest("[data-timeshift-admin-action]");
+  if (timeShiftAdminAction) {
+    const action = timeShiftAdminAction.getAttribute("data-timeshift-admin-action");
+    if (action === "refresh") refreshAdminTimeShiftStatus(false);
+    if (action === "clear") clearAdminTimeShiftCache();
+    return;
+  }
   const settingsMenuButton = event.target.closest("#settings-menu-button");
   if (settingsMenuButton) {
     event.preventDefault();
@@ -4267,6 +4806,23 @@ document.addEventListener("click", function(event) {
     return;
   }
   if (!event.target.closest(".settings-menu")) setSettingsMenuOpen(false);
+  const profileSelectionAction = event.target.closest("[data-profile-selection-action]");
+  if (profileSelectionAction) {
+    event.preventDefault();
+    if (profileSelectionAction.getAttribute("data-profile-selection-action") === "all") useAllProfiles();
+    return;
+  }
+  const playerSportsChannel = event.target.closest("[data-player-sports-channel]");
+  if (playerSportsChannel) {
+    event.preventDefault();
+    const channel = channelByID(playerSportsChannel.getAttribute("data-player-sports-channel"));
+    if (channel) {
+      state.playerSportsOpen = false;
+      stopPlayerSportsRefresh();
+      playChannel(channel);
+    }
+    return;
+  }
   const playerTarget = event.target.closest("[data-player-action]");
   if (playerTarget) {
     event.preventDefault();
@@ -4545,6 +5101,12 @@ document.addEventListener("click", function(event) {
     refreshAdminProfiles();
     return;
   }
+  const adminStatusRefresh = event.target.closest("[data-admin-status-refresh]");
+  if (adminStatusRefresh) {
+    event.preventDefault();
+    refreshAdminStatus();
+    return;
+  }
   const adminSettingsAction = event.target.closest("[data-admin-settings-action]");
   if (adminSettingsAction) {
     event.preventDefault();
@@ -4655,6 +5217,16 @@ document.addEventListener("keydown", function(event) {
   if (state.view !== "player") return;
   const tag = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : "";
   if (tag === "input" || tag === "textarea" || tag === "select") return;
+  if (event.key === "Escape" && state.playerSportsOpen) {
+    event.preventDefault();
+    togglePlayerSports(false);
+    return;
+  }
+  if (event.key === "ArrowDown" && sportsFirstPlayerEnabled() && !state.playerSportsOpen) {
+    event.preventDefault();
+    togglePlayerSports(true);
+    return;
+  }
   if (event.key === " " || event.key === "k" || event.key === "K") {
     event.preventDefault();
     togglePlayPause();
@@ -4672,6 +5244,11 @@ document.addEventListener("keydown", function(event) {
   }, { passive: true });
 });
 document.addEventListener("change", function(event) {
+  const profileID = event.target.getAttribute("data-profile-selection-id");
+  if (profileID) {
+    updateSelectedProfile(profileID, !!event.target.checked);
+    return;
+  }
   const adminField = event.target.getAttribute("data-admin-category-field");
   if (adminField) {
     updateCategoryParsingField(adminField, event.target);
@@ -4685,6 +5262,16 @@ document.addEventListener("change", function(event) {
   const adminRecordingField = event.target.getAttribute("data-admin-recording-field");
   if (adminRecordingField) {
     updateAdminRecordingField(adminRecordingField, event.target);
+    return;
+  }
+  const adminPlayerField = event.target.getAttribute("data-admin-player-field");
+  if (adminPlayerField) {
+    updateAdminPlayerField(adminPlayerField, event.target);
+    return;
+  }
+  const adminTimeShiftField = event.target.getAttribute("data-admin-timeshift-field");
+  if (adminTimeShiftField) {
+    updateAdminTimeShiftField(adminTimeShiftField, event.target);
     return;
   }
   const adminAliasField = event.target.getAttribute("data-admin-alias-field");
@@ -4707,10 +5294,28 @@ document.addEventListener("change", function(event) {
   render();
 });
 document.addEventListener("input", function(event) {
+  if (event.target && event.target.id === "profile-settings-filter") {
+    state.profileSettingsQuery = event.target.value || "";
+    renderProfileSettings();
+    const input = byId("profile-settings-filter");
+    if (input) {
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+    return;
+  }
   if (event.target && event.target.id === "player-volume-slider") {
     state.volume = Number(event.target.value || 0) / 100;
     applyVolumeToVideo();
     syncMultiviewAudio();
+  }
+  if (event.target && event.target.id === "player-timeshift-range") {
+    const video = byId("player");
+    if (video && video.seekable && video.seekable.length) {
+      video.currentTime = video.seekable.start(0) + Number(event.target.value || 0);
+      updateTimeShiftUI();
+    }
+    return;
   }
   if (event.target && event.target.id === "search-page-input") {
     state.searchQuery = event.target.value || "";
@@ -4760,7 +5365,7 @@ document.addEventListener("input", function(event) {
   }
   const adminEventKeywordIndex = event.target.getAttribute("data-admin-event-keyword-index");
   if (adminEventKeywordIndex !== null) {
-    updateAdminEventKeywords(Number(adminEventKeywordIndex), event.target.value || "");
+    updateAdminEventKeywords(Number(adminEventKeywordIndex), event.target.getAttribute("data-admin-event-keyword-field") || "keywords", event.target.value || "");
     return;
   }
   if (event.target && event.target.id === "custom-group-channel-search") {
