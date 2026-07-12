@@ -68,6 +68,36 @@ func TestSyncStoresChannelsAndPrograms(t *testing.T) {
 	}
 }
 
+func TestSyncCancellationDoesNotRecordConnectionFailure(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Health: model.SyncHealth{LastSuccessUnix: 100}})
+	service := NewService(Dependencies{
+		Store: store,
+		DispatcharrFactory: func(config.Settings) DispatcharrClient {
+			return &stubDispatcharrClient{versionErr: context.Canceled}
+		},
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := service.SyncNow(ctx, config.Settings{
+		SourceMode:        config.SourceModeAPIKey,
+		DispatcharrURL:    "https://dispatcharr.example.com",
+		DispatcharrAPIKey: "secret",
+		ChannelRefreshH:   24,
+		EPGRefreshH:       6,
+	}, 200)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected canceled sync, got %v", err)
+	}
+
+	health := store.Current().Health
+	if health.LastFailureUnix != 0 || health.LastError != "" {
+		t.Fatalf("expected cancellation not to alter connection health, got %+v", health)
+	}
+}
+
 func TestSyncPersistsCatalogSnapshot(t *testing.T) {
 	t.Parallel()
 
@@ -919,6 +949,7 @@ func TestSyncM3UXMLTVBuildsFallbackCatalog(t *testing.T) {
 type stubDispatcharrClient struct {
 	testErr        error
 	version        dispatcharr.VersionInfo
+	versionErr     error
 	channels       []dispatcharr.Channel
 	channelsErr    error
 	groups         []dispatcharr.ChannelGroup
@@ -936,6 +967,9 @@ type stubDispatcharrClient struct {
 
 func (s *stubDispatcharrClient) TestConnection(context.Context) error { return s.testErr }
 func (s *stubDispatcharrClient) Version(context.Context) (dispatcharr.VersionInfo, error) {
+	if s.versionErr != nil {
+		return dispatcharr.VersionInfo{}, s.versionErr
+	}
 	if s.version.Version == "" {
 		return dispatcharr.VersionInfo{Version: dispatcharr.String(config.MinimumDispatcharrVersion)}, nil
 	}
