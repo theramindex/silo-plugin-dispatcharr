@@ -1531,6 +1531,10 @@ function renderGuideChannelButton(channel) {
   const channelName = channel.name || "Untitled";
   return "<button class=\"epg-channel\" data-channel=\"" + escapeHTML(channel.id) + "\" data-channel-name=\"" + escapeHTML(channelName) + "\" aria-label=\"" + escapeHTML(channelName) + "\" title=\"" + escapeHTML(channelName) + "\">" + logoHTML(channel) + "<span class=\"epg-channel-title\">" + escapeHTML(channelName) + "</span></button>";
 }
+function resetMainHorizontalScroll() {
+  const main = document.querySelector(".main");
+  if (main && main.scrollLeft) main.scrollLeft = 0;
+}
 function render() {
   if (!state.app) return;
   if (state.view === "recordings" && !dvrEnabled()) state.view = "home";
@@ -1542,6 +1546,7 @@ function render() {
   document.querySelector(".shell").classList.toggle("is-multiview", state.view === "multiview");
   document.querySelector(".shell").classList.toggle("is-search", state.view === "search");
   document.querySelector(".shell").classList.toggle("is-onlater", state.view === "onlater");
+  resetMainHorizontalScroll();
   renderRail();
   renderSportsTopbarTabs();
   if (state.view === "guide") renderGuidePage();
