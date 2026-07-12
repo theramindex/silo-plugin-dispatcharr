@@ -360,9 +360,9 @@ func scoreSportsChannel(channel model.Channel, categoryName string, programs []m
 	reasons := map[string]bool{}
 	channelText := normalizeMatchText(strings.Join([]string{channel.Name, channel.Number}, " "))
 	categoryText := normalizeMatchText(strings.Join([]string{categoryName, channel.CategoryName}, " "))
-	hasSportsContext := sportsChannelContext(channelText, categoryText, event)
+	hasAbbreviationContext := sportsChannelAbbreviationContext(channelText, categoryText, event)
 	for _, term := range terms {
-		if term.Abbreviation && !hasSportsContext {
+		if term.Abbreviation && !hasAbbreviationContext {
 			continue
 		}
 		if containsSportsStructuralTerm(channelText, term) {
@@ -400,9 +400,11 @@ func scoreSportsChannel(channel model.Channel, categoryName string, programs []m
 	return score, joinMatchReasons(reasons)
 }
 
-func sportsChannelContext(channelText, categoryText string, event SportsEvent) bool {
+// Abbreviations such as TEN and EDM are too ambiguous on their own. A channel
+// needs to identify the event's league unless its guide explicitly confirms it.
+func sportsChannelAbbreviationContext(channelText, categoryText string, event SportsEvent) bool {
 	text := channelText + " " + categoryText
-	return containsMatchTerm(text, "sports") || containsMatchTerm(text, event.LeagueName)
+	return containsMatchTerm(text, event.LeagueName) || containsMatchTerm(text, event.LeagueID)
 }
 
 // Single-word national teams should not match a longer club name merely because

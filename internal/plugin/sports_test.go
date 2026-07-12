@@ -252,6 +252,39 @@ func TestMatchSportsChannelsRejectsAbbreviationOutsideSportsContext(t *testing.T
 	assertNoSportsMatch(t, matches, "ch:music")
 }
 
+func TestMatchSportsChannelsRejectsAbbreviationOutsideEventLeague(t *testing.T) {
+	t.Parallel()
+
+	snapshot := cache.Snapshot{
+		Catalog: model.CatalogState{
+			Channels: []model.Channel{
+				{ID: "ch:big-ten", Name: "Big Ten Network", CategoryID: "sports", CategoryName: "US TV | Sports"},
+				{ID: "ch:ten", Name: "TEN Team Feed", CategoryID: "nfl", CategoryName: "US Sports | NFL Teams"},
+			},
+			Content: model.ContentState{
+				LiveCategories: []model.Category{
+					{ID: "sports", Name: "US TV | Sports", Kind: "live"},
+					{ID: "nfl", Name: "US Sports | NFL Teams", Kind: "live"},
+				},
+			},
+		},
+	}
+	event := SportsEvent{
+		ID:         "event:nfl",
+		LeagueID:   "nfl",
+		LeagueName: "NFL",
+		Name:       "Tennessee Titans at New York Jets",
+		ShortName:  "TEN @ NYJ",
+		StartUnix:  1700000000,
+		Home:       SportsTeam{ID: "team:nyj", Name: "New York Jets", Abbreviation: "NYJ"},
+		Away:       SportsTeam{ID: "team:ten", Name: "Tennessee Titans", Abbreviation: "TEN"},
+	}
+
+	matches := matchSportsChannels(event, snapshot)
+	assertSportsMatch(t, matches, "ch:ten")
+	assertNoSportsMatch(t, matches, "ch:big-ten")
+}
+
 func TestHTTPRoutesServerSportsUsesStaleCacheOnProviderError(t *testing.T) {
 	t.Parallel()
 
