@@ -276,10 +276,11 @@ func sortedBoolKeys(values map[string]bool) []string {
 }
 
 type sportsTerm struct {
-	Text     string
-	Reason   string
-	Weight   int
-	TeamName bool
+	Text         string
+	Reason       string
+	Weight       int
+	TeamName     bool
+	Abbreviation bool
 }
 
 func matchSportsChannels(event SportsEvent, snapshot cache.Snapshot) []SportsChannelMatch {
@@ -329,7 +330,7 @@ func matchSportsChannels(event SportsEvent, snapshot cache.Snapshot) []SportsCha
 
 func sportsMatchTerms(event SportsEvent) []sportsTerm {
 	var terms []sportsTerm
-	add := func(text, reason string, weight int, teamName bool) {
+	add := func(text, reason string, weight int, teamName, abbreviation bool) {
 		text = strings.TrimSpace(text)
 		if text == "" || len([]rune(text)) < 3 {
 			return
@@ -340,15 +341,15 @@ func sportsMatchTerms(event SportsEvent) []sportsTerm {
 				return
 			}
 		}
-		terms = append(terms, sportsTerm{Text: text, Reason: reason, Weight: weight, TeamName: teamName})
+		terms = append(terms, sportsTerm{Text: text, Reason: reason, Weight: weight, TeamName: teamName, Abbreviation: abbreviation})
 	}
-	add(event.Home.Name, event.Home.Name, 60, true)
-	add(event.Away.Name, event.Away.Name, 60, true)
-	add(event.Home.Abbreviation, event.Home.Abbreviation, 28, false)
-	add(event.Away.Abbreviation, event.Away.Abbreviation, 28, false)
+	add(event.Home.Name, event.Home.Name, 60, true, false)
+	add(event.Away.Name, event.Away.Name, 60, true, false)
+	add(event.Home.Abbreviation, event.Home.Abbreviation, 28, false, true)
+	add(event.Away.Abbreviation, event.Away.Abbreviation, 28, false, true)
 	// League names are too broad for channel matching; "NFL" or "MLB" would pull in every team group.
-	add(event.Name, "event title", 22, false)
-	add(event.ShortName, "event title", 22, false)
+	add(event.Name, "event title", 22, false, false)
+	add(event.ShortName, "event title", 22, false, false)
 	return terms
 }
 
@@ -359,7 +360,11 @@ func scoreSportsChannel(channel model.Channel, categoryName string, programs []m
 	reasons := map[string]bool{}
 	channelText := normalizeMatchText(strings.Join([]string{channel.Name, channel.Number}, " "))
 	categoryText := normalizeMatchText(strings.Join([]string{categoryName, channel.CategoryName}, " "))
+	hasSportsContext := sportsChannelContext(channelText, categoryText, event)
 	for _, term := range terms {
+		if term.Abbreviation && !hasSportsContext {
+			continue
+		}
 		if containsSportsStructuralTerm(channelText, term) {
 			score += term.Weight
 			structuralMatch = true
@@ -393,6 +398,11 @@ func scoreSportsChannel(channel model.Channel, categoryName string, programs []m
 		return 0, ""
 	}
 	return score, joinMatchReasons(reasons)
+}
+
+func sportsChannelContext(channelText, categoryText string, event SportsEvent) bool {
+	text := channelText + " " + categoryText
+	return containsMatchTerm(text, "sports") || containsMatchTerm(text, event.LeagueName)
 }
 
 // Single-word national teams should not match a longer club name merely because

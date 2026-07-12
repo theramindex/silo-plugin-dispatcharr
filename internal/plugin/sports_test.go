@@ -219,6 +219,39 @@ func TestMatchSportsChannelsRejectsPartialSingleWordTeamNames(t *testing.T) {
 	assertNoSportsMatch(t, matches, "ch:new-england")
 }
 
+func TestMatchSportsChannelsRejectsAbbreviationOutsideSportsContext(t *testing.T) {
+	t.Parallel()
+
+	snapshot := cache.Snapshot{
+		Catalog: model.CatalogState{
+			Channels: []model.Channel{
+				{ID: "ch:music", Name: "MC Dance EDM", CategoryID: "music", CategoryName: "International TV | Latino | Music"},
+				{ID: "ch:edm", Name: "EDM Team Feed", CategoryID: "nhl", CategoryName: "US Sports | NHL Teams"},
+			},
+			Content: model.ContentState{
+				LiveCategories: []model.Category{
+					{ID: "music", Name: "International TV | Latino | Music", Kind: "live"},
+					{ID: "nhl", Name: "US Sports | NHL Teams", Kind: "live"},
+				},
+			},
+		},
+	}
+	event := SportsEvent{
+		ID:         "event:nhl",
+		LeagueID:   "nhl",
+		LeagueName: "NHL",
+		Name:       "Winnipeg Jets at Edmonton Oilers",
+		ShortName:  "WPG @ EDM",
+		StartUnix:  1700000000,
+		Home:       SportsTeam{ID: "team:edm", Name: "Edmonton Oilers", Abbreviation: "EDM"},
+		Away:       SportsTeam{ID: "team:wpg", Name: "Winnipeg Jets", Abbreviation: "WPG"},
+	}
+
+	matches := matchSportsChannels(event, snapshot)
+	assertSportsMatch(t, matches, "ch:edm")
+	assertNoSportsMatch(t, matches, "ch:music")
+}
+
 func TestHTTPRoutesServerSportsUsesStaleCacheOnProviderError(t *testing.T) {
 	t.Parallel()
 
