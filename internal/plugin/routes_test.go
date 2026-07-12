@@ -2740,6 +2740,13 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 			t.Fatalf("sports player launch context must include %q", want)
 		}
 	}
+	if !strings.Contains(playChannel, `? "" : channel.streamFormat`) {
+		t.Fatal("live rewind must load the direct-stream player as a fallback for non-HLS channels")
+	}
+	browserStreamURL := functionBody("browserStreamURL")
+	if !strings.Contains(browserStreamURL, `sourceMode() === "xtream"`) {
+		t.Fatal("Xtream output profiles must not be applied to Dispatcharr Direct streams")
+	}
 	playerSports := functionBody("renderPlayerSportsDrawer")
 	for _, want := range []string{`player-sports-drawer`, `Live &amp; upcoming`, `Sports channels`} {
 		if !strings.Contains(playerSports, want) {

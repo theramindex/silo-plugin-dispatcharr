@@ -3410,7 +3410,8 @@ function currentStreamURL() {
   return state.currentChannel ? route("/dispatcharr/stream?channel_id=" + encodeURIComponent(state.currentChannel.id)) : "";
 }
 function browserStreamURL(channel) {
-  return route("/dispatcharr/stream?channel_id=" + encodeURIComponent(channel.id) + "&output_profile=2");
+  const query = "channel_id=" + encodeURIComponent(channel.id);
+  return route("/dispatcharr/stream?" + query + (sourceMode() === "xtream" ? "&output_profile=2" : ""));
 }
 function stopTimeShiftSession() {
   state.timeShiftAttempt += 1;
@@ -4673,7 +4674,7 @@ async function playChannel(channel) {
   state.view = "player";
   render();
   try {
-    await ensurePlayerLibraries(liveRewindEnabled() && channel.streamFormat !== "hls" ? "hls" : channel.streamFormat);
+    await ensurePlayerLibraries(liveRewindEnabled() && channel.streamFormat !== "hls" ? "" : channel.streamFormat);
   } catch (_) {
     showPlayerToast("Playback components could not be loaded.");
     return;
