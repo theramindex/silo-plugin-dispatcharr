@@ -257,7 +257,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`function allGroupLabel()`,
 		`data-admin-category-field=\"virtualGroupLabel\"`,
 		`const showSourceCategorySettings = !virtualCategoriesActive()`,
-		`aria-label="Live TV sections"`,
+		`aria-label="Live TV (Dispatcharr) sections"`,
+		`data-admin-identity-field=\"name\"`,
 		`<span>Guide</span>`,
 		`<span>On Later</span>`,
 		`Favorites <small id="favorite-count">0</small>`,
@@ -522,6 +523,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	for _, want := range []string{
 		`<title>Live TV Admin</title>`,
 		`<h1>Live TV Admin</h1>`,
+		`href="/admin/plugins" aria-label="Back to Silo plugin administration"`,
 		`<div class="shell is-admin">`,
 		`.shell.is-admin .rail { display: none; }`,
 		`.shell.is-admin .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; padding: 0; }`,
@@ -2521,7 +2523,7 @@ func TestHTTPRoutesServerPlayerRoute(t *testing.T) {
 	if response.GetStatusCode() != 200 {
 		t.Fatalf("expected 200, got %d", response.GetStatusCode())
 	}
-	if !strings.Contains(string(response.GetBody()), `aria-label="Live TV sections"`) {
+	if !strings.Contains(string(response.GetBody()), `aria-label="Live TV (Dispatcharr) sections"`) {
 		t.Fatalf("expected app shell html body")
 	}
 	if !strings.Contains(string(response.GetBody()), `href="/" aria-label="Back to Silo"`) {
@@ -2539,6 +2541,30 @@ func TestHTTPRoutesServerPlayerRoute(t *testing.T) {
 	}
 	if !strings.Contains(playerAppJavaScript(), "output_profile=2") {
 		t.Fatalf("expected browser playback to request AAC Xtream profile")
+	}
+}
+
+func TestHTTPRoutesServerAppRouteUsesConfiguredDisplayName(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.SetAdminSettings(json.RawMessage(`{"appDisplayName":"Ramindex & TV"}`))
+	server := NewHTTPRoutesServer(store)
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr"})
+	if err != nil {
+		t.Fatalf("app route: %v", err)
+	}
+	body := string(response.GetBody())
+	for _, want := range []string{
+		`<title>Ramindex &amp; TV</title>`,
+		`<h1>Ramindex &amp; TV</h1>`,
+		`aria-label="Ramindex &amp; TV sections"`,
+		`aria-label="Search Ramindex &amp; TV"`,
+		`Loading Ramindex &amp; TV...`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected configured app name marker %q in app shell", want)
+		}
 	}
 }
 

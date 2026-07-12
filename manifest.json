@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.dispatcharr",
-  "version": "0.3.14",
+  "version": "0.3.15",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -50,7 +50,7 @@
       "path": "/dispatcharr",
       "access": "authenticated",
       "navigable": true,
-      "navigation_label": "Live TV",
+      "navigation_label": "Live TV (Dispatcharr)",
       "navigation_kind": "user"
     },
     {

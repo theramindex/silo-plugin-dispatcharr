@@ -98,3 +98,32 @@ func TestNormalizeAdminSettingsPreservesSportsFirstPlayerEnabled(t *testing.T) {
 		t.Fatalf("expected sports-first player setting to remain enabled, got %v", normalized)
 	}
 }
+
+func TestNormalizeAdminSettingsAppDisplayName(t *testing.T) {
+	t.Parallel()
+
+	longName := strings.Repeat("界", 81)
+	tests := []struct {
+		name     string
+		input    any
+		expected string
+	}{
+		{name: "defaults when missing", expected: "Live TV (Dispatcharr)"},
+		{name: "defaults when empty", input: "   ", expected: "Live TV (Dispatcharr)"},
+		{name: "trims whitespace", input: "  My Live TV  ", expected: "My Live TV"},
+		{name: "truncates at 80 characters", input: longName, expected: string([]rune(longName)[:80])},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload := map[string]any{}
+			if tt.input != nil {
+				payload["appDisplayName"] = tt.input
+			}
+			normalized := normalizeAdminSettingsPayload(payload)
+			if got := normalized["appDisplayName"]; got != tt.expected {
+				t.Fatalf("expected appDisplayName %q, got %q", tt.expected, got)
+			}
+		})
+	}
+}
