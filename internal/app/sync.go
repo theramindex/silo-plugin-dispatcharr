@@ -362,13 +362,25 @@ func requireDispatcharrMinimumVersion(ctx context.Context, client DispatcharrCli
 }
 
 func (s *Service) recordSyncFailure(ctx context.Context, nowUnix int64, err error) {
-	if err == nil {
-		return
-	}
-	if ctx != nil && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+	if expectedContextCancellation(ctx, err) {
 		return
 	}
 	s.store.RecordFailure(nowUnix, err.Error())
+}
+
+func (s *Service) recordEPGFailure(ctx context.Context, nowUnix int64, err error) bool {
+	if expectedContextCancellation(ctx, err) {
+		return false
+	}
+	s.store.RecordEPGFailure(nowUnix, err.Error())
+	return true
+}
+
+func expectedContextCancellation(ctx context.Context, err error) bool {
+	if err == nil {
+		return true
+	}
+	return ctx != nil && ctx.Err() != nil && errors.Is(err, ctx.Err())
 }
 
 func xtreamConnectionSettings(settings config.Settings) (string, string, string) {
@@ -656,8 +668,9 @@ func (s *Service) RefreshEPGNow(ctx context.Context, settings config.Settings, n
 	}
 	if usesDispatcharrAPI(settings) {
 		if err := s.syncNow(ctx, settings, nowUnix, syncOptions{exactGuide: true}); err != nil {
-			s.store.RecordEPGFailure(nowUnix, err.Error())
-			_ = s.persistSnapshot()
+			if s.recordEPGFailure(ctx, nowUnix, err) {
+				_ = s.persistSnapshot()
+			}
 			return err
 		}
 		return nil
@@ -666,8 +679,9 @@ func (s *Service) RefreshEPGNow(ctx context.Context, settings config.Settings, n
 		return s.syncNow(ctx, settings, nowUnix, syncOptions{exactGuide: true})
 	}
 	if err := s.refreshEPG(ctx, settings, nowUnix); err != nil {
-		s.store.RecordEPGFailure(nowUnix, err.Error())
-		_ = s.persistSnapshot()
+		if s.recordEPGFailure(ctx, nowUnix, err) {
+			_ = s.persistSnapshot()
+		}
 		return err
 	}
 	return nil
@@ -684,8 +698,9 @@ func (s *Service) RefreshGuideOnlyNow(ctx context.Context, settings config.Setti
 	if usesDispatcharrAPI(settings) {
 		programs, err := s.dispatcharrGuidePrograms(ctx, settings, nowUnix)
 		if err != nil {
-			s.store.RecordEPGFailure(nowUnix, err.Error())
-			_ = s.persistSnapshot()
+			if s.recordEPGFailure(ctx, nowUnix, err) {
+				_ = s.persistSnapshot()
+			}
 			return err
 		}
 		return s.replacePrograms(programs, nowUnix)
@@ -694,8 +709,9 @@ func (s *Service) RefreshGuideOnlyNow(ctx context.Context, settings config.Setti
 		return s.SyncNow(ctx, settings, nowUnix)
 	}
 	if err := s.refreshEPG(ctx, settings, nowUnix); err != nil {
-		s.store.RecordEPGFailure(nowUnix, err.Error())
-		_ = s.persistSnapshot()
+		if s.recordEPGFailure(ctx, nowUnix, err) {
+			_ = s.persistSnapshot()
+		}
 		return err
 	}
 	return nil
@@ -706,8 +722,9 @@ func (s *Service) ForceSyncNow(ctx context.Context, settings config.Settings, no
 		return err
 	}
 	if err := s.syncNow(ctx, settings, nowUnix, syncOptions{exactGuide: true}); err != nil {
-		s.store.RecordEPGFailure(nowUnix, err.Error())
-		_ = s.persistSnapshot()
+		if s.recordEPGFailure(ctx, nowUnix, err) {
+			_ = s.persistSnapshot()
+		}
 		return err
 	}
 	return nil

@@ -98,6 +98,44 @@ func TestSyncCancellationDoesNotRecordConnectionFailure(t *testing.T) {
 	}
 }
 
+func TestGuideRefreshCancellationDoesNotRecordEPGFailure(t *testing.T) {
+	t.Parallel()
+
+	settings := config.Settings{
+		SourceMode:        config.SourceModeAPIKey,
+		DispatcharrURL:    "https://dispatcharr.example.com",
+		DispatcharrAPIKey: "secret",
+		ChannelRefreshH:   24,
+		EPGRefreshH:       6,
+	}
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{
+		ConfigKey: config.CatalogCacheKey(settings),
+		Catalog: model.CatalogState{
+			Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+			Channels: []model.Channel{{ID: "dispatcharr:1", Name: "News"}},
+		},
+		Health: model.SyncHealth{EPGStatus: "ok", EPGLastSuccessUnix: 100},
+	})
+	service := NewService(Dependencies{
+		Store: store,
+		DispatcharrFactory: func(config.Settings) DispatcharrClient {
+			return &stubDispatcharrClient{versionErr: context.Canceled}
+		},
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := service.RefreshGuideOnlyNow(ctx, settings, 200)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected canceled guide refresh, got %v", err)
+	}
+
+	health := store.Current().Health
+	if health.EPGStatus != "ok" || health.EPGLastFailureUnix != 0 || health.EPGLastError != "" {
+		t.Fatalf("expected cancellation not to alter guide health, got %+v", health)
+	}
+}
+
 func TestSyncPersistsCatalogSnapshot(t *testing.T) {
 	t.Parallel()
 
