@@ -23,6 +23,15 @@
   function appendUnduplicatedPathParts(basePath, extraParts) {
     const baseParts = String(basePath || "").split(" / ").map(normalizedNameToken).filter(Boolean);
     let additions = items(extraParts).map(normalizedNameToken).filter(Boolean);
+    let sharedPrefixLength = 0;
+    while (
+      sharedPrefixLength < baseParts.length &&
+      sharedPrefixLength < additions.length &&
+      baseParts[sharedPrefixLength].toLowerCase() === additions[sharedPrefixLength].toLowerCase()
+    ) {
+      sharedPrefixLength += 1;
+    }
+    if (sharedPrefixLength) additions = additions.slice(sharedPrefixLength);
     while (additions.length && baseParts.length && baseParts[baseParts.length - 1].toLowerCase() === additions[0].toLowerCase()) {
       additions = additions.slice(1);
     }
