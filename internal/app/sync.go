@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"sort"
@@ -64,12 +65,12 @@ func (s *Service) syncNow(ctx context.Context, settings config.Settings, nowUnix
 	case config.SourceModeM3UXMLTV:
 		playlistData, err := s.fetchURL(ctx, settings.M3UURL)
 		if err != nil {
-			s.store.RecordFailure(nowUnix, err.Error())
+			s.recordSyncFailure(ctx, nowUnix, err)
 			return err
 		}
 		entries, err := m3u.Parse(playlistData)
 		if err != nil {
-			s.store.RecordFailure(nowUnix, err.Error())
+			s.recordSyncFailure(ctx, nowUnix, err)
 			return err
 		}
 		channels := make([]model.Channel, 0, len(entries))
@@ -82,12 +83,12 @@ func (s *Service) syncNow(ctx context.Context, settings config.Settings, nowUnix
 		} else {
 			xmltvData, err := s.fetchURL(ctx, settings.EPGXMLURL)
 			if err != nil {
-				s.store.RecordFailure(nowUnix, err.Error())
+				s.recordSyncFailure(ctx, nowUnix, err)
 				return err
 			}
 			doc, err := xmltv.Parse(xmltvData)
 			if err != nil {
-				s.store.RecordFailure(nowUnix, err.Error())
+				s.recordSyncFailure(ctx, nowUnix, err)
 				return err
 			}
 			programs = programsForM3UEntries(entries, channels, doc)
@@ -110,26 +111,26 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 	client := s.dispatcharrFactory(settings)
 	tightDeadline := hasTightDeadline(ctx)
 	if err := requireDispatcharrMinimumVersion(ctx, client); err != nil {
-		s.store.RecordFailure(nowUnix, err.Error())
+		s.recordSyncFailure(ctx, nowUnix, err)
 		return err
 	}
 
 	upstreamChannels, err := client.Channels(ctx)
 	if err != nil {
-		s.store.RecordFailure(nowUnix, err.Error())
+		s.recordSyncFailure(ctx, nowUnix, err)
 		return err
 	}
 
 	groups, err := client.ChannelGroups(ctx)
 	if err != nil {
-		s.store.RecordFailure(nowUnix, err.Error())
+		s.recordSyncFailure(ctx, nowUnix, err)
 		return err
 	}
 	profiles, profilesErr := client.ChannelProfiles(ctx)
 	if profilesErr != nil {
 		if settings.EffectiveSourceMode() == config.SourceModeAPIKey || strings.TrimSpace(settings.ChannelProfile) != "" {
 			err := fmt.Errorf("dispatcharr channel profiles unavailable: %w", profilesErr)
-			s.store.RecordFailure(nowUnix, err.Error())
+			s.recordSyncFailure(ctx, nowUnix, err)
 			return err
 		}
 		profiles = nil
@@ -141,7 +142,7 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 	}
 	profile, allowedChannels, err := selectedChannelProfile(settings.ChannelProfile, profiles)
 	if err != nil {
-		s.store.RecordFailure(nowUnix, err.Error())
+		s.recordSyncFailure(ctx, nowUnix, err)
 		return err
 	}
 	profileIDsByChannel := profileIDsByDispatcharrChannel(profiles)
@@ -280,7 +281,7 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 	client := s.xtreamFactory(baseURL, username, password)
 	streams, err := client.LiveStreams(ctx)
 	if err != nil {
-		s.store.RecordFailure(nowUnix, err.Error())
+		s.recordSyncFailure(ctx, nowUnix, err)
 		return err
 	}
 
@@ -308,7 +309,7 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 	} else if !tightDeadline && strings.TrimSpace(settings.EPGXMLURL) != "" {
 		xmltvPrograms, err := s.xmltvProgramsForChannels(ctx, settings.EPGXMLURL, channels)
 		if err != nil {
-			s.store.RecordFailure(nowUnix, err.Error())
+			s.recordSyncFailure(ctx, nowUnix, err)
 			return err
 		}
 		programs = append(programs, xmltvPrograms...)
@@ -322,7 +323,7 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 			channel := mapping.MapXtreamChannel(stream)
 			epg, err := client.ShortEPG(ctx, stream.StreamID)
 			if err != nil {
-				s.store.RecordFailure(nowUnix, err.Error())
+				s.recordSyncFailure(ctx, nowUnix, err)
 				return err
 			}
 			for _, listing := range epg.EPGListings {
@@ -358,6 +359,16 @@ func requireDispatcharrMinimumVersion(ctx context.Context, client DispatcharrCli
 		return fmt.Errorf("dispatcharr %s or newer is required; connected server is %s", config.MinimumDispatcharrVersion, strings.TrimSpace(version.Version.String()))
 	}
 	return nil
+}
+
+func (s *Service) recordSyncFailure(ctx context.Context, nowUnix int64, err error) {
+	if err == nil {
+		return
+	}
+	if ctx != nil && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+		return
+	}
+	s.store.RecordFailure(nowUnix, err.Error())
 }
 
 func xtreamConnectionSettings(settings config.Settings) (string, string, string) {
