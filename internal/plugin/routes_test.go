@@ -678,6 +678,7 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 					{"id": "channel:argentina-city", "name": "Argentina | Buenos Aires | Sports 1", "categoryId": "cat:intl-sports", "categoryName": "International Sports"},
 					{"id": "channel:us-sports-mlb", "name": "MLB Teams Network", "categoryId": "cat:us-sports-mlb", "categoryName": "US | Sports | MLB Teams", "profileIds": []string{"profile-ny"}},
 					{"id": "channel:ny-news-sports", "name": "NY Sports News", "categoryId": "cat:news-sports", "categoryName": "News | Sports | Regional", "profileIds": []string{"profile-ny"}},
+					{"id": "channel:md-afn", "name": "AFN", "categoryId": "cat:us-tv-afn", "categoryName": "US TV | AFN", "profileIds": []string{"profile-md"}},
 				},
 				"categories": []map[string]any{
 					{"id": "cat:world-cup", "name": "* World Cup"},
@@ -690,11 +691,13 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 					{"id": "cat:intl-sports", "name": "International Sports"},
 					{"id": "cat:us-sports-mlb", "name": "US | Sports | MLB Teams"},
 					{"id": "cat:news-sports", "name": "News | Sports | Regional"},
+					{"id": "cat:us-tv-afn", "name": "US TV | AFN"},
 				},
 				"source": map[string]any{
 					"profiles": []map[string]any{
 						{"id": "profile-ny", "name": "US TV | NY", "channelCount": 3},
 						{"id": "profile-us-tv", "name": "US TV", "channelCount": 1},
+						{"id": "profile-md", "name": "US TV | MD", "channelCount": 1},
 					},
 				},
 			},
@@ -738,7 +741,7 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.SelectedProfileScoped {
 		t.Fatalf("expected an explicitly selected profile to hide other profile memberships: %+v", result)
 	}
-	if !result.DuplicateProfileCollapsed || !result.DuplicateProfileExpanded || !result.DuplicateGroupCollapsed || !result.DuplicateGroupExpanded {
+	if !result.DuplicateProfileCollapsed || !result.DuplicateProfileExpanded || !result.SharedRootProfileCollapsed || !result.SharedRootProfileExpanded || !result.DuplicateGroupCollapsed || !result.DuplicateGroupExpanded {
 		t.Fatalf("expected duplicate virtual group labels to collapse by default and expand when disabled: %+v", result)
 	}
 	if !result.AliasPath || !result.SecondAliasPath {
@@ -903,6 +906,8 @@ type virtualAliasResult struct {
 	SelectedProfileScoped                bool   `json:"selectedProfileScoped"`
 	DuplicateProfileCollapsed            bool   `json:"duplicateProfileCollapsed"`
 	DuplicateProfileExpanded             bool   `json:"duplicateProfileExpanded"`
+	SharedRootProfileCollapsed           bool   `json:"sharedRootProfileCollapsed"`
+	SharedRootProfileExpanded            bool   `json:"sharedRootProfileExpanded"`
 	DuplicateGroupCollapsed              bool   `json:"duplicateGroupCollapsed"`
 	DuplicateGroupExpanded               bool   `json:"duplicateGroupExpanded"`
 	AliasPath                            bool   `json:"aliasPath"`
@@ -1122,9 +1127,11 @@ JSON.stringify((function() {
   const selectedProfilePaths = profilePathsForChannel(channelByID("channel:ny-local"));
   delete state.app.source.channelProfile;
   const duplicateProfilePaths = virtualPathsForChannel(channelByID("channel:profile-us-tv-dup"));
+  const sharedRootProfilePaths = virtualPathsForChannel(channelByID("channel:md-afn"));
   state.adminCategorySettings.collapseDuplicateVirtualGroups = false;
   normalizeAdminCategorySettings();
   const duplicateProfileExpandedPaths = virtualPathsForChannel(channelByID("channel:profile-us-tv-dup"));
+  const sharedRootProfileExpandedPaths = virtualPathsForChannel(channelByID("channel:md-afn"));
   state.adminCategorySettings.collapseDuplicateVirtualGroups = true;
   normalizeAdminCategorySettings();
   state.adminCategorySettings.virtualGroupSource = "group_channel";
@@ -1296,6 +1303,8 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     selectedProfileScoped: selectedProfilePaths.length === 1 && selectedProfilePaths[0] === "US TV / NY",
     duplicateProfileCollapsed: duplicateProfilePaths.indexOf("US TV") !== -1 && duplicateProfilePaths.indexOf("US TV / US TV") === -1,
     duplicateProfileExpanded: duplicateProfileExpandedPaths.indexOf("US TV / US TV") !== -1,
+    sharedRootProfileCollapsed: sharedRootProfilePaths.indexOf("US TV / MD / AFN") !== -1 && sharedRootProfilePaths.indexOf("US TV / MD / US TV / AFN") === -1,
+    sharedRootProfileExpanded: sharedRootProfileExpandedPaths.indexOf("US TV / MD / US TV / AFN") !== -1,
     duplicateGroupCollapsed: usTVDuplicateGroupPaths.indexOf("US / TV") !== -1 && usTVDuplicateGroupPaths.indexOf("US / TV / TV") === -1,
     duplicateGroupExpanded: usTVDuplicateGroupExpandedPaths.indexOf("US / TV / TV") !== -1,
     aliasPath: !!alias,
