@@ -2817,7 +2817,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`@media (prefers-contrast: more)`,
 		`.multiview-video { width: 100%; height: 100%; object-fit: contain; background: #050505; }`,
 		`.home-guide.guide-scroll, .home-guide .guide-scroll, .home-guide #guide-scroll { min-height: 0; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; overscroll-behavior-y: auto; scrollbar-gutter: auto; }`,
-		`.virtual-folder-workspace.is-guide { position: relative; isolation: isolate; display: flex; flex-direction: column; min-height: 0;`,
+		`.virtual-folder-workspace.is-guide { position: relative; isolation: isolate; display: flex; flex-direction: column; min-height: 0; height: calc(100dvh - 7.4rem); max-height: calc(100dvh - 5.75rem); margin-top: -0.45rem; }`,
 		`.folder-guide-grid { position: relative; z-index: 2; flex: 0 0 auto; }`,
 		`.virtual-folder-guide { position: relative; z-index: 1; display: flex; flex: 1 1 auto; min-height: 0; margin-top: 0.7rem;`,
 		`@media (min-width: 800px) and (max-width: 900px)`,
