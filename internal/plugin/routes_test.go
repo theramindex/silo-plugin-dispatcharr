@@ -2800,6 +2800,8 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.event-broadcast-windows`,
 		`.event-keyword-options`,
 		`.multiview-video { width: 100%; height: 100%; object-fit: contain; background: #050505; }`,
+		`.home-guide.guide-scroll, .home-guide .guide-scroll, .home-guide #guide-scroll { min-height: 0; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; overscroll-behavior-y: auto; scrollbar-gutter: auto; }`,
+		`#view > .home-guide:last-child { margin-bottom: max(1.5rem, env(safe-area-inset-bottom)); }`,
 		`@media (prefers-reduced-motion: reduce)`,
 	} {
 		requireStyle(want)
@@ -2812,6 +2814,9 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	}
 	if strings.Contains(styles, `letter-spacing: 0.04em`) {
 		t.Fatal("interface labels must use neutral letter spacing")
+	}
+	if !strings.Contains(script, `function attachHomeGuidePageScroll()`) || !strings.Contains(script, `main.scrollTop = nextScrollTop`) {
+		t.Fatal("embedded guides must hand vertical wheel scrolling to the page")
 	}
 }
 

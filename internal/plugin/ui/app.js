@@ -1595,6 +1595,7 @@ function renderHome() {
     + sectionHeaderWithActions("TV Guide", guideFreshnessHTML())
     + renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true })
     + categoryGrid();
+  attachHomeGuidePageScroll();
 }
 function emptyStateHTML(title, detail) {
   detail = String(detail || "").trim();
@@ -2780,6 +2781,23 @@ function renderHomeGuide(channels, emptyMessage, options) {
     return "<div class=\"epg-row\">" + renderGuideChannelButton(channel) + "<div class=\"epg-programs\">" + renderEPGCells(channel, channelIndex) + "</div></div>";
   }).join("") + "</div></div>";
 }
+function attachHomeGuidePageScroll() {
+  document.querySelectorAll(".home-guide").forEach(function(guide) {
+    guide.addEventListener("wheel", function(event) {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      const main = document.querySelector(".main");
+      if (!main || main.scrollHeight <= main.clientHeight) return;
+      let delta = event.deltaY;
+      if (event.deltaMode === 1) delta *= 16;
+      if (event.deltaMode === 2) delta *= main.clientHeight;
+      const maxScrollTop = main.scrollHeight - main.clientHeight;
+      const nextScrollTop = Math.max(0, Math.min(maxScrollTop, main.scrollTop + delta));
+      if (nextScrollTop === main.scrollTop) return;
+      main.scrollTop = nextScrollTop;
+      event.preventDefault();
+    }, { passive: false });
+  });
+}
 function renderVirtualCategoryGuide(channels) {
   return renderHomeGuide(channels, "No channels in this virtual group yet.", { hideFreshness: true });
 }
@@ -2857,6 +2875,7 @@ function renderLivePage() {
       + folderFilterHTML("Filter this folder", "")
       + (filteredChildren.length ? "<div class=\"category-grid\">" + filteredChildren.map(categoryTileHTML).join("") + "</div>" : "")
       + renderVirtualCategoryContent(filteredChannels);
+    attachHomeGuidePageScroll();
     maybeWarmGuideForChannels(filteredChannels, state.category);
     return;
   }
