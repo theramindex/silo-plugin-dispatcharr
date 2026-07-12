@@ -2727,6 +2727,19 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	if strings.Count(sportsCard, "event.leagueName") > 1 {
 		t.Fatal("sports card must not render the league label more than once")
 	}
+	if strings.Contains(sportsCard, "sports-card-head") {
+		t.Fatal("sports card must keep its game status in the central scoreboard, not duplicate it in a header")
+	}
+	playerSportsActive := functionBody("sportsFirstPlayerActive")
+	if !strings.Contains(playerSportsActive, "state.playerSportsMode") {
+		t.Fatal("sports-first player must be scoped to a sports launch context")
+	}
+	playChannel := functionBody("playChannel")
+	for _, want := range []string{`state.view === "sports"`, `state.playerSportsMode = useSportsPlayer`, `state.playerSportsOpen = useSportsPlayer`} {
+		if !strings.Contains(playChannel, want) {
+			t.Fatalf("sports player launch context must include %q", want)
+		}
+	}
 	playerSports := functionBody("renderPlayerSportsDrawer")
 	for _, want := range []string{`player-sports-drawer`, `Live &amp; upcoming`, `Sports channels`} {
 		if !strings.Contains(playerSports, want) {
