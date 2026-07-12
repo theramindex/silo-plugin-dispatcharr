@@ -2869,7 +2869,8 @@ function categoryMatchesFolderQuery(category) {
   ].join(" ")).indexOf(query) !== -1;
 }
 function folderFilterHTML(placeholder, actionsHTML) {
-  return "<div class=\"folder-filter\"><input id=\"folder-filter\" class=\"search\" type=\"search\" placeholder=\"" + escapeHTML(placeholder || "Filter visible channels") + "\" value=\"" + escapeHTML(state.folderQuery || "") + "\" autocomplete=\"off\">" + (actionsHTML ? "<div class=\"folder-filter-actions\">" + actionsHTML + "</div>" : "") + "</div>";
+  const label = placeholder || "Filter visible channels";
+  return "<div class=\"folder-filter\"><input id=\"folder-filter\" class=\"search\" type=\"search\" placeholder=\"" + escapeHTML(label) + "\" value=\"" + escapeHTML(state.folderQuery || "") + "\" autocomplete=\"off\" aria-label=\"" + escapeHTML(label) + "\">" + (actionsHTML ? "<div class=\"folder-filter-actions\">" + actionsHTML + "</div>" : "") + "</div>";
 }
 function renderLivePage() {
   const channels = visibleChannels(false);
@@ -2887,11 +2888,13 @@ function renderLivePage() {
     });
     const filteredChildren = children.filter(categoryMatchesFolderQuery);
     const filteredChannels = channels.filter(channelMatchesFolderQuery);
-    byId("view").innerHTML = virtualFolderHeader(path, featured)
-      + folderFilterHTML("Filter this folder", "")
-      + (filteredChildren.length ? "<div class=\"category-grid\">" + filteredChildren.map(categoryTileHTML).join("") + "</div>" : "")
-      + renderVirtualCategoryContent(filteredChannels);
-    attachHomeGuidePageScroll();
+    const guideWorkspace = virtualCategoryView() === "guide";
+    const folderHeader = virtualFolderHeader(path, featured)
+      + folderFilterHTML(guideWorkspace ? "Filter Guide" : "Filter this folder", "")
+      + (filteredChildren.length ? "<div class=\"category-grid\">" + filteredChildren.map(categoryTileHTML).join("") + "</div>" : "");
+    byId("view").innerHTML = guideWorkspace
+      ? "<section class=\"virtual-folder-workspace is-guide\">" + folderHeader + "<div class=\"virtual-folder-guide\">" + renderVirtualCategoryGuide(filteredChannels) + "</div></section>"
+      : folderHeader + renderVirtualCategoryContent(filteredChannels);
     maybeWarmGuideForChannels(filteredChannels, state.category);
     return;
   }

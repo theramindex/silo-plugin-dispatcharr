@@ -426,19 +426,20 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	}
 	if !strings.Contains(body, `const watched = recent.length ? recent : visibleChannels(false).slice(0, 5);`) ||
 		!strings.Contains(body, `+ (favorites.length ? sectionHeader("Favorites") + favoriteHomeCards(favorites) : "")`) ||
-		!strings.Contains(body, `+ sectionHeaderWithActions("TV Guide", guideFreshnessHTML())`) ||
+		!strings.Contains(body, `+ sectionHeaderWithActions("TV Guide", "<button type=\"button\" class=\"section-action\" data-view=\"guide\">Open Guide</button>" + guideFreshnessHTML())`) ||
 		!strings.Contains(body, `+ renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true })`) ||
 		!strings.Contains(body, `+ categoryGrid();`) {
 		t.Fatalf("expected home page order to be continue watching, favorites, guide grid, then group sections")
 	}
-	virtualHeaderIndex := strings.Index(body, `byId("view").innerHTML = virtualFolderHeader(path, featured)`)
-	virtualFilterIndex := strings.Index(body, `+ folderFilterHTML("Filter this folder", "")`)
+	virtualWorkspaceIndex := strings.Index(body, `const guideWorkspace = virtualCategoryView() === "guide";`)
+	virtualHeaderIndex := strings.Index(body, `const folderHeader = virtualFolderHeader(path, featured)`)
+	virtualFilterIndex := strings.Index(body, `+ folderFilterHTML(guideWorkspace ? "Filter Guide" : "Filter this folder", "")`)
 	virtualChildrenIndex := strings.Index(body, `+ (filteredChildren.length ? "<div class=\"category-grid\">`)
-	virtualContentIndex := strings.Index(body, `+ renderVirtualCategoryContent(filteredChannels)`)
-	if virtualHeaderIndex < 0 || virtualFilterIndex < 0 || virtualChildrenIndex < 0 || virtualContentIndex < 0 {
+	virtualContentIndex := strings.Index(body, `renderVirtualCategoryGuide(filteredChannels)`)
+	if virtualWorkspaceIndex < 0 || virtualHeaderIndex < 0 || virtualFilterIndex < 0 || virtualChildrenIndex < 0 || virtualContentIndex < 0 {
 		t.Fatalf("expected virtual category drilldown to render breadcrumbs, filter, subfolders, and switchable channel content")
 	}
-	if !(virtualHeaderIndex < virtualFilterIndex && virtualFilterIndex < virtualChildrenIndex && virtualChildrenIndex < virtualContentIndex) {
+	if !(virtualWorkspaceIndex < virtualHeaderIndex && virtualHeaderIndex < virtualFilterIndex && virtualFilterIndex < virtualChildrenIndex && virtualChildrenIndex < virtualContentIndex) {
 		t.Fatalf("expected virtual category drilldown order to be breadcrumbs, filter, subfolders, then channel content")
 	}
 	if !strings.Contains(body, `virtual-folder-actions`) || !strings.Contains(body, `guideFreshnessHTML() + renderVirtualCategoryViewToggle()`) {
@@ -2698,6 +2699,12 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	if !strings.Contains(recentCards, "currentProgram(channel)") || !strings.Contains(recentCards, `class=\"continue-card recent-channel-card\"`) || strings.Contains(recentCards, "channel.categoryName") {
 		t.Fatal("recently watched cards must show current programming instead of internal channel groups")
 	}
+	virtualFolder := functionBody("renderLivePage")
+	for _, want := range []string{`Filter Guide`, `virtual-folder-workspace is-guide`, `virtual-folder-guide`} {
+		if !strings.Contains(virtualFolder, want) {
+			t.Fatalf("virtual folder guide must include %q", want)
+		}
+	}
 
 	// The VM integration test exercises details-first clicks, guide windowing,
 	// and exact player return state. These checks keep their public hooks stable.
@@ -2809,6 +2816,8 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`@media (prefers-contrast: more)`,
 		`.multiview-video { width: 100%; height: 100%; object-fit: contain; background: #050505; }`,
 		`.home-guide.guide-scroll, .home-guide .guide-scroll, .home-guide #guide-scroll { min-height: 0; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; overscroll-behavior-y: auto; scrollbar-gutter: auto; }`,
+		`.virtual-folder-workspace.is-guide { display: flex; flex-direction: column; min-height: 0;`,
+		`.virtual-folder-workspace.is-guide .virtual-folder-guide .home-guide { flex: 1 1 auto; height: 100%; min-height: 0; margin-top: 0; overflow: auto; overscroll-behavior: contain;`,
 		`#view > .home-guide:last-child { margin-bottom: max(1.5rem, env(safe-area-inset-bottom)); }`,
 		`@media (prefers-reduced-motion: reduce)`,
 	} {
