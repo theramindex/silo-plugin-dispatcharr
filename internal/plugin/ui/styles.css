@@ -313,8 +313,8 @@ button { cursor: pointer; }
 .sports-match-team-score { min-height: 1rem; color: var(--text); font-size: 1.18rem; font-weight: 950; line-height: 1; }
 .sports-versus { display: grid; place-items: center; gap: 0.22rem; min-width: 4.6rem; color: var(--muted); text-align: center; }
 .sports-versus strong { max-width: 7.2rem; overflow: hidden; text-overflow: ellipsis; border: 1px solid var(--line); border-radius: 999px; background: var(--rail-2); color: var(--text); font-size: 0.68rem; font-weight: 950; padding: 0.16rem 0.46rem; white-space: nowrap; }
-.sports-match-status { max-width: 7.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.72rem; font-weight: 900; }
-.sports-match-status.live { color: var(--red, #f05252); }
+.sports-match-status { max-width: 7.5rem; min-height: 1.35rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 999px; padding: 0.08rem 0.42rem; font-size: 0.76rem; font-weight: 900; line-height: 1.05; }
+.sports-match-status.live { color: #ffc0bd; background: color-mix(in srgb, var(--red) 78%, var(--rail-2)); border-color: color-mix(in srgb, #ff6d69 58%, var(--line)); }
 .sports-match-status.final { color: var(--muted); }
 .sports-match-status.upcoming { color: var(--text); }
 .sports-team-favorite { min-width: 1.75rem; min-height: 1.75rem; border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; gap: 0.22rem; padding: 0; font-size: 0.64rem; font-weight: 900; opacity: 0.7; }
