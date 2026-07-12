@@ -187,7 +187,7 @@ function defaultEventKeywordRules() {
   ];
 }
 function defaultAdminCategorySettings() {
-  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, allowRecordingsByDefault: true, sportsFirstPlayerEnabled: false, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
+  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", appDisplayName: "Live TV (Dispatcharr)", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, allowRecordingsByDefault: true, sportsFirstPlayerEnabled: false, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
 }
 function cloneAdminCategorySettings(settings) {
   try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -309,6 +309,8 @@ function normalizePreferences() {
 }
 function normalizeAdminCategorySettings() {
   state.adminCategorySettings = Object.assign(defaultAdminCategorySettings(), state.adminCategorySettings || {});
+  const appDisplayName = String(state.adminCategorySettings.appDisplayName || "").trim();
+  state.adminCategorySettings.appDisplayName = Array.from(appDisplayName || "Live TV (Dispatcharr)").slice(0, 80).join("");
   if (state.adminCategorySettings.mode === "custom" || state.adminCategorySettings.mode === "admin_delimiter") state.adminCategorySettings.mode = "delimiter";
   if (["normal", "delimiter"].indexOf(state.adminCategorySettings.mode) === -1) state.adminCategorySettings.mode = "normal";
   if (!state.adminCategorySettings.delimiter) state.adminCategorySettings.delimiter = "pipe";
@@ -3832,6 +3834,14 @@ function updateAdminRecordingField(field, target) {
   markAdminSettingsDraft();
   renderAdminPage();
 }
+function updateAdminIdentityField(field, target) {
+  const settings = state.adminCategorySettings || defaultAdminCategorySettings();
+  if (field === "name") settings.appDisplayName = target.value;
+  state.adminCategorySettings = settings;
+  normalizeAdminCategorySettings();
+  markAdminSettingsDraft();
+  renderAdminPage();
+}
 function updateAdminPlayerField(field, target) {
   const settings = state.adminCategorySettings || defaultAdminCategorySettings();
   if (field === "sports") settings.sportsFirstPlayerEnabled = !!target.checked;
@@ -3861,6 +3871,7 @@ function renderAdminPage() {
   if (shell) shell.classList.toggle("is-admin-manager", state.adminTab === "manager");
   byId("view").innerHTML = state.adminTab === "manager" ? renderExternalChannelManager() : "<div class=\"settings-stack\">" + (state.adminTab === "integrations" ? renderAdminIntegrationsTab() : renderAdminSettingsTab()) + "</div>";
   if (state.adminTab === "settings") {
+    renderAdminIdentitySettings();
     renderAdminRecordingSettings();
     renderAdminPlayerSettings();
     renderAdminTimeShiftSettings();
@@ -3899,6 +3910,7 @@ function setAdminTab(tab) {
 function renderAdminSettingsTab() {
   return ""
     + adminStatusPanel()
+    + "<div class=\"settings-card settings-card-compact\"><h2>App identity</h2><div id=\"admin-identity-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card settings-card-compact\"><h2>Recordings</h2><div id=\"admin-recording-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card settings-card-compact\"><h2>Player</h2><div id=\"admin-player-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Live Rewind</h2><p>Bounded shared channel buffers for pause and rewind.</p></div></div><div id=\"admin-timeshift-settings\" class=\"settings-list\"></div></div>"
@@ -3906,6 +3918,13 @@ function renderAdminSettingsTab() {
     + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Presentation Overrides</h2><p>Add alternate virtual group paths without changing the original Dispatcharr groups.</p></div></div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Event Keywords</h2><p>Events are detected from the Dispatcharr guide. One keyword per line or comma-separated.</p></div></div><div id=\"admin-event-keyword-settings\" class=\"settings-list event-keyword-list\"></div></div>"
     + "";
+}
+function renderAdminIdentitySettings() {
+  const root = byId("admin-identity-settings");
+  if (!root) return;
+  const settings = adminSettings();
+  root.innerHTML = adminSaveStatusHTML()
+    + "<label class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>App name</strong><small>Shown in the app header and browser title. The Silo sidebar uses the installed plugin label.</small></span><input type=\"text\" maxlength=\"80\" data-admin-identity-field=\"name\" value=\"" + escapeHTML(settings.appDisplayName) + "\"></label>";
 }
 function renderAdminRecordingSettings() {
   const root = byId("admin-recording-settings");
@@ -5262,6 +5281,11 @@ document.addEventListener("change", function(event) {
   const adminRecordingField = event.target.getAttribute("data-admin-recording-field");
   if (adminRecordingField) {
     updateAdminRecordingField(adminRecordingField, event.target);
+    return;
+  }
+  const adminIdentityField = event.target.getAttribute("data-admin-identity-field");
+  if (adminIdentityField) {
+    updateAdminIdentityField(adminIdentityField, event.target);
     return;
   }
   const adminPlayerField = event.target.getAttribute("data-admin-player-field");

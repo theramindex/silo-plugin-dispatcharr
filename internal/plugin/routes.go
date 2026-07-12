@@ -963,11 +963,35 @@ func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) s
 	if request.GetPath() == "/dispatcharr/admin" {
 		body = removeTemplateBlock(body, "<!-- USER_NAV_START -->", "<!-- USER_NAV_END -->")
 		body = replaceTemplateBlock(body, "<!-- USER_TOPBAR_START -->", "<!-- USER_TOPBAR_END -->", adminTopbarHTML())
-		body = strings.Replace(body, "__APP_TITLE__", "Live TV Admin", 2)
+		body = strings.ReplaceAll(body, "__APP_TITLE__", "Live TV Admin")
 		return strings.Replace(body, "__ROUTE_CLASS__", "is-admin", 1)
 	}
-	body = strings.Replace(body, "__APP_TITLE__", "Live TV", 2)
+	body = strings.ReplaceAll(body, "__APP_TITLE__", html.EscapeString(s.appDisplayName()))
 	return strings.Replace(body, "__ROUTE_CLASS__", "", 1)
+}
+
+func (s *HTTPRoutesServer) appDisplayName() string {
+	var raw json.RawMessage
+	if s.store != nil && s.store.HasAdminSettings() {
+		raw = s.store.AdminSettings()
+	} else {
+		if s.adminStorage != nil {
+			if saved, ok, err := s.adminStorage.Load(); err == nil && ok {
+				raw = saved
+				if s.store != nil {
+					s.store.SetAdminSettings(saved)
+				}
+			}
+		}
+		if len(raw) == 0 && s.settingsProvider != nil {
+			raw = s.settingsProvider().AdminSettings
+		}
+	}
+	payload := map[string]any{}
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &payload)
+	}
+	return asStringValue(normalizeAdminSettingsPayload(payload)["appDisplayName"])
 }
 
 func pluginAssetVersion() string {
@@ -1010,7 +1034,7 @@ func replaceTemplateBlock(body string, startMarker string, endMarker string, rep
 }
 
 func adminTopbarHTML() string {
-	return `<div class="admin-topbar"><div class="admin-title"><a class="back" href="/" aria-label="Back to Silo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg></a><h1>Live TV Admin</h1></div><nav id="admin-tabs" class="admin-tabs" aria-label="Live TV admin sections"></nav><div id="admin-actions" class="admin-actions"></div></div>`
+	return `<div class="admin-topbar"><div class="admin-title"><a class="back" href="/admin/plugins" aria-label="Back to Silo plugin administration"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg></a><h1>Live TV Admin</h1></div><nav id="admin-tabs" class="admin-tabs" aria-label="Live TV admin sections"></nav><div id="admin-actions" class="admin-actions"></div></div>`
 }
 
 func sanitizeThemeSlug(value string) string {

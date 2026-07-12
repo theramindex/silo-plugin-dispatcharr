@@ -12,6 +12,8 @@ import (
 
 const DefaultAdminSettingsFile = "/var/lib/continuum/plugins/silo.ramindex.dispatcharr/category-settings.json"
 const defaultAdminECMURL = ""
+const defaultAdminAppDisplayName = "Live TV (Dispatcharr)"
+const maxAdminAppDisplayNameLength = 80
 
 type adminSettingsStorage interface {
 	Load() (json.RawMessage, bool, error)
@@ -125,6 +127,12 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	if virtualGroupLabel == "" {
 		virtualGroupLabel = "Virtual Groups"
 	}
+	appDisplayName := strings.TrimSpace(asStringValue(payload["appDisplayName"]))
+	if appDisplayName == "" {
+		appDisplayName = defaultAdminAppDisplayName
+	} else if len([]rune(appDisplayName)) > maxAdminAppDisplayNameLength {
+		appDisplayName = string([]rune(appDisplayName)[:maxAdminAppDisplayNameLength])
+	}
 
 	allowRecordingsByDefault := true
 	if enabled, ok := payload["allowRecordingsByDefault"].(bool); ok {
@@ -180,6 +188,7 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 		"mode":                           mode,
 		"delimiter":                      delimiter,
 		"virtualGroupLabel":              virtualGroupLabel,
+		"appDisplayName":                 appDisplayName,
 		"virtualGroupSource":             virtualGroupSource,
 		"ecmEnabled":                     ecmEnabled,
 		"ecmURL":                         ecmURL,

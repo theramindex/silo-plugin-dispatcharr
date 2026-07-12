@@ -113,6 +113,11 @@ const categorySettingsJSONSchema = `{
       "type": "string",
       "default": "Virtual Groups"
     },
+    "appDisplayName": {
+      "type": "string",
+      "maxLength": 80,
+      "default": "Live TV (Dispatcharr)"
+    },
     "ecmEnabled": {
       "type": "boolean",
       "default": false

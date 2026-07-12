@@ -216,10 +216,14 @@ func TestUserConfigSchema_DeclaresAdminCategorySettingsShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected admin category settings schema properties, got %q", adminSettings.GetJsonSchema())
 	}
-	for _, key := range []string{"mode", "delimiter", "virtualGroupLabel", "virtualGroupSource", "ecmEnabled", "ecmURL", "allowRecordingsByDefault", "sportsFirstPlayerEnabled", "liveRewindEnabled", "liveRewindCacheGB", "liveRewindWindowMinutes", "liveRewindMinFreeGB", "liveRewindMaxChannels", "collapseDuplicateVirtualGroups", "inferChannelNameGroups", "categoryRenames", "categoryAliases", "eventKeywords"} {
+	for _, key := range []string{"mode", "delimiter", "virtualGroupLabel", "appDisplayName", "virtualGroupSource", "ecmEnabled", "ecmURL", "allowRecordingsByDefault", "sportsFirstPlayerEnabled", "liveRewindEnabled", "liveRewindCacheGB", "liveRewindWindowMinutes", "liveRewindMinFreeGB", "liveRewindMaxChannels", "collapseDuplicateVirtualGroups", "inferChannelNameGroups", "categoryRenames", "categoryAliases", "eventKeywords"} {
 		if _, ok := properties[key]; !ok {
 			t.Fatalf("expected admin category settings schema to declare %q", key)
 		}
+	}
+	appDisplayName := properties["appDisplayName"].(map[string]any)
+	if appDisplayName["default"] != "Live TV (Dispatcharr)" || appDisplayName["maxLength"] != float64(80) {
+		t.Fatalf("expected appDisplayName default and max length, got %+v", appDisplayName)
 	}
 	if property, ok := properties["sportsFirstPlayerEnabled"].(map[string]any); !ok || property["default"] != false {
 		t.Fatalf("expected sportsFirstPlayerEnabled schema default to be false, got %+v", properties["sportsFirstPlayerEnabled"])
