@@ -371,7 +371,7 @@ button { cursor: pointer; }
 .multiview-grid.count-1 .multiview-tile { min-height: min(68vh, 42rem); }
 .multiview-tile { position: relative; min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 0.5rem; background: #050505; display: grid; place-items: center; }
 .multiview-tile.active { border-color: color-mix(in srgb, var(--accent) 72%, white 8%); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 42%, transparent); }
-.multiview-video { width: 100%; height: 100%; object-fit: cover; background: #050505; }
+.multiview-video { width: 100%; height: 100%; object-fit: contain; background: #050505; }
 .multiview-tile-meta { position: absolute; left: 0.65rem; right: 0.65rem; bottom: 0.6rem; display: flex; align-items: end; justify-content: space-between; gap: 0.6rem; pointer-events: none; }
 .multiview-tile-meta strong, .multiview-tile-meta small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 10px rgba(0,0,0,0.7); }
 .multiview-tile-meta strong { color: white; font-size: 0.92rem; }

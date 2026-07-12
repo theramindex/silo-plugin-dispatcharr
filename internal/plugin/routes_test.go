@@ -2799,6 +2799,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.player-sports-event.live`,
 		`.event-broadcast-windows`,
 		`.event-keyword-options`,
+		`.multiview-video { width: 100%; height: 100%; object-fit: contain; background: #050505; }`,
 		`@media (prefers-reduced-motion: reduce)`,
 	} {
 		requireStyle(want)
