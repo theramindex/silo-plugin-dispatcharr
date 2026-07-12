@@ -186,6 +186,39 @@ func TestMatchSportsChannelsRejectsWeakGuideOnlyMatches(t *testing.T) {
 	assertNoSportsMatch(t, matches, "ch:starz")
 }
 
+func TestMatchSportsChannelsRejectsPartialSingleWordTeamNames(t *testing.T) {
+	t.Parallel()
+
+	snapshot := cache.Snapshot{
+		Catalog: model.CatalogState{
+			Channels: []model.Channel{
+				{ID: "ch:new-england", Name: "New England Revolution", CategoryID: "mls", CategoryName: "US Sports | MLS Teams"},
+				{ID: "ch:england", Name: "England Sports", CategoryID: "world", CategoryName: "International Sports | England"},
+			},
+			Content: model.ContentState{
+				LiveCategories: []model.Category{
+					{ID: "mls", Name: "US Sports | MLS Teams", Kind: "live"},
+					{ID: "world", Name: "International Sports | England", Kind: "live"},
+				},
+			},
+		},
+	}
+	event := SportsEvent{
+		ID:         "event:world-cup",
+		LeagueID:   "world-cup",
+		LeagueName: "World Cup",
+		Name:       "England vs Norway",
+		ShortName:  "ENG vs NOR",
+		StartUnix:  1700000000,
+		Home:       SportsTeam{ID: "team:eng", Name: "England", Abbreviation: "ENG"},
+		Away:       SportsTeam{ID: "team:nor", Name: "Norway", Abbreviation: "NOR"},
+	}
+
+	matches := matchSportsChannels(event, snapshot)
+	assertSportsMatch(t, matches, "ch:england")
+	assertNoSportsMatch(t, matches, "ch:new-england")
+}
+
 func TestHTTPRoutesServerSportsUsesStaleCacheOnProviderError(t *testing.T) {
 	t.Parallel()
 
