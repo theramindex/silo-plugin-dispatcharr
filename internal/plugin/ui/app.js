@@ -1237,8 +1237,20 @@ function syncMultiviewAudio() {
       video.volume = active ? state.volume : 0;
     }
     const root = document.querySelector("[data-multiview-tile=\"" + cssEscape(tile.id) + "\"]");
-    if (root) root.classList.toggle("active", active);
+    if (root) {
+      root.classList.toggle("active", active);
+      const audioButton = root.querySelector("[data-multiview-action=\"focus\"]");
+      const audioBadge = root.querySelector(".multiview-audio-badge");
+      if (audioButton) {
+        audioButton.setAttribute("aria-pressed", active ? "true" : "false");
+        audioButton.setAttribute("aria-label", active ? "Audio is playing from this tile" : "Use audio from this tile");
+      }
+      if (audioBadge) audioBadge.textContent = active ? "Audio" : "Muted";
+    }
   });
+  const activeTile = multiviewTileByID(state.multiviewActiveTileID);
+  const status = byId("multiview-audio-status");
+  if (status && activeTile && activeTile.channel) status.textContent = "Audio playing from " + (activeTile.channel.name || "selected channel") + ".";
 }
 function startMultiviewHeartbeat() {
   if (state.multiviewHeartbeat) clearInterval(state.multiviewHeartbeat);
@@ -1592,9 +1604,11 @@ function renderHome() {
   root.innerHTML = sectionHeader("Recently watched")
     + rowCards(watched)
     + (favorites.length ? sectionHeader("Favorites") + favoriteHomeCards(favorites) : "")
-    + sectionHeaderWithActions("TV Guide", guideFreshnessHTML())
+    + sectionHeaderWithActions("TV Guide", "<button type=\"button\" class=\"section-action\" data-view=\"guide\">Open Guide</button>" + guideFreshnessHTML())
     + renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true })
     + categoryGrid();
+  const openGuide = root.querySelector("[data-view=\"guide\"]");
+  if (openGuide) openGuide.onclick = function() { setView("guide"); };
   attachHomeGuidePageScroll();
 }
 function emptyStateHTML(title, detail) {
@@ -1964,7 +1978,7 @@ function renderSearchPage() {
   const filterHTML = "<div class=\"search-chip-row\">" + searchFilters().map(function(item) {
     return "<button class=\"search-chip" + (filter === item.id ? " active" : "") + "\" type=\"button\" data-search-type=\"" + escapeHTML(item.id) + "\">" + escapeHTML(item.label) + "</button>";
   }).join("") + "</div>";
-  root.innerHTML = "<div class=\"search-page\"><div class=\"search-hero\"><h2>Search</h2><div class=\"search-form\"><input id=\"search-page-input\" class=\"search-field\" value=\"" + escapeHTML(query) + "\" placeholder=\"Search movies, tv shows, channels and more\" autocomplete=\"off\"><button class=\"search-cancel\" type=\"button\" data-search-cancel=\"true\">Cancel</button></div></div>" + filterHTML + "<div id=\"search-page-results\" class=\"search-page-results\">" + renderSearchPageResults() + "</div></div>";
+  root.innerHTML = "<div class=\"search-page\"><div class=\"search-hero\"><h2>Search</h2><div class=\"search-form\"><input id=\"search-page-input\" class=\"search-field\" value=\"" + escapeHTML(query) + "\" placeholder=\"Search movies, tv shows, channels and more\" autocomplete=\"off\" aria-label=\"Search movies, television, channels, and programs\"><button class=\"search-cancel\" type=\"button\" data-search-cancel=\"true\">Cancel</button></div></div>" + filterHTML + "<div id=\"search-page-results\" class=\"search-page-results\" aria-live=\"polite\">" + renderSearchPageResults() + "</div></div>";
   const input = byId("search-page-input");
   if (input && document.activeElement !== input) {
     setTimeout(function() {
@@ -2325,6 +2339,8 @@ function renderPlayerSportsDrawer() {
   const events = playerSportsEvents();
   const channels = playerSportsChannels(events);
   const loading = state.sportsLoading && !state.sports;
+  const status = byId("player-sports-status");
+  if (status) status.textContent = loading ? "Loading live sports." : (events.length ? events.length + " live or upcoming sports events available." : "No live or upcoming sports events available.");
   root.innerHTML = "<div class=\"player-sports-head\"><div><strong>Live Sports</strong><span>Scores and matched channels</span></div><button type=\"button\" data-player-action=\"sports-close\" aria-label=\"Close live sports\">" + icon("x") + "</button></div>"
     + (loading ? "<div class=\"player-sports-loading\"><span></span><span></span><span></span></div>" : "")
     + (!loading && !events.length ? "<div class=\"player-sports-empty\">No live or upcoming events have a confident channel match.</div>" : "")
@@ -3225,10 +3241,10 @@ function renderPlayerPage() {
   const playbackShellClass = (replayMode ? "playback-shell is-replay" : "playback-shell") + (sportsFirstPlayerActive() ? " sports-enabled" : "");
   const videoAttributes = replayMode ? " autoplay playsinline controls" : " autoplay playsinline";
   const modeTag = replayMode ? "Replay" : "AV";
-  const timelineEnd = replayMode ? escapeHTML(end) : "<span class=\"live-dot\"></span>LIVE&nbsp;&nbsp;" + escapeHTML(end);
+  const liveProgramWindow = !replayMode ? "<div class=\"player-live-window\"><span>Started " + escapeHTML(start) + "</span><strong><span class=\"live-dot\"></span>Live</strong><span>Ends " + escapeHTML(end) + "</span></div>" : "";
   const timeShiftControls = "<div id=\"player-timeshift-controls\" class=\"player-timeshift-controls hidden\"><button class=\"player-icon\" data-player-action=\"rewind-30\" aria-label=\"Rewind 30 seconds\">" + icon("rewind") + "</button><button class=\"player-icon\" data-player-action=\"play-toggle\" aria-label=\"Play or pause\">" + icon("play") + "</button><button class=\"player-icon\" data-player-action=\"forward-30\" aria-label=\"Forward 30 seconds\">" + icon("forward") + "</button><input id=\"player-timeshift-range\" type=\"range\" min=\"0\" max=\"1\" step=\"0.25\" value=\"1\" aria-label=\"Live Rewind position\"><button class=\"player-live-button\" data-player-action=\"go-live\"><span class=\"live-dot\"></span><span id=\"player-timeshift-label\">LIVE</span></button></div>";
   const sportsButton = sportsFirstPlayerActive() ? "<button id=\"player-sports-button\" class=\"player-icon\" data-player-action=\"sports\" aria-label=\"Sports center\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("trophy") + "</button>" : "";
-  byId("view").innerHTML = "<section class=\"" + playbackShellClass + "\"><div class=\"playback-stage\"><video id=\"player\" class=\"playback-video\"" + videoAttributes + "></video><div class=\"playback-scrim\"></div><button id=\"player-center-button\" class=\"player-center-button hidden\" data-player-action=\"play-toggle\" aria-label=\"Play\">" + icon("play") + "</button><div class=\"player-top\"><button class=\"player-exit\" data-player-action=\"back\" aria-label=\"Back to Live TV browse\"><span class=\"player-icon\">" + icon("x") + "</span><span>Exit</span></button><div class=\"player-top-actions\"><div class=\"player-audio\"><button id=\"player-audio-button\" class=\"player-chip\" data-player-action=\"audio-menu\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "<span>Audio</span>" + icon("chevron-down") + "</button><div id=\"player-audio-menu\" class=\"player-menu\" role=\"menu\"></div></div><div class=\"player-volume\"><button id=\"player-volume-button\" class=\"player-icon\" data-player-action=\"volume-menu\" aria-label=\"Volume\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("speaker") + "</button><div id=\"player-volume-popover\" class=\"volume-popover\"><span>VOL</span><input id=\"player-volume-slider\" type=\"range\" min=\"0\" max=\"100\" step=\"1\" value=\"" + Math.round(state.volume * 100) + "\" aria-label=\"Volume\"><span id=\"player-volume-value\" class=\"volume-value\"></span></div></div><button class=\"player-icon\" data-player-action=\"cast\" aria-label=\"AirPlay or Cast\">" + icon("airplay") + "</button><button id=\"player-guide-button\" class=\"player-icon player-guide-button\" data-player-action=\"guide\" aria-label=\"Guide\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("guide") + "</button>" + sportsButton + "<button class=\"player-icon\" data-player-action=\"add-multiview\" aria-label=\"Add current channel to multiview\">" + icon("multiview") + "</button><button id=\"player-fullscreen-button\" class=\"player-icon\" data-player-action=\"fullscreen\" aria-label=\"Fullscreen\" aria-pressed=\"false\">" + icon("fullscreen") + "</button><div class=\"player-more\"><button id=\"player-more-button\" class=\"player-icon\" data-player-action=\"more\" aria-label=\"More\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("ellipsis") + "</button><div id=\"player-more-menu\" class=\"player-more-menu\"></div></div></div></div><div id=\"player-toast\" class=\"player-toast\" role=\"status\"></div><div id=\"player-guide-panel\" class=\"player-guide-panel\"></div><div id=\"player-sports-drawer\" class=\"player-sports-drawer\" aria-live=\"polite\"></div><div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel) + "<div class=\"player-kicker\">" + escapeHTML(channelName) + "</div><h2 class=\"player-title\">" + escapeHTML(title) + "</h2><p class=\"player-description\" data-overflow-description=\"true\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span id=\"player-mode-tag\" class=\"player-tag\">" + escapeHTML(modeTag) + "</span></div></div><div class=\"player-bottom-actions\">" + playerFavoriteButtonHTML(channel) + "<button class=\"player-icon\" data-player-action=\"pip\" aria-label=\"Picture in Picture\">" + icon("pip") + "</button><button id=\"player-subtitles-button\" class=\"player-icon\" data-player-action=\"subtitles\" aria-label=\"Subtitles\" aria-pressed=\"false\">" + icon("captions") + "</button><button id=\"player-language-button\" class=\"player-icon\" data-player-action=\"language-menu\" aria-label=\"Audio language\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "</button></div></div>" + timeShiftControls + "<div class=\"timeline\"><span>" + escapeHTML(start) + "</span><div class=\"timeline-bar\"><div class=\"timeline-fill\"></div><div class=\"timeline-knob\"></div></div><span>" + timelineEnd + "</span></div></div></div></section>";
+  byId("view").innerHTML = "<section class=\"" + playbackShellClass + "\"><div class=\"playback-stage\"><video id=\"player\" class=\"playback-video\"" + videoAttributes + "></video><div class=\"playback-scrim\"></div><button id=\"player-center-button\" class=\"player-center-button hidden\" data-player-action=\"play-toggle\" aria-label=\"Play\">" + icon("play") + "</button><div class=\"player-top\"><button class=\"player-exit\" data-player-action=\"back\" aria-label=\"Back to Live TV browse\"><span class=\"player-icon\">" + icon("x") + "</span><span>Exit</span></button><div class=\"player-top-actions\"><div class=\"player-audio\"><button id=\"player-audio-button\" class=\"player-chip\" data-player-action=\"audio-menu\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "<span>Audio</span>" + icon("chevron-down") + "</button><div id=\"player-audio-menu\" class=\"player-menu\" role=\"menu\"></div></div><div class=\"player-volume\"><button id=\"player-volume-button\" class=\"player-icon\" data-player-action=\"volume-menu\" aria-label=\"Volume\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("speaker") + "</button><div id=\"player-volume-popover\" class=\"volume-popover\"><span>VOL</span><input id=\"player-volume-slider\" type=\"range\" min=\"0\" max=\"100\" step=\"1\" value=\"" + Math.round(state.volume * 100) + "\" aria-label=\"Volume\"><span id=\"player-volume-value\" class=\"volume-value\"></span></div></div><button class=\"player-icon\" data-player-action=\"cast\" aria-label=\"AirPlay or Cast\">" + icon("airplay") + "</button><button id=\"player-guide-button\" class=\"player-icon player-guide-button\" data-player-action=\"guide\" aria-label=\"Guide\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("guide") + "</button>" + sportsButton + "<button class=\"player-icon\" data-player-action=\"add-multiview\" aria-label=\"Add current channel to multiview\">" + icon("multiview") + "</button><button id=\"player-fullscreen-button\" class=\"player-icon\" data-player-action=\"fullscreen\" aria-label=\"Fullscreen\" aria-pressed=\"false\">" + icon("fullscreen") + "</button><div class=\"player-more\"><button id=\"player-more-button\" class=\"player-icon\" data-player-action=\"more\" aria-label=\"More\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("ellipsis") + "</button><div id=\"player-more-menu\" class=\"player-more-menu\"></div></div></div></div><div id=\"player-toast\" class=\"player-toast\" role=\"status\"></div><div id=\"player-guide-panel\" class=\"player-guide-panel\"></div><div id=\"player-sports-status\" class=\"sr-only\" role=\"status\"></div><div id=\"player-sports-drawer\" class=\"player-sports-drawer\"></div><div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel) + "<div class=\"player-kicker\">" + escapeHTML(channelName) + "</div><h2 class=\"player-title\">" + escapeHTML(title) + "</h2><p class=\"player-description\" data-overflow-description=\"true\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span id=\"player-mode-tag\" class=\"player-tag\">" + escapeHTML(modeTag) + "</span></div></div><div class=\"player-bottom-actions\">" + playerFavoriteButtonHTML(channel) + "<button class=\"player-icon\" data-player-action=\"pip\" aria-label=\"Picture in Picture\">" + icon("pip") + "</button><button id=\"player-subtitles-button\" class=\"player-icon\" data-player-action=\"subtitles\" aria-label=\"Subtitles\" aria-pressed=\"false\">" + icon("captions") + "</button><button id=\"player-language-button\" class=\"player-icon\" data-player-action=\"language-menu\" aria-label=\"Audio language\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "</button></div></div>" + timeShiftControls + liveProgramWindow + "</div></div></section>";
   updateAudioMenu();
   updateVolumeMenu();
   renderPlayerGuidePanel();
@@ -3252,7 +3268,7 @@ function renderMultiviewPage() {
   if (state.multiviewActiveTileID && !tiles.some(function(tile) { return tile.id === state.multiviewActiveTileID; })) state.multiviewActiveTileID = tiles[0] ? tiles[0].id : "";
   const countClass = "count-" + Math.max(tiles.length, 1);
   const title = tiles.length ? tiles.length + " channel" + (tiles.length === 1 ? "" : "s") : "Choose channels";
-  byId("view").innerHTML = "<section class=\"multiview-page\"><div class=\"multiview-toolbar\"><div><h2>Multiview</h2><p>" + escapeHTML(title) + " · focused tile owns audio</p></div><div class=\"multiview-actions\"><span class=\"multiview-count\">" + escapeHTML(String(tiles.length)) + "/4</span>" + (tiles.length ? "<button class=\"chip\" type=\"button\" data-multiview-action=\"clear\">Clear</button>" : "") + "</div></div>"
+  byId("view").innerHTML = "<section class=\"multiview-page\"><div id=\"multiview-audio-status\" class=\"sr-only\" role=\"status\"></div><div class=\"multiview-toolbar\"><div><h2>Multiview</h2><p>" + escapeHTML(title) + " · focused tile owns audio</p></div><div class=\"multiview-actions\"><span class=\"multiview-count\">" + escapeHTML(String(tiles.length)) + "/4</span>" + (tiles.length ? "<button class=\"chip\" type=\"button\" data-multiview-action=\"clear\">Clear</button>" : "") + "</div></div>"
     + (tiles.length ? "<div class=\"multiview-grid " + countClass + "\">" + tiles.map(renderMultiviewTile).join("") + "</div>" : renderMultiviewEmpty())
     + (tiles.length && tiles.length < 4 ? renderMultiviewPicker() : "")
     + "</section>";
@@ -3265,7 +3281,7 @@ function renderMultiviewTile(tile) {
   const title = program.title || channel.name || "Live TV";
   const subtitle = channel.categoryName || "Live TV";
   const muted = active ? "Audio" : "Muted";
-  return "<article class=\"multiview-tile" + (active ? " active" : "") + "\" data-multiview-tile=\"" + escapeHTML(tile.id) + "\" data-multiview-focus=\"" + escapeHTML(tile.id) + "\"><video id=\"" + escapeHTML(tile.videoID) + "\" class=\"multiview-video\" autoplay playsinline" + (active ? "" : " muted") + "></video><div class=\"multiview-tile-controls\"><button type=\"button\" data-multiview-action=\"focus\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-label=\"Use audio from this tile\">" + icon("speaker") + "</button><button type=\"button\" data-multiview-action=\"single\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-label=\"Open channel player\">" + icon("external") + "</button><button type=\"button\" data-multiview-action=\"remove\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-label=\"Remove from multiview\">" + icon("x") + "</button></div><div class=\"multiview-tile-meta\"><div><strong data-overflow-tooltip=\"" + escapeHTML(title) + "\">" + escapeHTML(title) + "</strong><small data-overflow-tooltip=\"" + escapeHTML(channel.name || subtitle) + "\">" + escapeHTML(channel.name || subtitle) + "</small></div><span class=\"multiview-audio-badge\">" + escapeHTML(muted) + "</span></div></article>";
+  return "<article class=\"multiview-tile" + (active ? " active" : "") + "\" data-multiview-tile=\"" + escapeHTML(tile.id) + "\" data-multiview-focus=\"" + escapeHTML(tile.id) + "\"><video id=\"" + escapeHTML(tile.videoID) + "\" class=\"multiview-video\" autoplay playsinline" + (active ? "" : " muted") + "></video><div class=\"multiview-tile-controls\"><button type=\"button\" data-multiview-action=\"focus\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-label=\"" + (active ? "Audio is playing from this tile" : "Use audio from this tile") + "\" aria-pressed=\"" + (active ? "true" : "false") + "\">" + icon("speaker") + "</button><button type=\"button\" data-multiview-action=\"single\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-label=\"Open channel player\">" + icon("external") + "</button><button type=\"button\" data-multiview-action=\"remove\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-label=\"Remove from multiview\">" + icon("x") + "</button></div><div class=\"multiview-tile-meta\"><div><strong data-overflow-tooltip=\"" + escapeHTML(title) + "\">" + escapeHTML(title) + "</strong><small data-overflow-tooltip=\"" + escapeHTML(channel.name || subtitle) + "\">" + escapeHTML(channel.name || subtitle) + "</small></div><span class=\"multiview-audio-badge\">" + escapeHTML(muted) + "</span></div></article>";
 }
 function renderMultiviewEmpty() {
   return "<div class=\"multiview-empty\"><div class=\"empty\">Add up to four live channels. The active tile is the only one with audio.</div>" + renderMultiviewPicker() + "</div>";
@@ -3635,7 +3651,7 @@ function renderGuidePage() {
   const categories = guideFilterCategories();
   const slots = guideSlots();
   state.guideLastSlotStart = guideSlotStart();
-  byId("view").innerHTML = '<div class="guide-page">' + sectionHeaderWithActions("TV Guide", guideFreshnessHTML()) + "<div class=\"guide-tools\"><label class=\"guide-category-filter\"><span>" + icon("search") + "</span><input id=\"category-select\" list=\"guide-category-options\" placeholder=\"Filter categories\" value=\"" + escapeHTML(guideCategoryInputValue(categories)) + "\" autocomplete=\"off\" aria-label=\"Filter categories\"><datalist id=\"guide-category-options\"><option value=\"" + escapeHTML(allGroupLabel()) + "\"></option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.name || category.id) + "\"></option>"; }).join("") + "</datalist></label><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program or channel\" value=\"" + escapeHTML(state.query) + "\"></div><div id=\"guide-scroll\" class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + '</div><div id="epg" class="guide-window-spacer" style="height:0px"><div class="guide-window" style="transform:translateY(0px)"></div></div></div></div></div>';
+  byId("view").innerHTML = '<div class="guide-page">' + sectionHeaderWithActions("TV Guide", guideFreshnessHTML()) + "<div class=\"guide-tools\"><label class=\"guide-category-filter\"><span>" + icon("search") + "</span><input id=\"category-select\" list=\"guide-category-options\" placeholder=\"Filter categories\" value=\"" + escapeHTML(guideCategoryInputValue(categories)) + "\" autocomplete=\"off\" aria-label=\"Filter categories\"><datalist id=\"guide-category-options\"><option value=\"" + escapeHTML(allGroupLabel()) + "\"></option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.name || category.id) + "\"></option>"; }).join("") + "</datalist></label><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program or channel\" value=\"" + escapeHTML(state.query) + "\" aria-label=\"Search programs or channels\"></div><div id=\"guide-scroll\" class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + '</div><div id="epg" class="guide-window-spacer" style="height:0px"><div class="guide-window" style="transform:translateY(0px)"></div></div></div></div></div>';
   byId("category-select").oninput = function(event) { updateGuideCategoryFilter(event.target.value, categories, false); };
   byId("category-select").onchange = function(event) { updateGuideCategoryFilter(event.target.value, categories, true); };
   byId("category-select").onblur = function(event) { event.target.value = guideCategoryInputValue(categories); };
@@ -3947,7 +3963,12 @@ function renderAdminPage() {
   renderAdminTopbarActions();
   const shell = document.querySelector(".shell");
   if (shell) shell.classList.toggle("is-admin-manager", state.adminTab === "manager");
-  byId("view").innerHTML = state.adminTab === "manager" ? renderExternalChannelManager() : "<div class=\"settings-stack\">" + (state.adminTab === "integrations" ? renderAdminIntegrationsTab() : renderAdminSettingsTab()) + "</div>";
+  const content = byId("view");
+  if (content) {
+    content.setAttribute("role", "tabpanel");
+    content.setAttribute("aria-labelledby", "admin-tab-" + state.adminTab);
+    content.innerHTML = state.adminTab === "manager" ? renderExternalChannelManager() : "<div class=\"settings-stack\">" + (state.adminTab === "integrations" ? renderAdminIntegrationsTab() : renderAdminSettingsTab()) + "</div>";
+  }
   if (state.adminTab === "settings") {
     renderAdminIdentitySettings();
     renderAdminRecordingSettings();
@@ -3964,9 +3985,11 @@ function renderAdminPage() {
 function renderAdminTopbarTabs() {
   const root = byId("admin-tabs");
   if (!root) return;
-  root.innerHTML = "<button type=\"button\" data-admin-tab=\"settings\" class=\"" + (state.adminTab === "settings" ? "active" : "") + "\">" + icon("settings") + "<span>Settings</span></button>"
-    + "<button type=\"button\" data-admin-tab=\"integrations\" class=\"" + (state.adminTab === "integrations" ? "active" : "") + "\">" + icon("integrations") + "<span>Integrations</span></button>"
-    + (adminECMEnabled() ? "<button type=\"button\" data-admin-tab=\"manager\" class=\"" + (state.adminTab === "manager" ? "active" : "") + "\">" + icon("external") + "<span>Channel Manager</span></button>" : "");
+  root.setAttribute("role", "tablist");
+  root.setAttribute("aria-label", "Live TV Admin sections");
+  root.innerHTML = "<button id=\"admin-tab-settings\" role=\"tab\" type=\"button\" data-admin-tab=\"settings\" aria-selected=\"" + (state.adminTab === "settings" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "settings" ? "active" : "") + "\">" + icon("settings") + "<span>Settings</span></button>"
+    + "<button id=\"admin-tab-integrations\" role=\"tab\" type=\"button\" data-admin-tab=\"integrations\" aria-selected=\"" + (state.adminTab === "integrations" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "integrations" ? "active" : "") + "\">" + icon("integrations") + "<span>Integrations</span></button>"
+    + (adminECMEnabled() ? "<button id=\"admin-tab-manager\" role=\"tab\" type=\"button\" data-admin-tab=\"manager\" aria-selected=\"" + (state.adminTab === "manager" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "manager" ? "active" : "") + "\">" + icon("external") + "<span>Channel Manager</span></button>" : "");
 }
 function renderAdminTopbarActions() {
   const root = byId("admin-actions");
@@ -3977,13 +4000,21 @@ function renderAdminTopbarActions() {
   }
   const dirty = adminSettingsDirty();
   const saving = state.adminSaveStatus === "saving";
-  root.innerHTML = "<button class=\"admin-save\" data-admin-settings-action=\"save\"" + ((!dirty || saving) ? " disabled" : "") + ">Save</button><button class=\"admin-discard\" data-admin-settings-action=\"discard\"" + ((!dirty || saving) ? " disabled" : "") + ">Discard</button>";
+  const status = state.adminSaveMessage || (dirty ? "Unsaved changes." : "All changes saved.");
+  root.setAttribute("aria-busy", saving ? "true" : "false");
+  root.innerHTML = "<span class=\"admin-save-status\" role=\"status\" aria-live=\"polite\">" + escapeHTML(status) + "</span><button class=\"admin-save\" data-admin-settings-action=\"save\"" + ((!dirty || saving) ? " disabled" : "") + ">" + (saving ? "Saving" : "Save") + "</button><button class=\"admin-discard\" data-admin-settings-action=\"discard\"" + ((!dirty || saving) ? " disabled" : "") + ">Discard</button>";
 }
 function setAdminTab(tab) {
   if (tab === "manager" && adminECMEnabled()) state.adminTab = "manager";
   else if (tab === "integrations") state.adminTab = "integrations";
   else state.adminTab = "settings";
   renderAdminPage();
+  requestAnimationFrame(function() {
+    const content = byId("view");
+    if (!content) return;
+    content.tabIndex = -1;
+    content.focus({ preventScroll: true });
+  });
 }
 function renderAdminSettingsTab() {
   return ""
