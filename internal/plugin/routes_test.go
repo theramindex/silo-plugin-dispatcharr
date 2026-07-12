@@ -744,6 +744,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.DuplicateProfileCollapsed || !result.DuplicateProfileExpanded || !result.SharedRootProfileCollapsed || !result.SharedRootProfileExpanded || !result.DuplicateGroupCollapsed || !result.DuplicateGroupExpanded {
 		t.Fatalf("expected duplicate virtual group labels to collapse by default and expand when disabled: %+v", result)
 	}
+	if !result.SearchClearsMainHorizontalScroll {
+		t.Fatalf("expected search rendering to clear stale main horizontal scroll: %+v", result)
+	}
 	if !result.AliasPath || !result.SecondAliasPath {
 		t.Fatalf("expected Silo admin alias paths to be present: %+v", result)
 	}
@@ -908,6 +911,7 @@ type virtualAliasResult struct {
 	DuplicateProfileExpanded             bool   `json:"duplicateProfileExpanded"`
 	SharedRootProfileCollapsed           bool   `json:"sharedRootProfileCollapsed"`
 	SharedRootProfileExpanded            bool   `json:"sharedRootProfileExpanded"`
+	SearchClearsMainHorizontalScroll     bool   `json:"searchClearsMainHorizontalScroll"`
 	DuplicateGroupCollapsed              bool   `json:"duplicateGroupCollapsed"`
 	DuplicateGroupExpanded               bool   `json:"duplicateGroupExpanded"`
 	AliasPath                            bool   `json:"aliasPath"`
@@ -1080,6 +1084,7 @@ function makeElement() {
     getAttribute: (name) => attributes[name] || null,
     removeAttribute: (name) => { delete attributes[name]; },
     focus: () => {},
+    setSelectionRange: () => {},
     querySelector: () => null,
     querySelectorAll: () => [],
     closest: () => null,
@@ -1286,6 +1291,10 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 	state.app.programs = originalPrograms;
 	normalizePreferences();
 	rebuildProgramIndex();
+	document.querySelector(".main").scrollLeft = 103;
+	state.view = "search";
+	render();
+	const searchClearsMainHorizontalScroll = document.querySelector(".main").scrollLeft === 0;
 	return {
     sourcePath: !!source,
     profileGroupPath: !!profileGroup,
@@ -1305,6 +1314,7 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     duplicateProfileExpanded: duplicateProfileExpandedPaths.indexOf("US TV / US TV") !== -1,
     sharedRootProfileCollapsed: sharedRootProfilePaths.indexOf("US TV / MD / AFN") !== -1 && sharedRootProfilePaths.indexOf("US TV / MD / US TV / AFN") === -1,
     sharedRootProfileExpanded: sharedRootProfileExpandedPaths.indexOf("US TV / MD / US TV / AFN") !== -1,
+    searchClearsMainHorizontalScroll: searchClearsMainHorizontalScroll,
     duplicateGroupCollapsed: usTVDuplicateGroupPaths.indexOf("US / TV") !== -1 && usTVDuplicateGroupPaths.indexOf("US / TV / TV") === -1,
     duplicateGroupExpanded: usTVDuplicateGroupExpandedPaths.indexOf("US / TV / TV") !== -1,
     aliasPath: !!alias,
