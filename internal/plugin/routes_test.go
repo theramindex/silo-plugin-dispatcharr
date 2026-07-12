@@ -587,7 +587,11 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`data-admin-tab=\"integrations\"`,
 		`data-admin-tab=\"manager\"`,
 		`data-admin-ecm-field=\"url\"`,
-		`byId("view").innerHTML = state.adminTab === "manager" ? renderExternalChannelManager()`,
+		`content.setAttribute("role", "tabpanel")`,
+		`content.innerHTML = state.adminTab === "manager" ? renderExternalChannelManager()`,
+		`role=\"tab\"`,
+		`aria-selected`,
+		`admin-save-status`,
 		`data-admin-category-field=\"mode\"`,
 		`data-admin-alias-action=\"add\"`,
 		`data-admin-alias-action=\"remove\"`,
@@ -2748,7 +2752,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		t.Fatal("Xtream output profiles must not be applied to Dispatcharr Direct streams")
 	}
 	playerSports := functionBody("renderPlayerSportsDrawer")
-	for _, want := range []string{`player-sports-drawer`, `Live &amp; upcoming`, `Sports channels`} {
+	for _, want := range []string{`player-sports-drawer`, `player-sports-status`, `Live &amp; upcoming`, `Sports channels`} {
 		if !strings.Contains(playerSports, want) {
 			t.Fatalf("sports-first player drawer must include %q", want)
 		}
@@ -2799,6 +2803,10 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.player-sports-event.live`,
 		`.event-broadcast-windows`,
 		`.event-keyword-options`,
+		`.player-live-window`,
+		`.multiview-tile-controls button[aria-pressed="true"]`,
+		`@media (prefers-reduced-transparency: reduce)`,
+		`@media (prefers-contrast: more)`,
 		`.multiview-video { width: 100%; height: 100%; object-fit: contain; background: #050505; }`,
 		`.home-guide.guide-scroll, .home-guide .guide-scroll, .home-guide #guide-scroll { min-height: 0; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; overscroll-behavior-y: auto; scrollbar-gutter: auto; }`,
 		`#view > .home-guide:last-child { margin-bottom: max(1.5rem, env(safe-area-inset-bottom)); }`,
@@ -2811,6 +2819,18 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	}
 	if !strings.Contains(styles, `.time-head span:not(:first-child) { position: sticky; left: var(--epg-logo-col);`) {
 		t.Fatal("guide time panes must remain frozen while scrolling horizontally")
+	}
+	multiviewAudio := functionBody("syncMultiviewAudio")
+	for _, want := range []string{`aria-pressed`, `multiview-audio-status`, `Audio playing from`} {
+		if !strings.Contains(multiviewAudio, want) {
+			t.Fatalf("multiview audio focus must expose %q", want)
+		}
+	}
+	renderAdminTabs := functionBody("renderAdminTopbarTabs")
+	for _, want := range []string{`role", "tablist"`, `role=\"tab\"`, `aria-selected`} {
+		if !strings.Contains(renderAdminTabs, want) {
+			t.Fatalf("admin tabs must expose %q", want)
+		}
 	}
 	if strings.Contains(styles, `letter-spacing: 0.04em`) {
 		t.Fatal("interface labels must use neutral letter spacing")
