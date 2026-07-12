@@ -432,12 +432,12 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		t.Fatalf("expected home page order to be continue watching, favorites, guide grid, then group sections")
 	}
 	virtualWorkspaceIndex := strings.Index(body, `const guideWorkspace = virtualCategoryView() === "guide";`)
-	virtualFolderRailIndex := strings.Index(body, `class=\"folder-guide-rail\" aria-label=\"Browse folders\"`)
+	virtualFolderGridIndex := strings.Index(body, `" folder-guide-grid"`)
 	virtualHeaderIndex := strings.Index(body, `const folderHeader = virtualFolderHeader(path, featured)`)
 	virtualFilterIndex := strings.Index(body, `+ folderFilterHTML(guideWorkspace ? "Filter Guide" : "Filter this folder", "")`)
 	virtualChildrenIndex := strings.Index(body, `const childFolders = filteredChildren.length`)
 	virtualContentIndex := strings.Index(body, `renderVirtualCategoryGuide(filteredChannels)`)
-	if virtualWorkspaceIndex < 0 || virtualFolderRailIndex < 0 || virtualHeaderIndex < 0 || virtualFilterIndex < 0 || virtualChildrenIndex < 0 || virtualContentIndex < 0 {
+	if virtualWorkspaceIndex < 0 || virtualFolderGridIndex < 0 || virtualHeaderIndex < 0 || virtualFilterIndex < 0 || virtualChildrenIndex < 0 || virtualContentIndex < 0 {
 		t.Fatalf("expected virtual category drilldown to render breadcrumbs, filter, subfolders, and switchable channel content")
 	}
 	if !(virtualWorkspaceIndex < virtualChildrenIndex && virtualChildrenIndex < virtualHeaderIndex && virtualHeaderIndex < virtualFilterIndex && virtualFilterIndex < virtualContentIndex) {
@@ -2818,8 +2818,9 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.multiview-video { width: 100%; height: 100%; object-fit: contain; background: #050505; }`,
 		`.home-guide.guide-scroll, .home-guide .guide-scroll, .home-guide #guide-scroll { min-height: 0; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; overscroll-behavior-y: auto; scrollbar-gutter: auto; }`,
 		`.virtual-folder-workspace.is-guide { position: relative; isolation: isolate; display: flex; flex-direction: column; min-height: 0;`,
-		`.folder-guide-rail { position: relative; z-index: 2; display: flex; flex: 0 0 auto; gap: 0.5rem; overflow-x: auto;`,
+		`.folder-guide-grid { position: relative; z-index: 2; flex: 0 0 auto; }`,
 		`.virtual-folder-guide { position: relative; z-index: 1; display: flex; flex: 1 1 auto; min-height: 0; margin-top: 0.7rem;`,
+		`@media (min-width: 800px) and (max-width: 900px)`,
 		`.virtual-folder-workspace.is-guide .virtual-folder-guide .home-guide { flex: 1 1 auto; height: 100%; min-height: 0; margin-top: 0; overflow: auto; overscroll-behavior: contain;`,
 		`#view > .home-guide:last-child { margin-bottom: max(1.5rem, env(safe-area-inset-bottom)); }`,
 		`@media (prefers-reduced-motion: reduce)`,
