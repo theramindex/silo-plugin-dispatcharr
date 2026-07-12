@@ -2890,9 +2890,7 @@ function renderLivePage() {
     const filteredChannels = channels.filter(channelMatchesFolderQuery);
     const guideWorkspace = virtualCategoryView() === "guide";
     const childFolders = filteredChildren.length
-      ? (guideWorkspace
-        ? "<div class=\"folder-guide-rail\" aria-label=\"Browse folders\">" + filteredChildren.map(categoryTileHTML).join("") + "</div>"
-        : "<div class=\"category-grid\">" + filteredChildren.map(categoryTileHTML).join("") + "</div>")
+      ? "<div class=\"category-grid" + (guideWorkspace ? " folder-guide-grid" : "") + "\" aria-label=\"Browse folders\">" + filteredChildren.map(categoryTileHTML).join("") + "</div>"
       : "";
     const folderHeader = virtualFolderHeader(path, featured)
       + folderFilterHTML(guideWorkspace ? "Filter Guide" : "Filter this folder", "")
