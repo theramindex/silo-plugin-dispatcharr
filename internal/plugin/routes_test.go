@@ -696,7 +696,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	}
 	body := string(response.GetBody()) + "\n" + playerAppJavaScript() + "\n" + playerStylesCSS()
 	for _, want := range []string{
-		`<title>Live TV Admin</title>`,
+		`<title>Dispatcharr Admin</title>`,
 		`<h1>Dispatcharr</h1>`,
 		`<span>Back to Admin</span>`,
 		`<div class="shell is-admin">`,
@@ -705,7 +705,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`.admin-topbar`,
 		`<header class="admin-topbar">`,
 		`<aside class="admin-sidebar">`,
-		`<nav id="admin-tabs" class="admin-sidebar-nav" aria-label="Live TV Admin sections"></nav>`,
+		`<nav id="admin-tabs" class="admin-sidebar-nav" aria-label="Dispatcharr Admin sections"></nav>`,
 		`<div id="admin-actions" class="admin-actions"></div>`,
 		`const adminSettingsKey = "adminCategorySettings"`,
 		`adminTab: isAdminRoute ? "source" : "settings"`,

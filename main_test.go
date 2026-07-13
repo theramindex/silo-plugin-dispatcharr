@@ -236,7 +236,7 @@ func TestManifestExposesAdminNavigationRoute(t *testing.T) {
 		if route.GetPath() != "/dispatcharr/admin" {
 			continue
 		}
-		if !route.GetNavigable() || route.GetNavigationKind() != "admin" || route.GetNavigationLabel() != "Live TV Admin" || route.GetAccess() != "admin" {
+		if !route.GetNavigable() || route.GetNavigationKind() != "admin" || route.GetNavigationLabel() != "Dispatcharr Admin" || route.GetAccess() != "admin" {
 			t.Fatalf("unexpected admin route metadata: %+v", route)
 		}
 		return
