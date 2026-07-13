@@ -4356,15 +4356,21 @@ function renderAdminPage() {
   if (content) {
     content.setAttribute("role", "tabpanel");
     content.setAttribute("aria-labelledby", "admin-tab-" + state.adminTab);
-    content.innerHTML = state.adminTab === "manager" ? renderExternalChannelManager() : "<div class=\"settings-stack\">" + (state.adminTab === "source" ? renderAdminConnectionTab() : (state.adminTab === "integrations" ? renderAdminIntegrationsTab() : renderAdminSettingsTab())) + "</div>";
+    content.innerHTML = state.adminTab === "manager" ? renderExternalChannelManager() : "<div class=\"settings-stack\">" + (state.adminTab === "source" ? renderAdminConnectionTab() : (state.adminTab === "integrations" ? renderAdminIntegrationsTab() : renderAdminSettingsTab(state.adminTab))) + "</div>";
   }
-  if (state.adminTab === "settings") {
+  if (state.adminTab === "general") {
     renderAdminIdentitySettings();
     renderAdminRecordingSettings();
+  }
+  if (state.adminTab === "playback") {
     renderAdminPlayerSettings();
     renderAdminTimeShiftSettings();
+  }
+  if (state.adminTab === "organization") {
     renderAdminCategorySettings();
     renderAdminCategoryAliasSettings();
+  }
+  if (state.adminTab === "events") {
     renderAdminEventKeywordSettings();
   }
   if (state.adminTab === "integrations") {
@@ -4377,14 +4383,17 @@ function renderAdminTopbarTabs() {
   root.setAttribute("role", "tablist");
   root.setAttribute("aria-label", "Dispatcharr Admin sections");
   root.innerHTML = "<button id=\"admin-tab-source\" role=\"tab\" type=\"button\" data-admin-tab=\"source\" aria-selected=\"" + (state.adminTab === "source" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "source" ? "active" : "") + "\">" + icon("guide") + "<span>Sources</span><small class=\"admin-tab-count\">" + (state.savedAdminConnection && state.savedAdminConnection.configured ? "1" : "0") + "</small></button>"
-    + "<button id=\"admin-tab-settings\" role=\"tab\" type=\"button\" data-admin-tab=\"settings\" aria-selected=\"" + (state.adminTab === "settings" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "settings" ? "active" : "") + "\">" + icon("settings") + "<span>Settings</span></button>"
+    + "<button id=\"admin-tab-general\" role=\"tab\" type=\"button\" data-admin-tab=\"general\" aria-selected=\"" + (state.adminTab === "general" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "general" ? "active" : "") + "\">" + icon("settings") + "<span>General</span></button>"
+    + "<button id=\"admin-tab-playback\" role=\"tab\" type=\"button\" data-admin-tab=\"playback\" aria-selected=\"" + (state.adminTab === "playback" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "playback" ? "active" : "") + "\">" + icon("play") + "<span>Playback</span></button>"
+    + "<button id=\"admin-tab-organization\" role=\"tab\" type=\"button\" data-admin-tab=\"organization\" aria-selected=\"" + (state.adminTab === "organization" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "organization" ? "active" : "") + "\">" + icon("guide") + "<span>Organization</span></button>"
+    + "<button id=\"admin-tab-events\" role=\"tab\" type=\"button\" data-admin-tab=\"events\" aria-selected=\"" + (state.adminTab === "events" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "events" ? "active" : "") + "\">" + icon("clock") + "<span>Events</span></button>"
     + "<button id=\"admin-tab-integrations\" role=\"tab\" type=\"button\" data-admin-tab=\"integrations\" aria-selected=\"" + (state.adminTab === "integrations" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "integrations" ? "active" : "") + "\">" + icon("integrations") + "<span>Integrations</span></button>"
     + (adminECMEnabled() ? "<button id=\"admin-tab-manager\" role=\"tab\" type=\"button\" data-admin-tab=\"manager\" aria-selected=\"" + (state.adminTab === "manager" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "manager" ? "active" : "") + "\">" + icon("external") + "<span>Channel Manager</span></button>" : "");
 }
 function renderAdminTopbarActions() {
   const root = byId("admin-actions");
   if (!root) return;
-  if (state.adminTab === "manager" || state.adminTab === "integrations") {
+  if (state.adminTab === "manager") {
     root.innerHTML = "";
     return;
   }
@@ -4404,7 +4413,8 @@ function setAdminTab(tab) {
   if (tab === "manager" && adminECMEnabled()) state.adminTab = "manager";
   else if (tab === "integrations") state.adminTab = "integrations";
   else if (tab === "source") state.adminTab = "source";
-  else state.adminTab = "settings";
+  else if (tab === "playback" || tab === "organization" || tab === "events") state.adminTab = tab;
+  else state.adminTab = "general";
   renderAdminPage();
   requestAnimationFrame(function() {
     const content = byId("view");
@@ -4413,16 +4423,20 @@ function setAdminTab(tab) {
     content.focus({ preventScroll: true });
   });
 }
-function renderAdminSettingsTab() {
-  return ""
-    + "<div class=\"settings-card settings-card-compact\"><h2>App identity</h2><div id=\"admin-identity-settings\" class=\"settings-list\"></div></div>"
-    + "<div class=\"settings-card settings-card-compact\"><h2>Recordings</h2><div id=\"admin-recording-settings\" class=\"settings-list\"></div></div>"
-    + "<div class=\"settings-card settings-card-compact\"><h2>Player</h2><div id=\"admin-player-settings\" class=\"settings-list\"></div></div>"
-    + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Live Rewind</h2><p>Bounded shared channel buffers for pause and rewind.</p></div></div><div id=\"admin-timeshift-settings\" class=\"settings-list\"></div></div>"
-    + "<div class=\"settings-card settings-card-compact\"><h2>Group method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
-    + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Presentation Overrides</h2><p>Add alternate virtual group paths without changing the original Dispatcharr groups.</p></div></div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>"
-    + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Event Keywords</h2><p>Events are detected from the Dispatcharr guide. One keyword per line or comma-separated.</p></div></div><div id=\"admin-event-keyword-settings\" class=\"settings-list event-keyword-list\"></div></div>"
-    + "";
+function renderAdminSettingsTab(tab) {
+  if (tab === "playback") {
+    return "<div class=\"settings-card settings-card-compact\"><h2>Player</h2><div id=\"admin-player-settings\" class=\"settings-list\"></div></div>"
+      + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Live Rewind</h2><p>Bounded shared channel buffers for pause and rewind.</p></div></div><div id=\"admin-timeshift-settings\" class=\"settings-list\"></div></div>";
+  }
+  if (tab === "organization") {
+    return "<div class=\"settings-card settings-card-compact\"><h2>Group method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
+      + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Presentation Overrides</h2><p>Add alternate virtual group paths without changing the original Dispatcharr groups.</p></div></div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>";
+  }
+  if (tab === "events") {
+    return "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Event Keywords</h2><p>Events are detected from the Dispatcharr guide. One keyword per line or comma-separated.</p></div></div><div id=\"admin-event-keyword-settings\" class=\"settings-list event-keyword-list\"></div></div>";
+  }
+  return "<div class=\"settings-card settings-card-compact\"><h2>App identity</h2><div id=\"admin-identity-settings\" class=\"settings-list\"></div></div>"
+    + "<div class=\"settings-card settings-card-compact\"><h2>Recordings</h2><div id=\"admin-recording-settings\" class=\"settings-list\"></div></div>";
 }
 function renderAdminIdentitySettings() {
   const root = byId("admin-identity-settings");
@@ -4480,7 +4494,7 @@ async function refreshAdminTimeShiftStatus(quiet) {
     if (!quiet) showAppToast("Live Rewind cache status is unavailable.");
   } finally {
     state.timeShiftAdminLoading = false;
-    if (state.view === "admin" && state.adminTab === "settings") renderAdminPage();
+    if (state.view === "admin" && state.adminTab === "playback") renderAdminPage();
   }
 }
 async function clearAdminTimeShiftCache() {
