@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +21,8 @@ const (
 	sportarrDetailConcurrency = 6
 	sportarrTeamCacheLimit    = 256
 	sportarrLeagueCacheLimit  = 64
+	sportarrImageCacheLimit   = 256
+	sportarrMaxRetries        = 2
 )
 
 type sportarrSportsProvider struct {
@@ -29,8 +32,10 @@ type sportarrSportsProvider struct {
 	metadataMu   sync.Mutex
 	teams        map[string]sportarrTeamCacheEntry
 	leagues      map[string]sportarrLeagueCacheEntry
+	images       map[string]sportarrImageCacheEntry
 	teamFlight   map[string]*sportarrTeamFlight
 	leagueFlight map[string]*sportarrLeagueFlight
+	imageFlight  map[string]*sportarrImageFlight
 }
 
 type sportarrTeamFlight struct {
@@ -45,6 +50,12 @@ type sportarrLeagueFlight struct {
 	err    error
 }
 
+type sportarrImageFlight struct {
+	done  chan struct{}
+	image string
+	err   error
+}
+
 type sportarrTeamCacheEntry struct {
 	Team      sportarrTeam
 	ExpiresAt time.Time
@@ -52,6 +63,11 @@ type sportarrTeamCacheEntry struct {
 
 type sportarrLeagueCacheEntry struct {
 	League    sportarrLeague
+	ExpiresAt time.Time
+}
+
+type sportarrImageCacheEntry struct {
+	ImageURL  string
 	ExpiresAt time.Time
 }
 
@@ -136,6 +152,17 @@ type sportarrLeague struct {
 	AlternateNames []string `json:"alternateNames"`
 }
 
+type sportarrEntityImageResponse struct {
+	Images []sportarrEntityImage `json:"images"`
+}
+
+type sportarrEntityImage struct {
+	ImageType string `json:"image_type"`
+	URL       string `json:"url"`
+	IsPrimary bool   `json:"is_primary"`
+	Priority  int    `json:"priority"`
+}
+
 func newSportarrSportsProvider(client *http.Client) *sportarrSportsProvider {
 	if client == nil {
 		client = &http.Client{Timeout: 8 * time.Second}
@@ -145,8 +172,10 @@ func newSportarrSportsProvider(client *http.Client) *sportarrSportsProvider {
 		baseURL:      defaultSportarrAPIBaseURL,
 		teams:        map[string]sportarrTeamCacheEntry{},
 		leagues:      map[string]sportarrLeagueCacheEntry{},
+		images:       map[string]sportarrImageCacheEntry{},
 		teamFlight:   map[string]*sportarrTeamFlight{},
 		leagueFlight: map[string]*sportarrLeagueFlight{},
+		imageFlight:  map[string]*sportarrImageFlight{},
 	}
 }
 
@@ -259,28 +288,54 @@ func (p *sportarrSportsProvider) eventsPage(ctx context.Context, from, to string
 }
 
 func (p *sportarrSportsProvider) getJSON(ctx context.Context, endpoint string, target any) error {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return err
-	}
-	request.Header.Set("Accept", "application/json")
-	request.Header.Set("User-Agent", "Silo-Dispatcharr/1.0")
-	response, err := p.client.Do(request)
-	if err != nil {
-		return err
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
+	for attempt := 0; attempt <= sportarrMaxRetries; attempt++ {
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return err
+		}
+		request.Header.Set("Accept", "application/json")
+		request.Header.Set("User-Agent", "Silo-Dispatcharr/1.0")
+		request.Header.Set("Cache-Control", "no-cache, no-store")
+		request.Header.Set("Pragma", "no-cache")
+		response, err := p.client.Do(request)
+		if err != nil {
+			return err
+		}
+		body, readErr := io.ReadAll(io.LimitReader(response.Body, 4<<20))
+		response.Body.Close()
+		if readErr != nil {
+			return readErr
+		}
+		if response.StatusCode >= 200 && response.StatusCode < 300 {
+			if err := json.Unmarshal(body, target); err != nil {
+				return fmt.Errorf("decode response: %w", err)
+			}
+			return nil
+		}
+		if attempt < sportarrMaxRetries && (response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= 500) {
+			if err := waitForSportarrRetry(ctx, response.Header.Get("Retry-After"), attempt); err != nil {
+				return err
+			}
+			continue
+		}
 		return fmt.Errorf("returned %d", response.StatusCode)
 	}
-	body, err := io.ReadAll(io.LimitReader(response.Body, 4<<20))
-	if err != nil {
-		return err
+	return fmt.Errorf("retry limit exceeded")
+}
+
+func waitForSportarrRetry(ctx context.Context, retryAfter string, attempt int) error {
+	delay := time.Duration(1<<attempt) * 250 * time.Millisecond
+	if seconds, err := strconv.Atoi(strings.TrimSpace(retryAfter)); err == nil && seconds > 0 {
+		delay = time.Duration(seconds) * time.Second
 	}
-	if err := json.Unmarshal(body, target); err != nil {
-		return fmt.Errorf("decode response: %w", err)
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
 	}
-	return nil
 }
 
 func (event sportarrEvent) sportsEvent() SportsEvent {
@@ -304,6 +359,7 @@ func (event sportarrEvent) sportsEvent() SportsEvent {
 	}
 	return SportsEvent{
 		ID:                id,
+		ProviderID:        event.ID,
 		LeagueID:          event.LeagueID,
 		LeagueName:        event.LeagueName,
 		Name:              event.Name,
@@ -374,7 +430,7 @@ func (p *sportarrSportsProvider) EnrichEvents(ctx context.Context, events []Spor
 			continue
 		}
 		selected++
-		for _, request := range []sportarrDetailRequest{{kind: "league", id: event.LeagueID}, {kind: "team", id: event.Home.ID}, {kind: "team", id: event.Away.ID}} {
+		for _, request := range []sportarrDetailRequest{{kind: "league", id: event.LeagueID}, {kind: "team", id: event.Home.ID}, {kind: "team", id: event.Away.ID}, {kind: "event", id: event.ProviderID}} {
 			key := request.kind + ":" + request.id
 			if request.id == "" || seen[key] {
 				continue
@@ -405,6 +461,11 @@ func (p *sportarrSportsProvider) purgeExpiredMetadata(now time.Time) {
 			delete(p.leagues, id)
 		}
 	}
+	for id, entry := range p.images {
+		if !now.Before(entry.ExpiresAt) {
+			delete(p.images, id)
+		}
+	}
 }
 
 func (p *sportarrSportsProvider) fetchDetails(ctx context.Context, requests []sportarrDetailRequest) {
@@ -421,8 +482,10 @@ func (p *sportarrSportsProvider) fetchDetails(ctx context.Context, requests []sp
 			for request := range jobs {
 				if request.kind == "team" {
 					_, _ = p.team(ctx, request.id)
-				} else {
+				} else if request.kind == "league" {
 					_, _ = p.league(ctx, request.id)
+				} else {
+					_, _ = p.eventImage(ctx, request.id)
 				}
 			}
 		}()
@@ -432,6 +495,82 @@ func (p *sportarrSportsProvider) fetchDetails(ctx context.Context, requests []sp
 	}
 	close(jobs)
 	wg.Wait()
+}
+
+func (p *sportarrSportsProvider) eventImage(ctx context.Context, id string) (string, error) {
+	now := time.Now()
+	p.metadataMu.Lock()
+	cached, ok := p.images[id]
+	if ok && now.Before(cached.ExpiresAt) {
+		p.metadataMu.Unlock()
+		return cached.ImageURL, nil
+	}
+	if flight := p.imageFlight[id]; flight != nil {
+		p.metadataMu.Unlock()
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-flight.done:
+			return flight.image, flight.err
+		}
+	}
+	flight := &sportarrImageFlight{done: make(chan struct{})}
+	p.imageFlight[id] = flight
+	p.metadataMu.Unlock()
+
+	endpoint := sportarrRootURL(p.baseURL) + "/api/v1/images/entity/event/" + url.PathEscape(id) + "?completed_only=true"
+	var payload sportarrEntityImageResponse
+	err := p.getJSON(ctx, endpoint, &payload)
+	imageURL := pickSportarrEventImage(payload.Images)
+	p.metadataMu.Lock()
+	if err == nil {
+		ttl := 24 * time.Hour
+		if imageURL == "" {
+			ttl = 15 * time.Minute
+		}
+		p.storeImageLocked(id, sportarrImageCacheEntry{ImageURL: imageURL, ExpiresAt: now.Add(ttl)})
+	}
+	flight.image = imageURL
+	flight.err = err
+	delete(p.imageFlight, id)
+	close(flight.done)
+	p.metadataMu.Unlock()
+	return imageURL, err
+}
+
+func sportarrRootURL(baseURL string) string {
+	return strings.TrimSuffix(strings.TrimRight(baseURL, "/"), "/api/public/v1")
+}
+
+func pickSportarrEventImage(images []sportarrEntityImage) string {
+	bestURL := ""
+	bestTypeRank := -1
+	bestPrimary := false
+	bestPriority := 0
+	for _, image := range images {
+		typeRank := map[string]int{"backdrop": 3, "thumbnail": 2, "banner": 2, "poster": 1}[strings.ToLower(strings.TrimSpace(image.ImageType))]
+		if typeRank == 0 {
+			continue
+		}
+		imageURL := safeSportsImageURL(image.URL)
+		if imageURL == "" {
+			continue
+		}
+		better := typeRank > bestTypeRank
+		if typeRank == bestTypeRank {
+			better = image.IsPrimary && !bestPrimary
+			if image.IsPrimary == bestPrimary {
+				better = image.Priority > bestPriority
+			}
+		}
+		if better {
+			bestURL = imageURL
+			bestTypeRank = typeRank
+			bestPrimary = image.IsPrimary
+			bestPriority = image.Priority
+		}
+	}
+	return bestURL
 }
 
 func (p *sportarrSportsProvider) team(ctx context.Context, id string) (sportarrTeam, error) {
@@ -520,6 +659,13 @@ func (p *sportarrSportsProvider) storeLeagueLocked(id string, entry sportarrLeag
 	p.leagues[id] = entry
 }
 
+func (p *sportarrSportsProvider) storeImageLocked(id string, entry sportarrImageCacheEntry) {
+	if len(p.images) >= sportarrImageCacheLimit {
+		p.evictOldestImageLocked()
+	}
+	p.images[id] = entry
+}
+
 func (p *sportarrSportsProvider) evictOldestTeamLocked() {
 	oldestID := ""
 	var oldest time.Time
@@ -542,6 +688,17 @@ func (p *sportarrSportsProvider) evictOldestLeagueLocked() {
 	delete(p.leagues, oldestID)
 }
 
+func (p *sportarrSportsProvider) evictOldestImageLocked() {
+	oldestID := ""
+	var oldest time.Time
+	for id, entry := range p.images {
+		if oldestID == "" || entry.ExpiresAt.Before(oldest) {
+			oldestID, oldest = id, entry.ExpiresAt
+		}
+	}
+	delete(p.images, oldestID)
+}
+
 func (p *sportarrSportsProvider) applyCachedDetails(event SportsEvent) SportsEvent {
 	p.metadataMu.Lock()
 	defer p.metadataMu.Unlock()
@@ -550,6 +707,9 @@ func (p *sportarrSportsProvider) applyCachedDetails(event SportsEvent) SportsEve
 		event.LeagueLogoURL = safeSportsImageURL(league.League.LogoURL)
 		event.LeagueDescription = strings.TrimSpace(league.League.Description)
 		event.SportName = strings.TrimSpace(league.League.SportName)
+	}
+	if image, ok := p.images[event.ProviderID]; ok {
+		event.ImageURL = safeSportsImageURL(image.ImageURL)
 	}
 	event.Home = applySportarrTeam(event.Home, p.teams[event.Home.ID].Team)
 	event.Away = applySportarrTeam(event.Away, p.teams[event.Away.ID].Team)
