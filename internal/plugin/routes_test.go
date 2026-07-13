@@ -2989,10 +2989,14 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		t.Fatal("sports card must keep its game status in the central scoreboard, not duplicate it in a header")
 	}
 	sportsBrowse := functionBody("renderSportsBrowse")
-	for _, want := range []string{`renderSportsFeature`, `renderSportsLeagueShelf`, `sports-event-grid`} {
+	for _, want := range []string{`sportsFeaturedEvent`, `renderSportsFeature`, `renderSportsLeagueShelf`, `sports-event-grid`} {
 		if !strings.Contains(sportsBrowse, want) {
 			t.Fatalf("sports browse must include %q", want)
 		}
+	}
+	sportsFeature := functionBody("renderSportsFeature")
+	if !strings.Contains(sportsFeature, `event.live && channels[0]`) {
+		t.Fatal("sports hero must only label a playable channel as live when the event is live")
 	}
 	sportsLeagueDetail := functionBody("renderSportsLeagueDetail")
 	for _, want := range []string{`sportsLeagueTeams`, `sports-team-rail`, `data-sports-back`} {
