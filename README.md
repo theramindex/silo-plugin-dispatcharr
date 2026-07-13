@@ -126,6 +126,15 @@ first-class Live TV provider capability.
 
 ## Sports-first player
 
+- Sports schedules, identities, live status, scores, league metadata, team
+  artwork, venues, and broadcast timezones come from the
+  [Sportarr public partner API](https://sportarr.net/docs/api). Sportarr is the
+  canonical sports data source; the plugin does not maintain a second sports
+  schedule model.
+- Dispatcharr channels and guide programs are matched against Sportarr events
+  to determine what is actually playable. Events without a confident channel
+  match are omitted from live/upcoming browsing instead of presenting dead
+  playback actions.
 - Administrators can opt into a score and channel drawer in the video player.
 - The drawer reuses the existing sports feed, prioritizes the current channel,
   live games, and favorite teams, and refreshes only while it is open.

@@ -101,7 +101,7 @@ func NewHTTPRoutesServerWithCoordinatorAndSettingsFiles(store *cache.Store, sett
 }
 
 func newHTTPRoutesServer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
-	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, connectionTester: testConnection, sportsProvider: newESPNSportsProvider(&http.Client{Timeout: 8 * time.Second}), timeShift: timeshift.NewManager("")}
+	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, connectionTester: testConnection, sportsProvider: newSportarrSportsProvider(&http.Client{Timeout: 8 * time.Second}), timeShift: timeshift.NewManager("")}
 	if syncer != nil {
 		server.coordinator = NewRefreshCoordinator(syncer)
 	}
