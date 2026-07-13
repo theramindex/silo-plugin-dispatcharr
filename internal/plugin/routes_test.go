@@ -3087,6 +3087,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.sports-feature {`,
 		`.sports-league-grid {`,
 		`.sports-event-hero {`,
+		`.sports-event-hero.no-art {`,
 		`.sports-coverage-grid {`,
 		`.recent-channel-card`,
 		`.search-result-card-art { width: 5.1rem; height: 5.1rem;`,
