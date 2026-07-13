@@ -2438,30 +2438,38 @@ function renderSportsBrowse(payload, events) {
 }
 function sportsFeaturedEvent(events) {
   const values = items(events);
-  const live = values.find(function(event) { return event.live; });
+  const live = values.find(sportsEventIsLive);
   if (live) return live;
   const now = Math.floor(Date.now() / 1000);
   const upcoming = values.filter(function(event) { return !event.completed && Number(event.startUnix || 0) >= now; }).sort(function(left, right) { return Number(left.startUnix || 0) - Number(right.startUnix || 0); });
   if (upcoming.length) return upcoming[0];
   return values.slice().sort(function(left, right) { return Number(right.startUnix || 0) - Number(left.startUnix || 0); })[0] || null;
 }
+function sportsEventIsLive(event) {
+  if (!event || !event.live || event.completed) return false;
+  const startUnix = Number(event.startUnix || 0);
+  if (!startUnix) return true;
+  return startUnix <= Math.floor(Date.now() / 1000) + 3 * 3600;
+}
 function renderSportsFeature(event) {
   const channels = uniqueEventChannels(event.channels);
   const art = sportsEventArtwork(event, "backdrop");
-  const watch = event.live && channels[0] ? "<button type=\"button\" class=\"sports-primary-action\" data-channel=\"" + escapeHTML(channels[0].id) + "\">" + icon("play") + "<span>Watch live</span></button>" : "";
+  const live = sportsEventIsLive(event);
+  const watch = live && channels[0] ? "<button type=\"button\" class=\"sports-primary-action\" data-channel=\"" + escapeHTML(channels[0].id) + "\">" + icon("play") + "<span>Watch live</span></button>" : "";
   return "<section class=\"sports-feature" + (art ? " has-art" : " no-art") + "\">"
     + (art ? "<img class=\"sports-feature-art\" src=\"" + escapeHTML(art) + "\" alt=\"\">" : "")
-    + "<div class=\"sports-feature-copy\"><span class=\"sports-eyebrow\">" + escapeHTML(event.live ? "Featured live event" : "Next up") + "</span>"
+    + "<div class=\"sports-feature-copy\"><span class=\"sports-eyebrow\">" + escapeHTML(live ? "Featured live event" : "Next up") + "</span>"
     + "<h1>" + escapeHTML(sportsEventTitle(event)) + "</h1>"
     + renderSportsFeatureScore(event)
     + "<div class=\"sports-feature-actions\">" + watch + "<button type=\"button\" class=\"sports-secondary-action\" data-sports-open-event=\"" + escapeHTML(event.id || "") + "\">Event details" + icon("chevron-right") + "</button></div>"
     + "</div></section>";
 }
 function renderSportsFeatureScore(event) {
-  const showScore = !!(event.live || event.completed);
+  const live = sportsEventIsLive(event);
+  const showScore = !!(live || event.completed);
   return "<div class=\"sports-feature-score\">"
     + "<span><strong>" + escapeHTML(sportsTeamName(event.away)) + "</strong>" + (showScore ? "<b>" + escapeHTML(event.awayScore || "0") + "</b>" : "") + "</span>"
-    + "<em>" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "<small class=\"" + (event.live ? "live" : "") + "\">" + escapeHTML(sportsStatusLabel(event)) + "</small></em>"
+    + "<em>" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "<small class=\"" + (live ? "live" : "") + "\">" + escapeHTML(sportsStatusLabel(event)) + "</small></em>"
     + "<span><strong>" + escapeHTML(sportsTeamName(event.home)) + "</strong>" + (showScore ? "<b>" + escapeHTML(event.homeScore || "0") + "</b>" : "") + "</span>"
     + "</div>";
 }
@@ -2475,9 +2483,10 @@ function renderSportsLeagueShelf(payload) {
   return sportsSectionHTML("Browse leagues", "", body, "sports-league-section");
 }
 function renderSportsEventTile(event) {
-  const showScore = !!(event.live || event.completed);
-  return "<article class=\"sports-event-tile" + (event.live ? " live" : "") + "\"><button type=\"button\" class=\"sports-event-main\" data-sports-open-event=\"" + escapeHTML(event.id || "") + "\">"
-    + "<span class=\"sports-event-meta\"><b>" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</b><small class=\"" + (event.live ? "live" : "") + "\">" + escapeHTML(sportsStatusLabel(event)) + "</small></span>"
+  const live = sportsEventIsLive(event);
+  const showScore = !!(live || event.completed);
+  return "<article class=\"sports-event-tile" + (live ? " live" : "") + "\"><button type=\"button\" class=\"sports-event-main\" data-sports-open-event=\"" + escapeHTML(event.id || "") + "\">"
+    + "<span class=\"sports-event-meta\"><b>" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</b><small class=\"" + (live ? "live" : "") + "\">" + escapeHTML(sportsStatusLabel(event)) + "</small></span>"
     + "<span class=\"sports-event-teams\">" + renderSportsTileTeam(event.away, event.awayScore, showScore) + "<em>vs</em>" + renderSportsTileTeam(event.home, event.homeScore, showScore) + "</span>"
     + "<span class=\"sports-event-title\">" + escapeHTML(sportsEventTitle(event)) + "</span></button>"
     + renderSportsTileAvailability(event) + "</article>";
@@ -2489,7 +2498,7 @@ function renderSportsTileAvailability(event) {
   const channels = uniqueEventChannels(event.channels);
   const replays = sportsReplayMatchesForEvent(event);
   const parts = [];
-  if (channels.length) parts.push(channels.length + (event.live ? " live " + (channels.length === 1 ? "broadcast" : "broadcasts") : " matched " + (channels.length === 1 ? "channel" : "channels")));
+  if (channels.length) parts.push(channels.length + (sportsEventIsLive(event) ? " live " + (channels.length === 1 ? "broadcast" : "broadcasts") : " matched " + (channels.length === 1 ? "channel" : "channels")));
   if (replays.length) parts.push(replays.length + " " + (replays.length === 1 ? "replay" : "replays"));
   return "<div class=\"sports-event-availability\"><span>" + escapeHTML(parts.join(" · ") || "Coverage unavailable") + "</span><button type=\"button\" data-sports-open-event=\"" + escapeHTML(event.id || "") + "\" aria-label=\"Open " + escapeHTML(sportsEventTitle(event)) + "\">" + icon("chevron-right") + "</button></div>";
 }
@@ -2530,20 +2539,22 @@ function renderSportsEventDetail(payload, event) {
   const matches = sportsReplayMatchesForEvent(event);
   const art = sportsEventArtwork(event, "backdrop");
   const related = sportsLeagueEvents(payload, event.leagueId).filter(function(item) { return item.id !== event.id; }).slice(0, 6);
-  const watch = event.live && channels[0] ? "<button type=\"button\" class=\"sports-primary-action\" data-channel=\"" + escapeHTML(channels[0].id) + "\">" + icon("play") + "<span>Watch live</span></button>" : "";
+  const live = sportsEventIsLive(event);
+  const watch = live && channels[0] ? "<button type=\"button\" class=\"sports-primary-action\" data-channel=\"" + escapeHTML(channels[0].id) + "\">" + icon("play") + "<span>Watch live</span></button>" : "";
   const broadcasts = channels.length ? "<div class=\"sports-broadcast-grid\">" + channels.map(renderSportsBroadcastCard).join("") + "</div>" : "<div class=\"empty\">No matching live broadcasts.</div>";
   const coverage = matches.length ? "<div class=\"sports-coverage-grid\">" + matches.slice(0, 8).map(renderSportsCoverageCard).join("") + "</div>" : "";
   const relatedBody = related.length ? "<div class=\"sports-event-grid\">" + related.map(renderSportsEventTile).join("") + "</div>" : "";
   return "<div class=\"sports-pinned sports-detail-toolbar\"><button type=\"button\" class=\"sports-back\" data-sports-back=\"event\">" + icon("arrow-left") + "<span>" + escapeHTML(state.sportsLeague ? (sportsLeagueByID(payload, state.sportsLeague) || {}).name || "League" : "Sports") + "</span></button><button type=\"button\" class=\"sports-refresh\" data-sports-refresh=\"true\">" + icon("loader") + "<span>Refresh scores</span></button></div>"
     + "<div class=\"sports-score-scroll sports-event-detail\"><header class=\"sports-event-hero" + (art ? " has-art" : " no-art") + "\">" + (art ? "<img class=\"sports-event-hero-art\" src=\"" + escapeHTML(art) + "\" alt=\"\">" : "")
     + "<div class=\"sports-event-hero-copy\"><span class=\"sports-eyebrow\">" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</span><h1>" + escapeHTML(sportsEventTitle(event)) + "</h1>" + renderSportsDetailScore(event) + "<div class=\"sports-feature-actions\">" + watch + (matches[0] ? "<a class=\"sports-secondary-action\" href=\"" + escapeHTML(sportsReplayHref(matches[0].item || {})) + "\">" + icon("play") + "<span>Watch replay</span></a>" : "") + "</div></div></header>"
-    + sportsSectionHTML(event.live ? "Live coverage" : "Matched channels", "<span class=\"sports-section-count\">" + channels.length + (event.live ? " available" : " candidates") + "</span>", broadcasts, "sports-broadcast-section")
+    + sportsSectionHTML(live ? "Live coverage" : "Matched channels", "<span class=\"sports-section-count\">" + channels.length + (live ? " available" : " candidates") + "</span>", broadcasts, "sports-broadcast-section")
     + sportsSectionHTML("Event coverage", "<span class=\"sports-section-count\">Matched from Silo</span>", coverage, "sports-coverage-section")
     + sportsSectionHTML("More from " + (event.leagueName || event.leagueId || "this league"), "", relatedBody, "sports-related-section") + "</div>";
 }
 function renderSportsDetailScore(event) {
-  const showScore = !!(event.live || event.completed);
-  const phase = event.live ? "Live" : (event.completed ? "Final" : (event.startUnix ? sportsDateLabel(event.startUnix) : "Time TBD"));
+  const live = sportsEventIsLive(event);
+  const showScore = !!(live || event.completed);
+  const phase = live ? "Live" : (event.completed ? "Final" : (event.startUnix ? sportsDateLabel(event.startUnix) : "Time TBD"));
   return "<div class=\"sports-detail-score\">" + renderSportsDetailTeam(event.away || {}, event.awayScore, showScore) + "<div class=\"sports-detail-status\"><strong>" + escapeHTML(sportsStatusLabel(event)) + "</strong><span>" + escapeHTML(phase) + "</span></div>" + renderSportsDetailTeam(event.home || {}, event.homeScore, showScore) + "</div>";
 }
 function renderSportsDetailTeam(team, score, showScore) {
@@ -2595,9 +2606,10 @@ function filteredSportsEvents(payload) {
   return items(payload && payload.events).filter(function(event) {
     if (!profileSelectionIsAll() && !uniqueEventChannels(event.channels).length) return false;
     if (state.sportsLeague && event.leagueId !== state.sportsLeague) return false;
-    if (state.sportsTab === "live" && !event.live) return false;
+    const live = sportsEventIsLive(event);
+    if (state.sportsTab === "live" && !live) return false;
     const startUnix = Number(event.startUnix || 0);
-    if (state.sportsTab === "upcoming" && (event.completed || event.live || (startUnix > 0 && startUnix < now - 3600))) return false;
+    if (state.sportsTab === "upcoming" && (event.completed || live || (startUnix > 0 && startUnix < now - 3600))) return false;
     if (state.sportsTab === "replays" && !sportsReplayMatchesForEvent(event).length) return false;
     if (state.sportsTab === "favorites" && !sportsEventHasFavoriteTeam(event)) return false;
     return true;
@@ -2605,7 +2617,9 @@ function filteredSportsEvents(payload) {
 }
 function compareSportsEventsForTab(left, right) {
   const tab = state.sportsTab || "live";
-  if (left.live !== right.live) return left.live ? -1 : 1;
+  const leftLive = sportsEventIsLive(left);
+  const rightLive = sportsEventIsLive(right);
+  if (leftLive !== rightLive) return leftLive ? -1 : 1;
   if (tab === "upcoming") {
     const leftStart = sportsEventStartSort(left, 1);
     const rightStart = sportsEventStartSort(right, 1);
@@ -2632,7 +2646,7 @@ function sportsEventMatchesQuery(event) {
 }
 function renderSportsEventCard(event) {
   const status = sportsStatusLabel(event);
-  const phase = event.live ? " live" : (event.completed ? " final" : " upcoming");
+  const phase = sportsEventIsLive(event) ? " live" : (event.completed ? " final" : " upcoming");
   return "<article class=\"sports-card" + phase + "\">"
     + renderSportsMatchup(event, status)
     + renderSportsChannels(event)
@@ -2640,7 +2654,7 @@ function renderSportsEventCard(event) {
     + "</article>";
 }
 function sportsStatusLabel(event) {
-  if (event.live) return event.statusText || "Live";
+  if (sportsEventIsLive(event)) return event.statusText || "Live";
   if (event.completed) return event.statusText || "Final";
   if (event.startUnix) return sportsDateLabel(event.startUnix);
   return event.statusText || "Time TBD";
@@ -2665,8 +2679,9 @@ function renderSportsTeamLogo(team, className) {
 function renderSportsMatchup(event, status) {
   const center = event.leagueName || event.leagueId || "Sports";
   const detail = status;
-  const showScore = !!(event.live || event.completed);
-  const stateClass = event.live ? " live" : (event.completed ? " final" : " upcoming");
+  const live = sportsEventIsLive(event);
+  const showScore = !!(live || event.completed);
+  const stateClass = live ? " live" : (event.completed ? " final" : " upcoming");
   return "<div class=\"sports-matchup\">" + renderSportsMatchTeam(event.away || {}, event.awayScore, showScore) + "<div class=\"sports-versus\"><strong>" + escapeHTML(center) + "</strong>" + (detail ? "<span class=\"sports-match-status" + stateClass + "\">" + escapeHTML(detail) + "</span>" : "") + "</div>" + renderSportsMatchTeam(event.home || {}, event.homeScore, showScore) + "</div>";
 }
 function renderSportsMatchTeam(team, score, showScore) {
@@ -2735,7 +2750,7 @@ function playerSportsEvents() {
   return items(state.sports && state.sports.events).filter(function(event) {
     const channels = uniqueEventChannels(event.channels).filter(function(channel) { return Number(channel.score || 0) >= 60; });
     const startsSoon = Number(event.startUnix || 0) <= now + 12 * 3600;
-    return channels.length && !event.completed && (event.live || startsSoon || playerSportsChannelMatches(event, currentID));
+    return channels.length && !event.completed && (sportsEventIsLive(event) || startsSoon || playerSportsChannelMatches(event, currentID));
   }).sort(function(left, right) {
     const leftCurrent = playerSportsChannelMatches(left, currentID) ? 1 : 0;
     const rightCurrent = playerSportsChannelMatches(right, currentID) ? 1 : 0;
@@ -2743,7 +2758,9 @@ function playerSportsEvents() {
     const leftFavorite = sportsEventHasFavoriteTeam(left) ? 1 : 0;
     const rightFavorite = sportsEventHasFavoriteTeam(right) ? 1 : 0;
     if (leftFavorite !== rightFavorite) return rightFavorite - leftFavorite;
-    if (left.live !== right.live) return left.live ? -1 : 1;
+    const leftLive = sportsEventIsLive(left);
+    const rightLive = sportsEventIsLive(right);
+    if (leftLive !== rightLive) return leftLive ? -1 : 1;
     return sportsEventStartSort(left, Number.MAX_SAFE_INTEGER) - sportsEventStartSort(right, Number.MAX_SAFE_INTEGER);
   }).slice(0, 12);
 }
@@ -2756,9 +2773,10 @@ function renderPlayerSportsEvent(event) {
   const channel = playerSportsEventChannel(event);
   const away = event.away || {};
   const home = event.home || {};
-  const scored = event.live || event.completed;
+  const live = sportsEventIsLive(event);
+  const scored = live || event.completed;
   const current = playerSportsChannelMatches(event, state.currentChannel && state.currentChannel.id);
-  return "<button class=\"player-sports-event" + (event.live ? " live" : "") + (current ? " current" : "") + "\" type=\"button\" data-player-sports-channel=\"" + escapeHTML(channel && channel.id) + "\"><span class=\"player-sports-event-top\"><span class=\"player-sports-league\">" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</span><span class=\"player-sports-status\">" + escapeHTML(sportsStatusLabel(event)) + "</span></span><span class=\"player-sports-team\"><span>" + escapeHTML(sportsTeamAbbreviation(away)) + "</span><strong>" + (scored ? escapeHTML(event.awayScore || "0") : "") + "</strong></span><span class=\"player-sports-team\"><span>" + escapeHTML(sportsTeamAbbreviation(home)) + "</span><strong>" + (scored ? escapeHTML(event.homeScore || "0") : "") + "</strong></span><small>" + escapeHTML((channel && channel.name) || event.shortName || event.name || "Sports") + "</small></button>";
+  return "<button class=\"player-sports-event" + (live ? " live" : "") + (current ? " current" : "") + "\" type=\"button\" data-player-sports-channel=\"" + escapeHTML(channel && channel.id) + "\"><span class=\"player-sports-event-top\"><span class=\"player-sports-league\">" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</span><span class=\"player-sports-status\">" + escapeHTML(sportsStatusLabel(event)) + "</span></span><span class=\"player-sports-team\"><span>" + escapeHTML(sportsTeamAbbreviation(away)) + "</span><strong>" + (scored ? escapeHTML(event.awayScore || "0") : "") + "</strong></span><span class=\"player-sports-team\"><span>" + escapeHTML(sportsTeamAbbreviation(home)) + "</span><strong>" + (scored ? escapeHTML(event.homeScore || "0") : "") + "</strong></span><small>" + escapeHTML((channel && channel.name) || event.shortName || event.name || "Sports") + "</small></button>";
 }
 function playerSportsChannels(events) {
   const seen = {};
@@ -2932,9 +2950,10 @@ function filteredBroadcastEvents(payload) {
   return items(payload && payload.events).filter(function(event) {
     if (!profileSelectionIsAll() && !uniqueEventChannels(event.channels).length) return false;
     if (state.eventCategory && event.categoryId !== state.eventCategory) return false;
-    if (state.eventsTab === "live" && !event.live) return false;
+    const live = sportsEventIsLive(event);
+    if (state.eventsTab === "live" && !live) return false;
     const startUnix = Number(event.startUnix || 0);
-    if (state.eventsTab === "upcoming" && (event.completed || event.live || (startUnix > 0 && startUnix < now - 3600))) return false;
+    if (state.eventsTab === "upcoming" && (event.completed || live || (startUnix > 0 && startUnix < now - 3600))) return false;
     return true;
   });
 }
@@ -2952,7 +2971,7 @@ function renderBroadcastEventCard(event) {
   const uniqueChannels = uniqueEventChannels(event.channels);
   const windows = items(event.windows);
   const meta = [event.keyword || "", windows.length > 1 ? windows.length + " coverage windows" : "", uniqueChannels.length ? uniqueChannels.length + " channel" + (uniqueChannels.length === 1 ? "" : "s") : ""].filter(Boolean).map(function(value, index) { return "<span" + (index === 0 && event.keyword ? " class=\"event-keyword\"" : "") + ">" + escapeHTML(value) + "</span>"; }).join("");
-  return "<article " + cardClass + (event.live ? " live" : "") + '"><div class="sports-card-head"><div class="sports-card-title"><span class="sports-league-pill">' + escapeHTML(event.categoryName || "Events") + "</span><strong data-overflow-tooltip=\"" + escapeHTML(event.name || title) + "\">" + escapeHTML(title) + "</strong></div><div class=\"sports-status\">" + escapeHTML(status) + "</div></div>"
+  return "<article " + cardClass + (sportsEventIsLive(event) ? " live" : "") + '"><div class="sports-card-head"><div class="sports-card-title"><span class="sports-league-pill">' + escapeHTML(event.categoryName || "Events") + "</span><strong data-overflow-tooltip=\"" + escapeHTML(event.name || title) + "\">" + escapeHTML(title) + "</strong></div><div class=\"sports-status\">" + escapeHTML(status) + "</div></div>"
     + "<div class=\"event-card-body" + (artwork ? "" : " no-art") + "\">" + poster + "<div class=\"event-details\"><p data-overflow-description=\"true\">" + escapeHTML(event.description || "No event details available.") + "</p><div class=\"event-meta\">" + meta + "</div>" + renderEventBroadcastWindows(event) + "</div></div>"
     + renderBroadcastEventChannels(event)
     + "</article>";
@@ -2975,7 +2994,7 @@ function recoveryPanelHTML(error, kind) {
   return '<div class="recovery-panel"><span role="status" aria-live="polite">' + escapeHTML(error) + "</span><div class=\"recovery-actions\"><button type=\"button\" data-recovery-retry=\"" + label + "\" aria-label=\"Retry loading " + label + "\">Retry</button><button type=\"button\" data-recovery-reload=\"true\" aria-label=\"Reload Live TV\">Reload</button></div></div>";
 }
 function eventStatusLabel(event) {
-  if (event.live) return "Live";
+  if (sportsEventIsLive(event)) return "Live";
   if (event.completed) return "Ended";
   if (event.startUnix) return sportsDateLabel(event.startUnix);
   return "Time TBD";

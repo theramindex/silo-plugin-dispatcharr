@@ -2995,8 +2995,14 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		}
 	}
 	sportsFeature := functionBody("renderSportsFeature")
-	if !strings.Contains(sportsFeature, `event.live && channels[0]`) {
+	if !strings.Contains(sportsFeature, `live && channels[0]`) {
 		t.Fatal("sports hero must only label a playable channel as live when the event is live")
+	}
+	sportsEventIsLive := functionBody("sportsEventIsLive")
+	for _, want := range []string{`event.completed`, `startUnix`, `3 * 3600`} {
+		if !strings.Contains(sportsEventIsLive, want) {
+			t.Fatalf("sports live-state guard must include %q", want)
+		}
 	}
 	sportsLeagueDetail := functionBody("renderSportsLeagueDetail")
 	for _, want := range []string{`sportsLeagueTeams`, `sports-team-rail`, `data-sports-back`} {
