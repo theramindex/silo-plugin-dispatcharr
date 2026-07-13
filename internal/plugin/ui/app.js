@@ -2425,7 +2425,7 @@ function sportsSectionHTML(title, action, body, className) {
   return "<section class=\"sports-section " + escapeHTML(className || "") + "\"><div class=\"sports-section-head\"><h2>" + escapeHTML(title) + "</h2>" + (action || "") + "</div>" + body + "</section>";
 }
 function renderSportsBrowse(payload, events) {
-  const featured = events[0] || null;
+  const featured = sportsFeaturedEvent(events);
   const remaining = events.filter(function(event) { return !featured || event.id !== featured.id; });
   const loading = state.sportsLoading || (state.sportsTab === "replays" && state.sportsReplaysLoading);
   const eventBody = remaining.length ? "<div class=\"sports-event-grid\">" + remaining.map(renderSportsEventTile).join("") + "</div>" : (!featured ? "<div class=\"empty\">" + (loading ? "Loading sports..." : "No sports matches.") + "</div>" : "");
@@ -2436,13 +2436,22 @@ function renderSportsBrowse(payload, events) {
     + sportsSectionHTML(sportsTabLabel(state.sportsTab), "", eventBody, "sports-events-section")
     + "</div>";
 }
+function sportsFeaturedEvent(events) {
+  const values = items(events);
+  const live = values.find(function(event) { return event.live; });
+  if (live) return live;
+  const now = Math.floor(Date.now() / 1000);
+  const upcoming = values.filter(function(event) { return !event.completed && Number(event.startUnix || 0) >= now; }).sort(function(left, right) { return Number(left.startUnix || 0) - Number(right.startUnix || 0); });
+  if (upcoming.length) return upcoming[0];
+  return values.slice().sort(function(left, right) { return Number(right.startUnix || 0) - Number(left.startUnix || 0); })[0] || null;
+}
 function renderSportsFeature(event) {
   const channels = uniqueEventChannels(event.channels);
   const art = sportsEventArtwork(event, "backdrop");
-  const watch = channels[0] ? "<button type=\"button\" class=\"sports-primary-action\" data-channel=\"" + escapeHTML(channels[0].id) + "\">" + icon("play") + "<span>Watch live</span></button>" : "";
+  const watch = event.live && channels[0] ? "<button type=\"button\" class=\"sports-primary-action\" data-channel=\"" + escapeHTML(channels[0].id) + "\">" + icon("play") + "<span>Watch live</span></button>" : "";
   return "<section class=\"sports-feature" + (art ? " has-art" : " no-art") + "\">"
     + (art ? "<img class=\"sports-feature-art\" src=\"" + escapeHTML(art) + "\" alt=\"\">" : "")
-    + "<div class=\"sports-feature-copy\"><span class=\"sports-eyebrow\">Featured " + escapeHTML(event.live ? "live event" : "event") + "</span>"
+    + "<div class=\"sports-feature-copy\"><span class=\"sports-eyebrow\">" + escapeHTML(event.live ? "Featured live event" : "Next up") + "</span>"
     + "<h1>" + escapeHTML(sportsEventTitle(event)) + "</h1>"
     + renderSportsFeatureScore(event)
     + "<div class=\"sports-feature-actions\">" + watch + "<button type=\"button\" class=\"sports-secondary-action\" data-sports-open-event=\"" + escapeHTML(event.id || "") + "\">Event details" + icon("chevron-right") + "</button></div>"
@@ -2480,7 +2489,7 @@ function renderSportsTileAvailability(event) {
   const channels = uniqueEventChannels(event.channels);
   const replays = sportsReplayMatchesForEvent(event);
   const parts = [];
-  if (channels.length) parts.push(channels.length + " live " + (channels.length === 1 ? "broadcast" : "broadcasts"));
+  if (channels.length) parts.push(channels.length + (event.live ? " live " + (channels.length === 1 ? "broadcast" : "broadcasts") : " matched " + (channels.length === 1 ? "channel" : "channels")));
   if (replays.length) parts.push(replays.length + " " + (replays.length === 1 ? "replay" : "replays"));
   return "<div class=\"sports-event-availability\"><span>" + escapeHTML(parts.join(" · ") || "Coverage unavailable") + "</span><button type=\"button\" data-sports-open-event=\"" + escapeHTML(event.id || "") + "\" aria-label=\"Open " + escapeHTML(sportsEventTitle(event)) + "\">" + icon("chevron-right") + "</button></div>";
 }
@@ -2521,14 +2530,14 @@ function renderSportsEventDetail(payload, event) {
   const matches = sportsReplayMatchesForEvent(event);
   const art = sportsEventArtwork(event, "backdrop");
   const related = sportsLeagueEvents(payload, event.leagueId).filter(function(item) { return item.id !== event.id; }).slice(0, 6);
-  const watch = channels[0] ? "<button type=\"button\" class=\"sports-primary-action\" data-channel=\"" + escapeHTML(channels[0].id) + "\">" + icon("play") + "<span>Watch live</span></button>" : "";
+  const watch = event.live && channels[0] ? "<button type=\"button\" class=\"sports-primary-action\" data-channel=\"" + escapeHTML(channels[0].id) + "\">" + icon("play") + "<span>Watch live</span></button>" : "";
   const broadcasts = channels.length ? "<div class=\"sports-broadcast-grid\">" + channels.map(renderSportsBroadcastCard).join("") + "</div>" : "<div class=\"empty\">No matching live broadcasts.</div>";
   const coverage = matches.length ? "<div class=\"sports-coverage-grid\">" + matches.slice(0, 8).map(renderSportsCoverageCard).join("") + "</div>" : "";
   const relatedBody = related.length ? "<div class=\"sports-event-grid\">" + related.map(renderSportsEventTile).join("") + "</div>" : "";
   return "<div class=\"sports-pinned sports-detail-toolbar\"><button type=\"button\" class=\"sports-back\" data-sports-back=\"event\">" + icon("arrow-left") + "<span>" + escapeHTML(state.sportsLeague ? (sportsLeagueByID(payload, state.sportsLeague) || {}).name || "League" : "Sports") + "</span></button><button type=\"button\" class=\"sports-refresh\" data-sports-refresh=\"true\">" + icon("loader") + "<span>Refresh scores</span></button></div>"
     + "<div class=\"sports-score-scroll sports-event-detail\"><header class=\"sports-event-hero" + (art ? " has-art" : " no-art") + "\">" + (art ? "<img class=\"sports-event-hero-art\" src=\"" + escapeHTML(art) + "\" alt=\"\">" : "")
     + "<div class=\"sports-event-hero-copy\"><span class=\"sports-eyebrow\">" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</span><h1>" + escapeHTML(sportsEventTitle(event)) + "</h1>" + renderSportsDetailScore(event) + "<div class=\"sports-feature-actions\">" + watch + (matches[0] ? "<a class=\"sports-secondary-action\" href=\"" + escapeHTML(sportsReplayHref(matches[0].item || {})) + "\">" + icon("play") + "<span>Watch replay</span></a>" : "") + "</div></div></header>"
-    + sportsSectionHTML("Live coverage", "<span class=\"sports-section-count\">" + channels.length + " available</span>", broadcasts, "sports-broadcast-section")
+    + sportsSectionHTML(event.live ? "Live coverage" : "Matched channels", "<span class=\"sports-section-count\">" + channels.length + (event.live ? " available" : " candidates") + "</span>", broadcasts, "sports-broadcast-section")
     + sportsSectionHTML("Event coverage", "<span class=\"sports-section-count\">Matched from Silo</span>", coverage, "sports-coverage-section")
     + sportsSectionHTML("More from " + (event.leagueName || event.leagueId || "this league"), "", relatedBody, "sports-related-section") + "</div>";
 }
