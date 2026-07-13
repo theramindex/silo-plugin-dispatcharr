@@ -498,6 +498,7 @@ func TestManifestDeclaresPublicApplicationRoutesOnly(t *testing.T) {
 	for _, route := range []string{
 		"GET /dispatcharr/api/sports",
 		"GET /dispatcharr/api/events",
+		"POST /dispatcharr/api/guide/ping",
 		"GET /dispatcharr/api/recordings/capability",
 		"GET /dispatcharr/assets/app.js",
 		"GET /dispatcharr/assets/lineup.js",

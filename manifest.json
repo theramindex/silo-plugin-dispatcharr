@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.dispatcharr",
-  "version": "0.3.38",
+  "version": "0.3.39",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -178,6 +178,13 @@
       "id": "dispatcharr-api-guide",
       "method": "GET",
       "path": "/dispatcharr/api/guide",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-guide-ping",
+      "method": "POST",
+      "path": "/dispatcharr/api/guide/ping",
       "access": "authenticated",
       "navigable": false
     },
