@@ -348,13 +348,20 @@ func (s *HTTPRoutesServer) ensureCatalogHydrated(ctx context.Context) {
 		s.store.RecordFailure(time.Now().Unix(), err.Error())
 		return
 	}
+	tightDeadline := catalogRequestHasTightDeadline(ctx)
 	if err := s.coordinator.Run(ctx, RefreshCatalog, settings, time.Now().Unix()); err != nil {
 		s.store.RecordFailure(time.Now().Unix(), err.Error())
 		return
 	}
-	if len(s.store.Current().Catalog.Programs) == 0 {
+	sourceMode := settings.EffectiveSourceMode()
+	if len(s.store.Current().Catalog.Programs) == 0 || (tightDeadline && (sourceMode == config.SourceModeDirectLogin || sourceMode == config.SourceModeAPIKey)) {
 		_, _ = s.startBackgroundGuideWarm(settings)
 	}
+}
+
+func catalogRequestHasTightDeadline(ctx context.Context) bool {
+	deadline, ok := ctx.Deadline()
+	return ok && time.Until(deadline) < 45*time.Second
 }
 
 func catalogSnapshotMatchesSettings(snapshot cache.Snapshot, settings config.Settings) bool {

@@ -115,6 +115,7 @@ func (s *Settings) Validate() error {
 
 func CatalogCacheKey(settings Settings) string {
 	parts := []string{
+		"catalog-v2",
 		string(settings.EffectiveSourceMode()),
 		strings.TrimSpace(settings.DispatcharrURL),
 		strings.TrimSpace(settings.DispatcharrUser),
