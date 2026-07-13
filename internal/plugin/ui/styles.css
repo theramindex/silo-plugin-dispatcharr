@@ -493,6 +493,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-team-shelf-card .sports-team-favorite { width: 2.25rem; min-width: 2.25rem; height: 2.25rem; min-height: 2.25rem; opacity: 1; }
 .sports-team-shelf-card .sports-team-favorite svg { width: 1rem; height: 1rem; }
 .sports-event-hero { position: relative; min-height: 22rem; display: grid; align-items: end; overflow: hidden; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--panel); isolation: isolate; }
+.sports-event-hero.no-art { min-height: 15rem; background: color-mix(in srgb, var(--panel) 92%, var(--rail-2)); }
 .sports-event-hero-copy { width: min(58rem, 100%); display: grid; gap: 0.9rem; padding: 2rem; }
 .sports-detail-score { width: min(46rem, 100%); display: grid; grid-template-columns: minmax(0, 1fr) minmax(7.5rem, auto) minmax(0, 1fr); align-items: center; gap: 0.85rem; }
 .sports-detail-team { min-width: 0; display: flex; align-items: center; gap: 0.65rem; }
@@ -574,6 +575,7 @@ button { cursor: pointer; touch-action: manipulation; }
   .sports-league-hero { min-height: 8rem; }
   .sports-league-hero .sports-league-mark { width: 3.5rem; height: 3.5rem; }
   .sports-event-hero { min-height: 25rem; }
+  .sports-event-hero.no-art { min-height: 18rem; }
   .sports-event-hero-copy { padding: 1rem; }
   .sports-detail-score { grid-template-columns: minmax(0, 1fr) minmax(5.25rem, auto) minmax(0, 1fr); gap: 0.4rem; }
   .sports-detail-team { display: grid; justify-items: center; text-align: center; }
