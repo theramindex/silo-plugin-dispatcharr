@@ -40,6 +40,8 @@ type HTTPRoutesServer struct {
 	settingsProvider    func() config.Settings
 	adminPersister      func(context.Context, map[string]any) error
 	adminStorage        adminSettingsStorage
+	connectionStorage   connectionSettingsStorage
+	connectionTester    func(context.Context, config.ConnectionSettings) error
 	coordinator         *RefreshCoordinator
 	hydrateMu           sync.Mutex
 	refreshMu           sync.Mutex
@@ -49,6 +51,11 @@ type HTTPRoutesServer struct {
 	sportsCache         sportsEventCache
 	sportsMu            sync.Mutex
 	timeShift           *timeshift.Manager
+}
+
+type connectionSettingsStorage interface {
+	Load() (config.ConnectionSettings, bool, error)
+	Save(config.ConnectionSettings) error
 }
 
 type catalogSyncer interface {
@@ -82,14 +89,19 @@ func NewHTTPRoutesServerWithSyncerAndAdminSettingsFile(store *cache.Store, setti
 }
 
 func NewHTTPRoutesServerWithCoordinatorAndAdminSettingsFile(store *cache.Store, settingsProvider func() config.Settings, coordinator *RefreshCoordinator, path string) *HTTPRoutesServer {
+	return NewHTTPRoutesServerWithCoordinatorAndSettingsFiles(store, settingsProvider, coordinator, path, config.NewConnectionStore(""))
+}
+
+func NewHTTPRoutesServerWithCoordinatorAndSettingsFiles(store *cache.Store, settingsProvider func() config.Settings, coordinator *RefreshCoordinator, adminPath string, connectionStore *config.ConnectionStore) *HTTPRoutesServer {
 	server := newHTTPRoutesServer(store, settingsProvider, nil)
 	server.coordinator = coordinator
-	server.adminStorage = NewFileAdminSettingsStorage(path)
+	server.adminStorage = NewFileAdminSettingsStorage(adminPath)
+	server.connectionStorage = connectionStore
 	return server
 }
 
 func newHTTPRoutesServer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
-	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, sportsProvider: newESPNSportsProvider(&http.Client{Timeout: 8 * time.Second}), timeShift: timeshift.NewManager("")}
+	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, connectionTester: testConnection, sportsProvider: newESPNSportsProvider(&http.Client{Timeout: 8 * time.Second}), timeShift: timeshift.NewManager("")}
 	if syncer != nil {
 		server.coordinator = NewRefreshCoordinator(syncer)
 	}
@@ -132,6 +144,23 @@ type GuidePayload struct {
 
 type guidePingRequest struct {
 	ChannelIDs []string `json:"channelIds"`
+}
+
+type adminConnectionPayload struct {
+	Action           string            `json:"action,omitempty"`
+	SourceMode       config.SourceMode `json:"sourceMode"`
+	BaseURL          string            `json:"baseUrl,omitempty"`
+	Username         string            `json:"username,omitempty"`
+	Password         string            `json:"password,omitempty"`
+	APIKey           string            `json:"apiKey,omitempty"`
+	ChannelProfile   string            `json:"channelProfile,omitempty"`
+	M3UURL           string            `json:"m3uUrl,omitempty"`
+	EPGXMLURL        string            `json:"epgXmlUrl,omitempty"`
+	SecretConfigured bool              `json:"secretConfigured"`
+	M3UConfigured    bool              `json:"m3uConfigured"`
+	EPGXMLConfigured bool              `json:"epgXmlConfigured"`
+	Configured       bool              `json:"configured"`
+	Origin           string            `json:"origin,omitempty"`
 }
 
 type GuidePingPayload struct {
@@ -278,6 +307,8 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return s.handlePreferences(request)
 	case "/dispatcharr/api/admin-settings":
 		return s.handleAdminSettings(ctx, request)
+	case "/dispatcharr/api/admin-connection":
+		return s.handleAdminConnection(ctx, request)
 	case "/dispatcharr/api/favorites":
 		return s.handleFavorite(request)
 	case "/dispatcharr/api/hidden-categories":
@@ -817,6 +848,186 @@ func (s *HTTPRoutesServer) handleAdminSettings(ctx context.Context, request *plu
 	return s.respondJSON(http.StatusOK, json.RawMessage(saved))
 }
 
+func (s *HTTPRoutesServer) handleAdminConnection(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if !s.adminSettingsAuthorized(request) {
+		return textResponse(http.StatusForbidden, "Silo administrator access is required"), nil
+	}
+	if request.GetMethod() == http.MethodGet {
+		connection, origin, err := s.currentConnection()
+		if err != nil {
+			log.Printf("dispatcharr: load connection settings failed: %v", err)
+			return textResponse(http.StatusInternalServerError, "could not load connection settings"), nil
+		}
+		return s.respondJSON(http.StatusOK, publicAdminConnection(connection, origin))
+	}
+	if request.GetMethod() != http.MethodPost {
+		return textResponse(http.StatusMethodNotAllowed, "connection manager requires GET or POST"), nil
+	}
+
+	var payload adminConnectionPayload
+	if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
+		return textResponse(http.StatusBadRequest, "invalid connection payload"), nil
+	}
+	current, _, err := s.currentConnection()
+	if err != nil {
+		return textResponse(http.StatusInternalServerError, "could not load connection settings"), nil
+	}
+	candidate := connectionFromAdminPayload(payload, current)
+	candidate, err = config.NormalizeConnection(candidate)
+	if err != nil {
+		return textResponse(http.StatusBadRequest, err.Error()), nil
+	}
+
+	if strings.EqualFold(strings.TrimSpace(payload.Action), "test") {
+		testCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		defer cancel()
+		if s.connectionTester == nil {
+			return textResponse(http.StatusServiceUnavailable, "connection testing is unavailable"), nil
+		}
+		if err := s.connectionTester(testCtx, candidate); err != nil {
+			return textResponse(http.StatusBadGateway, "connection test failed: "+err.Error()), nil
+		}
+		response := publicAdminConnection(candidate, "draft")
+		return s.respondJSON(http.StatusOK, map[string]any{"ok": true, "connection": response})
+	}
+
+	if s.connectionStorage == nil {
+		return textResponse(http.StatusServiceUnavailable, "connection storage is unavailable"), nil
+	}
+	if err := s.connectionStorage.Save(candidate); err != nil {
+		log.Printf("dispatcharr: save connection settings failed: %v", err)
+		return textResponse(http.StatusInternalServerError, "could not save connection settings"), nil
+	}
+	if s.coordinator != nil {
+		settings := config.Settings{LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}
+		candidate.Apply(&settings)
+		s.coordinator.Start(RefreshForce, settings)
+	}
+	return s.respondJSON(http.StatusOK, map[string]any{"ok": true, "connection": publicAdminConnection(candidate, "plugin")})
+}
+
+func (s *HTTPRoutesServer) currentConnection() (config.ConnectionSettings, string, error) {
+	if s.connectionStorage != nil {
+		connection, ok, err := s.connectionStorage.Load()
+		if err != nil {
+			return config.ConnectionSettings{}, "", err
+		}
+		if ok {
+			return connection, "plugin", nil
+		}
+	}
+	if s.settingsProvider != nil {
+		return config.ConnectionFromSettings(s.settingsProvider()), "silo", nil
+	}
+	return config.ConnectionSettings{SourceMode: config.SourceModeDirectLogin}, "empty", nil
+}
+
+func publicAdminConnection(connection config.ConnectionSettings, origin string) adminConnectionPayload {
+	payload := adminConnectionPayload{SourceMode: connection.SourceMode, ChannelProfile: connection.ChannelProfile, Origin: origin}
+	switch connection.SourceMode {
+	case config.SourceModeXtream:
+		payload.BaseURL = connection.XtreamBaseURL
+		payload.Username = connection.XtreamUsername
+		payload.SecretConfigured = strings.TrimSpace(connection.XtreamPassword) != ""
+	case config.SourceModeM3UXMLTV:
+		payload.SecretConfigured = false
+		payload.M3UConfigured = strings.TrimSpace(connection.M3UURL) != ""
+		payload.EPGXMLConfigured = strings.TrimSpace(connection.EPGXMLURL) != ""
+	case config.SourceModeAPIKey:
+		payload.BaseURL = connection.DispatcharrURL
+		payload.SecretConfigured = strings.TrimSpace(connection.DispatcharrAPIKey) != ""
+	default:
+		payload.SourceMode = config.SourceModeDirectLogin
+		payload.BaseURL = connection.DispatcharrURL
+		payload.Username = connection.DispatcharrUser
+		payload.SecretConfigured = strings.TrimSpace(connection.DispatcharrPass) != ""
+	}
+	_, err := config.NormalizeConnection(connection)
+	payload.Configured = err == nil
+	return payload
+}
+
+func connectionFromAdminPayload(payload adminConnectionPayload, current config.ConnectionSettings) config.ConnectionSettings {
+	sameMode := payload.SourceMode == current.SourceMode
+	candidate := config.ConnectionSettings{SourceMode: payload.SourceMode, ChannelProfile: payload.ChannelProfile}
+	switch payload.SourceMode {
+	case config.SourceModeAPIKey:
+		candidate.DispatcharrURL = payload.BaseURL
+		if strings.TrimSpace(payload.APIKey) != "" {
+			candidate.DispatcharrAPIKey = payload.APIKey
+		} else if sameMode && strings.TrimRight(strings.TrimSpace(payload.BaseURL), "/") == strings.TrimRight(strings.TrimSpace(current.DispatcharrURL), "/") {
+			candidate.DispatcharrAPIKey = current.DispatcharrAPIKey
+		}
+	case config.SourceModeXtream:
+		candidate.XtreamBaseURL = payload.BaseURL
+		candidate.XtreamUsername = payload.Username
+		if strings.TrimSpace(payload.Password) != "" {
+			candidate.XtreamPassword = payload.Password
+		} else if sameMode && strings.TrimRight(strings.TrimSpace(payload.BaseURL), "/") == strings.TrimRight(strings.TrimSpace(current.XtreamBaseURL), "/") && strings.TrimSpace(payload.Username) == strings.TrimSpace(current.XtreamUsername) {
+			candidate.XtreamPassword = current.XtreamPassword
+		}
+	case config.SourceModeM3UXMLTV:
+		if strings.TrimSpace(payload.M3UURL) != "" {
+			candidate.M3UURL = payload.M3UURL
+		} else if sameMode {
+			candidate.M3UURL = current.M3UURL
+		}
+		if strings.TrimSpace(payload.EPGXMLURL) != "" {
+			candidate.EPGXMLURL = payload.EPGXMLURL
+		} else if sameMode {
+			candidate.EPGXMLURL = current.EPGXMLURL
+		}
+	default:
+		candidate.SourceMode = config.SourceModeDirectLogin
+		candidate.DispatcharrURL = payload.BaseURL
+		candidate.DispatcharrUser = payload.Username
+		if strings.TrimSpace(payload.Password) != "" {
+			candidate.DispatcharrPass = payload.Password
+		} else if sameMode && strings.TrimRight(strings.TrimSpace(payload.BaseURL), "/") == strings.TrimRight(strings.TrimSpace(current.DispatcharrURL), "/") && strings.TrimSpace(payload.Username) == strings.TrimSpace(current.DispatcharrUser) {
+			candidate.DispatcharrPass = current.DispatcharrPass
+		}
+	}
+	return candidate
+}
+
+func testConnection(ctx context.Context, connection config.ConnectionSettings) error {
+	switch connection.SourceMode {
+	case config.SourceModeDirectLogin:
+		return dispatcharr.NewLoginClient(connection.DispatcharrURL, connection.DispatcharrUser, connection.DispatcharrPass).TestConnection(ctx)
+	case config.SourceModeAPIKey:
+		return dispatcharr.NewAPIKeyClient(connection.DispatcharrURL, connection.DispatcharrAPIKey).TestConnection(ctx)
+	case config.SourceModeXtream:
+		return xtream.NewClient(connection.XtreamBaseURL, connection.XtreamUsername, connection.XtreamPassword).TestConnection(ctx)
+	case config.SourceModeM3UXMLTV:
+		if err := testConnectionURL(ctx, connection.M3UURL); err != nil {
+			return fmt.Errorf("M3U: %w", err)
+		}
+		if err := testConnectionURL(ctx, connection.EPGXMLURL); err != nil {
+			return fmt.Errorf("XMLTV: %w", err)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported source mode")
+	}
+}
+
+func testConnectionURL(ctx context.Context, target string) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Range", "bytes=0-0")
+	response, err := (&http.Client{Timeout: 12 * time.Second}).Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 400 {
+		return fmt.Errorf("unexpected status %d", response.StatusCode)
+	}
+	return nil
+}
+
 func (s *HTTPRoutesServer) respondAdminSettings(request *pluginv1.HandleHTTPRequest, settings json.RawMessage) (*pluginv1.HandleHTTPResponse, error) {
 	if s.adminSettingsAuthorized(request) {
 		return s.respondJSON(http.StatusOK, settings)
@@ -1041,7 +1252,7 @@ func replaceTemplateBlock(body string, startMarker string, endMarker string, rep
 }
 
 func adminTopbarHTML() string {
-	return `<div class="admin-topbar"><div class="admin-title"><a class="back" href="/admin/plugins" aria-label="Back to Silo plugin administration"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg></a><h1>Live TV Admin</h1></div><nav id="admin-tabs" class="admin-tabs" aria-label="Live TV admin sections"></nav><div id="admin-actions" class="admin-actions"></div></div>`
+	return `<aside class="admin-sidebar"><a class="admin-brand" href="/admin"><span class="admin-brand-mark"><i></i><i></i><i></i></span><strong>Silo</strong></a><div class="admin-sidebar-label">Dispatcharr</div><nav id="admin-tabs" class="admin-sidebar-nav" aria-label="Live TV Admin sections"></nav><div class="admin-sidebar-spacer"></div><a class="admin-sidebar-link" href="../dispatcharr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5A2.25 2.25 0 0 1 19.5 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25H6.75a2.25 2.25 0 0 1-2.25-2.25V6.75Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 9.25v5.5l5-2.75-5-2.75Z"/></svg><span>Open Live TV</span></a><a class="admin-sidebar-link" href="/admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg><span>Back to Admin</span></a></aside><header class="admin-topbar"><div class="admin-identity"><div><h1>Dispatcharr</h1><p>Manage the Live TV source, guide behavior, and integrations.</p></div></div><div id="admin-actions" class="admin-actions"></div></header>`
 }
 
 func sanitizeThemeSlug(value string) string {

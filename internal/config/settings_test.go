@@ -179,7 +179,7 @@ func TestUserConfigSchema_DeclaresCurrentPreferenceShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected preferences schema properties, got %q", preferences.GetJsonSchema())
 	}
-	for _, key := range []string{"favorites", "autoFavorites", "hiddenCategories", "sportsFavoriteTeams", "keywordPasses", "recentSearches", "recentChannels", "continueWatching", "playback", "categoryParsing", "profileSelection", "customGroups", "customGroupMemberships"} {
+	for _, key := range []string{"favorites", "autoFavorites", "hiddenCategories", "sportsFavoriteTeams", "keywordPasses", "recentSearches", "recentChannels", "continueWatching", "playback", "categoryParsing", "profileSelection", "customGroups", "customGroupMemberships", "savedLineups"} {
 		if _, ok := properties[key]; !ok {
 			t.Fatalf("expected preferences schema to declare %q", key)
 		}
@@ -201,6 +201,25 @@ func TestUserConfigSchema_AcceptsProfileSelection(t *testing.T) {
 	}
 	if err := sdkconfig.ValidateManifestUserValue(manifest, "preferences", value); err != nil {
 		t.Fatalf("expected profile selection to satisfy the SDK user config schema: %v", err)
+	}
+}
+
+func TestUserConfigSchema_AcceptsSavedLineups(t *testing.T) {
+	t.Parallel()
+
+	manifest := &pluginv1.PluginManifest{UserConfigSchema: UserConfigSchema()}
+	value := map[string]any{
+		"savedLineups": []any{
+			map[string]any{
+				"id":              "my-news",
+				"name":            "My News",
+				"categoryId":      "dynamic:news",
+				"hideFinalGroups": true,
+			},
+		},
+	}
+	if err := sdkconfig.ValidateManifestUserValue(manifest, "preferences", value); err != nil {
+		t.Fatalf("expected saved lineups to satisfy the SDK user config schema: %v", err)
 	}
 }
 
@@ -269,8 +288,8 @@ func TestGlobalConfigSchema_SecretsAndStatusFields(t *testing.T) {
 		t.Fatalf("expected connection schema to declare writeOnly secret fields, got %q", connection.GetJsonSchema())
 	}
 
-	if !connection.GetRequired() {
-		t.Fatal("expected connection schema to be required")
+	if connection.GetRequired() {
+		t.Fatal("expected legacy connection schema to remain optional now that Dispatcharr Admin owns the source")
 	}
 }
 

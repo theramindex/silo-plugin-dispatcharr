@@ -8,7 +8,7 @@ const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuff
 const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionStatus: "idle", adminConnectionMessage: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 
 function applySiloTheme() {
   const params = new URLSearchParams(window.location.search);
@@ -111,7 +111,7 @@ function icon(name) {
 }
 function menuIcon(name) { return "<span class=\"menu-icon\">" + icon(name) + "</span>"; }
 function defaultPrefs() {
-  return { favorites: {}, favoriteOrder: [], autoFavorites: {}, hiddenCategories: {}, sportsFavoriteTeams: {}, keywordPasses: [], recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, profileSelection: { mode: "all", profileIds: [] }, customGroups: [], customGroupMemberships: {} };
+  return { favorites: {}, favoriteOrder: [], autoFavorites: {}, hiddenCategories: {}, sportsFavoriteTeams: {}, keywordPasses: [], recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, profileSelection: { mode: "all", profileIds: [] }, customGroups: [], customGroupMemberships: {}, savedLineups: [] };
 }
 function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
 function availableChannelProfiles() {
@@ -265,6 +265,29 @@ function normalizeKeywordPasses(value) {
   }).filter(Boolean).slice(0, 24);
 }
 function keywordPasses() { return normalizeKeywordPasses(prefs().keywordPasses); }
+function normalizeSavedLineups(value) {
+  const seenIDs = {};
+  const seenCategories = {};
+  return items(value).map(function(lineup, index) {
+    lineup = lineup || {};
+    const categoryID = String(lineup.categoryId || "").trim();
+    const name = String(lineup.name || "").trim();
+    let id = String(lineup.id || "").trim();
+    if (!categoryID || !name || seenCategories[categoryID]) return null;
+    if (!id) id = "lineup-" + String(index + 1);
+    if (seenIDs[id]) id += "-" + String(index + 1);
+    seenIDs[id] = true;
+    seenCategories[categoryID] = true;
+    return { id: id, name: name, categoryId: categoryID, hideFinalGroups: lineup.hideFinalGroups === true };
+  }).filter(Boolean).slice(0, 24);
+}
+function savedLineups() { return normalizeSavedLineups(prefs().savedLineups); }
+function savedLineupByID(id) {
+  return savedLineups().find(function(lineup) { return lineup.id === String(id || ""); }) || null;
+}
+function savedLineupForCategory(categoryID) {
+  return savedLineups().find(function(lineup) { return lineup.categoryId === String(categoryID || ""); }) || null;
+}
 function mergePrefs(remote) {
   remote = Object.assign(defaultPrefs(), remote || {});
   return {
@@ -281,7 +304,8 @@ function mergePrefs(remote) {
     categoryParsing: Object.assign({}, remote.categoryParsing),
     profileSelection: normalizeProfileSelection(remote.profileSelection),
     customGroups: items(remote.customGroups),
-    customGroupMemberships: Object.assign({}, remote.customGroupMemberships)
+    customGroupMemberships: Object.assign({}, remote.customGroupMemberships),
+    savedLineups: normalizeSavedLineups(remote.savedLineups)
   };
 }
 function normalizePreferences() {
@@ -294,6 +318,7 @@ function normalizePreferences() {
   state.app.preferences.recentSearches = uniqueIDs(items(state.app.preferences.recentSearches).map(function(value) { return String(value || "").trim(); }).filter(Boolean)).slice(0, 12);
   state.app.preferences.customGroups = items(state.app.preferences.customGroups);
   state.app.preferences.customGroupMemberships = state.app.preferences.customGroupMemberships || {};
+  state.app.preferences.savedLineups = normalizeSavedLineups(state.app.preferences.savedLineups);
   const valid = {};
   items(state.app.channels).forEach(function(channel) { valid[channel.id] = true; });
   const explicitFavorites = Object.keys(state.app.preferences.favorites || {}).filter(function(id) { return !!state.app.preferences.favorites[id] && !!valid[id]; });
@@ -1310,11 +1335,27 @@ function setView(view, options) {
   }
   render();
 }
-function setCategory(id) {
+function setCategory(id, options) {
+  options = options || {};
   if ((id || "") !== state.category) state.folderQuery = "";
+  if (!options.preserveSavedLineup) {
+    state.activeSavedLineupID = "";
+    state.savedLineupGroupCategoryID = "";
+  }
   state.category = id || "";
   state.view = id ? "live" : "home";
   render();
+}
+function openSavedLineup(id) {
+  const lineup = savedLineupByID(id);
+  if (!lineup) return;
+  state.activeSavedLineupID = lineup.id;
+  state.savedLineupGroupCategoryID = "";
+  setCategory(lineup.categoryId, { preserveSavedLineup: true });
+}
+function activeSavedLineup() {
+  const lineup = savedLineupByID(state.activeSavedLineupID);
+  return lineup && lineup.categoryId === state.category ? lineup : null;
 }
 async function hydrateApp(payload, options) {
   options = options || {};
@@ -1393,6 +1434,23 @@ async function loadApp() {
     showAppToast("Showing saved guide. Refresh failed.");
     try { console.warn("Dispatcharr app refresh failed", error); } catch (_) {}
   }
+}
+async function loadAdminApp() {
+  state.app = { preferences: defaultPrefs(), channels: [], programs: [], source: { mode: "direct_login", profiles: [] }, status: {} };
+  const results = await Promise.all([
+    getJSON("/dispatcharr/api/status").catch(function() { return {}; }),
+    getJSON("/dispatcharr/api/admin-settings").catch(function() { return defaultAdminCategorySettings(); }),
+    getJSON("/dispatcharr/api/admin-connection")
+  ]);
+  state.app.status = results[0] || {};
+  state.adminCategorySettings = readAdminSettingsValue(results[1]);
+  normalizeAdminCategorySettings();
+  state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
+  state.adminConnection = normalizeAdminConnection(results[2]);
+  state.savedAdminConnection = cloneAdminConnection(state.adminConnection);
+  state.app.source.mode = state.adminConnection.sourceMode;
+  if (state.app.status && state.app.status.profileAccess) state.app.source.profileAccess = state.app.status.profileAccess;
+  render();
 }
 function guideHasPrograms() {
   return items(state.app && state.app.programs).length > 0;
@@ -1606,7 +1664,8 @@ function renderHome() {
   const recent = recentChannels(5);
   const watched = recent.length ? recent : visibleChannels(false).slice(0, 5);
   const favorites = homeFavoriteChannels();
-  root.innerHTML = sectionHeader("Recently watched")
+  root.innerHTML = renderSavedLineupsHome()
+    + sectionHeader("Recently watched")
     + rowCards(watched)
     + (favorites.length ? sectionHeader("Favorites") + favoriteHomeCards(favorites) : "")
     + sectionHeaderWithActions("TV Guide", "<button type=\"button\" class=\"section-action\" data-view=\"guide\">Open Guide</button>" + guideFreshnessHTML())
@@ -1615,6 +1674,29 @@ function renderHome() {
   const openGuide = root.querySelector("[data-view=\"guide\"]");
   if (openGuide) openGuide.onclick = function() { setView("guide"); };
   attachHomeGuidePageScroll();
+}
+function channelsForSavedLineup(lineup) {
+  if (!lineup || !lineup.categoryId) return [];
+  const hidden = hiddenMap();
+  return effectiveChannels(false).filter(function(channel) {
+    if (channel.categoryId && hidden[channel.categoryId]) return false;
+    return channelInSelectedCategory(channel, lineup.categoryId);
+  });
+}
+function savedLineupCategoryLabel(categoryID) {
+  const id = String(categoryID || "");
+  const path = id.indexOf("virtual:") === 0 ? virtualCategoryPath(id) : (id.indexOf("featured:") === 0 ? featuredCategoryPath(id) : "");
+  if (path) return path.split(" / ").join(" | ");
+  return categoryName(id) || "My Channels";
+}
+function renderSavedLineupsHome() {
+  const lineups = savedLineups();
+  if (!lineups.length) return "";
+  return sectionHeader("My Channels") + "<div class=\"saved-lineup-grid\">" + lineups.map(function(lineup) {
+    const count = channelsForSavedLineup(lineup).length;
+    const meta = count ? count + " channels" : "No matching channels";
+    return "<div class=\"saved-lineup-item\"><button type=\"button\" class=\"saved-lineup-open\" data-saved-lineup-open=\"" + escapeHTML(lineup.id) + "\"><strong>" + escapeHTML(lineup.name) + "</strong><span>" + escapeHTML(meta) + "</span></button><button type=\"button\" class=\"saved-lineup-edit\" data-saved-lineup-edit=\"" + escapeHTML(lineup.id) + "\" aria-label=\"Edit " + escapeHTML(lineup.name) + "\" title=\"Edit channel list\">" + icon("settings") + "</button></div>";
+  }).join("") + "</div>";
 }
 function emptyStateHTML(title, detail) {
   detail = String(detail || "").trim();
@@ -2577,7 +2659,8 @@ function activeVirtualCategoryID(path, featured) {
   return featured ? featuredCategoryID(path) : virtualCategoryID(path);
 }
 function virtualFolderHeader(path, featured) {
-  return "<div class=\"section-title virtual-folder-title\">" + virtualFolderBreadcrumbs(path, featured) + "<div class=\"virtual-folder-actions\">" + guideFreshnessHTML() + renderVirtualCategoryViewToggle() + "</div></div>";
+  const categoryID = activeVirtualCategoryID(path, featured);
+  return "<div class=\"section-title virtual-folder-title\">" + virtualFolderBreadcrumbs(path, featured) + "<div class=\"virtual-folder-actions\">" + guideFreshnessHTML() + renderSaveChannelListButton(categoryID) + "</div></div>";
 }
 function virtualFolderBreadcrumbs(path, featured) {
   const parts = path.split(" / ").filter(Boolean);
@@ -2877,6 +2960,11 @@ function folderFilterHTML(placeholder, actionsHTML) {
   const label = placeholder || "Filter visible channels";
   return "<div class=\"folder-filter\"><input id=\"folder-filter\" class=\"search\" type=\"search\" placeholder=\"" + escapeHTML(label) + "\" value=\"" + escapeHTML(state.folderQuery || "") + "\" autocomplete=\"off\" aria-label=\"" + escapeHTML(label) + "\">" + (actionsHTML ? "<div class=\"folder-filter-actions\">" + actionsHTML + "</div>" : "") + "</div>";
 }
+function renderSavedLineupGroupSelect(children) {
+  return "<label class=\"folder-group-filter\"><span class=\"sr-only\">Channel group</span><select data-saved-lineup-group aria-label=\"Channel group\"><option value=\"\">All groups</option>" + items(children).map(function(category) {
+    return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.savedLineupGroupCategoryID === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>";
+  }).join("") + "</select>" + icon("chevron-down") + "</label>";
+}
 function renderLivePage() {
   const channels = visibleChannels(false);
   if (state.view === "favorites") {
@@ -2891,14 +2979,20 @@ function renderLivePage() {
     const children = (featured ? featuredChildCategories : virtualChildCategories)(path, function(channel) {
       return !(channel.categoryId && hidden[channel.categoryId]);
     });
+    const lineup = activeSavedLineup();
+    const compactGroups = !!(lineup && lineup.hideFinalGroups && children.length);
+    if (state.savedLineupGroupCategoryID && !children.some(function(category) { return category.id === state.savedLineupGroupCategoryID; })) state.savedLineupGroupCategoryID = "";
     const filteredChildren = children.filter(categoryMatchesFolderQuery);
-    const filteredChannels = channels.filter(channelMatchesFolderQuery);
+    const filteredChannels = channels.filter(function(channel) {
+      return (!state.savedLineupGroupCategoryID || channelInSelectedCategory(channel, state.savedLineupGroupCategoryID)) && channelMatchesFolderQuery(channel);
+    });
     const guideWorkspace = virtualCategoryView() === "guide";
-    const childFolders = filteredChildren.length
+    const childFolders = !compactGroups && filteredChildren.length
       ? "<div class=\"category-grid" + (guideWorkspace ? " folder-guide-grid" : "") + "\" aria-label=\"Browse folders\">" + filteredChildren.map(categoryTileHTML).join("") + "</div>"
       : "";
+    const filterActions = (compactGroups ? renderSavedLineupGroupSelect(children) : "") + renderVirtualCategoryViewToggle();
     const folderHeader = virtualFolderHeader(path, featured)
-      + folderFilterHTML(guideWorkspace ? "Filter Guide" : "Filter this folder", "")
+      + folderFilterHTML(guideWorkspace ? "Filter Guide" : "Filter this folder", filterActions)
       + childFolders;
     byId("view").innerHTML = guideWorkspace
       ? "<section class=\"virtual-folder-workspace is-guide\">" + folderHeader + "<div class=\"virtual-folder-guide\">" + renderVirtualCategoryGuide(filteredChannels) + "</div></section>"
@@ -3046,6 +3140,95 @@ function scheduleProgram(channelID, programID, button) {
   }).finally(function() {
     if (button) button.disabled = false;
   });
+}
+function savedLineupID(name) {
+  const baseID = lower(name).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "my-channels";
+  let id = baseID;
+  let index = 2;
+  while (savedLineups().some(function(lineup) { return lineup.id === id; })) id = baseID + "-" + index++;
+  return id;
+}
+function openSavedLineupEditor(categoryID, lineupID) {
+  const existing = savedLineupByID(lineupID) || savedLineupForCategory(categoryID);
+  const targetCategoryID = existing ? existing.categoryId : String(categoryID || state.category || "");
+  if (!targetCategoryID) return;
+  state.savedLineupEditor = existing
+    ? { id: existing.id, categoryId: existing.categoryId, name: existing.name, hideFinalGroups: existing.hideFinalGroups === true, isNew: false }
+    : { id: "", categoryId: targetCategoryID, name: savedLineupCategoryLabel(targetCategoryID), hideFinalGroups: false, isNew: true };
+  renderSavedLineupModal();
+}
+function closeSavedLineupEditor() {
+  state.savedLineupEditor = null;
+  renderSavedLineupModal();
+}
+function saveSavedLineupEditor() {
+  const editor = state.savedLineupEditor;
+  if (!editor) return;
+  const name = String(editor.name || "").trim();
+  if (!name) {
+    showAppToast("Name this channel list before saving.");
+    return;
+  }
+  const lineups = savedLineups();
+  const id = editor.id || savedLineupID(name);
+  const saved = { id: id, name: name, categoryId: editor.categoryId, hideFinalGroups: editor.hideFinalGroups === true };
+  const next = lineups.filter(function(lineup) { return lineup.id !== id && lineup.categoryId !== saved.categoryId; });
+  next.push(saved);
+  state.app.preferences.savedLineups = next;
+  state.activeSavedLineupID = id;
+  state.savedLineupGroupCategoryID = "";
+  savePrefs();
+  closeSavedLineupEditor();
+  render();
+  showAppToast("Saved to My Channels.");
+}
+function deleteSavedLineupEditor() {
+  const editor = state.savedLineupEditor;
+  if (!editor || editor.isNew) return;
+  state.app.preferences.savedLineups = savedLineups().filter(function(lineup) { return lineup.id !== editor.id; });
+  if (state.activeSavedLineupID === editor.id) {
+    state.activeSavedLineupID = "";
+    state.savedLineupGroupCategoryID = "";
+  }
+  savePrefs();
+  closeSavedLineupEditor();
+  render();
+  showAppToast("Removed from My Channels.");
+}
+function savedLineupModalHTML(editor) {
+  const title = editor.isNew ? "Save Channel List" : "Edit Channel List";
+  return "<div class=\"program-modal-backdrop\" data-saved-lineup-close=\"true\"></div><section class=\"lineup-modal\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"lineup-modal-title\">"
+    + "<button class=\"program-modal-close\" type=\"button\" data-saved-lineup-close=\"true\" aria-label=\"Close\">" + icon("x") + "</button>"
+    + "<div class=\"lineup-modal-head\"><h2 id=\"lineup-modal-title\">" + title + "</h2><p>Keep this profile or group available as a personal Live TV lineup.</p></div>"
+    + "<div class=\"lineup-modal-body\"><label><span>Name</span><input type=\"text\" data-saved-lineup-field=\"name\" value=\"" + escapeHTML(editor.name) + "\" maxlength=\"80\" autocomplete=\"off\"></label><div class=\"lineup-modal-source\"><span>Source</span><strong>" + escapeHTML(savedLineupCategoryLabel(editor.categoryId)) + "</strong></div><label class=\"lineup-modal-toggle\"><span><strong>Hide final groups</strong><small>Move the remaining groups into a dropdown above the guide.</small></span><input type=\"checkbox\" data-saved-lineup-field=\"hideFinalGroups\"" + (editor.hideFinalGroups ? " checked" : "") + "></label></div>"
+    + "<div class=\"lineup-modal-actions\">" + (!editor.isNew ? "<button type=\"button\" class=\"danger\" data-saved-lineup-action=\"delete\">Remove</button>" : "") + "<span></span><button type=\"button\" data-saved-lineup-close=\"true\">Cancel</button><button type=\"button\" class=\"primary\" data-saved-lineup-action=\"save\">Save</button></div>"
+    + "</section>";
+}
+function renderSavedLineupModal() {
+  let root = byId("saved-lineup-root");
+  if (!root) {
+    root = document.createElement("div");
+    root.id = "saved-lineup-root";
+    document.body.appendChild(root);
+  }
+  root.innerHTML = state.savedLineupEditor ? savedLineupModalHTML(state.savedLineupEditor) : "";
+  const shell = document.querySelector(".shell");
+  if (shell) {
+    if (state.savedLineupEditor) shell.setAttribute("inert", "");
+    else if (!state.programDetails) shell.removeAttribute("inert");
+  }
+  document.body.classList.toggle("program-modal-open", !!(state.savedLineupEditor || state.programDetails));
+  if (state.savedLineupEditor) {
+    const input = root.querySelector("[data-saved-lineup-field=\"name\"]");
+    if (input) input.focus();
+  }
+}
+function renderSaveChannelListButton(categoryID) {
+  categoryID = String(categoryID || "");
+  if (!categoryID) return "";
+  const existing = savedLineupForCategory(categoryID);
+  const label = existing ? "Edit Channel List" : "Save Channel List";
+  return "<button type=\"button\" class=\"section-action save-channel-list\" data-saved-lineup-edit=\"" + escapeHTML(existing ? existing.id : "") + "\" data-saved-lineup-category=\"" + escapeHTML(categoryID) + "\">" + icon(existing ? "heart-solid" : "heart") + "<span>" + label + "</span></button>";
 }
 function programDetailsState() {
   if (!state.programDetails) return null;
@@ -3662,7 +3845,7 @@ function renderGuidePage() {
   const categories = guideFilterCategories();
   const slots = guideSlots();
   state.guideLastSlotStart = guideSlotStart();
-  byId("view").innerHTML = '<div class="guide-page">' + sectionHeaderWithActions("TV Guide", guideFreshnessHTML()) + "<div class=\"guide-tools\"><label class=\"guide-category-filter\"><span>" + icon("search") + "</span><input id=\"category-select\" list=\"guide-category-options\" placeholder=\"Filter categories\" value=\"" + escapeHTML(guideCategoryInputValue(categories)) + "\" autocomplete=\"off\" aria-label=\"Filter categories\"><datalist id=\"guide-category-options\"><option value=\"" + escapeHTML(allGroupLabel()) + "\"></option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.name || category.id) + "\"></option>"; }).join("") + "</datalist></label><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program or channel\" value=\"" + escapeHTML(state.query) + "\" aria-label=\"Search programs or channels\"></div><div id=\"guide-scroll\" class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + '</div><div id="epg" class="guide-window-spacer" style="height:0px"><div class="guide-window" style="transform:translateY(0px)"></div></div></div></div></div>';
+  byId("view").innerHTML = '<div class="guide-page">' + sectionHeaderWithActions("TV Guide", renderSaveChannelListButton(state.category) + guideFreshnessHTML()) + "<div class=\"guide-tools\"><label class=\"guide-category-filter\"><span>" + icon("search") + "</span><input id=\"category-select\" list=\"guide-category-options\" placeholder=\"Filter categories\" value=\"" + escapeHTML(guideCategoryInputValue(categories)) + "\" autocomplete=\"off\" aria-label=\"Filter categories\"><datalist id=\"guide-category-options\"><option value=\"" + escapeHTML(allGroupLabel()) + "\"></option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.name || category.id) + "\"></option>"; }).join("") + "</datalist></label><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program or channel\" value=\"" + escapeHTML(state.query) + "\" aria-label=\"Search programs or channels\"></div><div id=\"guide-scroll\" class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + '</div><div id="epg" class="guide-window-spacer" style="height:0px"><div class="guide-window" style="transform:translateY(0px)"></div></div></div></div></div>';
   byId("category-select").oninput = function(event) { updateGuideCategoryFilter(event.target.value, categories, false); };
   byId("category-select").onchange = function(event) { updateGuideCategoryFilter(event.target.value, categories, true); };
   byId("category-select").onblur = function(event) { event.target.value = guideCategoryInputValue(categories); };
@@ -3967,6 +4150,143 @@ function updateAdminTimeShiftField(field, target) {
   markAdminSettingsDraft();
   renderAdminPage();
 }
+function defaultAdminConnection() {
+  return { sourceMode: "direct_login", baseUrl: "", username: "", password: "", apiKey: "", channelProfile: "", m3uUrl: "", epgXmlUrl: "", secretConfigured: false, m3uConfigured: false, epgXmlConfigured: false, configured: false, origin: "empty" };
+}
+function normalizeAdminConnection(value) {
+  const connection = Object.assign(defaultAdminConnection(), value || {});
+  if (["direct_login", "api_key", "xtream", "m3u_xmltv"].indexOf(connection.sourceMode) < 0) connection.sourceMode = "direct_login";
+  ["baseUrl", "username", "password", "apiKey", "channelProfile", "m3uUrl", "epgXmlUrl", "origin"].forEach(function(key) { connection[key] = String(connection[key] || ""); });
+  connection.secretConfigured = !!connection.secretConfigured;
+  connection.m3uConfigured = !!connection.m3uConfigured;
+  connection.epgXmlConfigured = !!connection.epgXmlConfigured;
+  connection.configured = !!connection.configured;
+  return connection;
+}
+function cloneAdminConnection(value) {
+  return normalizeAdminConnection(JSON.parse(JSON.stringify(value || defaultAdminConnection())));
+}
+function adminConnectionDirty() {
+  const current = cloneAdminConnection(state.adminConnection);
+  const saved = cloneAdminConnection(state.savedAdminConnection);
+  [current, saved].forEach(function(connection) {
+    delete connection.configured;
+    delete connection.origin;
+  });
+  return JSON.stringify(current) !== JSON.stringify(saved);
+}
+function updateAdminConnectionField(field, target) {
+  const connection = normalizeAdminConnection(state.adminConnection);
+  if (field === "sourceMode" && connection.sourceMode !== target.value) {
+    connection.secretConfigured = false;
+    connection.m3uConfigured = false;
+    connection.epgXmlConfigured = false;
+    connection.password = "";
+    connection.apiKey = "";
+    connection.m3uUrl = "";
+    connection.epgXmlUrl = "";
+  }
+  connection[field] = target.value || "";
+  state.adminConnection = connection;
+  state.adminConnectionStatus = "dirty";
+  state.adminConnectionMessage = "Unsaved source changes.";
+  if (field === "sourceMode") {
+    if (state.app && state.app.source) state.app.source.mode = connection.sourceMode;
+    renderAdminPage();
+    return;
+  }
+  const message = byId("admin-connection-message");
+  if (message) {
+    message.classList.remove("settings-warning", "hide");
+    message.textContent = state.adminConnectionMessage;
+  }
+  renderAdminTopbarActions();
+}
+function adminConnectionPayload(action) {
+  const connection = normalizeAdminConnection(state.adminConnection);
+  return {
+    action: action || "save",
+    sourceMode: connection.sourceMode,
+    baseUrl: connection.baseUrl,
+    username: connection.username,
+    password: connection.password,
+    apiKey: connection.apiKey,
+    channelProfile: connection.channelProfile,
+    m3uUrl: connection.m3uUrl,
+    epgXmlUrl: connection.epgXmlUrl
+  };
+}
+async function submitAdminConnection(action) {
+  if (state.adminConnectionStatus === "saving" || state.adminConnectionStatus === "testing") return;
+  state.adminConnectionStatus = action === "test" ? "testing" : "saving";
+  state.adminConnectionMessage = action === "test" ? "Testing connection..." : "Saving source...";
+  renderAdminPage();
+  try {
+    const result = await postJSON("/dispatcharr/api/admin-connection", adminConnectionPayload(action));
+    const returned = result && result.connection ? normalizeAdminConnection(result.connection) : null;
+    if (action === "test") {
+      if (returned) state.adminConnection.secretConfigured = returned.secretConfigured;
+      state.adminConnectionStatus = "tested";
+      state.adminConnectionMessage = "Connection successful.";
+    } else {
+      state.adminConnection = returned || normalizeAdminConnection(state.adminConnection);
+      state.adminConnection.password = "";
+      state.adminConnection.apiKey = "";
+      state.savedAdminConnection = cloneAdminConnection(state.adminConnection);
+      if (state.app && state.app.source) state.app.source.mode = state.adminConnection.sourceMode;
+      state.adminConnectionStatus = "saved";
+      state.adminConnectionMessage = "Source saved. Catalog refresh queued.";
+      refreshAdminStatus();
+    }
+  } catch (error) {
+    state.adminConnectionStatus = "error";
+    state.adminConnectionMessage = (action === "test" ? "Connection test failed: " : "Could not save source: ") + readableError(error);
+    renderAdminPage();
+  }
+}
+function discardAdminConnection() {
+  state.adminConnection = cloneAdminConnection(state.savedAdminConnection);
+  if (state.app && state.app.source) state.app.source.mode = state.adminConnection.sourceMode;
+  state.adminConnectionStatus = "idle";
+  state.adminConnectionMessage = "";
+  renderAdminPage();
+}
+function adminConnectionModeOptions(connection) {
+  const options = [
+    ["direct_login", "Dispatcharr Direct", "Dashboard username and password"],
+    ["api_key", "Dispatcharr API Key", "Admin API key without a saved password"],
+    ["xtream", "Xtream Codes", "Dispatcharr API & XC credentials"],
+    ["m3u_xmltv", "M3U + XMLTV", "Playlist and guide URLs"]
+  ];
+  return options.map(function(option) {
+    return "<button type=\"button\" data-admin-source-mode=\"" + option[0] + "\" class=\"" + (connection.sourceMode === option[0] ? "active" : "") + "\"><strong>" + option[1] + "</strong><span>" + option[2] + "</span></button>";
+  }).join("");
+}
+function adminConnectionSecretField(connection, key, label) {
+  const configured = connection.secretConfigured && !connection[key];
+  return "<label><span>" + label + (configured ? " <small>· leave blank to keep current</small>" : "") + "</span><input type=\"password\" autocomplete=\"new-password\" data-admin-connection-field=\"" + key + "\" value=\"" + escapeHTML(connection[key] || "") + "\" placeholder=\"" + (configured ? "Saved securely" : "Required") + "\"></label>";
+}
+function renderAdminConnectionTab() {
+  const connection = normalizeAdminConnection(state.adminConnection);
+  let fields = "";
+  if (connection.sourceMode === "m3u_xmltv") {
+    fields = "<label class=\"source-field-wide\"><span>M3U playlist URL" + (connection.m3uConfigured && !connection.m3uUrl ? " <small>· leave blank to keep current</small>" : "") + "</span><input type=\"url\" autocomplete=\"off\" data-admin-connection-field=\"m3uUrl\" value=\"" + escapeHTML(connection.m3uUrl) + "\" placeholder=\"" + (connection.m3uConfigured ? "Saved securely" : "https://provider.example.com/playlist.m3u") + "\"></label>"
+      + "<label class=\"source-field-wide\"><span>XMLTV guide URL" + (connection.epgXmlConfigured && !connection.epgXmlUrl ? " <small>· leave blank to keep current</small>" : "") + "</span><input type=\"url\" autocomplete=\"off\" data-admin-connection-field=\"epgXmlUrl\" value=\"" + escapeHTML(connection.epgXmlUrl) + "\" placeholder=\"" + (connection.epgXmlConfigured ? "Saved securely" : "https://provider.example.com/guide.xml") + "\"></label>";
+  } else {
+    fields = "<label class=\"source-field-wide\"><span>Server URL</span><input type=\"url\" data-admin-connection-field=\"baseUrl\" value=\"" + escapeHTML(connection.baseUrl) + "\" placeholder=\"https://dispatcharr.example.com\"></label>";
+    if (connection.sourceMode !== "api_key") fields += "<label><span>Username</span><input data-admin-connection-field=\"username\" value=\"" + escapeHTML(connection.username) + "\" autocomplete=\"off\"></label>" + adminConnectionSecretField(connection, "password", "Password");
+    if (connection.sourceMode === "api_key") fields += adminConnectionSecretField(connection, "apiKey", "Admin API key");
+    if (connection.sourceMode === "direct_login" || connection.sourceMode === "api_key") fields += "<label class=\"source-field-wide\"><span>Channel profile <small>· optional</small></span><input data-admin-connection-field=\"channelProfile\" value=\"" + escapeHTML(connection.channelProfile) + "\" placeholder=\"Leave blank to parse all profiles\"><small>Use one exact profile name or ID to scope this installation.</small></label>";
+  }
+  const warning = state.adminConnectionStatus === "error";
+  const message = state.adminConnectionMessage ? "<div id=\"admin-connection-message\" class=\"settings-note" + (warning ? " settings-warning" : "") + "\" role=\"status\">" + escapeHTML(state.adminConnectionMessage) + "</div>" : "<div id=\"admin-connection-message\" class=\"settings-note hide\" role=\"status\"></div>";
+  const migration = connection.origin === "silo" ? "<div class=\"settings-note\">This source is currently loaded from legacy Silo plugin settings. Save it here to move connection management into Live TV Admin.</div>" : "";
+  return adminStatusPanel()
+    + "<div class=\"settings-card source-connection-card\"><div class=\"settings-card-head\"><div><h2>Source</h2><p>Choose how this Live TV installation connects to Dispatcharr.</p></div><span class=\"admin-status-pill" + (connection.configured ? "" : " warning") + "\">" + (connection.configured ? "Configured" : "Needs setup") + "</span></div>"
+    + message + migration
+    + "<div class=\"source-mode-options\">" + adminConnectionModeOptions(connection) + "</div>"
+    + "<div class=\"source-form\">" + fields + "</div></div>";
+}
 function renderAdminPage() {
   normalizeAdminCategorySettings();
   if (!adminECMEnabled() && state.adminTab === "manager") state.adminTab = "integrations";
@@ -3978,7 +4298,7 @@ function renderAdminPage() {
   if (content) {
     content.setAttribute("role", "tabpanel");
     content.setAttribute("aria-labelledby", "admin-tab-" + state.adminTab);
-    content.innerHTML = state.adminTab === "manager" ? renderExternalChannelManager() : "<div class=\"settings-stack\">" + (state.adminTab === "integrations" ? renderAdminIntegrationsTab() : renderAdminSettingsTab()) + "</div>";
+    content.innerHTML = state.adminTab === "manager" ? renderExternalChannelManager() : "<div class=\"settings-stack\">" + (state.adminTab === "source" ? renderAdminConnectionTab() : (state.adminTab === "integrations" ? renderAdminIntegrationsTab() : renderAdminSettingsTab())) + "</div>";
   }
   if (state.adminTab === "settings") {
     renderAdminIdentitySettings();
@@ -3998,15 +4318,25 @@ function renderAdminTopbarTabs() {
   if (!root) return;
   root.setAttribute("role", "tablist");
   root.setAttribute("aria-label", "Live TV Admin sections");
-  root.innerHTML = "<button id=\"admin-tab-settings\" role=\"tab\" type=\"button\" data-admin-tab=\"settings\" aria-selected=\"" + (state.adminTab === "settings" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "settings" ? "active" : "") + "\">" + icon("settings") + "<span>Settings</span></button>"
+  root.innerHTML = "<button id=\"admin-tab-source\" role=\"tab\" type=\"button\" data-admin-tab=\"source\" aria-selected=\"" + (state.adminTab === "source" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "source" ? "active" : "") + "\">" + icon("guide") + "<span>Source</span></button>"
+    + "<button id=\"admin-tab-settings\" role=\"tab\" type=\"button\" data-admin-tab=\"settings\" aria-selected=\"" + (state.adminTab === "settings" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "settings" ? "active" : "") + "\">" + icon("settings") + "<span>Settings</span></button>"
     + "<button id=\"admin-tab-integrations\" role=\"tab\" type=\"button\" data-admin-tab=\"integrations\" aria-selected=\"" + (state.adminTab === "integrations" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "integrations" ? "active" : "") + "\">" + icon("integrations") + "<span>Integrations</span></button>"
     + (adminECMEnabled() ? "<button id=\"admin-tab-manager\" role=\"tab\" type=\"button\" data-admin-tab=\"manager\" aria-selected=\"" + (state.adminTab === "manager" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "manager" ? "active" : "") + "\">" + icon("external") + "<span>Channel Manager</span></button>" : "");
 }
 function renderAdminTopbarActions() {
   const root = byId("admin-actions");
   if (!root) return;
-  if (state.adminTab === "manager") {
+  if (state.adminTab === "manager" || state.adminTab === "integrations") {
     root.innerHTML = "";
+    return;
+  }
+  if (state.adminTab === "source") {
+    const busy = state.adminConnectionStatus === "saving" || state.adminConnectionStatus === "testing";
+    const dirty = adminConnectionDirty();
+    root.innerHTML = "<span class=\"admin-save-status\" role=\"status\" aria-live=\"polite\">" + escapeHTML(state.adminConnectionMessage || (dirty ? "Unsaved source changes." : "Source settings saved.")) + "</span>"
+      + "<button class=\"admin-outline-action\" data-admin-connection-action=\"test\"" + (busy ? " disabled" : "") + ">" + icon("loader") + "<span>Test</span></button>"
+      + "<button class=\"admin-primary-action\" data-admin-connection-action=\"save\"" + ((!dirty || busy) ? " disabled" : "") + ">" + (state.adminConnectionStatus === "saving" ? "Saving" : "Save Source") + "</button>"
+      + "<button class=\"admin-discard\" data-admin-connection-action=\"discard\"" + ((!dirty || busy) ? " disabled" : "") + ">Discard</button>";
     return;
   }
   const dirty = adminSettingsDirty();
@@ -4018,6 +4348,7 @@ function renderAdminTopbarActions() {
 function setAdminTab(tab) {
   if (tab === "manager" && adminECMEnabled()) state.adminTab = "manager";
   else if (tab === "integrations") state.adminTab = "integrations";
+  else if (tab === "source") state.adminTab = "source";
   else state.adminTab = "settings";
   renderAdminPage();
   requestAnimationFrame(function() {
@@ -4029,7 +4360,6 @@ function setAdminTab(tab) {
 }
 function renderAdminSettingsTab() {
   return ""
-    + adminStatusPanel()
     + "<div class=\"settings-card settings-card-compact\"><h2>App identity</h2><div id=\"admin-identity-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card settings-card-compact\"><h2>Recordings</h2><div id=\"admin-recording-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card settings-card-compact\"><h2>Player</h2><div id=\"admin-player-settings\" class=\"settings-list\"></div></div>"
@@ -4935,6 +5265,31 @@ function returnFromPlayer() {
   });
 }
 document.addEventListener("click", function(event) {
+  const savedLineupOpen = event.target.closest("[data-saved-lineup-open]");
+  if (savedLineupOpen) {
+    event.preventDefault();
+    openSavedLineup(savedLineupOpen.getAttribute("data-saved-lineup-open"));
+    return;
+  }
+  const savedLineupEdit = event.target.closest("[data-saved-lineup-edit]");
+  if (savedLineupEdit) {
+    event.preventDefault();
+    openSavedLineupEditor(savedLineupEdit.getAttribute("data-saved-lineup-category"), savedLineupEdit.getAttribute("data-saved-lineup-edit"));
+    return;
+  }
+  const savedLineupClose = event.target.closest("[data-saved-lineup-close]");
+  if (savedLineupClose) {
+    event.preventDefault();
+    closeSavedLineupEditor();
+    return;
+  }
+  const savedLineupAction = event.target.closest("[data-saved-lineup-action]");
+  if (savedLineupAction) {
+    event.preventDefault();
+    if (savedLineupAction.getAttribute("data-saved-lineup-action") === "delete") deleteSavedLineupEditor();
+    else saveSavedLineupEditor();
+    return;
+  }
   const timeShiftAdminAction = event.target.closest("[data-timeshift-admin-action]");
   if (timeShiftAdminAction) {
     const action = timeShiftAdminAction.getAttribute("data-timeshift-admin-action");
@@ -5258,6 +5613,20 @@ document.addEventListener("click", function(event) {
     if (action === "discard") discardAdminCategorySettings();
     return;
   }
+  const adminSourceMode = event.target.closest("[data-admin-source-mode]");
+  if (adminSourceMode) {
+    event.preventDefault();
+    updateAdminConnectionField("sourceMode", { value: adminSourceMode.getAttribute("data-admin-source-mode") });
+    return;
+  }
+  const adminConnectionAction = event.target.closest("[data-admin-connection-action]");
+  if (adminConnectionAction) {
+    event.preventDefault();
+    const action = adminConnectionAction.getAttribute("data-admin-connection-action");
+    if (action === "discard") discardAdminConnection();
+    else submitAdminConnection(action);
+    return;
+  }
   const adminTab = event.target.closest("[data-admin-tab]");
   if (adminTab) {
     event.preventDefault();
@@ -5387,6 +5756,16 @@ document.addEventListener("keydown", function(event) {
   }, { passive: true });
 });
 document.addEventListener("change", function(event) {
+  if (event.target && event.target.hasAttribute("data-saved-lineup-group")) {
+    state.savedLineupGroupCategoryID = event.target.value || "";
+    renderLivePage();
+    return;
+  }
+  const savedLineupField = event.target.getAttribute("data-saved-lineup-field");
+  if (savedLineupField && state.savedLineupEditor) {
+    state.savedLineupEditor[savedLineupField] = event.target.type === "checkbox" ? !!event.target.checked : event.target.value;
+    return;
+  }
   const profileID = event.target.getAttribute("data-profile-selection-id");
   if (profileID) {
     updateSelectedProfile(profileID, !!event.target.checked);
@@ -5442,6 +5821,16 @@ document.addEventListener("change", function(event) {
   render();
 });
 document.addEventListener("input", function(event) {
+  const savedLineupField = event.target.getAttribute("data-saved-lineup-field");
+  if (savedLineupField && state.savedLineupEditor) {
+    state.savedLineupEditor[savedLineupField] = event.target.type === "checkbox" ? !!event.target.checked : event.target.value;
+    return;
+  }
+  const adminConnectionField = event.target.getAttribute("data-admin-connection-field");
+  if (adminConnectionField) {
+    updateAdminConnectionField(adminConnectionField, event.target);
+    return;
+  }
   if (event.target && event.target.id === "profile-settings-filter") {
     state.profileSettingsQuery = event.target.value || "";
     renderProfileSettings();
@@ -5528,6 +5917,11 @@ document.addEventListener("input", function(event) {
   }
 });
 document.addEventListener("keydown", function(event) {
+  if (event.key === "Escape" && state.savedLineupEditor) {
+    event.preventDefault();
+    closeSavedLineupEditor();
+    return;
+  }
   if (event.key === "Escape") setSettingsMenuOpen(false);
 });
 document.querySelectorAll("[data-view]").forEach(function(button) {
@@ -5558,6 +5952,6 @@ window.addEventListener("beforeunload", function() {
   });
 });
 startGuideAutoRefresh();
-loadApp().catch(function() {
-  byId("view").innerHTML = emptyStateHTML("Unable to load Live TV.", "Check your Dispatcharr connection in Live TV Admin, then refresh this page.");
+(isAdminRoute ? loadAdminApp() : loadApp()).catch(function() {
+  byId("view").innerHTML = emptyStateHTML(isAdminRoute ? "Unable to load Live TV Admin." : "Unable to load Live TV.", isAdminRoute ? "Refresh this page or return to Silo Admin." : "Check your Dispatcharr connection in Live TV Admin, then refresh this page.");
 });

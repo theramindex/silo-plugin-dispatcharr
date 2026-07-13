@@ -183,14 +183,22 @@ func main() {
 		store.Replace(snapshot)
 	}
 	settings := &settingsState{settings: config.Settings{SourceMode: config.SourceModeDirectLogin, LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
+	connectionStore := config.NewConnectionStore("")
+	settingsProvider := func() config.Settings {
+		current := settings.Get()
+		if connection, ok, loadErr := connectionStore.Load(); loadErr == nil && ok {
+			connection.Apply(&current)
+		}
+		return current
+	}
 	service := app.NewService(app.Dependencies{Store: store, SnapshotStorage: snapshotStorage})
 	coordinator := pluginimpl.NewRefreshCoordinator(service)
 
 	sdkruntime.Serve(sdkruntime.ServeConfig{
 		Servers: sdkruntime.CapabilityServers{
 			Runtime:       &runtimeServer{manifest: manifest, settings: settings},
-			ScheduledTask: pluginimpl.NewScheduledTaskServerWithCoordinator(coordinator, settings.Get),
-			HttpRoutes:    pluginimpl.NewHTTPRoutesServerWithCoordinatorAndAdminSettingsFile(store, settings.Get, coordinator, ""),
+			ScheduledTask: pluginimpl.NewScheduledTaskServerWithCoordinator(coordinator, settingsProvider),
+			HttpRoutes:    pluginimpl.NewHTTPRoutesServerWithCoordinatorAndSettingsFiles(store, settingsProvider, coordinator, "", connectionStore),
 		},
 	})
 }
