@@ -897,14 +897,17 @@ function configuredCategoryPath(value) {
   const slashParts = String(display || "").split(/\s*\/\s*/).map(function(part) { return String(part || "").trim(); }).filter(Boolean);
   return slashParts.length > 1 ? slashParts.join(" / ") : "";
 }
+function configuredCategoryPathOrLabel(value) {
+  return configuredCategoryPath(value) || categoryDisplayName(value).trim();
+}
 function aliasVirtualPathsForSourcePath(sourcePath) {
-  const normalizedSourcePath = configuredCategoryPath(sourcePath) || String(sourcePath || "").trim();
+  const normalizedSourcePath = configuredCategoryPathOrLabel(sourcePath);
   if (!normalizedSourcePath) return [];
   const paths = [];
   const seen = {};
   categoryAliases().forEach(function(alias) {
-    const fromPath = configuredCategoryPath(alias.sourcePath);
-    const toPath = configuredCategoryPath(alias.aliasPath);
+    const fromPath = configuredCategoryPathOrLabel(alias.sourcePath);
+    const toPath = configuredCategoryPathOrLabel(alias.aliasPath);
     if (!fromPath || !toPath) return;
     if (normalizedSourcePath !== fromPath && normalizedSourcePath.indexOf(fromPath + " / ") !== 0) return;
     const suffix = normalizedSourcePath === fromPath ? "" : normalizedSourcePath.slice(fromPath.length + 3);
