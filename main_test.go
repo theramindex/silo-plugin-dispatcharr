@@ -212,6 +212,12 @@ func TestManifestUserPreferenceSchemaAcceptsBrowserPayload(t *testing.T) {
 		"customGroupMemberships": map[string]any{
 			"group:news": []any{"channel:1"},
 		},
+		"savedLineups": []any{map[string]any{
+			"id":              "new-york-tv",
+			"name":            "New York TV",
+			"categoryId":      "virtual:US TV / NY",
+			"hideFinalGroups": true,
+		}},
 	}
 	if err := configsdk.ValidateManifestUserValue(manifest, "preferences", preferences); err != nil {
 		t.Fatalf("validate browser preference payload: %v", err)

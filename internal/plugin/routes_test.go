@@ -436,17 +436,18 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		t.Fatalf("expected home guide preview to be capped at 5 channels")
 	}
 	if !strings.Contains(body, `const watched = recent.length ? recent : visibleChannels(false).slice(0, 5);`) ||
+		!strings.Contains(body, `root.innerHTML = renderSavedLineupsHome()`) ||
 		!strings.Contains(body, `+ (favorites.length ? sectionHeader("Favorites") + favoriteHomeCards(favorites) : "")`) ||
 		!strings.Contains(body, `+ sectionHeaderWithActions("TV Guide", "<button type=\"button\" class=\"section-action\" data-view=\"guide\">Open Guide</button>" + guideFreshnessHTML())`) ||
 		!strings.Contains(body, `+ renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true })`) ||
 		!strings.Contains(body, `+ categoryGrid();`) {
-		t.Fatalf("expected home page order to be continue watching, favorites, guide grid, then group sections")
+		t.Fatalf("expected home page order to be My Channels, continue watching, favorites, guide grid, then group sections")
 	}
 	virtualWorkspaceIndex := strings.Index(body, `const guideWorkspace = virtualCategoryView() === "guide";`)
 	virtualFolderGridIndex := strings.Index(body, `" folder-guide-grid"`)
 	virtualHeaderIndex := strings.Index(body, `const folderHeader = virtualFolderHeader(path, featured)`)
-	virtualFilterIndex := strings.Index(body, `+ folderFilterHTML(guideWorkspace ? "Filter Guide" : "Filter this folder", "")`)
-	virtualChildrenIndex := strings.Index(body, `const childFolders = filteredChildren.length`)
+	virtualFilterIndex := strings.Index(body, `+ folderFilterHTML(guideWorkspace ? "Filter Guide" : "Filter this folder", filterActions)`)
+	virtualChildrenIndex := strings.Index(body, `const childFolders = !compactGroups && filteredChildren.length`)
 	virtualContentIndex := strings.Index(body, `renderVirtualCategoryGuide(filteredChannels)`)
 	if virtualWorkspaceIndex < 0 || virtualFolderGridIndex < 0 || virtualHeaderIndex < 0 || virtualFilterIndex < 0 || virtualChildrenIndex < 0 || virtualContentIndex < 0 {
 		t.Fatalf("expected virtual category drilldown to render breadcrumbs, filter, subfolders, and switchable channel content")
@@ -454,8 +455,13 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if !(virtualWorkspaceIndex < virtualChildrenIndex && virtualChildrenIndex < virtualHeaderIndex && virtualHeaderIndex < virtualFilterIndex && virtualFilterIndex < virtualContentIndex) {
 		t.Fatalf("expected virtual category drilldown order to be breadcrumbs, filter, subfolders, then channel content")
 	}
-	if !strings.Contains(body, `virtual-folder-actions`) || !strings.Contains(body, `guideFreshnessHTML() + renderVirtualCategoryViewToggle()`) {
-		t.Fatalf("expected virtual folder freshness and view toggle to align with breadcrumbs")
+	if !strings.Contains(body, `virtual-folder-actions`) || !strings.Contains(body, `guideFreshnessHTML() + renderSaveChannelListButton(categoryID)`) || !strings.Contains(body, `renderSavedLineupGroupSelect(children) : "") + renderVirtualCategoryViewToggle()`) {
+		t.Fatalf("expected saved-lineup action beside breadcrumbs and compact group/view controls beside the guide filter")
+	}
+	for _, want := range []string{`savedLineups: []`, `function renderSavedLineupsHome()`, `Hide final groups`, `data-saved-lineup-group`, `Saved to My Channels.`} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected saved lineup UI contract %q", want)
+		}
 	}
 	if strings.Contains(body, `+ (children.length ? sectionHeader("Virtual Groups")`) || strings.Contains(body, `+ (children.length ? sectionHeader("Virtual Categories")`) {
 		t.Fatalf("expected virtual child groups to render without a duplicate section heading")
@@ -499,6 +505,8 @@ func TestManifestDeclaresPublicApplicationRoutesOnly(t *testing.T) {
 		"GET /dispatcharr/api/sports",
 		"GET /dispatcharr/api/events",
 		"POST /dispatcharr/api/guide/ping",
+		"GET /dispatcharr/api/admin-connection",
+		"POST /dispatcharr/api/admin-connection",
 		"GET /dispatcharr/api/recordings/capability",
 		"GET /dispatcharr/assets/app.js",
 		"GET /dispatcharr/assets/lineup.js",
@@ -523,6 +531,159 @@ func TestManifestDeclaresPublicApplicationRoutesOnly(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerAdminConnectionFallsBackToSiloSettingsWithoutExposingSecret(t *testing.T) {
+	t.Parallel()
+
+	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), func() config.Settings {
+		return config.Settings{SourceMode: config.SourceModeDirectLogin, DispatcharrURL: "https://dispatcharr.example.com", DispatcharrUser: "admin", DispatcharrPass: "secret"}
+	})
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/dispatcharr/api/admin-connection", Headers: map[string]string{"x-silo-user-role": "admin"}})
+	if err != nil {
+		t.Fatalf("admin connection route: %v", err)
+	}
+	if response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", response.GetStatusCode(), response.GetBody())
+	}
+	var payload adminConnectionPayload
+	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+		t.Fatalf("decode admin connection: %v", err)
+	}
+	if payload.Origin != "silo" || payload.BaseURL != "https://dispatcharr.example.com" || payload.Username != "admin" || !payload.SecretConfigured || !payload.Configured {
+		t.Fatalf("unexpected admin connection payload: %+v", payload)
+	}
+	if strings.Contains(string(response.GetBody()), `"password"`) || strings.Contains(string(response.GetBody()), `"apiKey"`) {
+		t.Fatalf("connection response exposed password: %s", response.GetBody())
+	}
+}
+
+func TestHTTPRoutesServerAdminConnectionSavePreservesExistingSecret(t *testing.T) {
+	t.Parallel()
+
+	store := config.NewConnectionStore(filepath.Join(t.TempDir(), "connection.json"))
+	if err := store.Save(config.ConnectionSettings{SourceMode: config.SourceModeAPIKey, DispatcharrURL: "https://old.example.com", DispatcharrAPIKey: "kept-secret"}); err != nil {
+		t.Fatalf("seed connection: %v", err)
+	}
+	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), nil)
+	server.connectionStorage = store
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method:  http.MethodPost,
+		Path:    "/dispatcharr/api/admin-connection",
+		Headers: map[string]string{"x-silo-user-role": "admin"},
+		Body:    []byte(`{"sourceMode":"api_key","baseUrl":"https://old.example.com","apiKey":"","channelProfile":"All Profiles"}`),
+	})
+	if err != nil {
+		t.Fatalf("save admin connection: %v", err)
+	}
+	if response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", response.GetStatusCode(), response.GetBody())
+	}
+	saved, ok, err := store.Load()
+	if err != nil || !ok {
+		t.Fatalf("load saved connection: ok=%v err=%v", ok, err)
+	}
+	if saved.DispatcharrURL != "https://old.example.com" || saved.DispatcharrAPIKey != "kept-secret" || saved.ChannelProfile != "All Profiles" {
+		t.Fatalf("unexpected saved connection: %+v", saved)
+	}
+	if strings.Contains(string(response.GetBody()), `"password"`) || strings.Contains(string(response.GetBody()), `"apiKey"`) {
+		t.Fatalf("save response exposed API key: %s", response.GetBody())
+	}
+}
+
+func TestConnectionFromAdminPayloadDoesNotReuseSecretAcrossSourceModes(t *testing.T) {
+	t.Parallel()
+
+	current := config.ConnectionSettings{
+		SourceMode:      config.SourceModeDirectLogin,
+		DispatcharrURL:  "https://dispatcharr.example.com",
+		DispatcharrUser: "admin",
+		DispatcharrPass: "old-password",
+	}
+	candidate := connectionFromAdminPayload(adminConnectionPayload{
+		SourceMode: config.SourceModeAPIKey,
+		BaseURL:    "https://dispatcharr.example.com",
+	}, current)
+	if candidate.DispatcharrPass != "" || candidate.DispatcharrAPIKey != "" {
+		t.Fatalf("source mode transition reused a hidden credential: %+v", candidate)
+	}
+}
+
+func TestConnectionFromAdminPayloadRequiresSecretForChangedEndpoint(t *testing.T) {
+	t.Parallel()
+
+	current := config.ConnectionSettings{SourceMode: config.SourceModeAPIKey, DispatcharrURL: "https://old.example.com", DispatcharrAPIKey: "old-key"}
+	candidate := connectionFromAdminPayload(adminConnectionPayload{SourceMode: config.SourceModeAPIKey, BaseURL: "https://new.example.com"}, current)
+	if candidate.DispatcharrAPIKey != "" {
+		t.Fatalf("changed endpoint reused an old API key: %+v", candidate)
+	}
+}
+
+func TestHTTPRoutesServerAdminConnectionRedactsPlaylistURLs(t *testing.T) {
+	t.Parallel()
+
+	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), func() config.Settings {
+		return config.Settings{
+			SourceMode: config.SourceModeM3UXMLTV,
+			M3UURL:     "https://viewer:secret@provider.example.com/playlist.m3u?token=private",
+			EPGXMLURL:  "https://provider.example.com/guide.xml?api_key=private",
+		}
+	})
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/dispatcharr/api/admin-connection", Headers: map[string]string{"x-silo-user-role": "admin"}})
+	if err != nil {
+		t.Fatalf("admin connection route: %v", err)
+	}
+	var payload adminConnectionPayload
+	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+		t.Fatalf("decode admin connection: %v", err)
+	}
+	if !payload.M3UConfigured || !payload.EPGXMLConfigured || payload.M3UURL != "" || payload.EPGXMLURL != "" {
+		t.Fatalf("expected configured playlist URLs to be redacted: %+v", payload)
+	}
+	if strings.Contains(string(response.GetBody()), "viewer:secret") || strings.Contains(string(response.GetBody()), "token=private") || strings.Contains(string(response.GetBody()), "api_key=private") {
+		t.Fatalf("connection response exposed playlist credentials: %s", response.GetBody())
+	}
+}
+
+func TestHTTPRoutesServerAdminConnectionTestDoesNotPersistDraft(t *testing.T) {
+	t.Parallel()
+
+	store := config.NewConnectionStore(filepath.Join(t.TempDir(), "connection.json"))
+	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), nil)
+	server.connectionStorage = store
+	tested := config.ConnectionSettings{}
+	server.connectionTester = func(_ context.Context, connection config.ConnectionSettings) error {
+		tested = connection
+		return nil
+	}
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method:  http.MethodPost,
+		Path:    "/dispatcharr/api/admin-connection",
+		Headers: map[string]string{"x-silo-user-role": "admin"},
+		Body:    []byte(`{"action":"test","sourceMode":"xtream","baseUrl":"https://provider.example.com","username":"viewer","password":"secret"}`),
+	})
+	if err != nil {
+		t.Fatalf("test admin connection: %v", err)
+	}
+	if response.GetStatusCode() != http.StatusOK || tested.XtreamBaseURL != "https://provider.example.com" || tested.XtreamUsername != "viewer" || tested.XtreamPassword != "secret" {
+		t.Fatalf("unexpected connection test response=%d tested=%+v body=%s", response.GetStatusCode(), tested, response.GetBody())
+	}
+	if _, ok, err := store.Load(); err != nil || ok {
+		t.Fatalf("connection test should not persist draft: ok=%v err=%v", ok, err)
+	}
+}
+
+func TestHTTPRoutesServerAdminConnectionRequiresSiloAdmin(t *testing.T) {
+	t.Parallel()
+
+	server := NewHTTPRoutesServer(cache.NewStore())
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/dispatcharr/api/admin-connection"})
+	if err != nil {
+		t.Fatalf("admin connection route: %v", err)
+	}
+	if response.GetStatusCode() != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", response.GetStatusCode())
+	}
+}
+
 func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	t.Parallel()
 
@@ -536,18 +697,25 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	body := string(response.GetBody()) + "\n" + playerAppJavaScript() + "\n" + playerStylesCSS()
 	for _, want := range []string{
 		`<title>Live TV Admin</title>`,
-		`<h1>Live TV Admin</h1>`,
-		`href="/admin/plugins" aria-label="Back to Silo plugin administration"`,
+		`<h1>Dispatcharr</h1>`,
+		`<span>Back to Admin</span>`,
 		`<div class="shell is-admin">`,
 		`.shell.is-admin .rail { display: none; }`,
-		`.shell.is-admin .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; padding: 0; }`,
+		`grid-template-areas: "sidebar header" "sidebar content"`,
 		`.admin-topbar`,
-		`justify-content: flex-start`,
-		`<div class="admin-topbar">`,
-		`<nav id="admin-tabs" class="admin-tabs" aria-label="Live TV admin sections"></nav>`,
+		`<header class="admin-topbar">`,
+		`<aside class="admin-sidebar">`,
+		`<nav id="admin-tabs" class="admin-sidebar-nav" aria-label="Live TV Admin sections"></nav>`,
 		`<div id="admin-actions" class="admin-actions"></div>`,
 		`const adminSettingsKey = "adminCategorySettings"`,
-		`adminTab: "settings"`,
+		`adminTab: isAdminRoute ? "source" : "settings"`,
+		`function loadAdminApp()`,
+		`/dispatcharr/api/admin-connection`,
+		`function renderAdminConnectionTab()`,
+		`data-admin-tab=\"source\"`,
+		`data-admin-connection-field=\"baseUrl\"`,
+		`data-admin-connection-action=\"save\"`,
+		`Save Source`,
 		`function defaultAdminCategorySettings()`,
 		`function renderAdminPage()`,
 		`function renderAdminTopbarTabs()`,
@@ -637,11 +805,23 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	if strings.Contains(body, `row.keywords.join("\\n")`) {
 		t.Fatal("expected event keyword textareas to render real line breaks, not escaped newline text")
 	}
+	connectionInputStart := strings.Index(body, `function updateAdminConnectionField(field, target) {`)
+	if connectionInputStart < 0 {
+		t.Fatal("expected admin connection input handler")
+	}
+	connectionInputEnd := strings.Index(body[connectionInputStart:], `function adminConnectionPayload(action) {`)
+	if connectionInputEnd < 0 {
+		t.Fatal("expected admin connection payload after input handler")
+	}
+	connectionInputBody := body[connectionInputStart : connectionInputStart+connectionInputEnd]
+	if strings.Count(connectionInputBody, `renderAdminPage();`) != 1 || !strings.Contains(connectionInputBody, `if (field === "sourceMode")`) || !strings.Contains(connectionInputBody, `renderAdminTopbarActions();`) {
+		t.Fatal("connection text input must preserve focus while source mode changes may rebuild the form")
+	}
 	if strings.Contains(body, "dispatcharr-admin-token") {
 		t.Fatal("expected admin page to rely on Silo route authorization, not a custom browser token")
 	}
-	if strings.Contains(body, `class="nav admin-nav"`) || strings.Contains(body, `function renderAdminSidebarTabs()`) {
-		t.Fatal("expected admin tabs to render in the topbar, not the sidebar")
+	if strings.Contains(body, `class="admin-tabs"`) || strings.Contains(body, `function renderAdminSidebarTabs()`) {
+		t.Fatal("expected admin navigation to use the Silo-style sidebar")
 	}
 	if strings.Contains(body, `<div class=\"settings-card\"><div class=\"external-manager-head\"`) {
 		t.Fatal("expected ECM iframe to render as a full action-area surface, not inside a settings card")
