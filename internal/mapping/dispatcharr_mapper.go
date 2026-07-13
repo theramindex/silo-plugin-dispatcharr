@@ -49,7 +49,7 @@ func MapDispatcharrProgram(channelID string, program dispatcharr.Program) model.
 	title := firstNonEmpty(program.Title.String(), program.SubTitle.String(), "Data not available")
 	return model.Program{
 		ID: model.StableProgramID(model.ProgramIdentity{
-			UpstreamID: program.ID.String(),
+			UpstreamID: program.ID.String() + "|" + channelID,
 			ChannelID:  channelID,
 			Title:      title,
 			StartUnix:  startUnix,

@@ -210,24 +210,7 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 	if !options.channelsOnly && !tightDeadline {
 		start, end := dispatcharrGuideSearchWindow(nowUnix)
 		if upstreamPrograms, err := client.SearchPrograms(ctx, start, end); err == nil {
-			for _, upstream := range upstreamPrograms {
-				channelID := ""
-				for _, channel := range upstream.Channels {
-					if mapped := channelByUpstreamID[channel.ID.String()]; mapped != "" {
-						channelID = mapped
-						break
-					}
-				}
-				if channelID == "" {
-					continue
-				}
-				program := mapping.MapDispatcharrProgram(channelID, upstream.Program)
-				if _, ok := programIDs[program.ID]; ok {
-					continue
-				}
-				programs = append(programs, program)
-				programIDs[program.ID] = struct{}{}
-			}
+			programs = appendDispatcharrSearchPrograms(programs, programIDs, upstreamPrograms, channelByUpstreamID)
 		}
 	}
 
@@ -789,24 +772,7 @@ func (s *Service) dispatcharrGuidePrograms(ctx context.Context, settings config.
 	if !hasTightDeadline(ctx) {
 		start, end := dispatcharrGuideSearchWindow(nowUnix)
 		if upstreamPrograms, err := client.SearchPrograms(ctx, start, end); err == nil {
-			for _, upstream := range upstreamPrograms {
-				channelID := ""
-				for _, channel := range upstream.Channels {
-					if mapped := channelByUpstreamID[channel.ID.String()]; mapped != "" {
-						channelID = mapped
-						break
-					}
-				}
-				if channelID == "" {
-					continue
-				}
-				program := mapping.MapDispatcharrProgram(channelID, upstream.Program)
-				if _, ok := programIDs[program.ID]; ok {
-					continue
-				}
-				programs = append(programs, program)
-				programIDs[program.ID] = struct{}{}
-			}
+			programs = appendDispatcharrSearchPrograms(programs, programIDs, upstreamPrograms, channelByUpstreamID)
 		} else if guideErr == nil {
 			guideErr = err
 		}
@@ -815,6 +781,29 @@ func (s *Service) dispatcharrGuidePrograms(ctx context.Context, settings config.
 		return nil, guideErr
 	}
 	return programs, nil
+}
+
+func appendDispatcharrSearchPrograms(programs []model.Program, programIDs map[string]struct{}, upstreamPrograms []dispatcharr.ProgramSearchResult, channelByUpstreamID map[string]string) []model.Program {
+	for _, upstream := range upstreamPrograms {
+		seenChannels := map[string]struct{}{}
+		for _, channel := range upstream.Channels {
+			channelID := channelByUpstreamID[channel.ID.String()]
+			if channelID == "" {
+				continue
+			}
+			if _, seen := seenChannels[channelID]; seen {
+				continue
+			}
+			seenChannels[channelID] = struct{}{}
+			program := mapping.MapDispatcharrProgram(channelID, upstream.Program)
+			if _, exists := programIDs[program.ID]; exists {
+				continue
+			}
+			programs = append(programs, program)
+			programIDs[program.ID] = struct{}{}
+		}
+	}
+	return programs
 }
 
 func usesDispatcharrAPI(settings config.Settings) bool {
