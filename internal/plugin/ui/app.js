@@ -8,7 +8,7 @@ const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuff
 const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionStatus: "idle", adminConnectionMessage: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "type", adminConnectionStatus: "idle", adminConnectionMessage: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 
 function applySiloTheme() {
   const params = new URLSearchParams(window.location.search);
@@ -4169,15 +4169,6 @@ function normalizeAdminConnection(value) {
 function cloneAdminConnection(value) {
   return normalizeAdminConnection(JSON.parse(JSON.stringify(value || defaultAdminConnection())));
 }
-function adminConnectionDirty() {
-  const current = cloneAdminConnection(state.adminConnection);
-  const saved = cloneAdminConnection(state.savedAdminConnection);
-  [current, saved].forEach(function(connection) {
-    delete connection.configured;
-    delete connection.origin;
-  });
-  return JSON.stringify(current) !== JSON.stringify(saved);
-}
 function updateAdminConnectionField(field, target) {
   const connection = normalizeAdminConnection(state.adminConnection);
   if (field === "sourceMode" && connection.sourceMode !== target.value) {
@@ -4194,7 +4185,6 @@ function updateAdminConnectionField(field, target) {
   state.adminConnectionStatus = "dirty";
   state.adminConnectionMessage = "Unsaved source changes.";
   if (field === "sourceMode") {
-    if (state.app && state.app.source) state.app.source.mode = connection.sourceMode;
     renderAdminPage();
     return;
   }
@@ -4228,7 +4218,11 @@ async function submitAdminConnection(action) {
     const result = await postJSON("/dispatcharr/api/admin-connection", adminConnectionPayload(action));
     const returned = result && result.connection ? normalizeAdminConnection(result.connection) : null;
     if (action === "test") {
-      if (returned) state.adminConnection.secretConfigured = returned.secretConfigured;
+      if (returned) {
+        state.adminConnection.secretConfigured = returned.secretConfigured;
+        state.adminConnection.m3uConfigured = returned.m3uConfigured;
+        state.adminConnection.epgXmlConfigured = returned.epgXmlConfigured;
+      }
       state.adminConnectionStatus = "tested";
       state.adminConnectionMessage = "Connection successful.";
     } else {
@@ -4239,29 +4233,47 @@ async function submitAdminConnection(action) {
       if (state.app && state.app.source) state.app.source.mode = state.adminConnection.sourceMode;
       state.adminConnectionStatus = "saved";
       state.adminConnectionMessage = "Source saved. Catalog refresh queued.";
+      state.adminConnectionEditorOpen = false;
+      showAppToast("Dispatcharr connection saved.");
       refreshAdminStatus();
     }
   } catch (error) {
     state.adminConnectionStatus = "error";
     state.adminConnectionMessage = (action === "test" ? "Connection test failed: " : "Could not save source: ") + readableError(error);
-    renderAdminPage();
   }
+  renderAdminPage();
 }
 function discardAdminConnection() {
   state.adminConnection = cloneAdminConnection(state.savedAdminConnection);
   if (state.app && state.app.source) state.app.source.mode = state.adminConnection.sourceMode;
+  state.adminConnectionEditorOpen = false;
+  state.adminConnectionEditorStep = "type";
   state.adminConnectionStatus = "idle";
   state.adminConnectionMessage = "";
   renderAdminPage();
 }
-function adminConnectionModeOptions(connection) {
-  const options = [
+function openAdminConnectionEditor(create) {
+  state.adminConnection = cloneAdminConnection(create ? defaultAdminConnection() : state.savedAdminConnection);
+  state.adminConnectionEditorOpen = true;
+  state.adminConnectionEditorStep = "type";
+  state.adminConnectionStatus = "idle";
+  state.adminConnectionMessage = "";
+  renderAdminPage();
+  requestAnimationFrame(function() {
+    const close = document.querySelector(".source-dialog .source-close");
+    if (close) close.focus({ preventScroll: true });
+  });
+}
+function adminConnectionModeDefinitions() {
+  return [
     ["direct_login", "Dispatcharr Direct", "Dashboard username and password"],
     ["api_key", "Dispatcharr API Key", "Admin API key without a saved password"],
-    ["xtream", "Xtream Codes", "Dispatcharr API & XC credentials"],
+    ["xtream", "Xtream Codes", "Dispatcharr API and Xtream credentials"],
     ["m3u_xmltv", "M3U + XMLTV", "Playlist and guide URLs"]
   ];
-  return options.map(function(option) {
+}
+function adminConnectionModeOptions(connection) {
+  return adminConnectionModeDefinitions().map(function(option) {
     return "<button type=\"button\" data-admin-source-mode=\"" + option[0] + "\" class=\"" + (connection.sourceMode === option[0] ? "active" : "") + "\"><strong>" + option[1] + "</strong><span>" + option[2] + "</span></button>";
   }).join("");
 }
@@ -4269,26 +4281,69 @@ function adminConnectionSecretField(connection, key, label) {
   const configured = connection.secretConfigured && !connection[key];
   return "<label><span>" + label + (configured ? " <small>· leave blank to keep current</small>" : "") + "</span><input type=\"password\" autocomplete=\"new-password\" data-admin-connection-field=\"" + key + "\" value=\"" + escapeHTML(connection[key] || "") + "\" placeholder=\"" + (configured ? "Saved securely" : "Required") + "\"></label>";
 }
-function renderAdminConnectionTab() {
-  const connection = normalizeAdminConnection(state.adminConnection);
-  let fields = "";
+function renderAdminConnectionFields(connection) {
   if (connection.sourceMode === "m3u_xmltv") {
-    fields = "<label class=\"source-field-wide\"><span>M3U playlist URL" + (connection.m3uConfigured && !connection.m3uUrl ? " <small>· leave blank to keep current</small>" : "") + "</span><input type=\"url\" autocomplete=\"off\" data-admin-connection-field=\"m3uUrl\" value=\"" + escapeHTML(connection.m3uUrl) + "\" placeholder=\"" + (connection.m3uConfigured ? "Saved securely" : "https://provider.example.com/playlist.m3u") + "\"></label>"
+    return "<label class=\"source-field-wide\"><span>M3U playlist URL" + (connection.m3uConfigured && !connection.m3uUrl ? " <small>· leave blank to keep current</small>" : "") + "</span><input type=\"url\" autocomplete=\"off\" data-admin-connection-field=\"m3uUrl\" value=\"" + escapeHTML(connection.m3uUrl) + "\" placeholder=\"" + (connection.m3uConfigured ? "Saved securely" : "https://provider.example.com/playlist.m3u") + "\"></label>"
       + "<label class=\"source-field-wide\"><span>XMLTV guide URL" + (connection.epgXmlConfigured && !connection.epgXmlUrl ? " <small>· leave blank to keep current</small>" : "") + "</span><input type=\"url\" autocomplete=\"off\" data-admin-connection-field=\"epgXmlUrl\" value=\"" + escapeHTML(connection.epgXmlUrl) + "\" placeholder=\"" + (connection.epgXmlConfigured ? "Saved securely" : "https://provider.example.com/guide.xml") + "\"></label>";
-  } else {
-    fields = "<label class=\"source-field-wide\"><span>Server URL</span><input type=\"url\" data-admin-connection-field=\"baseUrl\" value=\"" + escapeHTML(connection.baseUrl) + "\" placeholder=\"https://dispatcharr.example.com\"></label>";
-    if (connection.sourceMode !== "api_key") fields += "<label><span>Username</span><input data-admin-connection-field=\"username\" value=\"" + escapeHTML(connection.username) + "\" autocomplete=\"off\"></label>" + adminConnectionSecretField(connection, "password", "Password");
-    if (connection.sourceMode === "api_key") fields += adminConnectionSecretField(connection, "apiKey", "Admin API key");
-    if (connection.sourceMode === "direct_login" || connection.sourceMode === "api_key") fields += "<label class=\"source-field-wide\"><span>Channel profile <small>· optional</small></span><input data-admin-connection-field=\"channelProfile\" value=\"" + escapeHTML(connection.channelProfile) + "\" placeholder=\"Leave blank to parse all profiles\"><small>Use one exact profile name or ID to scope this installation.</small></label>";
   }
+  let fields = "<label class=\"source-field-wide\"><span>Server URL</span><input type=\"url\" data-admin-connection-field=\"baseUrl\" value=\"" + escapeHTML(connection.baseUrl) + "\" placeholder=\"https://dispatcharr.example.com\"></label>";
+  if (connection.sourceMode !== "api_key") fields += "<label><span>Username</span><input data-admin-connection-field=\"username\" value=\"" + escapeHTML(connection.username) + "\" autocomplete=\"off\"></label>" + adminConnectionSecretField(connection, "password", "Password");
+  if (connection.sourceMode === "api_key") fields += adminConnectionSecretField(connection, "apiKey", "Admin API key");
+  return fields;
+}
+function renderAdminLineupFields(connection) {
+  if (connection.sourceMode === "direct_login" || connection.sourceMode === "api_key") {
+    return "<div class=\"source-form\"><label class=\"source-field-wide\"><span>Channel profile <small>· optional</small></span><input data-admin-connection-field=\"channelProfile\" value=\"" + escapeHTML(connection.channelProfile) + "\" placeholder=\"Leave blank to parse all profiles\"><small>Use one exact profile name or ID to scope this installation. Leave it blank to include every profile available to this account.</small></label></div>";
+  }
+  const copy = connection.sourceMode === "xtream"
+    ? "Channels and groups are imported from the Xtream account returned by Dispatcharr. Profile-based organization is not available in this mode."
+    : "Channel groups come from the M3U playlist and program data comes from XMLTV. Profile-based organization is not available in this mode.";
+  return "<div class=\"source-lineup-summary\">" + icon("guide") + "<div><strong>Lineup follows the configured source</strong><span>" + escapeHTML(copy) + "</span></div></div>";
+}
+function adminConnectionEndpoint(connection) {
+  if (connection.sourceMode === "m3u_xmltv") return connection.m3uConfigured ? "Playlist and guide saved securely" : "Playlist URL required";
+  return connection.baseUrl || "Server URL required";
+}
+function adminConnectionAccount(connection) {
+  if (connection.sourceMode === "api_key") return "API key";
+  if (connection.sourceMode === "m3u_xmltv") return "Managed URLs";
+  return connection.username || "Account required";
+}
+function renderAdminConnectionEditor() {
+  if (!state.adminConnectionEditorOpen) return "";
+  const connection = normalizeAdminConnection(state.adminConnection);
   const warning = state.adminConnectionStatus === "error";
   const message = state.adminConnectionMessage ? "<div id=\"admin-connection-message\" class=\"settings-note" + (warning ? " settings-warning" : "") + "\" role=\"status\">" + escapeHTML(state.adminConnectionMessage) + "</div>" : "<div id=\"admin-connection-message\" class=\"settings-note hide\" role=\"status\"></div>";
-  const migration = connection.origin === "silo" ? "<div class=\"settings-note\">This source is currently loaded from legacy Silo plugin settings. Save it here to move connection management into Live TV Admin.</div>" : "";
-  return adminStatusPanel()
-    + "<div class=\"settings-card source-connection-card\"><div class=\"settings-card-head\"><div><h2>Source</h2><p>Choose how this Live TV installation connects to Dispatcharr.</p></div><span class=\"admin-status-pill" + (connection.configured ? "" : " warning") + "\">" + (connection.configured ? "Configured" : "Needs setup") + "</span></div>"
-    + message + migration
-    + "<div class=\"source-mode-options\">" + adminConnectionModeOptions(connection) + "</div>"
-    + "<div class=\"source-form\">" + fields + "</div></div>";
+  const migration = connection.origin === "silo" ? "<div class=\"settings-note\">This source is loaded from legacy Silo plugin settings. Saving moves connection management into Live TV Admin.</div>" : "";
+  const step = state.adminConnectionEditorStep;
+  let content = "";
+  if (step === "type") content = "<div class=\"source-step-copy\"><h3>Connection type</h3><p>Choose the source format and authentication method used by this installation.</p></div><div class=\"source-mode-options\">" + adminConnectionModeOptions(connection) + "</div>";
+  else if (step === "connection") content = "<div class=\"source-step-copy\"><h3>Connection</h3><p>Credentials are stored by the plugin and are never returned to the browser after saving.</p></div><div class=\"source-form\">" + renderAdminConnectionFields(connection) + "</div>";
+  else content = "<div class=\"source-step-copy\"><h3>Lineup</h3><p>Control which Dispatcharr channels become available in Live TV.</p></div>" + renderAdminLineupFields(connection);
+  const busy = state.adminConnectionStatus === "saving" || state.adminConnectionStatus === "testing";
+  return "<div class=\"source-dialog-backdrop\" data-admin-connection-backdrop=\"true\"><section class=\"source-dialog\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"source-dialog-title\">"
+    + "<header><span class=\"source-dialog-icon\">" + icon("guide") + "</span><div><h2 id=\"source-dialog-title\">" + (state.savedAdminConnection && state.savedAdminConnection.configured ? "Edit Dispatcharr" : "Add Dispatcharr") + "</h2><p>Connect this Silo installation to its Live TV source.</p></div><button type=\"button\" class=\"source-close\" data-admin-connection-action=\"cancel\" aria-label=\"Close connection setup\">" + icon("x") + "</button></header>"
+    + "<div class=\"source-dialog-body\"><nav class=\"source-dialog-nav\" aria-label=\"Connection setup steps\">"
+    + "<button type=\"button\" data-admin-connection-step=\"type\" class=\"" + (step === "type" ? "active" : "") + "\">" + icon("settings") + "<span>Type</span></button>"
+    + "<button type=\"button\" data-admin-connection-step=\"connection\" class=\"" + (step === "connection" ? "active" : "") + "\">" + icon("integrations") + "<span>Connection</span></button>"
+    + "<button type=\"button\" data-admin-connection-step=\"lineup\" class=\"" + (step === "lineup" ? "active" : "") + "\">" + icon("guide") + "<span>Lineup</span></button></nav>"
+    + "<div class=\"source-dialog-content\">" + message + migration + content + "</div></div>"
+    + "<footer><button type=\"button\" data-admin-connection-action=\"cancel\"" + (busy ? " disabled" : "") + ">Cancel</button><button type=\"button\" class=\"admin-outline-action\" data-admin-connection-action=\"test\"" + (busy ? " disabled" : "") + ">" + icon("loader") + "<span>" + (state.adminConnectionStatus === "testing" ? "Testing" : "Test Connection") + "</span></button><button type=\"button\" class=\"admin-save\" data-admin-connection-action=\"save\"" + (busy ? " disabled" : "") + ">" + (state.adminConnectionStatus === "saving" ? "Saving" : "Save Connection") + "</button></footer></section></div>";
+}
+function renderAdminConnectionTab() {
+  const connection = normalizeAdminConnection(state.savedAdminConnection);
+  const status = state.app && state.app.status ? state.app.status : {};
+  const message = state.adminConnectionMessage && !state.adminConnectionEditorOpen ? "<div class=\"settings-note" + (state.adminConnectionStatus === "error" ? " settings-warning" : "") + "\" role=\"status\">" + escapeHTML(state.adminConnectionMessage) + "</div>" : "";
+  let inventory = "<div class=\"source-empty\"><strong>No Dispatcharr connection</strong><span>Add a connection to import channels, guide data, and profiles into Silo.</span><button type=\"button\" class=\"source-add\" data-admin-connection-action=\"add\">Add Connection</button></div>";
+  if (connection.configured) {
+    inventory = "<div class=\"source-table\" role=\"table\" aria-label=\"Dispatcharr connections\"><div class=\"source-table-head\" role=\"row\"><span>Connection</span><span>Account</span><span>Channels</span><span>Mode</span><span>Status</span><span>Actions</span></div>"
+      + "<div class=\"source-table-row\" role=\"row\"><div class=\"source-primary\"><strong>Dispatcharr</strong><small>" + escapeHTML(adminConnectionEndpoint(connection)) + "</small></div>"
+      + "<div class=\"source-user\"><span>" + escapeHTML(adminConnectionAccount(connection)) + "</span><small>" + (connection.channelProfile ? escapeHTML(connection.channelProfile) : "All available profiles") + "</small></div>"
+      + "<div class=\"source-count\"><strong>" + escapeHTML(String(status.channelCount || items(state.app && state.app.channels).length || 0)) + "</strong><small>channels</small></div>"
+      + "<div class=\"source-format\"><span>" + escapeHTML(sourceModeLabel(connection.sourceMode)) + "</span><small>source</small></div>"
+      + "<span class=\"source-status enabled\">Configured</span><div class=\"source-actions\"><button type=\"button\" data-admin-connection-action=\"test-saved\">" + icon("loader") + "<span>Test</span></button><button type=\"button\" data-admin-connection-action=\"edit\">" + icon("settings") + "<span>Edit</span></button></div></div></div>";
+  }
+  return adminStatusPanel() + message + "<div class=\"settings-card source-manager-card\"><div class=\"settings-card-head\"><div><h2>Connections</h2><p>Manage the source that powers Live TV, guide data, profiles, and playback.</p></div><span class=\"profile-selection-summary\">" + (connection.configured ? "1 connection" : "Not configured") + "</span></div>" + inventory + "</div>" + renderAdminConnectionEditor();
 }
 function renderAdminPage() {
   normalizeAdminCategorySettings();
@@ -4321,7 +4376,7 @@ function renderAdminTopbarTabs() {
   if (!root) return;
   root.setAttribute("role", "tablist");
   root.setAttribute("aria-label", "Live TV Admin sections");
-  root.innerHTML = "<button id=\"admin-tab-source\" role=\"tab\" type=\"button\" data-admin-tab=\"source\" aria-selected=\"" + (state.adminTab === "source" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "source" ? "active" : "") + "\">" + icon("guide") + "<span>Source</span></button>"
+  root.innerHTML = "<button id=\"admin-tab-source\" role=\"tab\" type=\"button\" data-admin-tab=\"source\" aria-selected=\"" + (state.adminTab === "source" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "source" ? "active" : "") + "\">" + icon("guide") + "<span>Sources</span><small class=\"admin-tab-count\">" + (state.savedAdminConnection && state.savedAdminConnection.configured ? "1" : "0") + "</small></button>"
     + "<button id=\"admin-tab-settings\" role=\"tab\" type=\"button\" data-admin-tab=\"settings\" aria-selected=\"" + (state.adminTab === "settings" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "settings" ? "active" : "") + "\">" + icon("settings") + "<span>Settings</span></button>"
     + "<button id=\"admin-tab-integrations\" role=\"tab\" type=\"button\" data-admin-tab=\"integrations\" aria-selected=\"" + (state.adminTab === "integrations" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "integrations" ? "active" : "") + "\">" + icon("integrations") + "<span>Integrations</span></button>"
     + (adminECMEnabled() ? "<button id=\"admin-tab-manager\" role=\"tab\" type=\"button\" data-admin-tab=\"manager\" aria-selected=\"" + (state.adminTab === "manager" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "manager" ? "active" : "") + "\">" + icon("external") + "<span>Channel Manager</span></button>" : "");
@@ -4334,12 +4389,9 @@ function renderAdminTopbarActions() {
     return;
   }
   if (state.adminTab === "source") {
-    const busy = state.adminConnectionStatus === "saving" || state.adminConnectionStatus === "testing";
-    const dirty = adminConnectionDirty();
-    root.innerHTML = "<span class=\"admin-save-status\" role=\"status\" aria-live=\"polite\">" + escapeHTML(state.adminConnectionMessage || (dirty ? "Unsaved source changes." : "Source settings saved.")) + "</span>"
-      + "<button class=\"admin-outline-action\" data-admin-connection-action=\"test\"" + (busy ? " disabled" : "") + ">" + icon("loader") + "<span>Test</span></button>"
-      + "<button class=\"admin-primary-action\" data-admin-connection-action=\"save\"" + ((!dirty || busy) ? " disabled" : "") + ">" + (state.adminConnectionStatus === "saving" ? "Saving" : "Save Source") + "</button>"
-      + "<button class=\"admin-discard\" data-admin-connection-action=\"discard\"" + ((!dirty || busy) ? " disabled" : "") + ">Discard</button>";
+    const configured = !!(state.savedAdminConnection && state.savedAdminConnection.configured);
+    root.innerHTML = "<button class=\"admin-outline-action\" data-admin-connection-action=\"refresh\"" + (state.adminStatusRefreshing ? " disabled aria-busy=\"true\"" : "") + ">" + icon("loader") + "<span>" + (state.adminStatusRefreshing ? "Refreshing" : "Refresh Catalog") + "</span></button>"
+      + "<button class=\"admin-primary-action\" data-admin-connection-action=\"" + (configured ? "edit" : "add") + "\">" + icon(configured ? "settings" : "guide") + "<span>" + (configured ? "Edit Connection" : "Add Connection") + "</span></button>";
     return;
   }
   const dirty = adminSettingsDirty();
@@ -4492,6 +4544,28 @@ async function refreshAdminStatus() {
   } catch (error) {
     showAppToast("Could not refresh connection status.");
     try { console.warn("Dispatcharr admin status refresh failed", error); } catch (_) {}
+  } finally {
+    state.adminStatusRefreshing = false;
+    renderAdminPage();
+  }
+}
+
+async function refreshAdminCatalog() {
+  if (state.adminStatusRefreshing) return;
+  state.adminStatusRefreshing = true;
+  state.adminConnectionStatus = "refreshing";
+  state.adminConnectionMessage = "Catalog refresh started.";
+  renderAdminPage();
+  try {
+    await hydrateApp(await postJSON("/dispatcharr/api/refresh-channels", {}), { reuseSettings: true });
+    await refreshStatusData();
+    state.adminConnectionStatus = "saved";
+    state.adminConnectionMessage = "Catalog refresh queued. Status will update as channels are imported.";
+    showAppToast("Dispatcharr catalog refresh started.");
+  } catch (error) {
+    state.adminConnectionStatus = "error";
+    state.adminConnectionMessage = "Could not refresh catalog: " + readableError(error);
+    showAppToast("Could not refresh the Dispatcharr catalog.");
   } finally {
     state.adminStatusRefreshing = false;
     renderAdminPage();
@@ -5616,6 +5690,19 @@ document.addEventListener("click", function(event) {
     if (action === "discard") discardAdminCategorySettings();
     return;
   }
+  const adminConnectionBackdrop = event.target.closest("[data-admin-connection-backdrop]");
+  if (adminConnectionBackdrop && event.target === adminConnectionBackdrop) {
+    event.preventDefault();
+    discardAdminConnection();
+    return;
+  }
+  const adminConnectionStep = event.target.closest("[data-admin-connection-step]");
+  if (adminConnectionStep) {
+    event.preventDefault();
+    state.adminConnectionEditorStep = adminConnectionStep.getAttribute("data-admin-connection-step") || "type";
+    renderAdminPage();
+    return;
+  }
   const adminSourceMode = event.target.closest("[data-admin-source-mode]");
   if (adminSourceMode) {
     event.preventDefault();
@@ -5626,8 +5713,14 @@ document.addEventListener("click", function(event) {
   if (adminConnectionAction) {
     event.preventDefault();
     const action = adminConnectionAction.getAttribute("data-admin-connection-action");
-    if (action === "discard") discardAdminConnection();
-    else submitAdminConnection(action);
+    if (action === "add") openAdminConnectionEditor(true);
+    else if (action === "edit") openAdminConnectionEditor(false);
+    else if (action === "cancel" || action === "discard") discardAdminConnection();
+    else if (action === "refresh") refreshAdminCatalog();
+    else if (action === "test-saved") {
+      openAdminConnectionEditor(false);
+      submitAdminConnection("test");
+    } else submitAdminConnection(action);
     return;
   }
   const adminTab = event.target.closest("[data-admin-tab]");
@@ -5711,6 +5804,11 @@ document.addEventListener("focusout", function(event) {
 document.addEventListener("fullscreenchange", updateFullscreenButton);
 document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
 document.addEventListener("keydown", function(event) {
+  if (state.adminConnectionEditorOpen && event.key === "Escape") {
+    event.preventDefault();
+    discardAdminConnection();
+    return;
+  }
   if (trapProgramModalFocus(event)) return;
   if (state.programDetails && event.key === "Escape") {
     event.preventDefault();
