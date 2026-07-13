@@ -773,6 +773,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`placeholder=\"Groups\"`,
 		`Alternative group name`,
 		`Also show as`,
+		`placeholder=\"Category | Subcategory\"`,
 		`alias-builder`,
 		`alias-table`,
 		`alias-table-row`,
