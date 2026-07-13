@@ -237,7 +237,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .program { min-height: 3.05rem; border: 0; border-radius: 0.5rem; color: var(--text); text-align: left; padding: 0.48rem 0.65rem; background: color-mix(in srgb, var(--panel) 82%, black 18%); }
 .program.live { background: color-mix(in srgb, var(--green) 34%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 48%, transparent); }
 .program time { color: var(--muted); font-size: 0.78rem; display: block; }
-.category-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.75rem, 1fr)); gap: 0.5rem; }
+.category-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.65rem; }
 .folder-filter { margin: 0.25rem 0 0.55rem; max-width: 100%; display: flex; align-items: center; gap: 0.8rem; }
 .folder-filter .search { width: min(34rem, 100%); min-width: 12rem; background: var(--panel); }
 .folder-filter .search:focus { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent); outline: none; }
@@ -257,10 +257,14 @@ button { cursor: pointer; touch-action: manipulation; }
 .saved-lineup-edit { width: 2.5rem; display: grid; place-items: center; color: var(--muted); }
 .saved-lineup-edit:hover { color: var(--text); }
 .saved-lineup-edit svg { width: 1rem; height: 1rem; }
-.tile { border: 1px solid transparent; border-radius: 0.5rem; background: var(--rail-2); color: var(--text); min-height: 4rem; text-align: left; padding: 0.68rem 0.8rem; font-weight: 600; display: grid; align-content: center; gap: 0.18rem; }
-.tile:hover, .tile.active { background: var(--panel-2); }
-.tile strong { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.08; text-wrap: balance; }
-.tile span { display: block; color: var(--muted); font-size: 0.75rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile { border: 1px solid var(--line); border-radius: 0.5rem; background: color-mix(in srgb, var(--panel) 72%, var(--bg)); color: var(--text); min-height: 5.25rem; text-align: left; padding: 0.85rem 0.9rem 0.85rem 1rem; font-weight: 700; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; transition: border-color 150ms ease, background-color 150ms ease, transform 150ms ease; }
+.tile:hover, .tile.active { border-color: color-mix(in srgb, var(--text) 34%, var(--line)); background: var(--panel-2); transform: translateY(-1px); }
+.tile-copy { min-width: 0; display: grid; gap: 0.28rem; }
+.tile .tile-copy strong { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--text); font-size: 0.95rem; line-height: 1.08; text-wrap: balance; }
+.tile .tile-copy > span { display: block; color: var(--muted); font-size: 0.74rem; font-weight: 760; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile .tile-disclosure { width: 1.75rem; height: 1.75rem; border-radius: 999px; background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--muted); display: grid; place-items: center; }
+.tile .tile-disclosure svg { width: 0.9rem; height: 0.9rem; stroke-width: 2; }
+.tile:hover .tile-disclosure, .tile.active .tile-disclosure { color: var(--text); background: color-mix(in srgb, var(--text) 10%, transparent); }
 .search-page { width: 100%; max-width: 74rem; padding: 0.35rem 0 2rem; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.15rem; }
 .search-hero { display: grid; grid-template-columns: auto minmax(0, 1fr); width: 100%; max-width: 100%; min-width: 0; align-items: center; gap: 1rem; }
 .search-hero h2 { margin: 0; font-size: 1.875rem; line-height: 1.2; letter-spacing: 0; font-weight: 700; }
@@ -1065,6 +1069,8 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
   .virtual-folder-workspace.is-guide { height: calc(100dvh - 5.75rem); }
 }
 @media (max-width: 600px) {
+  .category-grid { grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); }
+  .tile { min-height: 4.8rem; padding: 0.75rem 0.72rem 0.75rem 0.85rem; }
   .folder-guide-grid { max-height: 44dvh; overflow-y: auto; overscroll-behavior: contain; }
   .source-table { overflow-x: visible; }
   .source-dialog-backdrop { padding: 0; }
