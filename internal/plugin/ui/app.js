@@ -2859,7 +2859,6 @@ function setSportsLeague(leagueID) {
 function openSportsLeague(leagueID) {
   state.sportsLeague = String(leagueID || "");
   state.sportsSelectedEventID = "";
-  state.sportsTab = "live";
   state.sportsExpandedEvents = {};
   renderSportsPage();
 }

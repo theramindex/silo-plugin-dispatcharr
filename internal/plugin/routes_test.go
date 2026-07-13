@@ -3010,6 +3010,10 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 			t.Fatalf("sports league detail must include %q", want)
 		}
 	}
+	openSportsLeague := functionBody("openSportsLeague")
+	if strings.Contains(openSportsLeague, `state.sportsTab`) {
+		t.Fatal("opening a sports league must preserve the active sports filter")
+	}
 	sportsEventDetail := functionBody("renderSportsEventDetail")
 	for _, want := range []string{`Live coverage`, `Event coverage`, `renderSportsBroadcastCard`, `renderSportsCoverageCard`} {
 		if !strings.Contains(sportsEventDetail, want) {
