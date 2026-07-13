@@ -65,6 +65,7 @@ type SportsTeam struct {
 
 type SportsEvent struct {
 	ID                string               `json:"id"`
+	ProviderID        string               `json:"providerId,omitempty"`
 	LeagueID          string               `json:"leagueId"`
 	LeagueName        string               `json:"leagueName"`
 	LeagueLogoURL     string               `json:"leagueLogoUrl,omitempty"`
@@ -243,6 +244,7 @@ func normalizeSportsEvents(events []SportsEvent) []SportsEvent {
 	normalized := make([]SportsEvent, 0, len(events))
 	for _, event := range events {
 		event.ID = strings.TrimSpace(event.ID)
+		event.ProviderID = strings.TrimSpace(event.ProviderID)
 		event.LeagueID = strings.TrimSpace(event.LeagueID)
 		event.LeagueName = strings.TrimSpace(event.LeagueName)
 		event.LeagueLogoURL = safeSportsImageURL(event.LeagueLogoURL)

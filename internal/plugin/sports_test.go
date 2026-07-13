@@ -366,7 +366,7 @@ func TestSportarrSportsEventMapsCanonicalFields(t *testing.T) {
 	if converted.StartUnix != expected {
 		t.Fatalf("expected parsed start %d, got %d", expected, converted.StartUnix)
 	}
-	if converted.ID != "sportarr:ev-401" || converted.LeagueName != "World Cup" || converted.Home.Name != "Panama" || converted.Away.Name != "Croatia" {
+	if converted.ID != "sportarr:ev-401" || converted.ProviderID != "event-uuid" || converted.LeagueName != "World Cup" || converted.Home.Name != "Panama" || converted.Away.Name != "Croatia" {
 		t.Fatalf("unexpected Sportarr mapping: %+v", converted)
 	}
 	if !converted.Live || converted.Completed || converted.StatusText != "Live" || converted.HomeScore != "1" || converted.AwayScore != "2" {
@@ -453,6 +453,48 @@ func TestSportarrSportsProviderCoalescesConcurrentTeamRequests(t *testing.T) {
 	}
 }
 
+func TestSportarrSportsProviderCoalescesAndCachesEventImages(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	testServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		calls.Add(1)
+		time.Sleep(20 * time.Millisecond)
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = response.Write([]byte(`{"images":[{"image_type":"backdrop","url":"https://images.example/event.jpg","is_primary":true}]}`))
+	}))
+	defer testServer.Close()
+
+	provider := newSportarrSportsProvider(testServer.Client())
+	provider.baseURL = testServer.URL
+	var wait sync.WaitGroup
+	errs := make(chan error, 12)
+	for index := 0; index < 12; index++ {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			imageURL, err := provider.eventImage(context.Background(), "event-id")
+			if imageURL != "https://images.example/event.jpg" && err == nil {
+				err = fmt.Errorf("unexpected image URL %q", imageURL)
+			}
+			errs <- err
+		}()
+	}
+	wait.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("event image request: %v", err)
+		}
+	}
+	if _, err := provider.eventImage(context.Background(), "event-id"); err != nil {
+		t.Fatalf("cached event image request: %v", err)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("expected one coalesced and cached image request, got %d", calls.Load())
+	}
+}
+
 func TestSportarrSportsProviderBoundsMetadataCaches(t *testing.T) {
 	t.Parallel()
 
@@ -465,8 +507,12 @@ func TestSportarrSportsProviderBoundsMetadataCaches(t *testing.T) {
 		id := fmt.Sprintf("league-%d", index)
 		provider.storeLeagueLocked(id, sportarrLeagueCacheEntry{League: sportarrLeague{ID: id}, ExpiresAt: time.Now().Add(time.Duration(index) * time.Minute)})
 	}
-	if len(provider.teams) != sportarrTeamCacheLimit || len(provider.leagues) != sportarrLeagueCacheLimit {
-		t.Fatalf("expected bounded metadata caches, got %d teams and %d leagues", len(provider.teams), len(provider.leagues))
+	for index := 0; index < sportarrImageCacheLimit+8; index++ {
+		id := fmt.Sprintf("event-%d", index)
+		provider.storeImageLocked(id, sportarrImageCacheEntry{ImageURL: "https://images.example/" + id + ".jpg", ExpiresAt: time.Now().Add(time.Duration(index) * time.Minute)})
+	}
+	if len(provider.teams) != sportarrTeamCacheLimit || len(provider.leagues) != sportarrLeagueCacheLimit || len(provider.images) != sportarrImageCacheLimit {
+		t.Fatalf("expected bounded metadata caches, got %d teams, %d leagues, and %d images", len(provider.teams), len(provider.leagues), len(provider.images))
 	}
 }
 
@@ -482,6 +528,11 @@ func TestSportarrSportsProviderEnrichesMatchedEvents(t *testing.T) {
 			_, _ = response.Write([]byte(`{"id":"away-id","name":"Las Vegas Aces","abbreviation":"LVA","logoUrl":"https://images.example/away.png"}`))
 		case "/leagues/league-id":
 			_, _ = response.Write([]byte(`{"id":"league-id","name":"WNBA","sportName":"Basketball","description":"Professional women's basketball.","logoUrl":"https://images.example/league.png"}`))
+		case "/api/v1/images/entity/event/event-id":
+			if request.URL.Query().Get("completed_only") != "true" {
+				t.Errorf("expected completed_only=true, got %q", request.URL.Query().Get("completed_only"))
+			}
+			_, _ = response.Write([]byte(`{"images":[{"image_type":"poster","url":"https://images.example/poster.jpg","is_primary":true,"priority":1},{"image_type":"backdrop","url":"https://images.example/backdrop.jpg","is_primary":true,"priority":2}]}`))
 		default:
 			http.NotFound(response, request)
 		}
@@ -492,10 +543,11 @@ func TestSportarrSportsProviderEnrichesMatchedEvents(t *testing.T) {
 	provider := newSportarrSportsProvider(testServer.Client())
 	provider.baseURL = testServer.URL
 	events := []SportsEvent{{
-		LeagueID: "league-id",
-		Home:     SportsTeam{ID: "home-id", Name: "Liberty"},
-		Away:     SportsTeam{ID: "away-id", Name: "Aces"},
-		Channels: []SportsChannelMatch{{ID: "channel-1"}},
+		ProviderID: "event-id",
+		LeagueID:   "league-id",
+		Home:       SportsTeam{ID: "home-id", Name: "Liberty"},
+		Away:       SportsTeam{ID: "away-id", Name: "Aces"},
+		Channels:   []SportsChannelMatch{{ID: "channel-1"}},
 	}}
 	enriched := provider.EnrichEvents(context.Background(), events, 1)
 	if enriched[0].SportName != "Basketball" || enriched[0].LeagueLogoURL == "" || enriched[0].LeagueDescription == "" {
@@ -503,6 +555,67 @@ func TestSportarrSportsProviderEnrichesMatchedEvents(t *testing.T) {
 	}
 	if enriched[0].Home.Abbreviation != "NYL" || enriched[0].Home.LogoURL == "" || enriched[0].Away.Abbreviation != "LVA" {
 		t.Fatalf("expected team enrichment, got %+v", enriched[0])
+	}
+	if enriched[0].ImageURL != "https://images.example/backdrop.jpg" {
+		t.Fatalf("expected canonical Sportarr event artwork, got %+v", enriched[0])
+	}
+}
+
+func TestSportarrSportsProviderRetriesTransientResponses(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	testServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.Header.Get("Cache-Control") != "no-cache, no-store" || request.Header.Get("Pragma") != "no-cache" {
+			t.Errorf("expected no-cache request headers")
+		}
+		if calls.Add(1) == 1 {
+			response.Header().Set("Retry-After", "0")
+			response.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = response.Write([]byte(`{"id":"team-id","name":"Recovered Team"}`))
+	}))
+	defer testServer.Close()
+
+	provider := newSportarrSportsProvider(testServer.Client())
+	provider.baseURL = testServer.URL
+	team, err := provider.team(context.Background(), "team-id")
+	if err != nil {
+		t.Fatalf("expected transient response to recover: %v", err)
+	}
+	if calls.Load() != 2 || team.Name != "Recovered Team" {
+		t.Fatalf("expected one retry and recovered payload, got %d calls and %+v", calls.Load(), team)
+	}
+}
+
+func TestWaitForSportarrRetryHonorsContextForLongRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	err := waitForSportarrRetry(ctx, "5", 0)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected context deadline, got %v", err)
+	}
+	if elapsed := time.Since(started); elapsed > 500*time.Millisecond {
+		t.Fatalf("expected context to bound long Retry-After, took %s", elapsed)
+	}
+}
+
+func TestPickSportarrEventImagePrefersBackdropAndPriority(t *testing.T) {
+	t.Parallel()
+
+	images := []sportarrEntityImage{
+		{ImageType: "poster", URL: "https://images.example/poster.jpg", IsPrimary: true, Priority: 100},
+		{ImageType: "backdrop", URL: "https://images.example/lower.jpg", Priority: 999},
+		{ImageType: "backdrop", URL: "https://images.example/best.jpg", IsPrimary: true, Priority: 2},
+		{ImageType: "backdrop", URL: "javascript:alert(1)", IsPrimary: true, Priority: 999},
+	}
+	if got := pickSportarrEventImage(images); got != "https://images.example/best.jpg" {
+		t.Fatalf("expected preferred backdrop, got %q", got)
 	}
 }
 
