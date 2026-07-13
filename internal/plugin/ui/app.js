@@ -1706,11 +1706,11 @@ function emptyStateHTML(title, detail) {
   return "<div class=\"empty\"><strong>" + escapeHTML(title) + "</strong>" + (detail ? "<div class=\"muted\">" + escapeHTML(detail) + "</div>" : "") + "</div>";
 }
 function catalogEmptyDetail() {
-  if (!state.app || !state.app.status) return "Check your connection in Live TV Admin or press Refresh.";
+  if (!state.app || !state.app.status) return "Check your connection in Dispatcharr Admin or press Refresh.";
   const status = state.app.status;
   if (status.status === "error" && status.lastError) return status.lastError;
-  if (!status.channelCount) return "No channels synced yet. Run a sync from Live TV Admin or press Refresh.";
-  return "Try Refresh or open Live TV Admin to verify the connection.";
+  if (!status.channelCount) return "No channels synced yet. Run a sync from Dispatcharr Admin or press Refresh.";
+  return "Try Refresh or open Dispatcharr Admin to verify the connection.";
 }
 function sectionHeader(title) {
   return "<div class=\"section-title\"><span>" + escapeHTML(title) + "</span></div>";
@@ -3093,7 +3093,7 @@ function programByID(channelID, programID) {
 }
 function scheduleProgram(channelID, programID, button) {
   if (!dvrEnabled()) {
-    showAppToast(sourceMode() === "direct_login" ? "Recordings are turned off by the Live TV admin." : "Recordings require Dispatcharr Direct Connect.");
+    showAppToast(sourceMode() === "direct_login" ? "Recordings are turned off by Dispatcharr Admin." : "Recordings require Dispatcharr Direct Connect.");
     return;
   }
   if (!recordingSchedulingEnabled()) {
@@ -4314,7 +4314,7 @@ function renderAdminConnectionEditor() {
   const connection = normalizeAdminConnection(state.adminConnection);
   const warning = state.adminConnectionStatus === "error";
   const message = state.adminConnectionMessage ? "<div id=\"admin-connection-message\" class=\"settings-note" + (warning ? " settings-warning" : "") + "\" role=\"status\">" + escapeHTML(state.adminConnectionMessage) + "</div>" : "<div id=\"admin-connection-message\" class=\"settings-note hide\" role=\"status\"></div>";
-  const migration = connection.origin === "silo" ? "<div class=\"settings-note\">This source is loaded from legacy Silo plugin settings. Saving moves connection management into Live TV Admin.</div>" : "";
+  const migration = connection.origin === "silo" ? "<div class=\"settings-note\">This source is loaded from legacy Silo plugin settings. Saving moves connection management into Dispatcharr Admin.</div>" : "";
   const step = state.adminConnectionEditorStep;
   let content = "";
   if (step === "type") content = "<div class=\"source-step-copy\"><h3>Connection type</h3><p>Choose the source format and authentication method used by this installation.</p></div><div class=\"source-mode-options\">" + adminConnectionModeOptions(connection) + "</div>";
@@ -4375,7 +4375,7 @@ function renderAdminTopbarTabs() {
   const root = byId("admin-tabs");
   if (!root) return;
   root.setAttribute("role", "tablist");
-  root.setAttribute("aria-label", "Live TV Admin sections");
+  root.setAttribute("aria-label", "Dispatcharr Admin sections");
   root.innerHTML = "<button id=\"admin-tab-source\" role=\"tab\" type=\"button\" data-admin-tab=\"source\" aria-selected=\"" + (state.adminTab === "source" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "source" ? "active" : "") + "\">" + icon("guide") + "<span>Sources</span><small class=\"admin-tab-count\">" + (state.savedAdminConnection && state.savedAdminConnection.configured ? "1" : "0") + "</small></button>"
     + "<button id=\"admin-tab-settings\" role=\"tab\" type=\"button\" data-admin-tab=\"settings\" aria-selected=\"" + (state.adminTab === "settings" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "settings" ? "active" : "") + "\">" + icon("settings") + "<span>Settings</span></button>"
     + "<button id=\"admin-tab-integrations\" role=\"tab\" type=\"button\" data-admin-tab=\"integrations\" aria-selected=\"" + (state.adminTab === "integrations" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "integrations" ? "active" : "") + "\">" + icon("integrations") + "<span>Integrations</span></button>"
@@ -6054,5 +6054,5 @@ window.addEventListener("beforeunload", function() {
 });
 startGuideAutoRefresh();
 (isAdminRoute ? loadAdminApp() : loadApp()).catch(function() {
-  byId("view").innerHTML = emptyStateHTML(isAdminRoute ? "Unable to load Live TV Admin." : "Unable to load Live TV.", isAdminRoute ? "Refresh this page or return to Silo Admin." : "Check your Dispatcharr connection in Live TV Admin, then refresh this page.");
+  byId("view").innerHTML = emptyStateHTML(isAdminRoute ? "Unable to load Dispatcharr Admin." : "Unable to load Live TV.", isAdminRoute ? "Refresh this page or return to Silo Admin." : "Check your Dispatcharr connection in Dispatcharr Admin, then refresh this page.");
 });

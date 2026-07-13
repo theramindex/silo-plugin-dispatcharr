@@ -1181,7 +1181,7 @@ func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) s
 	if request.GetPath() == "/dispatcharr/admin" {
 		body = removeTemplateBlock(body, "<!-- USER_NAV_START -->", "<!-- USER_NAV_END -->")
 		body = replaceTemplateBlock(body, "<!-- USER_TOPBAR_START -->", "<!-- USER_TOPBAR_END -->", adminTopbarHTML())
-		body = strings.ReplaceAll(body, "__APP_TITLE__", "Live TV Admin")
+		body = strings.ReplaceAll(body, "__APP_TITLE__", "Dispatcharr Admin")
 		return strings.Replace(body, "__ROUTE_CLASS__", "is-admin", 1)
 	}
 	body = strings.ReplaceAll(body, "__APP_TITLE__", html.EscapeString(s.appDisplayName()))
@@ -1252,7 +1252,7 @@ func replaceTemplateBlock(body string, startMarker string, endMarker string, rep
 }
 
 func adminTopbarHTML() string {
-	return `<aside class="admin-sidebar"><a class="admin-brand" href="/admin"><span class="admin-brand-mark"><i></i><i></i><i></i></span><strong>Silo</strong></a><div class="admin-sidebar-label">Dispatcharr</div><nav id="admin-tabs" class="admin-sidebar-nav" aria-label="Live TV Admin sections"></nav><div class="admin-sidebar-spacer"></div><a class="admin-sidebar-link" href="../dispatcharr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5A2.25 2.25 0 0 1 19.5 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25H6.75a2.25 2.25 0 0 1-2.25-2.25V6.75Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 9.25v5.5l5-2.75-5-2.75Z"/></svg><span>Open Live TV</span></a><a class="admin-sidebar-link" href="/admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg><span>Back to Admin</span></a></aside><header class="admin-topbar"><div class="admin-identity"><div><h1>Dispatcharr</h1><p>Manage the Live TV source, guide behavior, and integrations.</p></div></div><div id="admin-actions" class="admin-actions"></div></header>`
+	return `<aside class="admin-sidebar"><a class="admin-brand" href="/admin"><span class="admin-brand-mark"><i></i><i></i><i></i></span><strong>Silo</strong></a><div class="admin-sidebar-label">Dispatcharr</div><nav id="admin-tabs" class="admin-sidebar-nav" aria-label="Dispatcharr Admin sections"></nav><div class="admin-sidebar-spacer"></div><a class="admin-sidebar-link" href="../dispatcharr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5A2.25 2.25 0 0 1 19.5 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25H6.75a2.25 2.25 0 0 1-2.25-2.25V6.75Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 9.25v5.5l5-2.75-5-2.75Z"/></svg><span>Open Live TV</span></a><a class="admin-sidebar-link" href="/admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg><span>Back to Admin</span></a></aside><header class="admin-topbar"><div class="admin-identity"><div><h1>Dispatcharr</h1><p>Manage the Live TV source, guide behavior, and integrations.</p></div></div><div id="admin-actions" class="admin-actions"></div></header>`
 }
 
 func sanitizeThemeSlug(value string) string {
