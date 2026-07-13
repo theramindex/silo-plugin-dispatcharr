@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -186,6 +189,27 @@ func TestMatchSportsChannelsRejectsWeakGuideOnlyMatches(t *testing.T) {
 	assertNoSportsMatch(t, matches, "ch:starz")
 }
 
+func TestMatchSportsChannelsRejectsPositiveButLowConfidenceMatch(t *testing.T) {
+	t.Parallel()
+
+	snapshot := cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{{
+			ID: "ch:event-title", Name: "World Cup Quarterfinal", CategoryID: "general", CategoryName: "General TV",
+		}},
+		Content: model.ContentState{LiveCategories: []model.Category{{ID: "general", Name: "General TV", Kind: "live"}}},
+	}}
+	event := SportsEvent{
+		ID:         "event:world-cup",
+		LeagueID:   "world-cup",
+		LeagueName: "World Cup",
+		Name:       "World Cup Quarterfinal",
+		Home:       SportsTeam{Name: "Mexico"},
+		Away:       SportsTeam{Name: "Ecuador"},
+	}
+
+	assertNoSportsMatch(t, matchSportsChannels(event, snapshot), "ch:event-title")
+}
+
 func TestMatchSportsChannelsRejectsPartialSingleWordTeamNames(t *testing.T) {
 	t.Parallel()
 
@@ -313,48 +337,172 @@ func TestHTTPRoutesServerSportsUsesStaleCacheOnProviderError(t *testing.T) {
 	}
 }
 
-func TestESPNSportsEventParsesStartWithoutSeconds(t *testing.T) {
+func TestSportarrSportsEventMapsCanonicalFields(t *testing.T) {
 	t.Parallel()
 
-	event := espnEvent{
-		ID:        "401",
-		Name:      "Panama vs Croatia",
-		ShortName: "PAN vs CRO",
-		Date:      "2026-06-26T22:35Z",
-		Status:    espnStatus{Type: espnStatusType{State: "pre", Detail: "6:35 PM"}},
+	event := sportarrEvent{
+		ID:                "event-uuid",
+		ShortID:           "ev-401",
+		Name:              "Panama vs Croatia",
+		EventType:         "group_stage",
+		LeagueID:          "league-uuid",
+		LeagueName:        "World Cup",
+		SeasonName:        "2026",
+		Round:             "Group A",
+		VenueName:         "MetLife Stadium",
+		ScheduledStart:    "2026-06-26T22:35:00Z",
+		ScheduledEnd:      "2026-06-27T00:35:00Z",
+		BroadcastTimezone: "America/New_York",
+		Status:            "in_progress",
+		HomeTeamID:        "panama-id",
+		HomeTeamName:      "Panama",
+		AwayTeamID:        "croatia-id",
+		AwayTeamName:      "Croatia",
+		HomeScore:         sportarrString("1"),
+		AwayScore:         sportarrString("2"),
 	}
-	converted := event.sportsEvent(espnLeagueConfig{ID: "world-cup", Name: "World Cup"})
+	converted := event.sportsEvent()
 	expected := time.Date(2026, 6, 26, 22, 35, 0, 0, time.UTC).Unix()
 	if converted.StartUnix != expected {
 		t.Fatalf("expected parsed start %d, got %d", expected, converted.StartUnix)
 	}
+	if converted.ID != "sportarr:ev-401" || converted.LeagueName != "World Cup" || converted.Home.Name != "Panama" || converted.Away.Name != "Croatia" {
+		t.Fatalf("unexpected Sportarr mapping: %+v", converted)
+	}
+	if !converted.Live || converted.Completed || converted.StatusText != "Live" || converted.HomeScore != "1" || converted.AwayScore != "2" {
+		t.Fatalf("unexpected Sportarr live state: %+v", converted)
+	}
+	if converted.EventType != "group_stage" || converted.Round != "Group A" || converted.Venue != "MetLife Stadium" || converted.BroadcastTimezone != "America/New_York" {
+		t.Fatalf("expected canonical Sportarr metadata, got %+v", converted)
+	}
 }
 
-func TestESPNSportsProviderDoesNotFallbackToFetchTimeForUnknownStart(t *testing.T) {
+func TestSportarrSportsProviderLoadsPaginatedPublicEvents(t *testing.T) {
 	t.Parallel()
 
 	handler := http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		response.Header().Set("Content-Type", "application/json")
-		_, _ = response.Write([]byte(`{"events":[{"id":"402","name":"Time Unknown FC at TBD United","shortName":"TBD @ TBD","date":"not-a-date","status":{"type":{"state":"pre","detail":"TBD"}}}]}`))
+		if request.URL.Path != "/events" {
+			http.NotFound(response, request)
+			return
+		}
+		if request.URL.Query().Get("page_size") != "100" || request.URL.Query().Get("from") == "" || request.URL.Query().Get("to") == "" {
+			t.Errorf("unexpected Sportarr query: %s", request.URL.RawQuery)
+			response.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if request.URL.Query().Get("page") == "2" {
+			_, _ = response.Write([]byte(`{"items":[{"id":"uuid-2","shortId":"ev-2","name":"Team C vs Team D","leagueId":"league-2","leagueName":"League Two","scheduledStart":null,"status":"scheduled","homeTeamId":"team-c","homeTeamName":"Team C","awayTeamId":"team-d","awayTeamName":"Team D"}],"total":2,"page":2,"pageSize":100,"totalPages":2}`))
+			return
+		}
+		_, _ = response.Write([]byte(`{"items":[{"id":"uuid-1","shortId":"ev-1","name":"Team A vs Team B","leagueId":"league-1","leagueName":"League One","scheduledStart":"2026-07-13T20:00:00Z","status":"completed","homeTeamId":"team-a","homeTeamName":"Team A","awayTeamId":"team-b","awayTeamName":"Team B","homeScore":3,"awayScore":"2"}],"total":-2,"page":1,"pageSize":100,"totalPages":2}`))
 	})
 	testServer := httptest.NewServer(handler)
 	defer testServer.Close()
 
-	provider := espnSportsProvider{
-		client: testServer.Client(),
-		endpointBuilder: func(league espnLeagueConfig) string {
-			return testServer.URL
-		},
-	}
-	events, err := provider.leagueEvents(context.Background(), espnLeagueConfig{ID: "soccer", Sport: "soccer", League: "test", Name: "Test League"}, time.Date(2026, 6, 26, 20, 0, 0, 0, time.UTC))
+	provider := newSportarrSportsProvider(testServer.Client())
+	provider.baseURL = testServer.URL
+	events, err := provider.Events(context.Background(), time.Date(2026, 7, 13, 20, 0, 0, 0, time.UTC))
 	if err != nil {
-		t.Fatalf("league events: %v", err)
+		t.Fatalf("Sportarr events: %v", err)
 	}
-	if len(events) != 1 {
-		t.Fatalf("expected one event, got %+v", events)
+	if provider.Source() != "sportarr" || len(events) != 2 {
+		t.Fatalf("expected two Sportarr events, got %+v", events)
 	}
-	if events[0].StartUnix != 0 {
-		t.Fatalf("unknown ESPN start should stay 0, got %d", events[0].StartUnix)
+	if !events[0].Completed || events[0].HomeScore != "3" || events[0].AwayScore != "2" {
+		t.Fatalf("expected numeric and string scores to normalize, got %+v", events[0])
+	}
+	if events[1].StartUnix != 0 {
+		t.Fatalf("unknown Sportarr start should stay 0, got %d", events[1].StartUnix)
+	}
+}
+
+func TestSportarrSportsProviderCoalescesConcurrentTeamRequests(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	testServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		calls.Add(1)
+		time.Sleep(20 * time.Millisecond)
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = response.Write([]byte(`{"id":"team-id","name":"Team Name","abbreviation":"TM"}`))
+	}))
+	defer testServer.Close()
+
+	provider := newSportarrSportsProvider(testServer.Client())
+	provider.baseURL = testServer.URL
+	var wait sync.WaitGroup
+	errs := make(chan error, 12)
+	for index := 0; index < 12; index++ {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			_, err := provider.team(context.Background(), "team-id")
+			errs <- err
+		}()
+	}
+	wait.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("team metadata request: %v", err)
+		}
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("expected one coalesced metadata request, got %d", calls.Load())
+	}
+}
+
+func TestSportarrSportsProviderBoundsMetadataCaches(t *testing.T) {
+	t.Parallel()
+
+	provider := newSportarrSportsProvider(nil)
+	for index := 0; index < sportarrTeamCacheLimit+8; index++ {
+		id := fmt.Sprintf("team-%d", index)
+		provider.storeTeamLocked(id, sportarrTeamCacheEntry{Team: sportarrTeam{ID: id}, ExpiresAt: time.Now().Add(time.Duration(index) * time.Minute)})
+	}
+	for index := 0; index < sportarrLeagueCacheLimit+8; index++ {
+		id := fmt.Sprintf("league-%d", index)
+		provider.storeLeagueLocked(id, sportarrLeagueCacheEntry{League: sportarrLeague{ID: id}, ExpiresAt: time.Now().Add(time.Duration(index) * time.Minute)})
+	}
+	if len(provider.teams) != sportarrTeamCacheLimit || len(provider.leagues) != sportarrLeagueCacheLimit {
+		t.Fatalf("expected bounded metadata caches, got %d teams and %d leagues", len(provider.teams), len(provider.leagues))
+	}
+}
+
+func TestSportarrSportsProviderEnrichesMatchedEvents(t *testing.T) {
+	t.Parallel()
+
+	handler := http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Content-Type", "application/json")
+		switch request.URL.Path {
+		case "/teams/home-id":
+			_, _ = response.Write([]byte(`{"id":"home-id","name":"New York Liberty","abbreviation":"NYL","logoUrl":"https://images.example/home.png","primaryColor":"#112233"}`))
+		case "/teams/away-id":
+			_, _ = response.Write([]byte(`{"id":"away-id","name":"Las Vegas Aces","abbreviation":"LVA","logoUrl":"https://images.example/away.png"}`))
+		case "/leagues/league-id":
+			_, _ = response.Write([]byte(`{"id":"league-id","name":"WNBA","sportName":"Basketball","description":"Professional women's basketball.","logoUrl":"https://images.example/league.png"}`))
+		default:
+			http.NotFound(response, request)
+		}
+	})
+	testServer := httptest.NewServer(handler)
+	defer testServer.Close()
+
+	provider := newSportarrSportsProvider(testServer.Client())
+	provider.baseURL = testServer.URL
+	events := []SportsEvent{{
+		LeagueID: "league-id",
+		Home:     SportsTeam{ID: "home-id", Name: "Liberty"},
+		Away:     SportsTeam{ID: "away-id", Name: "Aces"},
+		Channels: []SportsChannelMatch{{ID: "channel-1"}},
+	}}
+	enriched := provider.EnrichEvents(context.Background(), events, 1)
+	if enriched[0].SportName != "Basketball" || enriched[0].LeagueLogoURL == "" || enriched[0].LeagueDescription == "" {
+		t.Fatalf("expected league enrichment, got %+v", enriched[0])
+	}
+	if enriched[0].Home.Abbreviation != "NYL" || enriched[0].Home.LogoURL == "" || enriched[0].Away.Abbreviation != "LVA" {
+		t.Fatalf("expected team enrichment, got %+v", enriched[0])
 	}
 }
 

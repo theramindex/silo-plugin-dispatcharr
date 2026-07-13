@@ -4,13 +4,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -23,6 +20,12 @@ type sportsProvider interface {
 	Events(context.Context, time.Time) ([]SportsEvent, error)
 	Source() string
 }
+
+type sportsEventEnricher interface {
+	EnrichEvents(context.Context, []SportsEvent, int) []SportsEvent
+}
+
+const sportsChannelMinimumScore = 28
 
 type sportsEventCache struct {
 	Events       []SportsEvent
@@ -43,34 +46,50 @@ type SportsPayload struct {
 type SportsLeague struct {
 	ID            string `json:"id"`
 	Name          string `json:"name"`
+	SportName     string `json:"sportName,omitempty"`
+	LogoURL       string `json:"logoUrl,omitempty"`
+	Description   string `json:"description,omitempty"`
 	LiveCount     int    `json:"liveCount"`
 	UpcomingCount int    `json:"upcomingCount"`
 }
 
 type SportsTeam struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Abbreviation string `json:"abbreviation,omitempty"`
-	LogoURL      string `json:"logoUrl,omitempty"`
-	Favorite     bool   `json:"favorite,omitempty"`
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Abbreviation   string `json:"abbreviation,omitempty"`
+	LogoURL        string `json:"logoUrl,omitempty"`
+	PrimaryColor   string `json:"primaryColor,omitempty"`
+	SecondaryColor string `json:"secondaryColor,omitempty"`
+	Favorite       bool   `json:"favorite,omitempty"`
 }
 
 type SportsEvent struct {
-	ID         string               `json:"id"`
-	LeagueID   string               `json:"leagueId"`
-	LeagueName string               `json:"leagueName"`
-	Name       string               `json:"name"`
-	ShortName  string               `json:"shortName,omitempty"`
-	Status     string               `json:"status"`
-	StatusText string               `json:"statusText,omitempty"`
-	StartUnix  int64                `json:"startUnix"`
-	Home       SportsTeam           `json:"home"`
-	Away       SportsTeam           `json:"away"`
-	HomeScore  string               `json:"homeScore,omitempty"`
-	AwayScore  string               `json:"awayScore,omitempty"`
-	Live       bool                 `json:"live"`
-	Completed  bool                 `json:"completed"`
-	Channels   []SportsChannelMatch `json:"channels"`
+	ID                string               `json:"id"`
+	LeagueID          string               `json:"leagueId"`
+	LeagueName        string               `json:"leagueName"`
+	LeagueLogoURL     string               `json:"leagueLogoUrl,omitempty"`
+	LeagueDescription string               `json:"leagueDescription,omitempty"`
+	SportName         string               `json:"sportName,omitempty"`
+	Name              string               `json:"name"`
+	ShortName         string               `json:"shortName,omitempty"`
+	EventType         string               `json:"eventType,omitempty"`
+	Season            string               `json:"season,omitempty"`
+	Round             string               `json:"round,omitempty"`
+	Venue             string               `json:"venue,omitempty"`
+	BroadcastTimezone string               `json:"broadcastTimezone,omitempty"`
+	ImageURL          string               `json:"imageUrl,omitempty"`
+	Description       string               `json:"description,omitempty"`
+	Status            string               `json:"status"`
+	StatusText        string               `json:"statusText,omitempty"`
+	StartUnix         int64                `json:"startUnix"`
+	EndUnix           int64                `json:"endUnix,omitempty"`
+	Home              SportsTeam           `json:"home"`
+	Away              SportsTeam           `json:"away"`
+	HomeScore         string               `json:"homeScore,omitempty"`
+	AwayScore         string               `json:"awayScore,omitempty"`
+	Live              bool                 `json:"live"`
+	Completed         bool                 `json:"completed"`
+	Channels          []SportsChannelMatch `json:"channels"`
 }
 
 type SportsChannelMatch struct {
@@ -98,10 +117,11 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 	now := time.Now()
 	events, updatedUnix, source, err := s.cachedSportsEvents(ctx, now, refresh)
 	snapshot := s.store.Current()
+	channelIndex := newSportsChannelIndex(snapshot)
 	for index := range events {
 		events[index].Home.Favorite = false
 		events[index].Away.Favorite = false
-		events[index].Channels = matchSportsChannels(events[index], snapshot)
+		events[index].Channels = channelIndex.Match(events[index])
 	}
 	sort.Slice(events, func(i, j int) bool {
 		if events[i].Live != events[j].Live {
@@ -114,6 +134,9 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 		}
 		return events[i].Name < events[j].Name
 	})
+	if enricher, ok := s.sportsProvider.(sportsEventEnricher); ok {
+		events = enricher.EnrichEvents(ctx, events, 8)
+	}
 	payload := SportsPayload{
 		UpdatedAtUnix: updatedUnix,
 		Source:        source,
@@ -182,8 +205,23 @@ func sportsLeagues(events []SportsEvent) []SportsLeague {
 		}
 		league := byID[id]
 		if league == nil {
-			league = &SportsLeague{ID: id, Name: firstNonEmpty(event.LeagueName, id)}
+			league = &SportsLeague{
+				ID:          id,
+				Name:        firstNonEmpty(event.LeagueName, id),
+				SportName:   event.SportName,
+				LogoURL:     event.LeagueLogoURL,
+				Description: event.LeagueDescription,
+			}
 			byID[id] = league
+		}
+		if league.SportName == "" {
+			league.SportName = event.SportName
+		}
+		if league.LogoURL == "" {
+			league.LogoURL = event.LeagueLogoURL
+		}
+		if league.Description == "" {
+			league.Description = event.LeagueDescription
 		}
 		if event.Live {
 			league.LiveCount++
@@ -207,8 +245,18 @@ func normalizeSportsEvents(events []SportsEvent) []SportsEvent {
 		event.ID = strings.TrimSpace(event.ID)
 		event.LeagueID = strings.TrimSpace(event.LeagueID)
 		event.LeagueName = strings.TrimSpace(event.LeagueName)
+		event.LeagueLogoURL = safeSportsImageURL(event.LeagueLogoURL)
+		event.LeagueDescription = strings.TrimSpace(event.LeagueDescription)
+		event.SportName = strings.TrimSpace(event.SportName)
 		event.Name = strings.TrimSpace(event.Name)
 		event.ShortName = strings.TrimSpace(event.ShortName)
+		event.EventType = strings.TrimSpace(event.EventType)
+		event.Season = strings.TrimSpace(event.Season)
+		event.Round = strings.TrimSpace(event.Round)
+		event.Venue = strings.TrimSpace(event.Venue)
+		event.BroadcastTimezone = strings.TrimSpace(event.BroadcastTimezone)
+		event.ImageURL = safeSportsImageURL(event.ImageURL)
+		event.Description = strings.TrimSpace(event.Description)
 		event.Status = strings.TrimSpace(event.Status)
 		event.StatusText = strings.TrimSpace(event.StatusText)
 		event.Home = normalizeSportsTeam(event.Home)
@@ -234,7 +282,9 @@ func normalizeSportsTeam(team SportsTeam) SportsTeam {
 	team.ID = strings.TrimSpace(team.ID)
 	team.Name = strings.TrimSpace(team.Name)
 	team.Abbreviation = strings.TrimSpace(team.Abbreviation)
-	team.LogoURL = strings.TrimSpace(team.LogoURL)
+	team.LogoURL = safeSportsImageURL(team.LogoURL)
+	team.PrimaryColor = strings.TrimSpace(team.PrimaryColor)
+	team.SecondaryColor = strings.TrimSpace(team.SecondaryColor)
 	if team.ID == "" {
 		team.ID = stableSportsTeamID(team)
 	}
@@ -283,35 +333,74 @@ type sportsTerm struct {
 	Abbreviation bool
 }
 
-func matchSportsChannels(event SportsEvent, snapshot cache.Snapshot) []SportsChannelMatch {
-	terms := sportsMatchTerms(event)
-	if len(terms) == 0 {
-		return []SportsChannelMatch{}
-	}
+type sportsIndexedChannel struct {
+	Channel      model.Channel
+	CategoryName string
+	ChannelText  string
+	CategoryText string
+	Programs     []sportsIndexedProgram
+}
+
+type sportsIndexedProgram struct {
+	Program model.Program
+	Text    string
+}
+
+type sportsChannelIndex struct {
+	Channels []sportsIndexedChannel
+}
+
+func newSportsChannelIndex(snapshot cache.Snapshot) sportsChannelIndex {
 	categoryNames := map[string]string{}
 	for _, category := range liveCategories(snapshot) {
 		categoryNames[category.ID] = category.Name
 	}
-	programsByChannel := map[string][]model.Program{}
+	programsByChannel := map[string][]sportsIndexedProgram{}
 	for _, program := range snapshot.Catalog.Programs {
-		programsByChannel[program.ChannelID] = append(programsByChannel[program.ChannelID], program)
+		programsByChannel[program.ChannelID] = append(programsByChannel[program.ChannelID], sportsIndexedProgram{
+			Program: program,
+			Text:    normalizeMatchText(strings.Join([]string{program.Title, program.Summary}, " ")),
+		})
 	}
-	matches := make([]SportsChannelMatch, 0)
+	channels := make([]sportsIndexedChannel, 0, len(snapshot.Catalog.Channels))
 	seenChannels := map[string]bool{}
 	for _, channel := range snapshot.Catalog.Channels {
 		if channel.ID == "" || seenChannels[channel.ID] {
 			continue
 		}
 		seenChannels[channel.ID] = true
-		score, reason := scoreSportsChannel(channel, categoryNames[channel.CategoryID], programsByChannel[channel.ID], event, terms)
-		if score <= 0 {
+		categoryName := firstNonEmpty(categoryNames[channel.CategoryID], channel.CategoryName)
+		channels = append(channels, sportsIndexedChannel{
+			Channel:      channel,
+			CategoryName: categoryName,
+			ChannelText:  normalizeMatchText(strings.Join([]string{channel.Name, channel.Number}, " ")),
+			CategoryText: normalizeMatchText(strings.Join([]string{categoryName, channel.CategoryName}, " ")),
+			Programs:     programsByChannel[channel.ID],
+		})
+	}
+	return sportsChannelIndex{Channels: channels}
+}
+
+func matchSportsChannels(event SportsEvent, snapshot cache.Snapshot) []SportsChannelMatch {
+	return newSportsChannelIndex(snapshot).Match(event)
+}
+
+func (index sportsChannelIndex) Match(event SportsEvent) []SportsChannelMatch {
+	terms := sportsMatchTerms(event)
+	if len(terms) == 0 {
+		return []SportsChannelMatch{}
+	}
+	matches := make([]SportsChannelMatch, 0)
+	for _, indexed := range index.Channels {
+		score, reason := scoreIndexedSportsChannel(indexed, event, terms)
+		if score < sportsChannelMinimumScore {
 			continue
 		}
 		matches = append(matches, SportsChannelMatch{
-			ID:           channel.ID,
-			Name:         channel.Name,
-			CategoryName: firstNonEmpty(categoryNames[channel.CategoryID], channel.CategoryName),
-			LogoURL:      channel.LogoURL,
+			ID:           indexed.Channel.ID,
+			Name:         indexed.Channel.Name,
+			CategoryName: indexed.CategoryName,
+			LogoURL:      indexed.Channel.LogoURL,
 			Reason:       reason,
 			Score:        score,
 		})
@@ -354,12 +443,29 @@ func sportsMatchTerms(event SportsEvent) []sportsTerm {
 }
 
 func scoreSportsChannel(channel model.Channel, categoryName string, programs []model.Program, event SportsEvent, terms []sportsTerm) (int, string) {
+	indexedPrograms := make([]sportsIndexedProgram, 0, len(programs))
+	for _, program := range programs {
+		indexedPrograms = append(indexedPrograms, sportsIndexedProgram{
+			Program: program,
+			Text:    normalizeMatchText(strings.Join([]string{program.Title, program.Summary}, " ")),
+		})
+	}
+	return scoreIndexedSportsChannel(sportsIndexedChannel{
+		Channel:      channel,
+		CategoryName: firstNonEmpty(categoryName, channel.CategoryName),
+		ChannelText:  normalizeMatchText(strings.Join([]string{channel.Name, channel.Number}, " ")),
+		CategoryText: normalizeMatchText(strings.Join([]string{categoryName, channel.CategoryName}, " ")),
+		Programs:     indexedPrograms,
+	}, event, terms)
+}
+
+func scoreIndexedSportsChannel(channel sportsIndexedChannel, event SportsEvent, terms []sportsTerm) (int, string) {
 	score := 0
 	structuralMatch := false
 	strongGuideMatch := false
 	reasons := map[string]bool{}
-	channelText := normalizeMatchText(strings.Join([]string{channel.Name, channel.Number}, " "))
-	categoryText := normalizeMatchText(strings.Join([]string{categoryName, channel.CategoryName}, " "))
+	channelText := channel.ChannelText
+	categoryText := channel.CategoryText
 	hasAbbreviationContext := sportsChannelAbbreviationContext(channelText, categoryText, event)
 	for _, term := range terms {
 		if term.Abbreviation && !hasAbbreviationContext {
@@ -376,11 +482,11 @@ func scoreSportsChannel(channel model.Channel, categoryName string, programs []m
 			reasons["group: "+term.Reason] = true
 		}
 	}
-	for _, program := range programs {
-		if !programNearSportsEvent(program, event) {
+	for _, program := range channel.Programs {
+		if !programNearSportsEvent(program.Program, event) {
 			continue
 		}
-		programText := normalizeMatchText(strings.Join([]string{program.Title, program.Summary}, " "))
+		programText := program.Text
 		if strongSportsGuideMatch(programText, event) {
 			strongGuideMatch = true
 		}
@@ -502,6 +608,15 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+func safeSportsImageURL(value string) string {
+	value = strings.TrimSpace(value)
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
+		return ""
+	}
+	return value
+}
+
 type noopSportsProvider struct{}
 
 func (noopSportsProvider) Events(context.Context, time.Time) ([]SportsEvent, error) {
@@ -510,211 +625,4 @@ func (noopSportsProvider) Events(context.Context, time.Time) ([]SportsEvent, err
 
 func (noopSportsProvider) Source() string {
 	return "none"
-}
-
-type espnSportsProvider struct {
-	client          *http.Client
-	endpointBuilder func(espnLeagueConfig) string
-}
-
-type espnLeagueConfig struct {
-	ID     string
-	Sport  string
-	League string
-	Name   string
-}
-
-var espnSportsLeagues = []espnLeagueConfig{
-	{ID: "nfl", Sport: "football", League: "nfl", Name: "NFL"},
-	{ID: "nba", Sport: "basketball", League: "nba", Name: "NBA"},
-	{ID: "mlb", Sport: "baseball", League: "mlb", Name: "MLB"},
-	{ID: "nhl", Sport: "hockey", League: "nhl", Name: "NHL"},
-	{ID: "wnba", Sport: "basketball", League: "wnba", Name: "WNBA"},
-	{ID: "mls", Sport: "soccer", League: "usa.1", Name: "MLS"},
-	{ID: "epl", Sport: "soccer", League: "eng.1", Name: "Premier League"},
-	{ID: "world-cup", Sport: "soccer", League: "fifa.world", Name: "World Cup"},
-}
-
-func newESPNSportsProvider(client *http.Client) espnSportsProvider {
-	if client == nil {
-		client = &http.Client{Timeout: 8 * time.Second}
-	}
-	return espnSportsProvider{client: client}
-}
-
-func (p espnSportsProvider) Source() string {
-	return "espn"
-}
-
-func (p espnSportsProvider) Events(ctx context.Context, now time.Time) ([]SportsEvent, error) {
-	events := make([]SportsEvent, 0)
-	var firstErr error
-	for _, league := range espnSportsLeagues {
-		leagueEvents, err := p.leagueEvents(ctx, league, now)
-		if err != nil {
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
-		events = append(events, leagueEvents...)
-	}
-	if len(events) == 0 && firstErr != nil {
-		return nil, firstErr
-	}
-	return events, nil
-}
-
-func (p espnSportsProvider) leagueEvents(ctx context.Context, league espnLeagueConfig, now time.Time) ([]SportsEvent, error) {
-	endpoint := p.scoreboardEndpoint(league)
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-	response, err := p.client.Do(request)
-	if err != nil {
-		return nil, err
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, fmt.Errorf("espn %s returned %d", league.Name, response.StatusCode)
-	}
-	body, err := io.ReadAll(io.LimitReader(response.Body, 2<<20))
-	if err != nil {
-		return nil, err
-	}
-	var payload espnScoreboard
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return nil, err
-	}
-	events := make([]SportsEvent, 0, len(payload.Events))
-	for _, event := range payload.Events {
-		converted := event.sportsEvent(league)
-		if converted.ID == "" {
-			continue
-		}
-		events = append(events, converted)
-	}
-	return events, nil
-}
-
-func (p espnSportsProvider) scoreboardEndpoint(league espnLeagueConfig) string {
-	if p.endpointBuilder != nil {
-		return p.endpointBuilder(league)
-	}
-	return fmt.Sprintf("https://site.api.espn.com/apis/site/v2/sports/%s/%s/scoreboard?limit=100", url.PathEscape(league.Sport), url.PathEscape(league.League))
-}
-
-type espnScoreboard struct {
-	Events []espnEvent `json:"events"`
-}
-
-type espnEvent struct {
-	ID           string            `json:"id"`
-	Name         string            `json:"name"`
-	ShortName    string            `json:"shortName"`
-	Date         string            `json:"date"`
-	Status       espnStatus        `json:"status"`
-	Competitions []espnCompetition `json:"competitions"`
-}
-
-type espnStatus struct {
-	Type espnStatusType `json:"type"`
-}
-
-type espnStatusType struct {
-	State     string `json:"state"`
-	Detail    string `json:"detail"`
-	Completed bool   `json:"completed"`
-}
-
-type espnCompetition struct {
-	Competitors []espnCompetitor `json:"competitors"`
-}
-
-type espnCompetitor struct {
-	HomeAway string   `json:"homeAway"`
-	Score    string   `json:"score"`
-	Team     espnTeam `json:"team"`
-}
-
-type espnTeam struct {
-	ID           string `json:"id"`
-	DisplayName  string `json:"displayName"`
-	ShortName    string `json:"shortDisplayName"`
-	Abbreviation string `json:"abbreviation"`
-	Logo         string `json:"logo"`
-}
-
-func (event espnEvent) sportsEvent(league espnLeagueConfig) SportsEvent {
-	var home, away SportsTeam
-	var homeScore, awayScore string
-	if len(event.Competitions) > 0 {
-		for _, competitor := range event.Competitions[0].Competitors {
-			team := SportsTeam{
-				ID:           "espn:" + league.ID + ":" + strings.TrimSpace(competitor.Team.ID),
-				Name:         firstNonEmpty(competitor.Team.DisplayName, competitor.Team.ShortName),
-				Abbreviation: competitor.Team.Abbreviation,
-				LogoURL:      competitor.Team.Logo,
-			}
-			if competitor.HomeAway == "home" {
-				home = team
-				homeScore = competitor.Score
-			} else {
-				away = team
-				awayScore = competitor.Score
-			}
-		}
-	}
-	startUnix := int64(0)
-	if start, ok := parseESPNDate(event.Date); ok {
-		startUnix = start.Unix()
-	}
-	state := strings.ToLower(strings.TrimSpace(event.Status.Type.State))
-	return SportsEvent{
-		ID:         "espn:" + league.ID + ":" + strings.TrimSpace(event.ID),
-		LeagueID:   league.ID,
-		LeagueName: league.Name,
-		Name:       event.Name,
-		ShortName:  event.ShortName,
-		Status:     firstNonEmpty(state, "scheduled"),
-		StatusText: event.Status.Type.Detail,
-		StartUnix:  startUnix,
-		Home:       home,
-		Away:       away,
-		HomeScore:  homeScore,
-		AwayScore:  awayScore,
-		Live:       state == "in",
-		Completed:  event.Status.Type.Completed || state == "post",
-	}
-}
-
-func parseESPNDate(value string) (time.Time, bool) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return time.Time{}, false
-	}
-	if numeric, err := strconv.ParseInt(value, 10, 64); err == nil {
-		if numeric > 100000000000 {
-			return time.Unix(numeric/1000, (numeric%1000)*int64(time.Millisecond)).UTC(), true
-		}
-		return time.Unix(numeric, 0).UTC(), true
-	}
-	layouts := []string{
-		time.RFC3339Nano,
-		time.RFC3339,
-		"2006-01-02T15:04Z07:00",
-		"2006-01-02T15:04Z0700",
-		"2006-01-02T15:04:05Z0700",
-		"2006-01-02T15:04:05.999999999Z0700",
-	}
-	for _, layout := range layouts {
-		if parsed, err := time.Parse(layout, value); err == nil {
-			return parsed, true
-		}
-	}
-	if parsed, err := time.ParseInLocation("2006-01-02", value, time.UTC); err == nil {
-		return parsed, true
-	}
-	return time.Time{}, false
 }
