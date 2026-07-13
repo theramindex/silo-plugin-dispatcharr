@@ -8,7 +8,7 @@ const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuff
 const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "type", adminConnectionStatus: "idle", adminConnectionMessage: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "type", adminConnectionStatus: "idle", adminConnectionMessage: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 
 function applySiloTheme() {
   const params = new URLSearchParams(window.location.search);
@@ -1341,7 +1341,10 @@ function setView(view, options) {
 }
 function setCategory(id, options) {
   options = options || {};
-  if ((id || "") !== state.category) state.folderQuery = "";
+  if ((id || "") !== state.category) {
+    state.folderQuery = "";
+    state.folderGroupCategoryID = "";
+  }
   if (!options.preserveSavedLineup) {
     state.activeSavedLineupID = "";
     state.savedLineupGroupCategoryID = "";
@@ -2962,12 +2965,18 @@ function categoryMatchesFolderQuery(category) {
 }
 function folderFilterHTML(placeholder, actionsHTML) {
   const label = placeholder || "Filter visible channels";
-  return "<div class=\"folder-filter\"><input id=\"folder-filter\" class=\"search\" type=\"search\" placeholder=\"" + escapeHTML(label) + "\" value=\"" + escapeHTML(state.folderQuery || "") + "\" autocomplete=\"off\" aria-label=\"" + escapeHTML(label) + "\">" + (actionsHTML ? "<div class=\"folder-filter-actions\">" + actionsHTML + "</div>" : "") + "</div>";
+  return "<div class=\"folder-filter\">" + (actionsHTML ? "<div class=\"folder-filter-actions\">" + actionsHTML + "</div>" : "") + "<input id=\"folder-filter\" class=\"search\" type=\"search\" placeholder=\"" + escapeHTML(label) + "\" value=\"" + escapeHTML(state.folderQuery || "") + "\" autocomplete=\"off\" aria-label=\"" + escapeHTML(label) + "\"></div>";
+}
+function renderFolderGroupSelect(children, selectedID, attributeName) {
+  return "<label class=\"folder-group-filter\"><span class=\"folder-group-filter-label\">Category</span><select " + attributeName + " aria-label=\"Category\"><option value=\"\">All categories</option>" + items(children).map(function(category) {
+    return "<option value=\"" + escapeHTML(category.id) + "\"" + (selectedID === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>";
+  }).join("") + "</select>" + icon("chevron-down") + "</label>";
 }
 function renderSavedLineupGroupSelect(children) {
-  return "<label class=\"folder-group-filter\"><span class=\"sr-only\">Channel group</span><select data-saved-lineup-group aria-label=\"Channel group\"><option value=\"\">All groups</option>" + items(children).map(function(category) {
-    return "<option value=\"" + escapeHTML(category.id) + "\"" + (state.savedLineupGroupCategoryID === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>";
-  }).join("") + "</select>" + icon("chevron-down") + "</label>";
+  return renderFolderGroupSelect(children, state.savedLineupGroupCategoryID, "data-saved-lineup-group");
+}
+function renderNestedFolderGroupSelect(children) {
+  return renderFolderGroupSelect(children, state.folderGroupCategoryID, "data-folder-group");
 }
 function renderLivePage() {
   const channels = visibleChannels(false);
@@ -2985,16 +2994,20 @@ function renderLivePage() {
     });
     const lineup = activeSavedLineup();
     const compactGroups = !!(lineup && lineup.hideFinalGroups && children.length);
+    const nestedFolder = path.split(" / ").filter(Boolean).length > 1;
+    const useGroupSelector = !!(children.length && (compactGroups || nestedFolder));
     if (state.savedLineupGroupCategoryID && !children.some(function(category) { return category.id === state.savedLineupGroupCategoryID; })) state.savedLineupGroupCategoryID = "";
+    if (state.folderGroupCategoryID && !children.some(function(category) { return category.id === state.folderGroupCategoryID; })) state.folderGroupCategoryID = "";
     const filteredChildren = children.filter(categoryMatchesFolderQuery);
+    const selectedGroupID = compactGroups ? state.savedLineupGroupCategoryID : (useGroupSelector ? state.folderGroupCategoryID : "");
     const filteredChannels = channels.filter(function(channel) {
-      return (!state.savedLineupGroupCategoryID || channelInSelectedCategory(channel, state.savedLineupGroupCategoryID)) && channelMatchesFolderQuery(channel);
+      return (!selectedGroupID || channelInSelectedCategory(channel, selectedGroupID)) && channelMatchesFolderQuery(channel);
     });
     const guideWorkspace = virtualCategoryView() === "guide";
-    const childFolders = !compactGroups && filteredChildren.length
+    const childFolders = !useGroupSelector && filteredChildren.length
       ? "<div class=\"category-grid" + (guideWorkspace ? " folder-guide-grid" : "") + "\" aria-label=\"Browse folders\">" + filteredChildren.map(categoryTileHTML).join("") + "</div>"
       : "";
-    const filterActions = (compactGroups ? renderSavedLineupGroupSelect(children) : "") + renderVirtualCategoryViewToggle();
+    const filterActions = (compactGroups ? renderSavedLineupGroupSelect(children) : (useGroupSelector ? renderNestedFolderGroupSelect(children) : "")) + renderVirtualCategoryViewToggle();
     const folderHeader = virtualFolderHeader(path, featured)
       + folderFilterHTML(guideWorkspace ? "Filter Guide" : "Filter this folder", filterActions)
       + childFolders;
@@ -5872,6 +5885,11 @@ document.addEventListener("keydown", function(event) {
   }, { passive: true });
 });
 document.addEventListener("change", function(event) {
+  if (event.target && event.target.hasAttribute("data-folder-group")) {
+    state.folderGroupCategoryID = event.target.value || "";
+    renderLivePage();
+    return;
+  }
   if (event.target && event.target.hasAttribute("data-saved-lineup-group")) {
     state.savedLineupGroupCategoryID = event.target.value || "";
     renderLivePage();

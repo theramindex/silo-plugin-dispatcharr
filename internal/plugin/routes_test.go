@@ -293,6 +293,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`no games? today`,
 		`function rememberSearch(value)`,
 		`function folderFilterHTML(placeholder, actionsHTML)`,
+		`function renderNestedFolderGroupSelect(children)`,
+		`data-folder-group`,
 		`id=\"folder-filter\"`,
 		`onLaterType`,
 		`data-search-recent=`,
@@ -444,19 +446,18 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		t.Fatalf("expected home page order to be My Channels, continue watching, favorites, guide grid, then group sections")
 	}
 	virtualWorkspaceIndex := strings.Index(body, `const guideWorkspace = virtualCategoryView() === "guide";`)
-	virtualFolderGridIndex := strings.Index(body, `" folder-guide-grid"`)
 	virtualHeaderIndex := strings.Index(body, `const folderHeader = virtualFolderHeader(path, featured)`)
 	virtualFilterIndex := strings.Index(body, `+ folderFilterHTML(guideWorkspace ? "Filter Guide" : "Filter this folder", filterActions)`)
-	virtualChildrenIndex := strings.Index(body, `const childFolders = !compactGroups && filteredChildren.length`)
+	virtualChildrenIndex := strings.Index(body, `const childFolders = !useGroupSelector && filteredChildren.length`)
 	virtualContentIndex := strings.Index(body, `renderVirtualCategoryGuide(filteredChannels)`)
-	if virtualWorkspaceIndex < 0 || virtualFolderGridIndex < 0 || virtualHeaderIndex < 0 || virtualFilterIndex < 0 || virtualChildrenIndex < 0 || virtualContentIndex < 0 {
-		t.Fatalf("expected virtual category drilldown to render breadcrumbs, filter, subfolders, and switchable channel content")
+	if virtualWorkspaceIndex < 0 || virtualHeaderIndex < 0 || virtualFilterIndex < 0 || virtualChildrenIndex < 0 || virtualContentIndex < 0 {
+		t.Fatalf("expected virtual category drilldown to render breadcrumbs, a scoped filter, optional broad folders, and switchable channel content")
 	}
 	if !(virtualWorkspaceIndex < virtualChildrenIndex && virtualChildrenIndex < virtualHeaderIndex && virtualHeaderIndex < virtualFilterIndex && virtualFilterIndex < virtualContentIndex) {
-		t.Fatalf("expected virtual category drilldown order to be breadcrumbs, filter, subfolders, then channel content")
+		t.Fatalf("expected virtual category drilldown order to be folder setup, breadcrumbs, scoped filter, then channel content")
 	}
-	if !strings.Contains(body, `virtual-folder-actions`) || !strings.Contains(body, `guideFreshnessHTML() + renderSaveChannelListButton(categoryID)`) || !strings.Contains(body, `renderSavedLineupGroupSelect(children) : "") + renderVirtualCategoryViewToggle()`) {
-		t.Fatalf("expected saved-lineup action beside breadcrumbs and compact group/view controls beside the guide filter")
+	if !strings.Contains(body, `virtual-folder-actions`) || !strings.Contains(body, `guideFreshnessHTML() + renderSaveChannelListButton(categoryID)`) || !strings.Contains(body, `const nestedFolder = path.split(" / ").filter(Boolean).length > 1;`) || !strings.Contains(body, `useGroupSelector ? renderNestedFolderGroupSelect(children)`) {
+		t.Fatalf("expected saved-lineup action beside breadcrumbs and nested group/view controls beside the guide filter")
 	}
 	for _, want := range []string{`savedLineups: []`, `function renderSavedLineupsHome()`, `Hide final groups`, `data-saved-lineup-group`, `Saved to My Channels.`} {
 		if !strings.Contains(body, want) {
