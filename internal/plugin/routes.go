@@ -242,6 +242,8 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return playerUIAssetResponse("ui/app.js", "application/javascript; charset=utf-8")
 	case "/dispatcharr/assets/lineup.js", "/assets/lineup.js":
 		return playerUIAssetResponse("ui/lineup.js", "application/javascript; charset=utf-8")
+	case "/dispatcharr/assets/sports_replays.js", "/assets/sports_replays.js":
+		return playerUIAssetResponse("ui/sports_replays.js", "application/javascript; charset=utf-8")
 	case "/dispatcharr/assets/app.css", "/assets/app.css":
 		return playerUIAssetResponse("ui/styles.css", "text/css; charset=utf-8")
 	case "/dispatcharr/status", "/dispatcharr/api/status":
@@ -1221,6 +1223,7 @@ func pluginAssetVersion() string {
 		}{
 			{playerUIAssets, "ui/styles.css"},
 			{playerUIAssets, "ui/lineup.js"},
+			{playerUIAssets, "ui/sports_replays.js"},
 			{playerUIAssets, "ui/app.js"},
 			{playerAssets, "assets/hls.min.js"},
 			{playerAssets, "assets/mpegts.min.js"},

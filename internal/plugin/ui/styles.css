@@ -342,7 +342,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-leagues .chip.active { background: var(--text); color: var(--bg); border-color: var(--text); }
 .sports-score-scroll { min-height: 0; overflow: auto; padding: 0.05rem 0.15rem 1rem 0; scrollbar-width: thin; }
 .sports-board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.72rem; align-items: start; }
-.sports-card { border: 1px solid var(--line); border-radius: 0.5rem; background: var(--rail-2); padding: 0.85rem; display: grid; grid-template-areas: "body" "channels"; align-items: stretch; gap: 0.7rem; min-width: 0; font-weight: 600; }
+.sports-card { border: 1px solid var(--line); border-radius: 0.5rem; background: var(--rail-2); padding: 0.85rem; display: grid; grid-template-areas: "body" "channels" "replays"; align-items: stretch; gap: 0.7rem; min-width: 0; font-weight: 600; }
 .sports-card.live { border-color: color-mix(in srgb, var(--accent) 42%, var(--line)); background: color-mix(in srgb, var(--green) 7%, var(--rail-2)); }
 .sports-card.final { background: color-mix(in srgb, var(--panel) 90%, var(--rail-2)); }
 .sports-channel small { color: var(--muted); font-size: 0.7rem; font-weight: 760; }
@@ -396,6 +396,17 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-channel small { font-size: 0.64rem; }
 .sports-channel-more { min-height: 2.6rem; place-items: center; color: var(--muted); font-size: 0.74rem; font-weight: 850; white-space: nowrap; }
 .sports-channel-more:hover { background: var(--panel-2); color: var(--text); }
+.sports-replays { grid-area: replays; display: grid; gap: 0.35rem; min-width: 0; padding-top: 0.55rem; border-top: 1px solid var(--line); }
+.sports-replays-label { color: var(--muted); font-size: 0.68rem; font-weight: 850; text-transform: uppercase; }
+.sports-replay { min-width: 0; min-height: 2.65rem; display: grid; grid-template-columns: 1.75rem minmax(0, 1fr) auto; align-items: center; gap: 0.48rem; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--panel); color: var(--text); padding: 0.38rem 0.48rem; text-decoration: none; }
+.sports-replay:hover { background: var(--panel-2); border-color: color-mix(in srgb, var(--accent) 42%, var(--line)); }
+.sports-replay > span:first-child { width: 1.75rem; height: 1.75rem; display: grid; place-items: center; border-radius: 999px; background: var(--text); color: var(--bg); }
+.sports-replay svg { width: 0.78rem; height: 0.78rem; }
+.sports-replay > span:nth-child(2) { min-width: 0; display: grid; gap: 0.05rem; }
+.sports-replay strong, .sports-replay small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sports-replay strong { font-size: 0.75rem; }
+.sports-replay small { color: var(--muted); font-size: 0.66rem; font-weight: 720; }
+.sports-replay b { color: var(--text); font-size: 0.7rem; white-space: nowrap; }
 .sports-error { color: var(--warn); font-size: 0.85rem; font-weight: 780; }
 .recovery-panel { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem 0.85rem; margin: 0 0 0.85rem; padding: 0.72rem 0.8rem; border: 1px solid color-mix(in srgb, var(--warn) 48%, var(--line)); border-radius: 0.5rem; background: color-mix(in srgb, var(--warn) 9%, var(--panel)); color: var(--text); }
 .recovery-panel > :first-child { min-width: 0; flex: 1 1 16rem; }
@@ -848,6 +859,11 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .virtual-label-control > span { color: var(--muted); font-weight: 850; text-align: right; white-space: nowrap; }
 .virtual-label-control input { flex: 1 1 auto; min-width: 0; max-width: none; }
 .settings-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.65rem; }
+.settings-note-action { display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; }
+.settings-note-action button { flex: 0 0 auto; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); padding: 0.36rem 0.68rem; font-weight: 800; }
+.sports-library-head { margin-top: 0.35rem; padding-top: 0.65rem; border-top: 1px solid var(--line); }
+.sports-library-head h3 { margin: 0; font-size: 0.95rem; }
+.sports-library-head p { margin: 0.16rem 0 0; }
 .settings-preview { margin-top: 0.65rem; display: grid; gap: 0.35rem; color: var(--muted); font-size: 0.82rem; }
 .organization-preview { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
 .organization-stage, .organization-result { min-width: 0; display: grid; gap: 0.14rem; }

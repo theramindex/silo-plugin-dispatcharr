@@ -8,7 +8,11 @@ const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuff
 const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "type", adminConnectionStatus: "idle", adminConnectionMessage: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsTab: "live", sportsLeague: "", sportsExpandedEvents: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "type", adminConnectionStatus: "idle", adminConnectionMessage: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+
+state.sportsReplayPromise = null;
+state.sportsReplayGeneration = 0;
+state.sportsReplayRefreshQueued = false;
 
 function applySiloTheme() {
   const params = new URLSearchParams(window.location.search);
@@ -188,7 +192,7 @@ function defaultEventKeywordRules() {
   ];
 }
 function defaultAdminCategorySettings() {
-  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", appDisplayName: "Live TV (Dispatcharr)", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, allowRecordingsByDefault: true, sportsFirstPlayerEnabled: false, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
+  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", appDisplayName: "Live TV (Dispatcharr)", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, allowRecordingsByDefault: true, sportsEnabled: true, sportsLibraryIds: [], sportsFirstPlayerEnabled: false, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
 }
 function cloneAdminCategorySettings(settings) {
   try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -223,7 +227,16 @@ function liveRewindEnabled() {
   return !!(isDispatcharrDirectSource() && adminSettings().liveRewindEnabled === true);
 }
 function sportsFirstPlayerEnabled() {
-  return adminSettings().sportsFirstPlayerEnabled === true;
+  return sportsEnabled() && adminSettings().sportsFirstPlayerEnabled === true;
+}
+function sportsEnabled() { return adminSettings().sportsEnabled !== false; }
+function configuredSportsLibraryIDs() {
+  const seen = {};
+  return items(adminSettings().sportsLibraryIds).map(function(value) { return Number(value); }).filter(function(value) {
+    if (!Number.isInteger(value) || value <= 0 || seen[value]) return false;
+    seen[value] = true;
+    return true;
+  });
 }
 function sportsFirstPlayerActive() {
   return sportsFirstPlayerEnabled() && state.playerSportsMode === true;
@@ -346,6 +359,11 @@ function normalizeAdminCategorySettings() {
   if (state.adminCategorySettings.delimiter !== "pipe" && state.adminCategorySettings.delimiter !== "dash") state.adminCategorySettings.delimiter = "pipe";
   state.adminCategorySettings.virtualGroupLabel = virtualGroupLabelSuffix(state.adminCategorySettings.virtualGroupLabel);
   state.adminCategorySettings.allowRecordingsByDefault = state.adminCategorySettings.allowRecordingsByDefault !== false;
+  state.adminCategorySettings.sportsEnabled = state.adminCategorySettings.sportsEnabled !== false;
+  state.adminCategorySettings.sportsLibraryIds = uniqueIDs(items(state.adminCategorySettings.sportsLibraryIds).map(function(value) {
+    const id = Number(value);
+    return Number.isInteger(id) && id > 0 ? String(id) : "";
+  }).filter(Boolean)).map(function(value) { return Number(value); });
   state.adminCategorySettings.sportsFirstPlayerEnabled = state.adminCategorySettings.sportsFirstPlayerEnabled === true;
   state.adminCategorySettings.liveRewindEnabled = state.adminCategorySettings.liveRewindEnabled === true;
   state.adminCategorySettings.liveRewindCacheGB = Math.max(1, Math.min(500, Number(state.adminCategorySettings.liveRewindCacheGB) || 5));
@@ -672,6 +690,9 @@ function saveAdminCategorySettings() {
     return persistAdminCategorySettingsInSilo(state.adminCategorySettings);
   }).then(function() {
     state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
+    state.sportsReplayKey = "";
+    state.sportsReplayItems = [];
+    state.sportsReplayMatches = {};
     state.adminSaveStatus = "saved";
     state.adminSaveMessage = "Saved plugin settings.";
     if (state.view === "admin") renderAdminPage();
@@ -749,6 +770,11 @@ async function coreFetch(url, options) {
 }
 async function coreGetJSON(url) {
   const response = await coreFetch(url);
+  if (!response.ok) throw await requestError(response);
+  return response.json();
+}
+async function corePostJSON(url, body) {
+  const response = await coreFetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   if (!response.ok) throw await requestError(response);
   return response.json();
 }
@@ -1317,6 +1343,7 @@ function stopAllMultiview(reason) {
 }
 function setView(view, options) {
   options = options || {};
+  if (view === "sports" && !sportsEnabled()) view = "home";
   if (view === "search" && state.view !== "search" && state.view !== "player") {
     state.searchReturnView = state.view || "home";
   }
@@ -1568,7 +1595,7 @@ async function refreshGuideBlockData() {
 }
 function renderRail() {
   document.querySelectorAll("[data-view]").forEach(function(button) {
-    const unavailable = button.dataset.view === "recordings" && !dvrEnabled();
+    const unavailable = (button.dataset.view === "recordings" && !dvrEnabled()) || (button.dataset.view === "sports" && !sportsEnabled());
     const activeViews = String(button.dataset.activeViews || button.dataset.view || "").split(/\s+/).filter(Boolean);
     button.hidden = unavailable;
     const active = !unavailable && activeViews.indexOf(state.view) !== -1;
@@ -1603,6 +1630,7 @@ function resetMainHorizontalScroll() {
 function render() {
   if (!state.app) return;
   if (state.view === "recordings" && !dvrEnabled()) state.view = "home";
+  if (state.view === "sports" && !sportsEnabled()) state.view = "home";
   if (state.view === "admin" && !isAdminRoute) state.view = "home";
   document.querySelector(".shell").classList.toggle("is-player", state.view === "player");
   document.querySelector(".shell").classList.toggle("is-guide", state.view === "guide");
@@ -2184,7 +2212,138 @@ function renderOnLaterPage() {
     + (programs.length ? "<div class=\"on-later-card-grid\">" + programs.slice(0, 60).map(renderProgramDiscoveryCard).join("") + "</div>" : "<div class=\"empty\">No matching guide entries.</div>")
     + "</div>";
 }
+function loadSportsLibraries(force) {
+  if (state.sportsLibrariesLoading) return state.sportsLibrariesPromise || Promise.resolve(items(state.sportsLibraries));
+  if (state.sportsLibraries && !force) return Promise.resolve(items(state.sportsLibraries));
+  state.sportsLibrariesLoading = true;
+  state.sportsLibrariesError = "";
+  state.sportsLibrariesPromise = coreGetJSON("/api/v1/user/libraries").then(function(payload) {
+    state.sportsLibraries = items(payload).filter(function(library) {
+      return library && Number.isInteger(Number(library.id)) && Number(library.id) > 0;
+    });
+    return state.sportsLibraries;
+  }).catch(function(error) {
+    state.sportsLibrariesError = readableError(error);
+    if (!state.sportsLibraries) state.sportsLibraries = [];
+    return state.sportsLibraries;
+  }).finally(function() {
+    state.sportsLibrariesLoading = false;
+    state.sportsLibrariesPromise = null;
+    if (state.view === "admin" && state.adminTab === "sports") renderAdminPage();
+  });
+  return state.sportsLibrariesPromise;
+}
+function accessibleSportsLibraryIDs(libraries) {
+  const matcher = window.SportsReplayMatcher;
+  if (matcher && typeof matcher.accessibleLibraryIDs === "function") return matcher.accessibleLibraryIDs(configuredSportsLibraryIDs(), libraries);
+  const accessible = {};
+  items(libraries).forEach(function(library) { accessible[Number(library.id)] = true; });
+  return configuredSportsLibraryIDs().filter(function(id) { return !!accessible[id]; });
+}
+async function loadSportsReplayLibrary(libraryID, catalogWindows) {
+  const catalogItems = [];
+  let truncated = false;
+  const collector = window.SportsReplayMatcher;
+  if (!collector || typeof collector.collectCatalogPages !== "function") return { items: [], truncated: false };
+  for (const window of catalogWindows) {
+    const result = await collector.collectCatalogPages(function(offset) {
+      return corePostJSON("/api/v1/catalog/query", { match: "all", groups: [{ match: "all", rules: [{ field: "release_date", op: "between", value: window }] }], sort: "title", order: "asc", library_id: Number(libraryID), limit: 100, offset: offset });
+    }, 5);
+    catalogItems.push.apply(catalogItems, result.items);
+    truncated = truncated || result.truncated;
+  }
+  return { items: catalogItems, truncated: truncated };
+}
+function dedupeSportsReplayItems(catalogItems) {
+  const seen = {};
+  return items(catalogItems).filter(function(item) {
+    const id = String(item && item.content_id || "");
+    if (!id || seen[id]) return false;
+    seen[id] = true;
+    return true;
+  });
+}
+function buildSportsReplayMatches(events, replayItems) {
+  const matcher = window.SportsReplayMatcher;
+  return matcher && typeof matcher.matchEvents === "function"
+    ? matcher.matchEvents(events, replayItems)
+    : {};
+}
+function sportsReplayCatalogWindows(events) {
+  const matcher = window.SportsReplayMatcher;
+  return matcher && typeof matcher.catalogWindows === "function" ? matcher.catalogWindows(events) : [];
+}
+function loadSportsReplays(force) {
+  if (!sportsEnabled() || !configuredSportsLibraryIDs().length) {
+    state.sportsReplayGeneration += 1;
+    state.sportsReplayItems = [];
+    state.sportsReplayMatches = {};
+    state.sportsReplayKey = "";
+    state.sportsReplaysLoading = false;
+    state.sportsReplayPromise = null;
+    state.sportsReplayRefreshQueued = false;
+    return Promise.resolve({});
+  }
+  if (state.sportsReplayPromise) {
+    state.sportsReplayRefreshQueued = state.sportsReplayRefreshQueued || !!force;
+    return state.sportsReplayPromise;
+  }
+  const generation = state.sportsReplayGeneration + 1;
+  state.sportsReplayGeneration = generation;
+  state.sportsReplaysLoading = true;
+  state.sportsReplaysError = "";
+  const eventSnapshot = items(state.sports && state.sports.events).slice();
+  const promise = loadSportsLibraries(force).then(function(libraries) {
+    const libraryIDs = accessibleSportsLibraryIDs(libraries);
+    const catalogWindows = sportsReplayCatalogWindows(eventSnapshot);
+    const eventIDs = eventSnapshot.map(function(event) { return event.id; }).join(",");
+    const key = libraryIDs.join(",") + "|" + eventIDs + "|" + catalogWindows.map(function(window) { return window.join(":"); }).join(",");
+    if (!force && key && key === state.sportsReplayKey) return state.sportsReplayMatches;
+    if (!libraryIDs.length || !catalogWindows.length) {
+      if (generation !== state.sportsReplayGeneration) return state.sportsReplayMatches;
+      state.sportsReplayItems = [];
+      state.sportsReplayMatches = {};
+      state.sportsReplayKey = key;
+      return state.sportsReplayMatches;
+    }
+    return Promise.all(libraryIDs.map(function(libraryID) {
+      return loadSportsReplayLibrary(libraryID, catalogWindows).then(function(result) {
+        return { ok: true, items: result.items, truncated: result.truncated };
+      }).catch(function(error) {
+        return { ok: false, error: error };
+      });
+    })).then(function(results) {
+      if (generation !== state.sportsReplayGeneration) return state.sportsReplayMatches;
+      const successful = results.filter(function(result) { return result.ok; });
+      const failed = results.filter(function(result) { return !result.ok; });
+      const truncated = successful.filter(function(result) { return result.truncated; });
+      const replayItems = dedupeSportsReplayItems([].concat.apply([], successful.map(function(result) { return result.items; })));
+      state.sportsReplayItems = replayItems;
+      state.sportsReplayMatches = buildSportsReplayMatches(eventSnapshot, replayItems);
+      state.sportsReplayKey = key;
+      state.sportsReplaysError = failed.length ? failed.length + " replay " + (failed.length === 1 ? "library is" : "libraries are") + " temporarily unavailable." : (truncated.length ? "Some replay results were limited to protect performance." : "");
+      return state.sportsReplayMatches;
+    });
+  }).catch(function(error) {
+    if (generation === state.sportsReplayGeneration) {
+      state.sportsReplaysError = readableError(error);
+    }
+    return state.sportsReplayMatches;
+  }).finally(function() {
+    if (generation === state.sportsReplayGeneration) {
+      const refreshQueued = state.sportsReplayRefreshQueued;
+      state.sportsReplaysLoading = false;
+      state.sportsReplayPromise = null;
+      state.sportsReplayRefreshQueued = false;
+      if (state.view === "sports") renderSportsPage();
+      if (refreshQueued) loadSportsReplays(true);
+    }
+  });
+  state.sportsReplayPromise = promise;
+  return promise;
+}
 function loadSports(force) {
+  if (!sportsEnabled()) return Promise.resolve({ events: [], leagues: [] });
   if (state.sportsLoading) return Promise.resolve(state.sports || { events: [], leagues: [] });
   if (state.sports && !force) return Promise.resolve(state.sports);
   state.sportsLoading = true;
@@ -2192,6 +2351,7 @@ function loadSports(force) {
     state.sports = payload || { events: [], leagues: [] };
     delete state.sports.error;
     applySportsFavoritesToPayload();
+    loadSportsReplays(force);
     return state.sports;
   }).catch(function(error) {
     if (!state.sports) state.sports = { events: [], leagues: [], error: readableError(error) };
@@ -2212,10 +2372,13 @@ function applySportsFavoritesToPayload() {
   });
 }
 function sportsTabLabel(tab) {
-  return ({ live: "Live", upcoming: "Upcoming", favorites: "Favorites", all: "All" })[tab] || "Live";
+  return ({ live: "Live", upcoming: "Upcoming", replays: "Replays", favorites: "Favorites", all: "All" })[tab] || "Live";
 }
 function sportsTabButtonsHTML() {
-  return ["live", "upcoming", "favorites", "all"].map(function(tab) {
+  const tabs = ["live", "upcoming"];
+  if (configuredSportsLibraryIDs().length) tabs.push("replays");
+  tabs.push("favorites", "all");
+  return tabs.map(function(tab) {
     return "<button type=\"button\" data-sports-tab=\"" + tab + "\" class=\"" + (state.sportsTab === tab ? "active" : "") + "\" aria-pressed=\"" + (state.sportsTab === tab ? "true" : "false") + "\">" + escapeHTML(sportsTabLabel(tab)) + "</button>";
   }).join("");
 }
@@ -2225,22 +2388,25 @@ function renderSportsTopbarTabs() {
   root.innerHTML = "";
 }
 function renderSportsTabFilters() {
-  const refreshClass = "sports-refresh" + (state.sportsLoading ? " is-loading" : "");
-  const refreshDisabled = state.sportsLoading ? " disabled aria-busy=\"true\"" : "";
+  const refreshing = state.sportsLoading || state.sportsReplaysLoading;
+  const refreshClass = "sports-refresh" + (refreshing ? " is-loading" : "");
+  const refreshDisabled = refreshing ? " disabled aria-busy=\"true\"" : "";
   return "<div class=\"sports-filter-row\"><div class=\"view-toggle\" aria-label=\"Sports filter\">" + sportsTabButtonsHTML() + "</div>"
     + "<button type=\"button\" class=\"" + refreshClass + "\" data-sports-refresh=\"true\"" + refreshDisabled + ">" + icon("loader") + "<span>Refresh scores</span></button></div>";
 }
 function renderSportsPage() {
   const root = byId("view");
   if (!state.sports && !state.sportsLoading) loadSports(false);
+  if (state.sports && configuredSportsLibraryIDs().length && !state.sportsReplayKey && !state.sportsReplaysLoading && !state.sportsReplaysError) loadSportsReplays(false);
   renderSportsTopbarTabs();
   const payload = state.sports || { events: [], leagues: [] };
   const events = filteredSportsEvents(payload);
   root.innerHTML = "<div class=\"sports-page\"><div class=\"sports-pinned\">" + renderSportsTabFilters() + renderSportsLeagueFilters(payload)
     + recoveryPanelHTML(payload.error, "sports")
+    + ((state.sportsLibrariesError || state.sportsReplaysError) ? "<div class=\"sports-error\">Sports replays are temporarily unavailable.</div>" : "")
     + (state.sportsLoading && !events.length ? "<div class=\"empty\">Loading sports...</div>" : "")
     + "</div><div class=\"sports-score-scroll\">"
-    + (events.length ? "<div class=\"sports-board\">" + events.map(renderSportsEventCard).join("") + "</div>" : (!state.sportsLoading ? "<div class=\"empty\">No sports matches.</div>" : ""))
+    + (events.length ? "<div class=\"sports-board\">" + events.map(renderSportsEventCard).join("") + "</div>" : ((state.sportsLoading || (state.sportsTab === "replays" && state.sportsReplaysLoading)) ? "<div class=\"empty\">Loading sports...</div>" : "<div class=\"empty\">No sports matches.</div>"))
     + "</div>"
     + "</div>";
 }
@@ -2261,6 +2427,7 @@ function filteredSportsEvents(payload) {
     if (state.sportsTab === "live" && !event.live) return false;
     const startUnix = Number(event.startUnix || 0);
     if (state.sportsTab === "upcoming" && (event.completed || event.live || (startUnix > 0 && startUnix < now - 3600))) return false;
+    if (state.sportsTab === "replays" && !sportsReplayMatchesForEvent(event).length) return false;
     if (state.sportsTab === "favorites" && !sportsEventHasFavoriteTeam(event)) return false;
     return true;
   }).sort(compareSportsEventsForTab);
@@ -2298,6 +2465,7 @@ function renderSportsEventCard(event) {
   return "<article class=\"sports-card" + phase + "\">"
     + renderSportsMatchup(event, status)
     + renderSportsChannels(event)
+    + renderSportsReplays(event)
     + "</article>";
 }
 function sportsStatusLabel(event) {
@@ -2351,6 +2519,29 @@ function renderSportsChannelChip(channel) {
   const meta = channel.categoryName || channel.reason || "Live TV";
   const name = channel.name || "Channel";
   return "<div class=\"sports-channel-wrap\"><button class=\"sports-channel\" type=\"button\" data-channel=\"" + escapeHTML(channel.id) + "\" title=\"" + escapeHTML(channel.reason || meta) + "\"><span class=\"sports-channel-logo\">" + logoHTML(channel) + "</span><span class=\"sports-channel-copy\"><strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(name) + "</strong><small>" + escapeHTML(meta) + "</small></span></button></div>";
+}
+function sportsReplayMatchesForEvent(event) {
+  return items(state.sportsReplayMatches && state.sportsReplayMatches[event && event.id]).filter(function(match) {
+    return match && match.confidence === "high";
+  });
+}
+function sportsReplayHref(item) {
+  const id = encodeURIComponent(String(item && item.content_id || ""));
+  return (item && (item.type === "movie" || item.type === "episode") ? "/watch/" : "/item/") + id;
+}
+function sportsReplayDate(item) {
+  const value = item && (item.release_date || item.first_air_date || (item.sort_metrics || {}).release_date);
+  if (!value) return "Sports replay";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Sports replay" : date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+}
+function renderSportsReplays(event) {
+  const matches = sportsReplayMatchesForEvent(event).slice(0, 2);
+  if (!matches.length) return "";
+  return "<div class=\"sports-replays\"><span class=\"sports-replays-label\">Replays</span>" + matches.map(function(match) {
+    const item = match.item || {};
+    return "<a class=\"sports-replay\" href=\"" + escapeHTML(sportsReplayHref(item)) + "\"><span>" + icon("play") + "</span><span><strong data-overflow-tooltip=\"" + escapeHTML(item.title || "Sports replay") + "\">" + escapeHTML(item.title || "Sports replay") + "</strong><small>" + escapeHTML(sportsReplayDate(item)) + "</small></span><b>Watch Replay</b></a>";
+  }).join("") + "</div>";
 }
 function uniqueEventChannels(channels) {
   const seen = {};
@@ -4155,6 +4346,22 @@ function updateAdminPlayerField(field, target) {
   markAdminSettingsDraft();
   renderAdminPage();
 }
+function updateAdminSportsField(field, target) {
+  const settings = state.adminCategorySettings || defaultAdminCategorySettings();
+  if (field === "enabled") settings.sportsEnabled = !!target.checked;
+  if (field === "library") {
+    const libraryID = Number(target.getAttribute("data-admin-sports-library-id"));
+    let libraryIDs = items(settings.sportsLibraryIds).map(Number).filter(function(id) { return Number.isInteger(id) && id > 0; });
+    if (target.checked && libraryIDs.indexOf(libraryID) === -1) libraryIDs.push(libraryID);
+    if (!target.checked) libraryIDs = libraryIDs.filter(function(id) { return id !== libraryID; });
+    settings.sportsLibraryIds = libraryIDs;
+  }
+  state.adminCategorySettings = settings;
+  normalizeAdminCategorySettings();
+  state.sportsReplayKey = "";
+  markAdminSettingsDraft();
+  renderAdminPage();
+}
 function updateAdminTimeShiftField(field, target) {
   const settings = state.adminCategorySettings || defaultAdminCategorySettings();
   if (field === "enabled") settings.liveRewindEnabled = !!target.checked;
@@ -4380,6 +4587,9 @@ function renderAdminPage() {
     renderAdminPlayerSettings();
     renderAdminTimeShiftSettings();
   }
+  if (state.adminTab === "sports") {
+    renderAdminSportsSettings();
+  }
   if (state.adminTab === "organization") {
     renderAdminCategorySettings();
     renderAdminCategoryAliasSettings();
@@ -4399,6 +4609,7 @@ function renderAdminTopbarTabs() {
   root.innerHTML = "<button id=\"admin-tab-source\" role=\"tab\" type=\"button\" data-admin-tab=\"source\" aria-selected=\"" + (state.adminTab === "source" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "source" ? "active" : "") + "\">" + icon("guide") + "<span>Sources</span><small class=\"admin-tab-count\">" + (state.savedAdminConnection && state.savedAdminConnection.configured ? "1" : "0") + "</small></button>"
     + "<button id=\"admin-tab-general\" role=\"tab\" type=\"button\" data-admin-tab=\"general\" aria-selected=\"" + (state.adminTab === "general" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "general" ? "active" : "") + "\">" + icon("settings") + "<span>General</span></button>"
     + "<button id=\"admin-tab-playback\" role=\"tab\" type=\"button\" data-admin-tab=\"playback\" aria-selected=\"" + (state.adminTab === "playback" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "playback" ? "active" : "") + "\">" + icon("play") + "<span>Playback</span></button>"
+    + "<button id=\"admin-tab-sports\" role=\"tab\" type=\"button\" data-admin-tab=\"sports\" aria-selected=\"" + (state.adminTab === "sports" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "sports" ? "active" : "") + "\">" + icon("trophy") + "<span>Sports</span></button>"
     + "<button id=\"admin-tab-organization\" role=\"tab\" type=\"button\" data-admin-tab=\"organization\" aria-selected=\"" + (state.adminTab === "organization" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "organization" ? "active" : "") + "\">" + icon("guide") + "<span>Organization</span></button>"
     + "<button id=\"admin-tab-events\" role=\"tab\" type=\"button\" data-admin-tab=\"events\" aria-selected=\"" + (state.adminTab === "events" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "events" ? "active" : "") + "\">" + icon("clock") + "<span>Events</span></button>"
     + "<button id=\"admin-tab-integrations\" role=\"tab\" type=\"button\" data-admin-tab=\"integrations\" aria-selected=\"" + (state.adminTab === "integrations" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "integrations" ? "active" : "") + "\">" + icon("integrations") + "<span>Integrations</span></button>"
@@ -4427,7 +4638,7 @@ function setAdminTab(tab) {
   if (tab === "manager" && adminECMEnabled()) state.adminTab = "manager";
   else if (tab === "integrations") state.adminTab = "integrations";
   else if (tab === "source") state.adminTab = "source";
-  else if (tab === "playback" || tab === "organization" || tab === "events") state.adminTab = tab;
+  else if (tab === "playback" || tab === "sports" || tab === "organization" || tab === "events") state.adminTab = tab;
   else state.adminTab = "general";
   renderAdminPage();
   requestAnimationFrame(function() {
@@ -4445,6 +4656,9 @@ function renderAdminSettingsTab(tab) {
   if (tab === "organization") {
     return "<div class=\"settings-card settings-card-compact\"><h2>Group method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
       + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Presentation Overrides</h2><p>Add alternate virtual group paths without changing the original Dispatcharr groups.</p></div></div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>";
+  }
+  if (tab === "sports") {
+    return "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Sports</h2><p>Combine live Dispatcharr events with replays from selected Silo Sports libraries.</p></div></div><div id=\"admin-sports-settings\" class=\"settings-list\"></div></div>";
   }
   if (tab === "events") {
     return "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Event Keywords</h2><p>Events are detected from the Dispatcharr guide. One keyword per line or comma-separated.</p></div></div><div id=\"admin-event-keyword-settings\" class=\"settings-list event-keyword-list\"></div></div>";
@@ -4473,6 +4687,35 @@ function renderAdminPlayerSettings() {
   if (!root) return;
   const settings = adminSettings();
   root.innerHTML = "<label class=\"settings-row compact-row\"><span><strong>Sports-first player</strong><small>Open the score and matched-channel player only for channels launched from Sports.</small></span><input type=\"checkbox\" data-admin-player-field=\"sports\"" + (settings.sportsFirstPlayerEnabled ? " checked" : "") + "></label>";
+}
+function renderAdminSportsSettings() {
+  const root = byId("admin-sports-settings");
+  if (!root) return;
+  const settings = adminSettings();
+  const selected = {};
+  configuredSportsLibraryIDs().forEach(function(id) { selected[id] = true; });
+  let libraryHTML = "";
+  if (state.sportsLibrariesLoading) {
+    libraryHTML = "<div class=\"settings-note\">Loading accessible Silo libraries...</div>";
+  } else if (state.sportsLibrariesError) {
+    libraryHTML = "<div class=\"settings-note settings-warning settings-note-action\"><span>Could not load Silo libraries: " + escapeHTML(state.sportsLibrariesError) + "</span><button type=\"button\" data-admin-sports-action=\"refresh-libraries\">Retry</button></div>";
+  } else if (!items(state.sportsLibraries).length) {
+    libraryHTML = "<div class=\"settings-note\">No accessible Silo libraries are available.</div>";
+  } else {
+    const visible = {};
+    items(state.sportsLibraries).forEach(function(library) { visible[Number(library.id)] = true; });
+    const unavailable = configuredSportsLibraryIDs().filter(function(id) { return !visible[id]; }).length;
+    libraryHTML = (unavailable ? "<div class=\"settings-note settings-warning\">" + unavailable + " configured " + (unavailable === 1 ? "library is" : "libraries are") + " not accessible to this admin account and will remain configured.</div>" : "")
+      + "<div class=\"profile-selection-list sports-library-list\">" + items(state.sportsLibraries).map(function(library) {
+        const id = Number(library.id);
+        return "<label class=\"profile-selection-row\"><span><strong>" + escapeHTML(library.name || ("Library " + id)) + "</strong><small>" + escapeHTML(library.type || "Silo library") + "</small></span><input type=\"checkbox\" data-admin-sports-field=\"library\" data-admin-sports-library-id=\"" + id + "\"" + (selected[id] ? " checked" : "") + (settings.sportsEnabled ? "" : " disabled") + "></label>";
+      }).join("") + "</div>";
+  }
+  root.innerHTML = adminSaveStatusHTML()
+    + "<label class=\"settings-row compact-row\"><span><strong>Enable Sports</strong><small>Show live scores and channels. Replays appear only when they match items in the selected libraries.</small></span><input type=\"checkbox\" data-admin-sports-field=\"enabled\"" + (settings.sportsEnabled ? " checked" : "") + "></label>"
+    + "<div class=\"settings-card-head sports-library-head\"><div><h3>Replay libraries</h3><p>Select only dedicated Sports libraries. Each user still sees only libraries their Silo profile can access.</p></div><span class=\"profile-selection-summary\">" + configuredSportsLibraryIDs().length + " selected</span></div>"
+    + libraryHTML;
+  if (!state.sportsLibraries && !state.sportsLibrariesLoading) loadSportsLibraries(false);
 }
 function byteSizeLabel(value) {
   const bytes = Number(value || 0);
@@ -5402,6 +5645,12 @@ document.addEventListener("click", function(event) {
     if (action === "clear") clearAdminTimeShiftCache();
     return;
   }
+  const adminSportsAction = event.target.closest("[data-admin-sports-action]");
+  if (adminSportsAction) {
+    event.preventDefault();
+    if (adminSportsAction.getAttribute("data-admin-sports-action") === "refresh-libraries") loadSportsLibraries(true);
+    return;
+  }
   const settingsMenuButton = event.target.closest("#settings-menu-button");
   if (settingsMenuButton) {
     event.preventDefault();
@@ -5928,6 +6177,11 @@ document.addEventListener("change", function(event) {
   const adminPlayerField = event.target.getAttribute("data-admin-player-field");
   if (adminPlayerField) {
     updateAdminPlayerField(adminPlayerField, event.target);
+    return;
+  }
+  const adminSportsField = event.target.getAttribute("data-admin-sports-field");
+  if (adminSportsField) {
+    updateAdminSportsField(adminSportsField, event.target);
     return;
   }
   const adminTimeShiftField = event.target.getAttribute("data-admin-timeshift-field");
