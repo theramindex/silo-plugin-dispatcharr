@@ -2988,6 +2988,31 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	if strings.Contains(sportsCard, "sports-card-head") {
 		t.Fatal("sports card must keep its game status in the central scoreboard, not duplicate it in a header")
 	}
+	sportsBrowse := functionBody("renderSportsBrowse")
+	for _, want := range []string{`renderSportsFeature`, `renderSportsLeagueShelf`, `sports-event-grid`} {
+		if !strings.Contains(sportsBrowse, want) {
+			t.Fatalf("sports browse must include %q", want)
+		}
+	}
+	sportsLeagueDetail := functionBody("renderSportsLeagueDetail")
+	for _, want := range []string{`sportsLeagueTeams`, `sports-team-rail`, `data-sports-back`} {
+		if !strings.Contains(sportsLeagueDetail, want) {
+			t.Fatalf("sports league detail must include %q", want)
+		}
+	}
+	sportsEventDetail := functionBody("renderSportsEventDetail")
+	for _, want := range []string{`Live coverage`, `Event coverage`, `renderSportsBroadcastCard`, `renderSportsCoverageCard`} {
+		if !strings.Contains(sportsEventDetail, want) {
+			t.Fatalf("sports event detail must include %q", want)
+		}
+	}
+	safeSportsMediaURL := functionBody("safeSportsMediaURL")
+	if !strings.Contains(safeSportsMediaURL, `https?:\/\/|\/`) {
+		t.Fatal("sports artwork must reject non-HTTP and non-root-relative media URLs")
+	}
+	for _, want := range []string{`data-sports-open-event`, `data-sports-open-league`, `data-sports-back`} {
+		requireScript(want)
+	}
 	playerSportsActive := functionBody("sportsFirstPlayerActive")
 	if !strings.Contains(playerSportsActive, "state.playerSportsMode") {
 		t.Fatal("sports-first player must be scoped to a sports launch context")
@@ -3045,6 +3070,10 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.filter-section`,
 		`.organization-preview`,
 		`.event-card-body.no-art`,
+		`.sports-feature {`,
+		`.sports-league-grid {`,
+		`.sports-event-hero {`,
+		`.sports-coverage-grid {`,
 		`.recent-channel-card`,
 		`.search-result-card-art { width: 5.1rem; height: 5.1rem;`,
 		`.search-result-card-art img, .search-result-card-art img.logo {`,
