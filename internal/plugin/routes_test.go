@@ -358,6 +358,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`.nav button.active { background: var(--text); color: var(--bg); }`,
 		`font-size: 1.25rem; line-height: 1.4; font-weight: 600;`,
 		`.search-hero h2 { margin: 0; font-size: 1.875rem;`,
+		`.search-page { width: 100%; max-width: 74rem; padding: 0.35rem 0 2rem; display: grid; grid-template-columns: minmax(0, 1fr);`,
 		`.search-hero { display: grid; grid-template-columns: auto minmax(0, 1fr);`,
 		`width: 100%; max-width: 100%; min-width: 0;`,
 		`.search-field { width: 100%; min-width: 0;`,
