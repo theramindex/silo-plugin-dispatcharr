@@ -358,6 +358,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`.nav button.active { background: var(--text); color: var(--bg); }`,
 		`font-size: 1.25rem; line-height: 1.4; font-weight: 600;`,
 		`.search-hero h2 { margin: 0; font-size: 1.875rem;`,
+		`.search-hero { display: grid; grid-template-columns: auto minmax(0, 1fr);`,
+		`.search-field { width: 100%; min-width: 0;`,
 		`.search-category-tile { min-height: 4rem;`,
 		`.sports-leagues .chip.active { background: var(--text); color: var(--bg);`,
 		`const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuffix`,
