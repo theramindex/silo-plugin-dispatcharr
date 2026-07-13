@@ -870,6 +870,7 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 					{"id": "channel:argentina-city", "name": "Argentina | Buenos Aires | Sports 1", "categoryId": "cat:intl-sports", "categoryName": "International Sports"},
 					{"id": "channel:us-sports-mlb", "name": "MLB Teams Network", "categoryId": "cat:us-sports-mlb", "categoryName": "US | Sports | MLB Teams", "profileIds": []string{"profile-ny"}},
 					{"id": "channel:ny-news-sports", "name": "NY Sports News", "categoryId": "cat:news-sports", "categoryName": "News | Sports | Regional", "profileIds": []string{"profile-ny"}},
+					{"id": "channel:ny-us-news", "name": "NY News", "categoryId": "cat:us-tv-news", "categoryName": "US TV | News", "profileIds": []string{"profile-ny"}},
 					{"id": "channel:md-afn", "name": "AFN", "categoryId": "cat:us-tv-afn", "categoryName": "US TV | AFN", "profileIds": []string{"profile-md"}},
 				},
 				"categories": []map[string]any{
@@ -883,6 +884,7 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 					{"id": "cat:intl-sports", "name": "International Sports"},
 					{"id": "cat:us-sports-mlb", "name": "US | Sports | MLB Teams"},
 					{"id": "cat:news-sports", "name": "News | Sports | Regional"},
+					{"id": "cat:us-tv-news", "name": "US TV | News"},
 					{"id": "cat:us-tv-afn", "name": "US TV | AFN"},
 				},
 				"source": map[string]any{
@@ -903,6 +905,7 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 					{"sourcePath": "International | Argentina | Sports", "aliasPath": "World Cup | Argentina"},
 					{"sourcePath": "US | Sports", "aliasPath": "Sports | US"},
 					{"sourcePath": "News | Sports", "aliasPath": "Information | Athletics"},
+					{"sourcePath": "US TV | News", "aliasPath": "US News"},
 				},
 			},
 		},
@@ -920,6 +923,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	}
 	if !result.ProfileOverridePath {
 		t.Fatalf("expected presentation overrides to remain scoped beneath each profile path: %+v", result)
+	}
+	if !result.ProfileSingleFolderOverridePath {
+		t.Fatalf("expected presentation overrides to support a single destination folder: %+v", result)
 	}
 	if !result.ProfileSelectionDefaultsAll || !result.ProfileSelectionFiltersChannels || !result.ProfileSelectionFiltersPaths || !result.ProfileSelectionFiltersPrograms || !result.ProfileSelectionFiltersEventChannels || !result.ProfileSelectionDropsStaleIDs {
 		t.Fatalf("expected per-user profile selection to filter every Live TV discovery surface: %+v", result)
@@ -1090,6 +1096,7 @@ type virtualAliasResult struct {
 	ProfileGroupRoot                     bool   `json:"profileGroupRoot"`
 	ProfileNestedGroupPath               bool   `json:"profileNestedGroupPath"`
 	ProfileOverridePath                  bool   `json:"profileOverridePath"`
+	ProfileSingleFolderOverridePath      bool   `json:"profileSingleFolderOverridePath"`
 	ProfileSelectionDefaultsAll          bool   `json:"profileSelectionDefaultsAll"`
 	ProfileSelectionFiltersChannels      bool   `json:"profileSelectionFiltersChannels"`
 	ProfileSelectionFiltersPaths         bool   `json:"profileSelectionFiltersPaths"`
@@ -1317,8 +1324,9 @@ JSON.stringify((function() {
   normalizeAdminCategorySettings();
   const profileOrganizationMode = state.adminCategorySettings.mode;
   const profileAll = virtualCategoriesFromPaths("", function() { return true; }, true);
-  const nyLocalProfilePaths = virtualPathsForChannel(channelByID("channel:ny-local"));
-  const nestedProfileGroupPaths = virtualPathsForChannel(channelByID("channel:ny-news-sports"));
+	  const nyLocalProfilePaths = virtualPathsForChannel(channelByID("channel:ny-local"));
+	  const nestedProfileGroupPaths = virtualPathsForChannel(channelByID("channel:ny-news-sports"));
+	  const singleFolderProfilePaths = virtualPathsForChannel(channelByID("channel:ny-us-news"));
   const profileOverride = profileAll.find(function(item) { return item.name === "US TV / NY / Information / Athletics / Regional"; });
   state.app.source.channelProfile = { id: "profile-ny", name: "US TV | NY" };
   const selectedProfilePaths = profilePathsForChannel(channelByID("channel:ny-local"));
@@ -1491,8 +1499,9 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     sourcePath: !!source,
     profileGroupPath: !!profileGroup,
     profileGroupRoot: !!profileRoot,
-    profileNestedGroupPath: nestedProfileGroupPaths.indexOf("US TV / NY / News / Sports / Regional") !== -1,
-    profileOverridePath: !!profileOverride && nestedProfileGroupPaths.indexOf("US TV / NY / Information / Athletics / Regional") !== -1,
+	    profileNestedGroupPath: nestedProfileGroupPaths.indexOf("US TV / NY / News / Sports / Regional") !== -1,
+	    profileOverridePath: !!profileOverride && nestedProfileGroupPaths.indexOf("US TV / NY / Information / Athletics / Regional") !== -1,
+	    profileSingleFolderOverridePath: singleFolderProfilePaths.indexOf("US TV / NY / US News") !== -1,
     profileSelectionDefaultsAll: profileSelectionDefaultsAll,
     profileSelectionFiltersChannels: profileSelectionFiltersChannels,
     profileSelectionFiltersPaths: profileSelectionFiltersPaths,
