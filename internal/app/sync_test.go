@@ -30,6 +30,60 @@ func TestDispatcharrGuideSearchWindowLooksAheadSevenDays(t *testing.T) {
 	}
 }
 
+func TestSyncDispatcharrPreservesSharedProgramAcrossChannels(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	service := NewService(Dependencies{
+		Store: store,
+		DispatcharrFactory: func(config.Settings) DispatcharrClient {
+			return &stubDispatcharrClient{
+				channels: []dispatcharr.Channel{
+					{ID: "1", UUID: "channel-one", EffectiveName: "Fever Feed One", EffectiveGroupID: "sports"},
+					{ID: "2", UUID: "channel-two", EffectiveName: "Fever Feed Two", EffectiveGroupID: "sports"},
+					{ID: "3", UUID: "channel-three", EffectiveName: "Fever Feed Three", EffectiveGroupID: "sports"},
+				},
+				groups: []dispatcharr.ChannelGroup{{ID: "sports", Name: "US Sports | WNBA"}},
+				searchPrograms: []dispatcharr.ProgramSearchResult{
+					{
+						Program:  dispatcharr.Program{ID: "shared-fever-game", Title: "WNBA: Indiana Fever at Las Vegas Aces", StartTime: "2026-07-13T01:00:00Z", EndTime: "2026-07-13T03:00:00Z"},
+						Channels: []dispatcharr.ProgramChannel{{ID: "1"}, {ID: "2"}},
+					},
+					{
+						Program:  dispatcharr.Program{ID: "shared-fever-game", Title: "WNBA: Indiana Fever at Las Vegas Aces", StartTime: "2026-07-13T01:00:00Z", EndTime: "2026-07-13T03:00:00Z"},
+						Channels: []dispatcharr.ProgramChannel{{ID: "2"}, {ID: "3"}},
+					},
+				},
+			}
+		},
+	})
+
+	err := service.SyncNow(context.Background(), config.Settings{
+		SourceMode:        config.SourceModeAPIKey,
+		DispatcharrURL:    "https://dispatcharr.example.com",
+		DispatcharrAPIKey: "secret",
+		ChannelRefreshH:   24,
+		EPGRefreshH:       6,
+	}, time.Date(2026, 7, 13, 1, 30, 0, 0, time.UTC).Unix())
+	if err != nil {
+		t.Fatalf("expected dispatcharr sync success, got %v", err)
+	}
+
+	snapshot := store.Current()
+	if len(snapshot.Catalog.Programs) != 3 {
+		t.Fatalf("expected shared event on every channel, got %+v", snapshot.Catalog.Programs)
+	}
+	channelIDs := map[string]bool{}
+	programIDs := map[string]bool{}
+	for _, program := range snapshot.Catalog.Programs {
+		channelIDs[program.ChannelID] = true
+		programIDs[program.ID] = true
+	}
+	if len(channelIDs) != 3 || len(programIDs) != 3 {
+		t.Fatalf("expected unique channel assignments and program IDs, got %+v", snapshot.Catalog.Programs)
+	}
+}
+
 func TestSyncStoresChannelsAndPrograms(t *testing.T) {
 	t.Parallel()
 
