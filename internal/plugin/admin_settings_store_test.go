@@ -99,6 +99,53 @@ func TestNormalizeAdminSettingsPreservesSportsFirstPlayerEnabled(t *testing.T) {
 	}
 }
 
+func TestNormalizeAdminSettingsSportsReplayDefaults(t *testing.T) {
+	t.Parallel()
+
+	normalized := normalizeAdminSettingsPayload(map[string]any{})
+	if normalized["sportsEnabled"] != true {
+		t.Fatalf("expected sports replay to default to enabled, got %v", normalized["sportsEnabled"])
+	}
+	ids, ok := normalized["sportsLibraryIds"].([]int)
+	if !ok || len(ids) != 0 {
+		t.Fatalf("expected sports library IDs to default to an empty array, got %v", normalized["sportsLibraryIds"])
+	}
+}
+
+func TestNormalizeAdminSettingsSportsReplayPreservesFalseAndNormalizesLibraryIDs(t *testing.T) {
+	t.Parallel()
+
+	normalized := normalizeAdminSettingsPayload(map[string]any{
+		"sportsEnabled": false,
+		"sportsLibraryIds": []any{
+			float64(12), float64(0), float64(-4), float64(12), float64(7.5),
+			"19", true, float64(3),
+		},
+	})
+	if normalized["sportsEnabled"] != false {
+		t.Fatalf("expected explicit sports disable to be preserved, got %v", normalized["sportsEnabled"])
+	}
+	ids, ok := normalized["sportsLibraryIds"].([]int)
+	if !ok || len(ids) != 2 || ids[0] != 12 || ids[1] != 3 {
+		t.Fatalf("expected positive integral library IDs, deduped in order, got %#v", normalized["sportsLibraryIds"])
+	}
+}
+
+func TestNormalizeAdminSettingsSportsReplayMalformedValuesUseDefaults(t *testing.T) {
+	t.Parallel()
+
+	normalized := normalizeAdminSettingsPayload(map[string]any{
+		"sportsEnabled":    "false",
+		"sportsLibraryIds": "12",
+	})
+	if normalized["sportsEnabled"] != true {
+		t.Fatalf("expected malformed sportsEnabled to use true, got %v", normalized["sportsEnabled"])
+	}
+	if ids := normalized["sportsLibraryIds"].([]int); len(ids) != 0 {
+		t.Fatalf("expected malformed sports library IDs to use an empty array, got %v", ids)
+	}
+}
+
 func TestNormalizeAdminSettingsAppDisplayName(t *testing.T) {
 	t.Parallel()
 

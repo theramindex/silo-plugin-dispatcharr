@@ -135,6 +135,19 @@ first-class Live TV provider capability.
   remain upstream organizers; the plugin does not create, rename, or delete
   Dispatcharr channels.
 
+## Sports replays from Silo
+
+- Administrators can enable the Sports experience and select one or more
+  dedicated Silo Sports libraries as replay sources.
+- Replay catalog queries run in the signed-in user's browser through Silo's
+  authenticated catalog API. The configured library list is intersected with
+  that user's accessible libraries before any query is made.
+- Only high-confidence event matches are shown on Sports cards. The matcher
+  requires both teams and scores league, date proximity, and title overlap;
+  unmatched library items are never exposed as a general VOD browser.
+- Replay actions use Silo's normal item/watch routes. The plugin does not store
+  Silo tokens, library paths, or media file locations.
+
 ## Event-series guide detection
 
 - The Events view recognizes selected guide-driven series such as golf,

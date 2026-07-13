@@ -134,6 +134,18 @@ const categorySettingsJSONSchema = `{
       "type": "boolean",
       "default": false
     },
+    "sportsEnabled": {
+      "type": "boolean",
+      "default": true
+    },
+    "sportsLibraryIds": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "default": []
+    },
     "liveRewindEnabled": {
       "type": "boolean",
       "default": false

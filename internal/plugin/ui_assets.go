@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-//go:embed ui/page.html ui/styles.css ui/lineup.js ui/app.js
+//go:embed ui/page.html ui/styles.css ui/lineup.js ui/sports_replays.js ui/app.js
 var playerUIAssets embed.FS
 
 var playerPageHTMLTemplate string
@@ -27,11 +27,15 @@ func playerAppJavaScript() string {
 	if err != nil {
 		return ""
 	}
+	replays, err := playerUIAssets.ReadFile("ui/sports_replays.js")
+	if err != nil {
+		return ""
+	}
 	script, err := playerUIAssets.ReadFile("ui/app.js")
 	if err != nil {
 		return ""
 	}
-	return string(lineup) + "\n" + string(script)
+	return string(lineup) + "\n" + string(replays) + "\n" + string(script)
 }
 
 func playerStylesCSS() string {

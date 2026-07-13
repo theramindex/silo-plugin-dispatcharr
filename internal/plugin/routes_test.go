@@ -236,7 +236,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if response.GetHeaders()["cache-control"] != "no-store" {
 		t.Fatalf("expected app shell to disable browser caching, got %q", response.GetHeaders()["cache-control"])
 	}
-	if !strings.Contains(string(response.GetBody()), `src="dispatcharr/assets/app.js?v=`) || strings.Contains(string(response.GetBody()), "__ASSET_VERSION__") {
+	if !strings.Contains(string(response.GetBody()), `src="dispatcharr/assets/app.js?v=`) || !strings.Contains(string(response.GetBody()), `src="dispatcharr/assets/sports_replays.js?v=`) || strings.Contains(string(response.GetBody()), "__ASSET_VERSION__") {
 		t.Fatalf("expected root app shell to reference versioned assets: %s", string(response.GetBody()))
 	}
 	body := string(response.GetBody()) + "\n" + playerAppJavaScript() + "\n" + playerStylesCSS()
@@ -511,6 +511,7 @@ func TestManifestDeclaresPublicApplicationRoutesOnly(t *testing.T) {
 		"GET /dispatcharr/api/recordings/capability",
 		"GET /dispatcharr/assets/app.js",
 		"GET /dispatcharr/assets/lineup.js",
+		"GET /dispatcharr/assets/sports_replays.js",
 		"GET /dispatcharr/assets/app.css",
 	} {
 		if !seen[route] {
@@ -2316,7 +2317,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 		Method:  "POST",
 		Path:    "/dispatcharr/api/admin-settings",
 		Headers: map[string]string{"x-silo-user-role": "admin"},
-		Body:    []byte(`{"mode":"normal","delimiter":"pipe","virtualGroupLabel":" Virtual Categories ","virtualGroupSource":"profile_group","ecmURL":" https://ecm.example.test/manage ","allowRecordingsByDefault":false,"collapseDuplicateVirtualGroups":false,"inferChannelNameGroups":true,"categoryRenames":[{"sourcePath":" International | Arabic | Sports ","displayName":" International Sports "},{"sourcePath":"International | Arabic | Sports","displayName":"Duplicate Ignored"},{"sourcePath":"","displayName":"Nowhere"},{"sourcePath":"International | TV","displayName":""}],"categoryAliases":[{"sourcePath":" International | Arabic | Sports ","aliasPath":" Sports | Arabic "},{"sourcePath":"International | Arabic | Sports","aliasPath":"Sports | Arabic"},{"sourcePath":"International | Arabic | Sports","aliasPath":"World Cup | Arabic"},{"sourcePath":"","aliasPath":"Nowhere"},{"sourcePath":"International | Arabic | Sports","aliasPath":""}]}`),
+		Body:    []byte(`{"mode":"normal","delimiter":"pipe","virtualGroupLabel":" Virtual Categories ","virtualGroupSource":"profile_group","ecmURL":" https://ecm.example.test/manage ","allowRecordingsByDefault":false,"sportsEnabled":false,"sportsLibraryIds":[12,0,-4,12,7.5,"19",3],"collapseDuplicateVirtualGroups":false,"inferChannelNameGroups":true,"categoryRenames":[{"sourcePath":" International | Arabic | Sports ","displayName":" International Sports "},{"sourcePath":"International | Arabic | Sports","displayName":"Duplicate Ignored"},{"sourcePath":"","displayName":"Nowhere"},{"sourcePath":"International | TV","displayName":""}],"categoryAliases":[{"sourcePath":" International | Arabic | Sports ","aliasPath":" Sports | Arabic "},{"sourcePath":"International | Arabic | Sports","aliasPath":"Sports | Arabic"},{"sourcePath":"International | Arabic | Sports","aliasPath":"World Cup | Arabic"},{"sourcePath":"","aliasPath":"Nowhere"},{"sourcePath":"International | Arabic | Sports","aliasPath":""}]}`),
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
@@ -2351,6 +2352,13 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	}
 	if payload["allowRecordingsByDefault"] != false {
 		t.Fatalf("expected admin recording default to persist: %+v", payload)
+	}
+	if payload["sportsEnabled"] != false {
+		t.Fatalf("expected explicit sports disable to persist: %+v", payload)
+	}
+	ids, ok := payload["sportsLibraryIds"].([]any)
+	if !ok || len(ids) != 2 || ids[0] != float64(12) || ids[1] != float64(3) {
+		t.Fatalf("expected normalized sports library IDs to persist: %+v", payload["sportsLibraryIds"])
 	}
 	if payload["collapseDuplicateVirtualGroups"] != false {
 		t.Fatalf("expected duplicate virtual group collapse setting to persist: %+v", payload)
@@ -3117,9 +3125,10 @@ func TestHTTPRoutesServerApplicationAssetRoutes(t *testing.T) {
 
 	server := NewHTTPRoutesServer(cache.NewStore())
 	tests := map[string]string{
-		"/dispatcharr/assets/app.js":    "application/javascript; charset=utf-8",
-		"/dispatcharr/assets/lineup.js": "application/javascript; charset=utf-8",
-		"/dispatcharr/assets/app.css":   "text/css; charset=utf-8",
+		"/dispatcharr/assets/app.js":            "application/javascript; charset=utf-8",
+		"/dispatcharr/assets/lineup.js":         "application/javascript; charset=utf-8",
+		"/dispatcharr/assets/sports_replays.js": "application/javascript; charset=utf-8",
+		"/dispatcharr/assets/app.css":           "text/css; charset=utf-8",
 	}
 	for path, contentType := range tests {
 		response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: path})
@@ -3131,6 +3140,24 @@ func TestHTTPRoutesServerApplicationAssetRoutes(t *testing.T) {
 		}
 		if response.GetHeaders()["cache-control"] != "public, max-age=31536000, immutable" || len(response.GetBody()) == 0 {
 			t.Fatalf("expected cacheable embedded asset for %s", path)
+		}
+	}
+}
+
+func TestPlayerAppSportsReplaysUseUserScopedCatalogLibraries(t *testing.T) {
+	t.Parallel()
+
+	script := playerAppJavaScript()
+	for _, marker := range []string{
+		`coreGetJSON("/api/v1/user/libraries")`,
+		`corePostJSON("/api/v1/catalog/query"`,
+		`library_id: Number(libraryID)`,
+		`accessibleSportsLibraryIDs(libraries)`,
+		`if (view === "sports" && !sportsEnabled()) view = "home"`,
+		`data-admin-sports-library-id`,
+	} {
+		if !strings.Contains(script, marker) {
+			t.Fatalf("expected user-scoped Sports replay marker %q", marker)
 		}
 	}
 }

@@ -142,6 +142,11 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	if enabled, ok := payload["sportsFirstPlayerEnabled"].(bool); ok {
 		sportsFirstPlayerEnabled = enabled
 	}
+	sportsEnabled := true
+	if enabled, ok := payload["sportsEnabled"].(bool); ok {
+		sportsEnabled = enabled
+	}
+	sportsLibraryIDs := normalizeSportsLibraryIDs(payload["sportsLibraryIds"])
 	liveRewindEnabled := false
 	if enabled, ok := payload["liveRewindEnabled"].(bool); ok {
 		liveRewindEnabled = enabled
@@ -194,6 +199,8 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 		"ecmURL":                         ecmURL,
 		"allowRecordingsByDefault":       allowRecordingsByDefault,
 		"sportsFirstPlayerEnabled":       sportsFirstPlayerEnabled,
+		"sportsEnabled":                  sportsEnabled,
+		"sportsLibraryIds":               sportsLibraryIDs,
 		"liveRewindEnabled":              liveRewindEnabled,
 		"liveRewindCacheGB":              liveRewindCacheGB,
 		"liveRewindWindowMinutes":        liveRewindWindowMinutes,
@@ -205,6 +212,29 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 		"categoryAliases":                categoryAliases,
 		"eventKeywords":                  eventKeywords,
 	}
+}
+
+func normalizeSportsLibraryIDs(value any) []int {
+	items, ok := value.([]any)
+	if !ok {
+		return []int{}
+	}
+
+	seen := make(map[int]bool, len(items))
+	ids := make([]int, 0, len(items))
+	for _, item := range items {
+		number, ok := item.(float64)
+		if !ok || number <= 0 || number != float64(int(number)) {
+			continue
+		}
+		id := int(number)
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		ids = append(ids, id)
+	}
+	return ids
 }
 
 func normalizeAdminECMURL(value string) string {

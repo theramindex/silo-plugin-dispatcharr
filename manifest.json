@@ -105,6 +105,13 @@
       "navigable": false
     },
     {
+      "id": "dispatcharr-asset-sports-replays-js",
+      "method": "GET",
+      "path": "/dispatcharr/assets/sports_replays.js",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
       "id": "dispatcharr-asset-app-css",
       "method": "GET",
       "path": "/dispatcharr/assets/app.css",
