@@ -8,7 +8,7 @@ const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuff
 const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "type", adminConnectionStatus: "idle", adminConnectionMessage: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "type", adminConnectionStatus: "idle", adminConnectionMessage: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 
 state.sportsReplayPromise = null;
 state.sportsReplayGeneration = 0;
@@ -1470,7 +1470,10 @@ async function loadApp() {
   }
 }
 async function loadAdminApp() {
-  state.app = { preferences: defaultPrefs(), channels: [], programs: [], source: { mode: "direct_login", profiles: [] }, status: {} };
+  state.app = { preferences: defaultPrefs(), channels: [], categories: [], programs: [], source: { mode: "direct_login", profiles: [] }, status: {} };
+  state.adminSourceGroupsLoaded = false;
+  state.adminSourceGroupsLoading = false;
+  state.adminSourceGroupsError = "";
   const results = await Promise.all([
     getJSON("/dispatcharr/api/status").catch(function() { return {}; }),
     getJSON("/dispatcharr/api/admin-settings").catch(function() { return defaultAdminCategorySettings(); }),
@@ -1485,6 +1488,26 @@ async function loadAdminApp() {
   state.app.source.mode = state.adminConnection.sourceMode;
   if (state.app.status && state.app.status.profileAccess) state.app.source.profileAccess = state.app.status.profileAccess;
   render();
+  if (state.adminTab === "organization") loadAdminSourceGroups(false);
+}
+async function loadAdminSourceGroups(force) {
+  if (state.adminSourceGroupsLoading || (state.adminSourceGroupsLoaded && !force)) return;
+  state.adminSourceGroupsLoading = true;
+  state.adminSourceGroupsError = "";
+  renderAdminPage();
+  try {
+    const payload = await getJSON("/dispatcharr/api/channels");
+    state.app.channels = items(payload && payload.channels);
+    state.app.categories = items(payload && payload.categories);
+    state.profileSelectionIDMap = null;
+    state.profileChannelFilterMap = null;
+    state.adminSourceGroupsLoaded = true;
+  } catch (error) {
+    state.adminSourceGroupsError = readableError(error) || "Could not load source groups.";
+  } finally {
+    state.adminSourceGroupsLoading = false;
+    renderAdminPage();
+  }
 }
 function guideHasPrograms() {
   return items(state.app && state.app.programs).length > 0;
@@ -4789,7 +4812,8 @@ function renderAdminPage() {
   if (content) {
     content.setAttribute("role", "tabpanel");
     content.setAttribute("aria-labelledby", "admin-tab-" + state.adminTab);
-    content.innerHTML = state.adminTab === "manager" ? renderExternalChannelManager() : "<div class=\"settings-stack\">" + (state.adminTab === "source" ? renderAdminConnectionTab() : (state.adminTab === "integrations" ? renderAdminIntegrationsTab() : renderAdminSettingsTab(state.adminTab))) + "</div>";
+    const stackClass = "settings-stack" + (state.adminTab === "organization" ? " organization-settings" : "");
+    content.innerHTML = state.adminTab === "manager" ? renderExternalChannelManager() : "<div class=\"" + stackClass + "\">" + (state.adminTab === "source" ? renderAdminConnectionTab() : (state.adminTab === "integrations" ? renderAdminIntegrationsTab() : renderAdminSettingsTab(state.adminTab))) + "</div>";
   }
   if (state.adminTab === "general") {
     renderAdminIdentitySettings();
@@ -4853,6 +4877,7 @@ function setAdminTab(tab) {
   else if (tab === "playback" || tab === "sports" || tab === "organization" || tab === "events") state.adminTab = tab;
   else state.adminTab = "general";
   renderAdminPage();
+  if (state.adminTab === "organization") loadAdminSourceGroups(false);
   requestAnimationFrame(function() {
     const content = byId("view");
     if (!content) return;
@@ -4866,8 +4891,8 @@ function renderAdminSettingsTab(tab) {
       + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Live Rewind</h2><p>Bounded shared channel buffers for pause and rewind.</p></div></div><div id=\"admin-timeshift-settings\" class=\"settings-list\"></div></div>";
   }
   if (tab === "organization") {
-    return "<div class=\"settings-card settings-card-compact\"><h2>Group method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
-      + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Presentation Overrides</h2><p>Add alternate virtual group paths without changing the original Dispatcharr groups.</p></div></div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>";
+    return "<div class=\"settings-card organization-method-card\"><div class=\"settings-card-head\"><div><h2>Browse hierarchy</h2><p>Choose how Dispatcharr profiles, groups, and channel names become folders in Silo.</p></div></div><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
+      + "<div class=\"settings-card organization-overrides-card\"><div class=\"settings-card-head\"><div><h2>Presentation overrides</h2><p>Add another browse path for a source group without changing Dispatcharr.</p></div><span class=\"profile-selection-summary\">" + categoryAliases().length + " configured</span></div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>";
   }
   if (tab === "sports") {
     return "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Sports</h2><p>Combine live Dispatcharr events with replays from selected Silo Sports libraries.</p></div></div><div id=\"admin-sports-settings\" class=\"settings-list\"></div></div>";
@@ -5132,7 +5157,7 @@ function renderOrganizationPreview(settings) {
   const inputs = stages.map(function(stage) {
     return '<div class="organization-stage"><strong>' + escapeHTML(stage.label) + "</strong><span>" + escapeHTML(stage.value) + "</span></div>";
   }).join('<span class="organization-arrow" aria-hidden="true">→</span>');
-  return '<div id="organization-preview" class="organization-preview" aria-live="polite">' + inputs + (inputs ? '<span class="organization-arrow" aria-hidden="true">→</span>' : "") + '<div class="organization-result"><strong>Browse path</strong><span>' + escapeHTML(finalPath) + "</span></div></div>";
+  return '<div id="organization-preview" class="organization-preview-panel" aria-live="polite"><div class="organization-preview-copy"><strong>Browse path preview</strong><span>This is how one channel will appear in Silo.</span></div><div class="organization-preview">' + inputs + (inputs ? '<span class="organization-arrow" aria-hidden="true">→</span>' : "") + '<div class="organization-result"><strong>Browse path</strong><span>' + escapeHTML(finalPath) + "</span></div></div></div>";
 }
 function adminSourceGroups() {
   const groups = {};
@@ -5189,12 +5214,22 @@ function renderAdminCategoryAliasSettings() {
   const sourceOptions = sourceGroups.map(function(group) {
     return "<option value=\"" + escapeHTML(group.sourcePath) + "\">" + escapeHTML(group.sourcePath) + " (" + escapeHTML(String(group.count)) + ")</option>";
   }).join("");
-  const addRow = "<div class=\"alias-builder\"><label><span>Source group</span><select id=\"admin-alias-source\"" + (!sourceGroups.length ? " disabled" : "") + ">" + sourceOptions + "</select></label><label><span>Also show as</span><input id=\"admin-alias-path\" placeholder=\"Category | Subcategory\"" + (!sourceGroups.length ? " disabled" : "") + "></label><button data-admin-alias-action=\"add\"" + (!sourceGroups.length ? " disabled" : "") + ">Add</button></div>";
+  let sourceState = "Select a source group";
+  if (state.adminSourceGroupsLoading) sourceState = "Loading source groups...";
+  else if (state.adminSourceGroupsError) sourceState = "Could not load source groups";
+  else if (state.adminSourceGroupsLoaded && !sourceGroups.length) sourceState = "No source groups found";
+  const sourceSelectOptions = "<option value=\"\">" + escapeHTML(sourceState) + "</option>" + sourceOptions;
+  const sourceReady = state.adminSourceGroupsLoaded && sourceGroups.length > 0;
+  const loadState = state.adminSourceGroupsError
+    ? "<div class=\"settings-note settings-warning settings-note-action alias-source-state\"><span>Could not load source groups: " + escapeHTML(state.adminSourceGroupsError) + "</span><button type=\"button\" data-admin-alias-action=\"retry\">Retry</button></div>"
+    : (!state.adminSourceGroupsLoaded && !state.adminSourceGroupsLoading ? "<div class=\"settings-note alias-source-state\">Open Organization to load available Dispatcharr groups.</div>" : "");
+  const addRow = "<div class=\"alias-builder\"><label><span>Source group</span><select id=\"admin-alias-source\"" + (!sourceReady ? " disabled" : "") + ">" + sourceSelectOptions + "</select></label><label><span>Also show as</span><input id=\"admin-alias-path\" placeholder=\"Category | Subcategory\"" + (!sourceReady ? " disabled" : "") + "></label><button data-admin-alias-action=\"add\"" + (!sourceReady ? " disabled" : "") + ">Add</button></div>";
   const rows = aliases.map(function(alias, index) {
     const count = adminSourceGroupCount(alias.sourcePath);
     return "<div class=\"alias-table-row" + (!count ? " stale" : "") + "\"><div class=\"alias-table-source\"><strong title=\"" + escapeHTML(alias.sourcePath) + "\">" + escapeHTML(alias.sourcePath) + "</strong>" + (!count ? "<small>Source not found</small>" : "") + "</div><span class=\"alias-table-arrow\">&rarr;</span><label><input data-admin-alias-index=\"" + index + "\" data-admin-alias-field=\"aliasPath\" value=\"" + escapeHTML(alias.aliasPath) + "\" title=\"" + escapeHTML(alias.aliasPath) + "\" aria-label=\"Alternative group name\"></label><span class=\"alias-table-count\">" + escapeHTML(String(count)) + "</span><span class=\"alias-table-actions\"><button data-admin-alias-action=\"remove\" data-admin-alias-index=\"" + index + "\">Remove</button></span></div>";
   }).join("");
   root.innerHTML = (settings.mode !== "delimiter" ? "<div class=\"settings-note settings-warning\">Alternative group names apply when category mode is By delimiter.</div>" : "")
+    + loadState
     + addRow
     + "<div class=\"alias-table\"><div class=\"alias-table-head\"><span>Source group</span><span></span><span>Also show as</span><span>Channels</span><span>Actions</span></div>" + (rows || "<div class=\"empty\">No alternative group names yet.</div>") + "</div>";
 }
@@ -6175,6 +6210,7 @@ document.addEventListener("click", function(event) {
     const action = adminAliasAction.getAttribute("data-admin-alias-action");
     if (action === "add") addAdminCategoryAlias();
     if (action === "remove") removeAdminCategoryAlias(Number(adminAliasAction.getAttribute("data-admin-alias-index")));
+    if (action === "retry") loadAdminSourceGroups(true);
     return;
   }
   const adminProfileRefresh = event.target.closest("[data-admin-profile-refresh]");

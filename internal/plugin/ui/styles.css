@@ -890,6 +890,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .recording-badge.upcoming { background: rgba(74,54,110,0.5); color: #eee4ff; }
 .recording-badge.interrupted, .recording-badge.failed { background: rgba(99,40,35,0.5); color: #ffe0dc; }
 .settings-stack { width: min(100%, 76rem); margin: 0; display: grid; gap: 1rem; }
+.settings-stack.organization-settings { width: min(100%, 90rem); }
 .settings-card { padding: 1rem; background: var(--rail-2); }
 .settings-card-compact { padding: 0.92rem 1rem; }
 .settings-card h2 { margin: 0; font-size: 1.05rem; line-height: 1.2; font-weight: 650; }
@@ -1022,6 +1023,16 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .sports-library-head p { margin: 0.16rem 0 0; }
 .settings-preview { margin-top: 0.65rem; display: grid; gap: 0.35rem; color: var(--muted); font-size: 0.82rem; }
 .organization-preview { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
+.organization-method-card .settings-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.organization-method-card .settings-list-nested { display: contents; }
+.organization-method-card .settings-row.settings-form-row { grid-template-columns: minmax(0, 1fr); align-items: start; gap: 0.55rem; }
+.organization-method-card .settings-source-row, .organization-method-card .organization-preview-panel, .organization-method-card .settings-note { grid-column: 1 / -1; }
+.organization-method-card .settings-row.settings-form-row > select, .organization-method-card .virtual-label-control { width: 100%; min-width: 0; margin-left: 0; }
+.organization-method-card .virtual-label-control > span { text-align: left; }
+.organization-preview-panel { display: grid; grid-column: 1 / -1; gap: 0.72rem; border: 1px solid var(--line); border-radius: 0.6rem; background: color-mix(in srgb, var(--panel) 66%, transparent); padding: 0.85rem 0.9rem; }
+.organization-preview-copy { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+.organization-preview-copy strong { color: var(--text); font-size: 0.9rem; }
+.organization-preview-copy span { color: var(--muted); font-size: 0.76rem; font-weight: 700; }
 .organization-stage, .organization-result { min-width: 0; display: grid; gap: 0.14rem; }
 .organization-stage { flex: 1 1 18rem; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; }
 .organization-stage strong, .organization-result strong { color: var(--muted); font-size: 0.72rem; font-weight: 750; text-transform: uppercase; letter-spacing: 0; }
@@ -1064,6 +1075,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .alias-builder label span, .alias-path span { color: var(--muted); font-size: 0.72rem; font-weight: 850; }
 .alias-builder input, .alias-builder select { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 0.55rem; background: var(--rail-2); color: var(--text); padding: 0.52rem 0.62rem; }
 .alias-builder button { min-height: 2.45rem; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2); color: var(--text); padding: 0 0.95rem; font-weight: 850; }
+.alias-source-state { margin-bottom: 0; }
 .alias-list { display: grid; gap: 0.55rem; }
 .alias-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.75rem; align-items: center; padding: 0.72rem; border: 1px solid var(--line); border-radius: 0.5rem; background: rgba(255,255,255,0.025); }
 .alias-card-main { display: grid; grid-template-columns: minmax(12rem, 1fr) auto minmax(12rem, 1fr); gap: 0.7rem; align-items: center; min-width: 0; }
@@ -1196,6 +1208,8 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
   .custom-group-section-head { align-items: start; flex-direction: column; gap: 0.2rem; }
   .custom-group-section-head span { text-align: left; }
   .settings-row.settings-form-row { grid-template-columns: 1fr; align-items: stretch; gap: 0.55rem; }
+  .organization-method-card .settings-list { grid-template-columns: 1fr; }
+  .organization-preview-copy { align-items: flex-start; flex-direction: column; gap: 0.2rem; }
   .virtual-label-row { align-items: stretch; }
   .virtual-label-control { width: 100%; margin-left: 0; }
   .virtual-label-control > span { text-align: left; }
