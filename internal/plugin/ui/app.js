@@ -2282,6 +2282,11 @@ async function loadSportsReplayLibrary(libraryID, catalogWindows) {
     catalogItems.push.apply(catalogItems, result.items);
     truncated = truncated || result.truncated;
   }
+  const latest = await collector.collectCatalogPages(function(offset) {
+    return corePostJSON("/api/v1/catalog/query", { match: "all", groups: [], sort: "created_at", order: "desc", library_id: Number(libraryID), limit: 100, offset: offset });
+  }, 2);
+  catalogItems.push.apply(catalogItems, latest.items);
+  truncated = truncated || latest.truncated;
   return { items: catalogItems, truncated: truncated };
 }
 function dedupeSportsReplayItems(catalogItems) {
