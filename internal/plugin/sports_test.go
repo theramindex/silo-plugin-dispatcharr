@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -20,6 +21,23 @@ import (
 type staticSportsProvider struct {
 	events []SportsEvent
 	err    error
+}
+
+type deadlineSportsProvider struct {
+	maxRemaining time.Duration
+}
+
+func (p *deadlineSportsProvider) Events(ctx context.Context, _ time.Time) ([]SportsEvent, error) {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return nil, errors.New("sports provider context has no deadline")
+	}
+	p.maxRemaining = time.Until(deadline)
+	return nil, errors.New("provider unavailable")
+}
+
+func (*deadlineSportsProvider) Source() string {
+	return "deadline-test"
 }
 
 func (p staticSportsProvider) Events(context.Context, time.Time) ([]SportsEvent, error) {
@@ -106,6 +124,21 @@ func TestHTTPRoutesServerSportsMatchesChannelsAndFavoriteTeams(t *testing.T) {
 	payload = fetchSportsPayload(t, server)
 	if payload.Events[0].Home.Favorite || payload.Events[0].Away.Favorite {
 		t.Fatalf("sports payload must remain user-neutral: %+v", payload.Events[0])
+	}
+}
+
+func TestSportsPayloadBoundsProviderWorkBelowPluginRouteDeadline(t *testing.T) {
+	t.Parallel()
+
+	provider := &deadlineSportsProvider{}
+	server := NewHTTPRoutesServer(cache.NewStore())
+	server.sportsProvider = provider
+	payload := server.sportsPayload(context.Background(), false)
+	if provider.maxRemaining <= 0 || provider.maxRemaining > sportsProviderFetchTimeout {
+		t.Fatalf("expected bounded provider deadline, got %s", provider.maxRemaining)
+	}
+	if payload.Error == "" || payload.Source != "deadline-test" {
+		t.Fatalf("expected provider error payload, got %+v", payload)
 	}
 }
 
@@ -550,6 +583,9 @@ func TestSportarrSportsProviderEnrichesMatchedEvents(t *testing.T) {
 		Channels:   []SportsChannelMatch{{ID: "channel-1"}},
 	}}
 	enriched := provider.EnrichEvents(context.Background(), events, 1)
+	waitForSportarrEnrichment(t, provider)
+	enriched = provider.EnrichEvents(context.Background(), events, 1)
+	waitForSportarrEnrichment(t, provider)
 	if enriched[0].SportName != "Basketball" || enriched[0].LeagueLogoURL == "" || enriched[0].LeagueDescription == "" {
 		t.Fatalf("expected league enrichment, got %+v", enriched[0])
 	}
@@ -559,6 +595,55 @@ func TestSportarrSportsProviderEnrichesMatchedEvents(t *testing.T) {
 	if enriched[0].ImageURL != "https://images.example/backdrop.jpg" {
 		t.Fatalf("expected canonical Sportarr event artwork, got %+v", enriched[0])
 	}
+}
+
+func TestSportarrEnrichmentDoesNotBlockSportsResponse(t *testing.T) {
+	t.Parallel()
+
+	testServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		time.Sleep(150 * time.Millisecond)
+		response.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.Contains(request.URL.Path, "/images/entity/event/"):
+			_, _ = response.Write([]byte(`{"images":[]}`))
+		case strings.Contains(request.URL.Path, "/leagues/"):
+			_, _ = response.Write([]byte(`{"id":"league-id","name":"League"}`))
+		default:
+			_, _ = response.Write([]byte(`{"id":"team-id","name":"Team"}`))
+		}
+	}))
+	defer testServer.Close()
+
+	provider := newSportarrSportsProvider(testServer.Client())
+	provider.baseURL = testServer.URL
+	events := []SportsEvent{{
+		ProviderID: "event-id",
+		LeagueID:   "league-id",
+		Home:       SportsTeam{ID: "home-id"},
+		Away:       SportsTeam{ID: "away-id"},
+		Channels:   []SportsChannelMatch{{ID: "channel-id"}},
+	}}
+	started := time.Now()
+	_ = provider.EnrichEvents(context.Background(), events, 1)
+	if elapsed := time.Since(started); elapsed > 50*time.Millisecond {
+		t.Fatalf("expected non-blocking enrichment, took %s", elapsed)
+	}
+	waitForSportarrEnrichment(t, provider)
+}
+
+func waitForSportarrEnrichment(t *testing.T, provider *sportarrSportsProvider) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		provider.metadataMu.Lock()
+		running := provider.enriching
+		provider.metadataMu.Unlock()
+		if !running {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("timed out waiting for Sportarr enrichment")
 }
 
 func TestSportarrSportsProviderRetriesTransientResponses(t *testing.T) {
