@@ -3264,6 +3264,8 @@ func TestPlayerAppSportsReplaysUseUserScopedCatalogLibraries(t *testing.T) {
 		`coreGetJSON("/api/v1/user/libraries")`,
 		`corePostJSON("/api/v1/catalog/query"`,
 		`library_id: Number(libraryID)`,
+		`groups: [], sort: "created_at", order: "desc"`,
+		`}, 2);`,
 		`accessibleSportsLibraryIDs(libraries)`,
 		`if (view === "sports" && !sportsEnabled()) view = "home"`,
 		`data-admin-sports-library-id`,
