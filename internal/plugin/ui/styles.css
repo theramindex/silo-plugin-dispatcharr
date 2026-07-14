@@ -239,15 +239,30 @@ button { cursor: pointer; touch-action: manipulation; }
 .program time { color: var(--muted); font-size: 0.78rem; display: block; }
 .category-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.65rem; }
 .folder-filter { margin: 0.55rem 0 0.8rem; max-width: 100%; display: flex; align-items: center; gap: 0.8rem; }
-.folder-filter .search { width: min(34rem, 100%); min-width: 12rem; min-height: 3.4rem; background: var(--panel); }
+.folder-filter .search { flex: 1 1 auto; width: auto; min-width: 12rem; min-height: 2.75rem; background: var(--panel); }
 .folder-filter .search:focus { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent); outline: none; }
-.folder-filter-actions { margin-left: auto; display: flex; align-items: stretch; justify-content: flex-end; gap: 0.55rem; min-width: 0; }
-.folder-group-filter { position: relative; display: grid; align-content: center; min-width: 17rem; min-height: 3.4rem; border: 1px solid var(--line); border-radius: 0.75rem; background: var(--panel); overflow: hidden; }
-.folder-group-filter-label { position: absolute; top: 0.42rem; left: 0.85rem; z-index: 1; color: var(--muted); font-size: 0.62rem; font-weight: 800; line-height: 1; text-transform: uppercase; pointer-events: none; }
-.folder-group-filter select { width: 100%; height: 100%; min-height: 3.4rem; appearance: none; border: 0; border-radius: inherit; background: transparent; color: var(--text); padding: 1rem 2.4rem 0.15rem 0.85rem; font: inherit; font-size: 0.9rem; font-weight: 700; }
-.folder-group-filter:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent); }
-.folder-group-filter select:focus { outline: none; }
-.folder-group-filter svg { position: absolute; top: 50%; right: 0.8rem; width: 0.95rem; height: 0.95rem; transform: translateY(-50%); pointer-events: none; }
+.folder-filter-actions { position: relative; z-index: 12; flex: 0 1 18rem; width: min(18rem, 100%); min-width: 12rem; }
+.folder-category-picker { position: relative; width: 100%; }
+.folder-category-trigger { width: 100%; min-height: 2.75rem; border: 1px solid var(--line); border-radius: 0.72rem; background: var(--panel); color: var(--text); display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; padding: 0.34rem 0.5rem 0.34rem 0.72rem; text-align: left; }
+.folder-category-trigger:hover, .folder-category-trigger:focus-visible, .folder-category-picker.open .folder-category-trigger { border-color: color-mix(in srgb, var(--text) 30%, var(--line)); background: var(--panel-2); outline: 0; }
+.folder-category-trigger-copy { min-width: 0; display: grid; gap: 0.02rem; }
+.folder-category-trigger-copy small { color: var(--muted); font-size: 0.62rem; font-weight: 850; letter-spacing: 0.055em; line-height: 1; text-transform: uppercase; }
+.folder-category-trigger-copy strong { overflow: hidden; color: var(--text); font-size: 0.87rem; font-weight: 850; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.folder-category-chevron { width: 1.9rem; height: 1.9rem; border-radius: 0.48rem; background: color-mix(in srgb, var(--text) 6%, transparent); display: grid; place-items: center; flex: 0 0 auto; }
+.folder-category-chevron svg { width: 0.95rem; height: 0.95rem; color: var(--muted); transition: transform 160ms ease-out; }
+.folder-category-picker.open .folder-category-chevron svg { transform: rotate(180deg); }
+.folder-category-popover { position: absolute; left: 0; top: calc(100% + 0.38rem); z-index: 30; width: min(24rem, calc(100vw - 2rem)); max-height: min(32rem, calc(100dvh - 11rem)); overflow: hidden; border: 1px solid color-mix(in srgb, var(--line) 80%, var(--text) 12%); border-radius: 0.78rem; background: color-mix(in srgb, var(--panel) 97%, var(--bg)); box-shadow: 0 1rem 2.8rem rgba(0,0,0,0.4); display: none; }
+.folder-category-picker.open .folder-category-popover { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.folder-category-search { margin: 0.55rem; border: 1px solid var(--line); border-radius: 0.58rem; background: var(--bg); display: flex; align-items: center; gap: 0.42rem; padding: 0 0.58rem; }
+.folder-category-search svg { width: 0.95rem; height: 0.95rem; color: var(--muted); }
+.folder-category-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); padding: 0.55rem 0; font: inherit; font-size: 0.84rem; font-weight: 720; }
+.folder-category-options { min-height: 0; overflow-y: auto; padding: 0 0.4rem 0.45rem; }
+.folder-category-option { width: 100%; min-height: 2.8rem; border: 0; border-radius: 0.5rem; background: transparent; color: var(--text); display: grid; grid-template-columns: 1.25rem minmax(0, 1fr); align-items: center; gap: 0.42rem; padding: 0.38rem 0.5rem; text-align: left; }
+.folder-category-option:hover, .folder-category-option:focus-visible { background: color-mix(in srgb, var(--text) 7%, transparent); outline: 0; }
+.folder-category-option.selected { background: color-mix(in srgb, var(--text) 10%, transparent); }
+.folder-category-option strong { display: block; overflow: hidden; font-size: 0.84rem; font-weight: 780; text-overflow: ellipsis; white-space: nowrap; }
+.folder-category-check { width: 1.1rem; height: 1.1rem; display: grid; place-items: center; color: var(--text); }
+.folder-category-check svg { width: 1rem; height: 1rem; stroke-width: 2.25; }
 .saved-lineup-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 0.5rem; }
 .saved-lineup-item { min-width: 0; min-height: 4rem; display: grid; grid-template-columns: minmax(0, 1fr) 2.5rem; align-items: stretch; border: 1px solid transparent; border-radius: 0.5rem; background: var(--rail-2); overflow: hidden; }
 .saved-lineup-item:hover, .saved-lineup-item:focus-within { background: var(--panel-2); }
@@ -1266,8 +1281,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
   .tile { min-height: 4.8rem; padding: 0.75rem 0.72rem 0.75rem 0.85rem; }
   .folder-filter { flex-wrap: wrap; }
   .folder-filter .search { flex: 1 1 100%; }
-  .folder-filter-actions { min-width: 0; }
-  .folder-group-filter { min-width: 0; flex: 1 1 auto; }
+  .folder-filter-actions { flex: 1 1 100%; width: 100%; min-width: 0; }
   .folder-guide-grid { max-height: 44dvh; overflow-y: auto; overscroll-behavior: contain; }
   .source-table { overflow-x: visible; }
   .source-dialog-backdrop { padding: 0; }
