@@ -1005,6 +1005,12 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.ProfileSingleFolderOverridePath {
 		t.Fatalf("expected presentation overrides to support a single destination folder: %+v", result)
 	}
+	if !result.ProfileAbsoluteOverridePath || !result.ProfileAbsolutePrefixOverridePath {
+		t.Fatalf("expected presentation overrides to add absolute top-level paths in profile mode: %+v", result)
+	}
+	if !result.AdminSourcePrefixAvailable {
+		t.Fatalf("expected parent source paths to be selectable for presentation overrides: %+v", result)
+	}
 	if !result.ProfileSelectionDefaultsAll || !result.ProfileSelectionFiltersChannels || !result.ProfileSelectionFiltersPaths || !result.ProfileSelectionFiltersPrograms || !result.ProfileSelectionFiltersEventChannels || !result.ProfileSelectionDropsStaleIDs {
 		t.Fatalf("expected per-user profile selection to filter every Live TV discovery surface: %+v", result)
 	}
@@ -1178,6 +1184,9 @@ type virtualAliasResult struct {
 	ProfileNestedGroupPath               bool   `json:"profileNestedGroupPath"`
 	ProfileOverridePath                  bool   `json:"profileOverridePath"`
 	ProfileSingleFolderOverridePath      bool   `json:"profileSingleFolderOverridePath"`
+	ProfileAbsoluteOverridePath          bool   `json:"profileAbsoluteOverridePath"`
+	ProfileAbsolutePrefixOverridePath    bool   `json:"profileAbsolutePrefixOverridePath"`
+	AdminSourcePrefixAvailable           bool   `json:"adminSourcePrefixAvailable"`
 	ProfileSelectionDefaultsAll          bool   `json:"profileSelectionDefaultsAll"`
 	ProfileSelectionFiltersChannels      bool   `json:"profileSelectionFiltersChannels"`
 	ProfileSelectionFiltersPaths         bool   `json:"profileSelectionFiltersPaths"`
@@ -1598,6 +1607,9 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 	    profileNestedGroupPath: nestedProfileGroupPaths.indexOf("US TV / NY / News / Sports / Regional") !== -1,
 	    profileOverridePath: !!profileOverride && nestedProfileGroupPaths.indexOf("US TV / NY / Information / Athletics / Regional") !== -1,
 	    profileSingleFolderOverridePath: singleFolderProfilePaths.indexOf("US TV / NY / US News") !== -1,
+	    profileAbsoluteOverridePath: singleFolderProfilePaths.indexOf("US News") !== -1,
+	    profileAbsolutePrefixOverridePath: nestedProfileGroupPaths.indexOf("Information / Athletics / Regional") !== -1,
+	    adminSourcePrefixAvailable: adminSourceGroups().some(function(group) { return group.sourcePath === "News" && group.count > 0; }),
     profileSelectionDefaultsAll: profileSelectionDefaultsAll,
     profileSelectionFiltersChannels: profileSelectionFiltersChannels,
     profileSelectionFiltersPaths: profileSelectionFiltersPaths,
