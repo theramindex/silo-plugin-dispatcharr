@@ -25,7 +25,10 @@ type sportsEventEnricher interface {
 	EnrichEvents(context.Context, []SportsEvent, int) []SportsEvent
 }
 
-const sportsChannelMinimumScore = 28
+const (
+	sportsChannelMinimumScore  = 28
+	sportsProviderFetchTimeout = 4 * time.Second
+)
 
 type sportsEventCache struct {
 	Events       []SportsEvent
@@ -116,7 +119,9 @@ func (s *HTTPRoutesServer) handleSportsFavorite(request *pluginv1.HandleHTTPRequ
 
 func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) SportsPayload {
 	now := time.Now()
-	events, updatedUnix, source, err := s.cachedSportsEvents(ctx, now, refresh)
+	providerCtx, cancelProvider := context.WithTimeout(ctx, sportsProviderFetchTimeout)
+	events, updatedUnix, source, err := s.cachedSportsEvents(providerCtx, now, refresh)
+	cancelProvider()
 	snapshot := s.store.Current()
 	channelIndex := newSportsChannelIndex(snapshot)
 	for index := range events {

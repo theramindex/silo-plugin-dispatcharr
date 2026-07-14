@@ -36,6 +36,7 @@ type sportarrSportsProvider struct {
 	teamFlight   map[string]*sportarrTeamFlight
 	leagueFlight map[string]*sportarrLeagueFlight
 	imageFlight  map[string]*sportarrImageFlight
+	enriching    bool
 }
 
 type sportarrTeamFlight struct {
@@ -417,7 +418,7 @@ func normalizeSportarrStatus(value string) string {
 	}
 }
 
-func (p *sportarrSportsProvider) EnrichEvents(ctx context.Context, events []SportsEvent, limit int) []SportsEvent {
+func (p *sportarrSportsProvider) EnrichEvents(_ context.Context, events []SportsEvent, limit int) []SportsEvent {
 	if limit <= 0 || len(events) == 0 {
 		return events
 	}
@@ -439,13 +440,32 @@ func (p *sportarrSportsProvider) EnrichEvents(ctx context.Context, events []Spor
 			requests = append(requests, request)
 		}
 	}
-	if len(requests) > 0 {
-		p.fetchDetails(ctx, requests)
-	}
 	for index := range events {
 		events[index] = p.applyCachedDetails(events[index])
 	}
+	if len(requests) > 0 {
+		p.startEnrichment(requests)
+	}
 	return events
+}
+
+func (p *sportarrSportsProvider) startEnrichment(requests []sportarrDetailRequest) {
+	p.metadataMu.Lock()
+	if p.enriching {
+		p.metadataMu.Unlock()
+		return
+	}
+	p.enriching = true
+	p.metadataMu.Unlock()
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+		defer cancel()
+		p.fetchDetails(ctx, requests)
+		p.metadataMu.Lock()
+		p.enriching = false
+		p.metadataMu.Unlock()
+	}()
 }
 
 func (p *sportarrSportsProvider) purgeExpiredMetadata(now time.Time) {
