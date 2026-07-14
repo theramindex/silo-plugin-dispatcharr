@@ -150,6 +150,64 @@ func TestHTTPRoutesServerSportsMatchesChannelsAndFavoriteTeams(t *testing.T) {
 	}
 }
 
+func TestSportsPayloadFallsBackToGuideMatchups(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Source: model.LiveTVSource(model.SourceModeXtream),
+		Channels: []model.Channel{
+			{ID: "ch:wnba-1", Name: "WNBA League Pass", CategoryID: "sports", CategoryName: "US TV | Sports"},
+			{ID: "ch:wnba-2", Name: "ESPN", CategoryID: "sports", CategoryName: "US TV | Sports"},
+			{ID: "ch:news", Name: "News", CategoryID: "news", CategoryName: "News"},
+		},
+		Programs: []model.Program{
+			{ID: "p:wnba-1", ChannelID: "ch:wnba-1", Title: "WNBA Basketball: Indiana Fever vs Las Vegas Aces", StartUnix: now.Add(-30 * time.Minute).Unix(), EndUnix: now.Add(90 * time.Minute).Unix()},
+			{ID: "p:wnba-2", ChannelID: "ch:wnba-2", Title: "WNBA Basketball: Indiana Fever vs Las Vegas Aces", StartUnix: now.Add(-30 * time.Minute).Unix(), EndUnix: now.Add(90 * time.Minute).Unix()},
+			{ID: "p:news", ChannelID: "ch:news", Title: "Morning News", StartUnix: now.Add(-30 * time.Minute).Unix(), EndUnix: now.Add(30 * time.Minute).Unix()},
+		},
+		Content: model.ContentState{LiveCategories: []model.Category{
+			{ID: "sports", Name: "US TV | Sports", Kind: "live"},
+			{ID: "news", Name: "News", Kind: "live"},
+		}},
+	}})
+	server := NewHTTPRoutesServer(store)
+	server.sportsProvider = staticSportsProvider{}
+
+	payload := server.sportsPayload(context.Background(), false)
+	if payload.Source != "EPG fallback" || len(payload.Events) != 1 {
+		t.Fatalf("expected one EPG fallback event, got %+v", payload)
+	}
+	event := payload.Events[0]
+	if event.LeagueID != "wnba" || event.Away.Name != "Indiana Fever" || event.Home.Name != "Las Vegas Aces" || !event.Live {
+		t.Fatalf("unexpected fallback event: %+v", event)
+	}
+	assertSportsMatch(t, event.Channels, "ch:wnba-1")
+	assertSportsMatch(t, event.Channels, "ch:wnba-2")
+	assertNoSportsMatch(t, event.Channels, "ch:news")
+
+	server = NewHTTPRoutesServer(store)
+	server.sportsProvider = staticSportsProvider{events: []SportsEvent{{
+		ID:         "sportarr:wnba-game",
+		LeagueID:   "wnba",
+		LeagueName: "WNBA",
+		Name:       "Indiana Fever at Las Vegas Aces",
+		ShortName:  "IND vs LV",
+		StartUnix:  now.Add(-30 * time.Minute).Unix(),
+		Live:       true,
+		Status:     "live",
+		Away:       SportsTeam{ID: "team:indiana", Name: "Indiana Fever", Abbreviation: "IND"},
+		Home:       SportsTeam{ID: "team:las-vegas", Name: "Las Vegas Aces", Abbreviation: "LV"},
+	}}}
+	payload = server.sportsPayload(context.Background(), false)
+	if payload.Source != "test + EPG" || len(payload.Events) != 1 || payload.Events[0].ID != "sportarr:wnba-game" {
+		t.Fatalf("expected EPG to enrich the Sportarr event without duplicating it, got %+v", payload)
+	}
+	assertSportsMatch(t, payload.Events[0].Channels, "ch:wnba-1")
+	assertSportsMatch(t, payload.Events[0].Channels, "ch:wnba-2")
+}
+
 func TestSportsPayloadBoundsProviderWorkBelowPluginRouteDeadline(t *testing.T) {
 	t.Parallel()
 

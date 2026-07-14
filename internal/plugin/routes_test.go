@@ -312,6 +312,11 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`Search movies, tv shows, channels and more`,
 		`function renderSportsPage()`,
 		`function renderSportsTopbarTabs()`,
+		`state.sportsReplayStandaloneEvents = [];`,
+		`function standaloneSportsReplayEvent(item)`,
+		`function renderStandaloneSportsReplayFeature(event)`,
+		`function renderStandaloneSportsReplayTile(event)`,
+		`const windows = matcher.catalogWindows(events);`,
 		`const response = await coreFetch(route(url));`,
 		`if (!coreAccessToken && coreStoredValue("refresh_token")) {`,
 		`error.status = response.status`,
@@ -429,6 +434,9 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	}
 	if strings.Contains(body, `postJSON("/dispatcharr/api/sports/favorites"`) {
 		t.Fatalf("expected sports favorite teams to save through user profile preferences")
+	}
+	if strings.Contains(body, `delete state.sports.error;`) {
+		t.Fatalf("expected sports provider errors to remain visible instead of rendering as an empty result")
 	}
 	if strings.Contains(body, `colorClass(`) {
 		t.Fatalf("expected guide colors to be semantic, not rotated by position")

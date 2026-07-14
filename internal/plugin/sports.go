@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -27,9 +28,11 @@ type sportsEventEnricher interface {
 
 const (
 	sportsChannelMinimumScore  = 28
-	sportsProviderFetchTimeout = 4 * time.Second
+	sportsProviderFetchTimeout = 24 * time.Second
 	sportsBuildTimeout         = 30 * time.Second
 )
+
+var sportsMatchupSeparator = regexp.MustCompile(`(?i)\s+(?:vs\.?|v\.?|at|@)\s+`)
 
 type sportsEventCache struct {
 	Events       []SportsEvent
@@ -132,11 +135,27 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 	events, updatedUnix, source, err := s.cachedSportsEvents(providerCtx, now, refresh)
 	cancelProvider()
 	snapshot := s.store.Current()
+	if guideEvents := sportsEventsFromGuide(snapshot, now); len(guideEvents) > 0 {
+		if len(events) == 0 {
+			events = guideEvents
+			source = "EPG fallback"
+			err = nil
+		} else {
+			events = mergeSportsGuideEvents(events, guideEvents)
+			source = firstNonEmpty(source, "Sports provider") + " + EPG"
+		}
+		if updatedUnix <= 0 {
+			updatedUnix = snapshot.Health.EPGLastSuccessUnix
+			if updatedUnix <= 0 {
+				updatedUnix = now.Unix()
+			}
+		}
+	}
 	channelIndex := newSportsChannelIndex(snapshot)
 	for index := range events {
 		events[index].Home.Favorite = false
 		events[index].Away.Favorite = false
-		events[index].Channels = channelIndex.Match(events[index])
+		events[index].Channels = mergeSportsChannelMatches(events[index].Channels, channelIndex.Match(events[index]))
 	}
 	sort.Slice(events, func(i, j int) bool {
 		if events[i].Live != events[j].Live {
@@ -163,6 +182,228 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 		payload.Error = err.Error()
 	}
 	return payload
+}
+
+func mergeSportsGuideEvents(events, guideEvents []SportsEvent) []SportsEvent {
+	merged := cloneSportsEvents(events)
+	for _, guideEvent := range guideEvents {
+		matched := false
+		for index := range merged {
+			if !sportsEventsSameMatchup(merged[index], guideEvent) {
+				continue
+			}
+			merged[index].Channels = mergeSportsChannelMatches(guideEvent.Channels, merged[index].Channels)
+			matched = true
+			break
+		}
+		if !matched {
+			merged = append(merged, guideEvent)
+		}
+	}
+	return merged
+}
+
+func sportsEventsSameMatchup(left, right SportsEvent) bool {
+	if left.StartUnix > 0 && right.StartUnix > 0 {
+		difference := left.StartUnix - right.StartUnix
+		if difference < 0 {
+			difference = -difference
+		}
+		if difference > int64(6*time.Hour/time.Second) {
+			return false
+		}
+	}
+	leftText := normalizeMatchText(strings.Join([]string{left.Name, left.ShortName, left.Away.Name, left.Home.Name}, " "))
+	rightText := normalizeMatchText(strings.Join([]string{right.Name, right.ShortName, right.Away.Name, right.Home.Name}, " "))
+	return strongSportsGuideMatch(leftText, right) && strongSportsGuideMatch(rightText, left)
+}
+
+func sportsEventsFromGuide(snapshot cache.Snapshot, now time.Time) []SportsEvent {
+	categoryNames := map[string]string{}
+	for _, category := range liveCategories(snapshot) {
+		categoryNames[category.ID] = category.Name
+	}
+	channels := map[string]model.Channel{}
+	for _, channel := range snapshot.Catalog.Channels {
+		if channel.ID != "" {
+			channels[channel.ID] = channel
+		}
+	}
+
+	fromUnix := now.Add(-24 * time.Hour).Unix()
+	toUnix := now.Add(72 * time.Hour).Unix()
+	byKey := map[string]*SportsEvent{}
+	for _, program := range snapshot.Catalog.Programs {
+		if program.EndUnix < fromUnix || program.StartUnix > toUnix {
+			continue
+		}
+		channel, ok := channels[program.ChannelID]
+		if !ok {
+			continue
+		}
+		categoryName := firstNonEmpty(categoryNames[channel.CategoryID], channel.CategoryName)
+		leagueID, leagueName, sportName, sportsContext := guideSportsLeague(strings.Join([]string{program.Title, channel.Name, categoryName}, " "))
+		awayName, homeName, matchup := guideSportsMatchup(program.Title)
+		if !sportsContext || !matchup {
+			continue
+		}
+
+		startBucket := program.StartUnix / (15 * 60)
+		key := normalizeMatchText(program.Title) + "|" + fmt.Sprintf("%d", startBucket)
+		event := byKey[key]
+		if event == nil {
+			endUnix := program.EndUnix
+			if endUnix <= program.StartUnix {
+				endUnix = program.StartUnix + 3*3600
+			}
+			live := program.StartUnix <= now.Unix() && endUnix > now.Unix()
+			completed := endUnix <= now.Unix()
+			status := "scheduled"
+			statusText := ""
+			if live {
+				status = "live"
+				statusText = "Live"
+			} else if completed {
+				status = "completed"
+				statusText = "Final"
+			}
+			value := SportsEvent{
+				ID:         "epg:" + sportsHash(key),
+				LeagueID:   leagueID,
+				LeagueName: leagueName,
+				SportName:  sportName,
+				Name:       strings.TrimSpace(program.Title),
+				ShortName:  strings.TrimSpace(awayName + " vs " + homeName),
+				StartUnix:  program.StartUnix,
+				Live:       live,
+				Completed:  completed,
+				Status:     status,
+				StatusText: statusText,
+				Away:       SportsTeam{Name: awayName, Abbreviation: sportsTeamInitials(awayName)},
+				Home:       SportsTeam{Name: homeName, Abbreviation: sportsTeamInitials(homeName)},
+			}
+			event = &value
+			byKey[key] = event
+		}
+		if !sportsEventHasChannel(event, channel.ID) {
+			event.Channels = append(event.Channels, SportsChannelMatch{
+				ID:           channel.ID,
+				Name:         channel.Name,
+				CategoryName: categoryName,
+				LogoURL:      channel.LogoURL,
+				Reason:       "guide: exact program",
+				Score:        100,
+			})
+		}
+	}
+
+	events := make([]SportsEvent, 0, len(byKey))
+	for _, event := range byKey {
+		events = append(events, *event)
+	}
+	return normalizeSportsEvents(events)
+}
+
+func guideSportsLeague(value string) (string, string, string, bool) {
+	text := normalizeMatchText(value)
+	for _, candidate := range []struct {
+		terms     []string
+		id, name  string
+		sportName string
+	}{
+		{[]string{"wnba"}, "wnba", "WNBA", "Basketball"},
+		{[]string{"nba"}, "nba", "NBA", "Basketball"},
+		{[]string{"nfl"}, "nfl", "NFL", "Football"},
+		{[]string{"mlb"}, "mlb", "MLB", "Baseball"},
+		{[]string{"nhl"}, "nhl", "NHL", "Hockey"},
+		{[]string{"mls"}, "mls", "MLS", "Soccer"},
+		{[]string{"premier league"}, "premier-league", "Premier League", "Soccer"},
+		{[]string{"world cup", "fifa"}, "world-cup", "World Cup", "Soccer"},
+		{[]string{"ufc", "mma"}, "mma", "MMA", "Combat Sports"},
+		{[]string{"boxing"}, "boxing", "Boxing", "Combat Sports"},
+		{[]string{"formula 1", "f1"}, "formula-1", "Formula 1", "Motorsport"},
+		{[]string{"tennis"}, "tennis", "Tennis", "Tennis"},
+		{[]string{"golf", "pga"}, "golf", "Golf", "Golf"},
+		{[]string{"cricket"}, "cricket", "Cricket", "Cricket"},
+	} {
+		for _, term := range candidate.terms {
+			if containsMatchTerm(text, term) {
+				return candidate.id, candidate.name, candidate.sportName, true
+			}
+		}
+	}
+	if containsMatchTerm(text, "sports") || containsMatchTerm(text, "soccer") || containsMatchTerm(text, "football") || containsMatchTerm(text, "basketball") || containsMatchTerm(text, "baseball") || containsMatchTerm(text, "hockey") {
+		return "sports", "Sports", "Sports", true
+	}
+	return "", "", "", false
+}
+
+func guideSportsMatchup(title string) (string, string, bool) {
+	location := sportsMatchupSeparator.FindStringIndex(title)
+	if location == nil {
+		return "", "", false
+	}
+	left := strings.TrimSpace(title[:location[0]])
+	right := strings.TrimSpace(title[location[1]:])
+	if colon := strings.LastIndex(left, ":"); colon >= 0 {
+		left = strings.TrimSpace(left[colon+1:])
+	}
+	left = strings.Trim(left, " -:|,.")
+	right = strings.Trim(right, " -:|,.")
+	if len([]rune(normalizeMatchText(left))) < 2 || len([]rune(normalizeMatchText(right))) < 2 {
+		return "", "", false
+	}
+	return left, right, true
+}
+
+func sportsTeamInitials(name string) string {
+	parts := strings.Fields(name)
+	var builder strings.Builder
+	for _, part := range parts {
+		for _, r := range part {
+			if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') {
+				builder.WriteRune(r)
+				break
+			}
+		}
+		if builder.Len() == 3 {
+			break
+		}
+	}
+	return strings.ToUpper(builder.String())
+}
+
+func sportsEventHasChannel(event *SportsEvent, channelID string) bool {
+	for _, channel := range event.Channels {
+		if channel.ID == channelID {
+			return true
+		}
+	}
+	return false
+}
+
+func mergeSportsChannelMatches(groups ...[]SportsChannelMatch) []SportsChannelMatch {
+	seen := map[string]bool{}
+	merged := make([]SportsChannelMatch, 0)
+	for _, group := range groups {
+		for _, channel := range group {
+			if channel.ID == "" || seen[channel.ID] {
+				continue
+			}
+			seen[channel.ID] = true
+			merged = append(merged, channel)
+		}
+	}
+	sort.Slice(merged, func(i, j int) bool {
+		if merged[i].Score != merged[j].Score {
+			return merged[i].Score > merged[j].Score
+		}
+		return merged[i].Name < merged[j].Name
+	})
+	if len(merged) > 6 {
+		merged = merged[:6]
+	}
+	return merged
 }
 
 func (s *HTTPRoutesServer) preparedSportsPayload(refresh bool) SportsPayload {
