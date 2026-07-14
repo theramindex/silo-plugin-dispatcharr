@@ -8,7 +8,7 @@ const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuff
 const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "type", adminConnectionStatus: "idle", adminConnectionMessage: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", folderGroupPickerOpen: false, searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "type", adminConnectionStatus: "idle", adminConnectionMessage: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 
 state.sportsReplayPromise = null;
 state.sportsReplayGeneration = 0;
@@ -1368,6 +1368,7 @@ function setView(view, options) {
 }
 function setCategory(id, options) {
   options = options || {};
+  state.folderGroupPickerOpen = false;
   if ((id || "") !== state.category) {
     state.folderQuery = "";
     state.folderGroupCategoryID = "";
@@ -3133,9 +3134,9 @@ function categoryTileHTML(category) {
 function activeVirtualCategoryID(path, featured) {
   return featured ? featuredCategoryID(path) : virtualCategoryID(path);
 }
-function virtualFolderHeader(path, featured) {
+function virtualFolderHeader(path, featured, showViewToggle) {
   const categoryID = activeVirtualCategoryID(path, featured);
-  return "<div class=\"section-title virtual-folder-title\">" + virtualFolderBreadcrumbs(path, featured) + "<div class=\"virtual-folder-actions\">" + guideFreshnessHTML() + renderSaveChannelListButton(categoryID) + "</div></div>";
+  return "<div class=\"section-title virtual-folder-title\">" + virtualFolderBreadcrumbs(path, featured) + "<div class=\"virtual-folder-actions\">" + guideFreshnessHTML() + (showViewToggle ? renderVirtualCategoryViewToggle() : "") + renderSaveChannelListButton(categoryID) + "</div></div>";
 }
 function virtualFolderBreadcrumbs(path, featured) {
   const parts = path.split(" / ").filter(Boolean);
@@ -3433,18 +3434,27 @@ function categoryMatchesFolderQuery(category) {
 }
 function folderFilterHTML(placeholder, actionsHTML) {
   const label = placeholder || "Filter visible channels";
-  return "<div class=\"folder-filter\"><input id=\"folder-filter\" class=\"search\" type=\"search\" placeholder=\"" + escapeHTML(label) + "\" value=\"" + escapeHTML(state.folderQuery || "") + "\" autocomplete=\"off\" aria-label=\"" + escapeHTML(label) + "\">" + (actionsHTML ? "<div class=\"folder-filter-actions\">" + actionsHTML + "</div>" : "") + "</div>";
+  return "<div class=\"folder-filter\">" + (actionsHTML ? "<div class=\"folder-filter-actions\">" + actionsHTML + "</div>" : "") + "<input id=\"folder-filter\" class=\"search\" type=\"search\" placeholder=\"" + escapeHTML(label) + "\" value=\"" + escapeHTML(state.folderQuery || "") + "\" autocomplete=\"off\" aria-label=\"" + escapeHTML(label) + "\"></div>";
 }
-function renderFolderGroupSelect(children, selectedID, attributeName) {
-  return "<label class=\"folder-group-filter\"><span class=\"folder-group-filter-label\">Category</span><select " + attributeName + " aria-label=\"Category\"><option value=\"\">All categories</option>" + items(children).map(function(category) {
-    return "<option value=\"" + escapeHTML(category.id) + "\"" + (selectedID === category.id ? " selected" : "") + ">" + escapeHTML(category.name || category.id) + "</option>";
-  }).join("") + "</select>" + icon("chevron-down") + "</label>";
+function folderGroupOptionHTML(category, selectedID, pickerKind) {
+  const id = String((category && category.id) || "");
+  const name = String((category && (category.name || category.id)) || "All categories");
+  const selected = id === String(selectedID || "");
+  return "<button type=\"button\" class=\"folder-category-option" + (selected ? " selected" : "") + "\" data-folder-group-option=\"" + escapeHTML(pickerKind) + "\" data-folder-group-category=\"" + escapeHTML(id) + "\" data-folder-group-search=\"" + escapeHTML(lower(name)) + "\" role=\"option\" aria-selected=\"" + (selected ? "true" : "false") + "\"><span class=\"folder-category-check\">" + (selected ? icon("check") : "") + "</span><span><strong>" + escapeHTML(name) + "</strong></span></button>";
+}
+function renderFolderGroupPicker(children, selectedID, pickerKind) {
+  const selected = items(children).find(function(category) { return category.id === selectedID; });
+  const label = selected ? selected.name || selected.id : "All categories";
+  const options = [folderGroupOptionHTML({ id: "", name: "All categories" }, selectedID, pickerKind)].concat(items(children).map(function(category) {
+    return folderGroupOptionHTML(category, selectedID, pickerKind);
+  })).join("");
+  return "<div class=\"folder-category-picker" + (state.folderGroupPickerOpen ? " open" : "") + "\"><button type=\"button\" class=\"folder-category-trigger\" data-folder-group-toggle=\"true\" aria-haspopup=\"listbox\" aria-expanded=\"" + (state.folderGroupPickerOpen ? "true" : "false") + "\"><span class=\"folder-category-trigger-copy\"><small>Category</small><strong>" + escapeHTML(label) + "</strong></span><span class=\"folder-category-chevron\">" + icon("chevron-down") + "</span></button><div class=\"folder-category-popover\"><label class=\"folder-category-search\"><span>" + icon("search") + "</span><input id=\"folder-category-search\" placeholder=\"Find a category\" autocomplete=\"off\"></label><div class=\"folder-category-options\" role=\"listbox\">" + options + "</div></div></div>";
 }
 function renderSavedLineupGroupSelect(children) {
-  return renderFolderGroupSelect(children, state.savedLineupGroupCategoryID, "data-saved-lineup-group");
+  return renderFolderGroupPicker(children, state.savedLineupGroupCategoryID, "saved");
 }
 function renderNestedFolderGroupSelect(children) {
-  return renderFolderGroupSelect(children, state.folderGroupCategoryID, "data-folder-group");
+  return renderFolderGroupPicker(children, state.folderGroupCategoryID, "folder");
 }
 function renderLivePage() {
   const channels = visibleChannels(false);
@@ -3478,8 +3488,8 @@ function renderLivePage() {
         ? "<div class=\"category-grid\" aria-label=\"Browse folders\">" + filteredChildren.map(categoryTileHTML).join("") + "</div>"
         : emptyStateHTML("No matching folders.", "Try a different filter."))
       : "";
-    const filterActions = browseOnly ? "" : (compactGroups ? renderSavedLineupGroupSelect(children) : (useGroupSelector ? renderNestedFolderGroupSelect(children) : "")) + renderVirtualCategoryViewToggle();
-    const folderHeader = virtualFolderHeader(path, featured)
+    const filterActions = browseOnly ? "" : (compactGroups ? renderSavedLineupGroupSelect(children) : (useGroupSelector ? renderNestedFolderGroupSelect(children) : ""));
+    const folderHeader = virtualFolderHeader(path, featured, !browseOnly)
       + folderFilterHTML(browseOnly ? "Filter this folder" : (guideWorkspace ? "Filter Guide" : "Filter this folder"), filterActions)
       + childFolders;
     if (browseOnly) {
@@ -5909,6 +5919,32 @@ function returnFromPlayer() {
   });
 }
 document.addEventListener("click", function(event) {
+  const folderGroupOption = event.target.closest("[data-folder-group-option]");
+  if (folderGroupOption) {
+    event.preventDefault();
+    const value = folderGroupOption.getAttribute("data-folder-group-category") || "";
+    if (folderGroupOption.getAttribute("data-folder-group-option") === "saved") state.savedLineupGroupCategoryID = value;
+    else state.folderGroupCategoryID = value;
+    state.folderGroupPickerOpen = false;
+    renderLivePage();
+    return;
+  }
+  const folderGroupToggle = event.target.closest("[data-folder-group-toggle]");
+  if (folderGroupToggle) {
+    event.preventDefault();
+    state.folderGroupPickerOpen = !state.folderGroupPickerOpen;
+    renderLivePage();
+    if (state.folderGroupPickerOpen) {
+      const input = byId("folder-category-search");
+      if (input) input.focus();
+    }
+    return;
+  }
+  if (state.folderGroupPickerOpen && !event.target.closest(".folder-category-picker")) {
+    state.folderGroupPickerOpen = false;
+    const picker = document.querySelector(".folder-category-picker");
+    if (picker) picker.classList.remove("open");
+  }
   const savedLineupOpen = event.target.closest("[data-saved-lineup-open]");
   if (savedLineupOpen) {
     event.preventDefault();
@@ -6396,6 +6432,18 @@ document.addEventListener("focusout", function(event) {
 document.addEventListener("fullscreenchange", updateFullscreenButton);
 document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
 document.addEventListener("keydown", function(event) {
+  if (state.folderGroupPickerOpen && event.key === "Escape") {
+    event.preventDefault();
+    state.folderGroupPickerOpen = false;
+    const picker = document.querySelector(".folder-category-picker");
+    if (picker) picker.classList.remove("open");
+    const trigger = picker ? picker.querySelector("[data-folder-group-toggle]") : null;
+    if (trigger) {
+      trigger.setAttribute("aria-expanded", "false");
+      trigger.focus();
+    }
+    return;
+  }
   if (state.adminConnectionEditorOpen && event.key === "Escape") {
     event.preventDefault();
     discardAdminConnection();
@@ -6524,6 +6572,13 @@ document.addEventListener("change", function(event) {
   render();
 });
 document.addEventListener("input", function(event) {
+  if (event.target && event.target.id === "folder-category-search") {
+    const query = lower(event.target.value || "").trim();
+    document.querySelectorAll(".folder-category-option").forEach(function(option) {
+      option.hidden = !!query && String(option.getAttribute("data-folder-group-search") || "").indexOf(query) === -1;
+    });
+    return;
+  }
   const savedLineupField = event.target.getAttribute("data-saved-lineup-field");
   if (savedLineupField && state.savedLineupEditor) {
     state.savedLineupEditor[savedLineupField] = event.target.type === "checkbox" ? !!event.target.checked : event.target.value;
