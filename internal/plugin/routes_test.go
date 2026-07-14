@@ -442,6 +442,22 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if strings.Contains(body, `colorClass(`) {
 		t.Fatalf("expected guide colors to be semantic, not rotated by position")
 	}
+	guideRenderStart := strings.Index(body, `function renderGuidePage()`)
+	guideRenderEnd := strings.Index(body, `function guideCategoryOptionHTML`)
+	guideRender := ""
+	if guideRenderStart >= 0 && guideRenderEnd > guideRenderStart {
+		guideRender = body[guideRenderStart:guideRenderEnd]
+	}
+	guideTitleIndex := strings.Index(guideRender, `class="guide-commandbar-title"`)
+	guideCategoryIndex := strings.Index(guideRender, `renderGuideCategoryPicker(categories)`)
+	guideSearchIndex := strings.Index(guideRender, `class=\"guide-search-field\"`)
+	guideActionIndex := strings.Index(guideRender, `class=\"guide-commandbar-actions\"`)
+	if guideTitleIndex < 0 || guideCategoryIndex < 0 || guideSearchIndex < 0 || guideActionIndex < 0 || !(guideTitleIndex < guideCategoryIndex && guideCategoryIndex < guideSearchIndex && guideSearchIndex < guideActionIndex) {
+		t.Fatalf("expected the guide command bar to order title, category, centered search, then Dispatcharr actions")
+	}
+	if !strings.Contains(body, `id=\"guide-category-search\"`) || !strings.Contains(body, `data-guide-category-toggle=\"true\"`) {
+		t.Fatalf("expected the guide category control to use the searchable XC-style picker")
+	}
 	if !strings.Contains(body, `const recent = recentChannels(5);`) {
 		t.Fatalf("expected home guide to be based on up to 5 continue-watching channels")
 	}
@@ -1616,7 +1632,7 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     featuredSection: grid.indexOf(">Featured Groups<") !== -1,
     featuredRenamedSection: renamedGrid.indexOf(">Featured Things<") !== -1 && renamedGrid.indexOf(">Featured Groups<") === -1,
     listingRenamedSection: renamedGrid.indexOf(">Things<") !== -1 && renamedGrid.indexOf(">Channel Groups<") === -1,
-    guideRenamedAllOption: renamedGuideView.indexOf('value="All things"') !== -1 && renamedGuideView.indexOf('value="All channel groups"') === -1,
+    guideRenamedAllOption: renamedGuideView.indexOf(">All things</strong>") !== -1 && renamedGuideView.indexOf(">All channel groups</strong>") === -1,
     virtualRenamedBreadcrumb: renamedVirtualView.indexOf(">Things</button>") !== -1 && renamedVirtualView.indexOf(">Channel Groups</button>") === -1,
     featuredCategory: grid.indexOf("International | Argentina | Sports") !== -1,
     featuredAlphabetical: grid.indexOf(">Admin Favorites</strong>") !== -1 && grid.indexOf(">World Cup</strong>") !== -1 && grid.indexOf(">Admin Favorites</strong>") < grid.indexOf(">World Cup</strong>"),

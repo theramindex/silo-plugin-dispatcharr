@@ -9,6 +9,8 @@ const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-ve
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
 const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", folderGroupPickerOpen: false, searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "type", adminConnectionStatus: "idle", adminConnectionMessage: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+state.guideCategoryPickerOpen = false;
+state.guideCategoryQuery = "";
 state.sportsReplayStandaloneEvents = [];
 
 state.sportsReplayPromise = null;
@@ -84,6 +86,7 @@ function icon(name) {
     "arrow-left": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M15.75 19.5 8.25 12l7.5-7.5'/></svg>",
     "chevron-right": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m9 6 6 6-6 6'/></svg>",
     "chevron-down": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m6 9 6 6 6-6'/></svg>",
+    "check": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m5 12.5 4.25 4.25L19 7'/></svg>",
     "ellipsis": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z'/></svg>",
     "play": "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><path d='M8 5.6v12.8c0 .55.6.9 1.08.62l10.1-6.4a.73.73 0 0 0 0-1.24L9.08 4.98A.72.72 0 0 0 8 5.6Z'/></svg>",
     "record": "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><path d='M12 20.25a8.25 8.25 0 1 0 0-16.5 8.25 8.25 0 0 0 0 16.5Zm0-4a4.25 4.25 0 1 1 0-8.5 4.25 4.25 0 0 1 0 8.5Z'/></svg>",
@@ -4429,10 +4432,8 @@ function renderGuidePage() {
   const categories = guideFilterCategories();
   const slots = guideSlots();
   state.guideLastSlotStart = guideSlotStart();
-  byId("view").innerHTML = '<div class="guide-page">' + sectionHeaderWithActions("TV Guide", renderSaveChannelListButton(state.category) + guideFreshnessHTML()) + "<div class=\"guide-tools\"><label class=\"guide-category-filter\"><span>" + icon("search") + "</span><input id=\"category-select\" list=\"guide-category-options\" placeholder=\"Filter categories\" value=\"" + escapeHTML(guideCategoryInputValue(categories)) + "\" autocomplete=\"off\" aria-label=\"Filter categories\"><datalist id=\"guide-category-options\"><option value=\"" + escapeHTML(allGroupLabel()) + "\"></option>" + categories.map(function(category) { return "<option value=\"" + escapeHTML(category.name || category.id) + "\"></option>"; }).join("") + "</datalist></label><input id=\"guide-search\" class=\"search\" placeholder=\"Search by program or channel\" value=\"" + escapeHTML(state.query) + "\" aria-label=\"Search programs or channels\"></div><div id=\"guide-scroll\" class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + '</div><div id="epg" class="guide-window-spacer" style="height:0px"><div class="guide-window" style="transform:translateY(0px)"></div></div></div></div></div>';
-  byId("category-select").oninput = function(event) { updateGuideCategoryFilter(event.target.value, categories, false); };
-  byId("category-select").onchange = function(event) { updateGuideCategoryFilter(event.target.value, categories, true); };
-  byId("category-select").onblur = function(event) { event.target.value = guideCategoryInputValue(categories); };
+  const saveAction = renderSaveChannelListButton(state.category);
+  byId("view").innerHTML = '<div class="guide-page"><div class="guide-commandbar"><div class="guide-commandbar-title"><strong>TV Guide</strong>' + guideFreshnessHTML() + "</div>" + renderGuideCategoryPicker(categories) + "<label class=\"guide-search-field\"><span>" + icon("search") + "</span><input id=\"guide-search\" class=\"search\" placeholder=\"Search programs or channels\" value=\"" + escapeHTML(state.query) + "\" aria-label=\"Search programs or channels\"></label>" + (saveAction ? "<div class=\"guide-commandbar-actions\">" + saveAction + "</div>" : "") + "</div><div id=\"guide-scroll\" class=\"guide-scroll\"><div class=\"guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\"><div class=\"time-head\"><span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + '</div><div id="epg" class="guide-window-spacer" style="height:0px"><div class="guide-window" style="transform:translateY(0px)"></div></div></div></div></div>';
   byId("guide-search").oninput = function(event) { state.query = event.target.value; resetGuideRows(); renderEPG(); };
   const guideScroll = byId("guide-scroll");
   if (guideScroll) guideScroll.onscroll = scheduleGuideWindowRender;
@@ -4440,29 +4441,28 @@ function renderGuidePage() {
   maybeWarmGuideForChannels(state.guideChannels.slice(0, guideWindowOverscan() * 2), "guide:" + (state.category || "all"));
   renderEPG();
 }
+function guideCategoryOptionHTML(category) {
+  const selected = String((category && category.id) || "") === String(state.category || "");
+  const fullName = String((category && (category.name || category.id)) || allGroupLabel());
+  const parts = fullName.split(" / ").filter(Boolean);
+  const label = parts.length ? parts[parts.length - 1] : fullName;
+  const parent = parts.length > 1 ? parts.slice(0, -1).join(" / ") : "";
+  return "<button type=\"button\" class=\"guide-category-option" + (selected ? " selected" : "") + "\" data-guide-category=\"" + escapeHTML((category && category.id) || "") + "\" role=\"option\" aria-selected=\"" + (selected ? "true" : "false") + "\"><span class=\"guide-category-check\">" + (selected ? icon("check") : "") + "</span><span><strong>" + escapeHTML(label) + "</strong>" + (parent ? "<small>" + escapeHTML(parent) + "</small>" : "") + "</span></button>";
+}
+function guideCategoryOptionsHTML(categories) {
+  const query = lower(state.guideCategoryQuery).trim();
+  const filtered = items(categories).filter(function(category) { return !query || lower(category.name || category.id).indexOf(query) !== -1; });
+  const all = guideCategoryOptionHTML({ id: "", name: allGroupLabel() });
+  return all + (filtered.length ? filtered.map(guideCategoryOptionHTML).join("") : "<div class=\"guide-category-empty\">No matching categories</div>");
+}
+function renderGuideCategoryPicker(categories) {
+  const open = !!state.guideCategoryPickerOpen;
+  return "<div class=\"guide-category-picker" + (open ? " open" : "") + "\"><button type=\"button\" class=\"guide-category-trigger\" data-guide-category-toggle=\"true\" aria-haspopup=\"listbox\" aria-expanded=\"" + (open ? "true" : "false") + "\"><span class=\"guide-category-trigger-copy\"><small>Category</small><strong>" + escapeHTML(guideCategoryInputValue(categories)) + "</strong></span><span class=\"guide-category-chevron\">" + icon("chevron-down") + "</span></button><div class=\"guide-category-popover\"><label class=\"guide-category-search\"><span>" + icon("search") + "</span><input id=\"guide-category-search\" value=\"" + escapeHTML(state.guideCategoryQuery) + "\" placeholder=\"Find a category\" autocomplete=\"off\"></label><div class=\"guide-category-options\" role=\"listbox\">" + guideCategoryOptionsHTML(categories) + "</div></div></div>";
+}
 function guideCategoryInputValue(categories) {
   if (!state.category) return allGroupLabel();
   const category = items(categories).find(function(item) { return item.id === state.category; });
   return category ? category.name || category.id : "";
-}
-function guideCategoryFromInput(value, categories) {
-  const query = lower(String(value || "").trim());
-  if (!query || query === lower(allGroupLabel())) return "";
-  const exact = items(categories).find(function(category) {
-    return lower(category.name || category.id) === query || lower(category.id) === query;
-  });
-  return exact ? exact.id : null;
-}
-function updateGuideCategoryFilter(value, categories, forceReset) {
-  const next = guideCategoryFromInput(value, categories);
-  if (next === "" && !forceReset) return;
-  if (next === null) {
-    if (forceReset) renderGuidePage();
-    return;
-  }
-  if (state.category === next) return;
-  state.category = next;
-  renderGuidePage();
 }
 function guideWindowOverscan() { return 8; }
 function guideRowHeight() {
@@ -6001,6 +6001,31 @@ function returnFromPlayer() {
   });
 }
 document.addEventListener("click", function(event) {
+  const guideCategory = event.target.closest("[data-guide-category]");
+  if (guideCategory) {
+    event.preventDefault();
+    state.category = guideCategory.getAttribute("data-guide-category") || "";
+    state.guideCategoryPickerOpen = false;
+    state.guideCategoryQuery = "";
+    renderGuidePage();
+    return;
+  }
+  const guideCategoryToggle = event.target.closest("[data-guide-category-toggle]");
+  if (guideCategoryToggle) {
+    event.preventDefault();
+    state.guideCategoryPickerOpen = !state.guideCategoryPickerOpen;
+    renderGuidePage();
+    if (state.guideCategoryPickerOpen) {
+      const input = byId("guide-category-search");
+      if (input) input.focus();
+    }
+    return;
+  }
+  if (state.guideCategoryPickerOpen && !event.target.closest(".guide-category-picker")) {
+    state.guideCategoryPickerOpen = false;
+    const picker = document.querySelector(".guide-category-picker");
+    if (picker) picker.classList.remove("open");
+  }
   const folderGroupOption = event.target.closest("[data-folder-group-option]");
   if (folderGroupOption) {
     event.preventDefault();
@@ -6667,6 +6692,12 @@ document.addEventListener("change", function(event) {
   render();
 });
 document.addEventListener("input", function(event) {
+  if (event.target && event.target.id === "guide-category-search") {
+    state.guideCategoryQuery = event.target.value || "";
+    const options = document.querySelector(".guide-category-options");
+    if (options) options.innerHTML = guideCategoryOptionsHTML(guideFilterCategories());
+    return;
+  }
   if (event.target && event.target.id === "folder-category-search") {
     const query = lower(event.target.value || "").trim();
     document.querySelectorAll(".folder-category-option").forEach(function(option) {
