@@ -800,7 +800,10 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`Refresh connection status`,
 		`Connection status refreshed.`,
 		`Presentation overrides`,
-		`Browse hierarchy`,
+		`Profiles &amp; Groups`,
+		`data-admin-organization-layer=\"profiles\"`,
+		`data-admin-organization-layer=\"groups\"`,
+		`data-admin-organization-layer=\"channels\"`,
 		`function renderAdminCategoryAliasSettings()`,
 		`function loadAdminSourceGroups(force)`,
 		`getJSON("/dispatcharr/api/channels")`,
@@ -821,11 +824,11 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`state.adminCategorySettings.inferChannelNameGroups = state.adminCategorySettings.virtualGroupSource !== "group"`,
 		`function virtualGroupSourceMode()`,
 		`function inferredChannelNameGroupPaths(channel)`,
-		`data-admin-category-field=\"virtualGroupSource\"`,
-		`Group pipe + channel pipe`,
-		`Profile pipe + group pipe`,
-		`Channel pipe`,
-		`Collapse duplicate virtual groups`,
+		`function updateOrganizationLayer(field, target)`,
+		`Channel Profiles`,
+		`Channel Groups`,
+		`Channel-name folders`,
+		`Collapse duplicate names`,
 		`return !!adminECMURL();`,
 		`virtual-label-control`,
 		`placeholder=\"Groups\"`,
@@ -835,8 +838,8 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`alias-builder`,
 		`alias-table`,
 		`alias-table-row`,
-		`Normal`,
-		`By delimiter`,
+		`Keep names as provided`,
+		`Split into nested folders`,
 		`ECM URL`,
 		`ecm-url-row`,
 		`.settings-row.ecm-url-row input`,
@@ -1017,6 +1020,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if result.ProfileOrganizationMode != "delimiter" {
 		t.Fatalf("expected profile organization to require delimiter mode: %+v", result)
 	}
+	if !result.ProfileOnlyPath {
+		t.Fatalf("expected profile-only organization to omit Dispatcharr group folders: %+v", result)
+	}
 	if !result.ProfileLocalMarketPath {
 		t.Fatalf("expected profile locals to include inferred market path: %+v", result)
 	}
@@ -1194,6 +1200,7 @@ type virtualAliasResult struct {
 	ProfileSelectionFiltersEventChannels bool   `json:"profileSelectionFiltersEventChannels"`
 	ProfileSelectionDropsStaleIDs        bool   `json:"profileSelectionDropsStaleIds"`
 	ProfileOrganizationMode              string `json:"profileOrganizationMode"`
+	ProfileOnlyPath                      bool   `json:"profileOnlyPath"`
 	ProfileLocalMarketPath               bool   `json:"profileLocalMarketPath"`
 	SelectedProfileScoped                bool   `json:"selectedProfileScoped"`
 	DuplicateProfileCollapsed            bool   `json:"duplicateProfileCollapsed"`
@@ -1419,6 +1426,12 @@ JSON.stringify((function() {
 	  const nyLocalProfilePaths = virtualPathsForChannel(channelByID("channel:ny-local"));
 	  const nestedProfileGroupPaths = virtualPathsForChannel(channelByID("channel:ny-news-sports"));
 	  const singleFolderProfilePaths = virtualPathsForChannel(channelByID("channel:ny-us-news"));
+	  state.adminCategorySettings.virtualGroupSource = "profile";
+	  normalizeAdminCategorySettings();
+	  const profileOnlyPaths = virtualPathsForChannel(channelByID("channel:ny-news-sports"));
+	  const profileOnlyPath = profileOnlyPaths.length === 1 && profileOnlyPaths[0] === "US TV / NY";
+	  state.adminCategorySettings.virtualGroupSource = "profile_group";
+	  normalizeAdminCategorySettings();
   const profileOverride = profileAll.find(function(item) { return item.name === "US TV / NY / Information / Athletics / Regional"; });
   state.app.source.channelProfile = { id: "profile-ny", name: "US TV | NY" };
   const selectedProfilePaths = profilePathsForChannel(channelByID("channel:ny-local"));
@@ -1617,6 +1630,7 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     profileSelectionFiltersEventChannels: profileSelectionFiltersEventChannels,
     profileSelectionDropsStaleIds: profileSelectionDropsStaleIDs,
     profileOrganizationMode: profileOrganizationMode,
+	profileOnlyPath: profileOnlyPath,
     profileLocalMarketPath: nyLocalProfilePaths.indexOf("US TV / NY / Locals / New York City") !== -1,
     selectedProfileScoped: selectedProfilePaths.length === 1 && selectedProfilePaths[0] === "US TV / NY",
     duplicateProfileCollapsed: duplicateProfilePaths.indexOf("US TV") !== -1 && duplicateProfilePaths.indexOf("US TV / US TV") === -1,

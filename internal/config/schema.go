@@ -175,7 +175,7 @@ const categorySettingsJSONSchema = `{
     },
     "virtualGroupSource": {
       "type": "string",
-      "enum": ["group", "group_channel", "profile_group", "channel"],
+      "enum": ["group", "group_channel", "profile", "profile_group", "channel"],
       "default": "group"
     },
     "collapseDuplicateVirtualGroups": {

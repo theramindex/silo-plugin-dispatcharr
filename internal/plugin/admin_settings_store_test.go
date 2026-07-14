@@ -91,6 +91,21 @@ func TestNormalizeAdminSettingsSportsFirstPlayerEnabledDefaultsFalse(t *testing.
 	}
 }
 
+func TestNormalizeAdminSettingsPreservesProfileOnlyHierarchy(t *testing.T) {
+	t.Parallel()
+
+	normalized := normalizeAdminSettingsPayload(map[string]any{
+		"mode":               "normal",
+		"virtualGroupSource": "profile",
+	})
+	if normalized["virtualGroupSource"] != "profile" {
+		t.Fatalf("expected profile-only hierarchy, got %v", normalized["virtualGroupSource"])
+	}
+	if normalized["mode"] != "delimiter" {
+		t.Fatalf("expected profile hierarchy to use delimiter parsing, got %v", normalized["mode"])
+	}
+}
+
 func TestNormalizeAdminSettingsPreservesSportsFirstPlayerEnabled(t *testing.T) {
 	t.Parallel()
 
