@@ -208,6 +208,30 @@ func TestSportsPayloadFallsBackToGuideMatchups(t *testing.T) {
 	assertSportsMatch(t, payload.Events[0].Channels, "ch:wnba-2")
 }
 
+func TestSportsEventsFromGuideCapsFallbackSlate(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	programs := make([]model.Program, 0, 300)
+	for index := 0; index < 300; index++ {
+		programs = append(programs, model.Program{
+			ID:        fmt.Sprintf("p:%d", index),
+			ChannelID: "ch:sports",
+			Title:     fmt.Sprintf("WNBA: Team %03d vs Club %03d", index, index),
+			StartUnix: now.Add(time.Duration(index%48) * time.Hour).Unix(),
+			EndUnix:   now.Add(time.Duration(index%48+2) * time.Hour).Unix(),
+		})
+	}
+	events := sportsEventsFromGuide(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{{ID: "ch:sports", Name: "WNBA League Pass", CategoryID: "sports"}},
+		Programs: programs,
+		Content:  model.ContentState{LiveCategories: []model.Category{{ID: "sports", Name: "Sports", Kind: "live"}}},
+	}}, now)
+	if len(events) != 250 {
+		t.Fatalf("expected bounded EPG fallback slate, got %d events", len(events))
+	}
+}
+
 func TestSportsPayloadBoundsProviderWorkBelowPluginRouteDeadline(t *testing.T) {
 	t.Parallel()
 
