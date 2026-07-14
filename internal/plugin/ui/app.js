@@ -3433,7 +3433,7 @@ function categoryMatchesFolderQuery(category) {
 }
 function folderFilterHTML(placeholder, actionsHTML) {
   const label = placeholder || "Filter visible channels";
-  return "<div class=\"folder-filter\">" + (actionsHTML ? "<div class=\"folder-filter-actions\">" + actionsHTML + "</div>" : "") + "<input id=\"folder-filter\" class=\"search\" type=\"search\" placeholder=\"" + escapeHTML(label) + "\" value=\"" + escapeHTML(state.folderQuery || "") + "\" autocomplete=\"off\" aria-label=\"" + escapeHTML(label) + "\"></div>";
+  return "<div class=\"folder-filter\"><input id=\"folder-filter\" class=\"search\" type=\"search\" placeholder=\"" + escapeHTML(label) + "\" value=\"" + escapeHTML(state.folderQuery || "") + "\" autocomplete=\"off\" aria-label=\"" + escapeHTML(label) + "\">" + (actionsHTML ? "<div class=\"folder-filter-actions\">" + actionsHTML + "</div>" : "") + "</div>";
 }
 function renderFolderGroupSelect(children, selectedID, attributeName) {
   return "<label class=\"folder-group-filter\"><span class=\"folder-group-filter-label\">Category</span><select " + attributeName + " aria-label=\"Category\"><option value=\"\">All categories</option>" + items(children).map(function(category) {
@@ -3471,14 +3471,21 @@ function renderLivePage() {
     const filteredChannels = channels.filter(function(channel) {
       return (!selectedGroupID || channelInSelectedCategory(channel, selectedGroupID)) && channelMatchesFolderQuery(channel);
     });
-    const guideWorkspace = virtualCategoryView() === "guide";
-    const childFolders = !useGroupSelector && filteredChildren.length
-      ? "<div class=\"category-grid" + (guideWorkspace ? " folder-guide-grid" : "") + "\" aria-label=\"Browse folders\">" + filteredChildren.map(categoryTileHTML).join("") + "</div>"
+    const browseOnly = !useGroupSelector && children.length > 0;
+    const guideWorkspace = !browseOnly && virtualCategoryView() === "guide";
+    const childFolders = browseOnly
+      ? (filteredChildren.length
+        ? "<div class=\"category-grid\" aria-label=\"Browse folders\">" + filteredChildren.map(categoryTileHTML).join("") + "</div>"
+        : emptyStateHTML("No matching folders.", "Try a different filter."))
       : "";
-    const filterActions = (compactGroups ? renderSavedLineupGroupSelect(children) : (useGroupSelector ? renderNestedFolderGroupSelect(children) : "")) + renderVirtualCategoryViewToggle();
+    const filterActions = browseOnly ? "" : (compactGroups ? renderSavedLineupGroupSelect(children) : (useGroupSelector ? renderNestedFolderGroupSelect(children) : "")) + renderVirtualCategoryViewToggle();
     const folderHeader = virtualFolderHeader(path, featured)
-      + folderFilterHTML(guideWorkspace ? "Filter Guide" : "Filter this folder", filterActions)
+      + folderFilterHTML(browseOnly ? "Filter this folder" : (guideWorkspace ? "Filter Guide" : "Filter this folder"), filterActions)
       + childFolders;
+    if (browseOnly) {
+      byId("view").innerHTML = folderHeader;
+      return;
+    }
     byId("view").innerHTML = guideWorkspace
       ? "<section class=\"virtual-folder-workspace is-guide\">" + folderHeader + "<div class=\"virtual-folder-guide\">" + renderVirtualCategoryGuide(filteredChannels) + "</div></section>"
       : folderHeader + renderVirtualCategoryContent(filteredChannels);

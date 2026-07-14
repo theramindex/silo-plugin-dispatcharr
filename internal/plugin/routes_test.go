@@ -445,19 +445,35 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		!strings.Contains(body, `+ categoryGrid();`) {
 		t.Fatalf("expected home page order to be My Channels, continue watching, favorites, guide grid, then group sections")
 	}
-	virtualWorkspaceIndex := strings.Index(body, `const guideWorkspace = virtualCategoryView() === "guide";`)
+	virtualWorkspaceIndex := strings.Index(body, `const browseOnly = !useGroupSelector && children.length > 0;`)
 	virtualHeaderIndex := strings.Index(body, `const folderHeader = virtualFolderHeader(path, featured)`)
-	virtualFilterIndex := strings.Index(body, `+ folderFilterHTML(guideWorkspace ? "Filter Guide" : "Filter this folder", filterActions)`)
-	virtualChildrenIndex := strings.Index(body, `const childFolders = !useGroupSelector && filteredChildren.length`)
+	virtualFilterIndex := strings.Index(body, `+ folderFilterHTML(browseOnly ? "Filter this folder" : (guideWorkspace ? "Filter Guide" : "Filter this folder"), filterActions)`)
+	virtualChildrenIndex := strings.Index(body, `const childFolders = browseOnly`)
+	virtualBrowseReturnIndex := strings.Index(body, `if (browseOnly) {`)
 	virtualContentIndex := strings.Index(body, `renderVirtualCategoryGuide(filteredChannels)`)
-	if virtualWorkspaceIndex < 0 || virtualHeaderIndex < 0 || virtualFilterIndex < 0 || virtualChildrenIndex < 0 || virtualContentIndex < 0 {
-		t.Fatalf("expected virtual category drilldown to render breadcrumbs, a scoped filter, optional broad folders, and switchable channel content")
+	if virtualWorkspaceIndex < 0 || virtualHeaderIndex < 0 || virtualFilterIndex < 0 || virtualChildrenIndex < 0 || virtualBrowseReturnIndex < 0 || virtualContentIndex < 0 {
+		t.Fatalf("expected virtual category drilldown to separate browse-only parent folders from terminal channel content")
 	}
-	if !(virtualWorkspaceIndex < virtualChildrenIndex && virtualChildrenIndex < virtualHeaderIndex && virtualHeaderIndex < virtualFilterIndex && virtualFilterIndex < virtualContentIndex) {
-		t.Fatalf("expected virtual category drilldown order to be folder setup, breadcrumbs, scoped filter, then channel content")
+	if !(virtualWorkspaceIndex < virtualChildrenIndex && virtualChildrenIndex < virtualHeaderIndex && virtualHeaderIndex < virtualFilterIndex && virtualFilterIndex < virtualBrowseReturnIndex && virtualBrowseReturnIndex < virtualContentIndex) {
+		t.Fatalf("expected virtual category drilldown to return after parent folders before rendering channel content")
 	}
 	if !strings.Contains(body, `virtual-folder-actions`) || !strings.Contains(body, `guideFreshnessHTML() + renderSaveChannelListButton(categoryID)`) || !strings.Contains(body, `const nestedFolder = path.split(" / ").filter(Boolean).length > 1;`) || !strings.Contains(body, `useGroupSelector ? renderNestedFolderGroupSelect(children)`) {
 		t.Fatalf("expected saved-lineup action beside breadcrumbs and nested group/view controls beside the guide filter")
+	}
+	if !strings.Contains(body, `const filterActions = browseOnly ? ""`) || !strings.Contains(body, `byId("view").innerHTML = folderHeader;`) {
+		t.Fatalf("expected parent folders to omit Guide/List controls and the guide itself")
+	}
+	filterFunctionStart := strings.Index(body, `function folderFilterHTML(placeholder, actionsHTML)`)
+	if filterFunctionStart < 0 {
+		t.Fatalf("expected folder filter function")
+	}
+	filterFunctionEnd := strings.Index(body[filterFunctionStart:], `function renderFolderGroupSelect`)
+	if filterFunctionEnd < 0 {
+		t.Fatalf("expected folder filter function")
+	}
+	filterFunction := body[filterFunctionStart : filterFunctionStart+filterFunctionEnd]
+	if strings.Index(filterFunction, `id=\"folder-filter\"`) > strings.Index(filterFunction, `folder-filter-actions`) {
+		t.Fatalf("expected folder search before right-aligned folder actions")
 	}
 	for _, want := range []string{`savedLineups: []`, `function renderSavedLineupsHome()`, `Hide final groups`, `data-saved-lineup-group`, `Saved to My Channels.`} {
 		if !strings.Contains(body, want) {
@@ -1035,6 +1051,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.VirtualBreadcrumbRoot {
 		t.Fatalf("expected normal virtual group breadcrumb root to use the default configured label: %+v", result)
 	}
+	if !result.VirtualParentBrowseOnly || !result.VirtualParentSearchFirst {
+		t.Fatalf("expected parent virtual folders to render folder cards and a search-first toolbar without loading a guide: %+v", result)
+	}
 	if result.FeaturedBackButton || result.VirtualBackButton {
 		t.Fatalf("expected virtual drilldowns to omit the redundant Back button: %+v", result)
 	}
@@ -1177,6 +1196,8 @@ type virtualAliasResult struct {
 	SimpleFeaturedViewToggle             bool   `json:"simpleFeaturedViewToggle"`
 	SimpleFeaturedSourcePage             bool   `json:"simpleFeaturedSourcePage"`
 	VirtualBreadcrumbRoot                bool   `json:"virtualBreadcrumbRoot"`
+	VirtualParentBrowseOnly              bool   `json:"virtualParentBrowseOnly"`
+	VirtualParentSearchFirst             bool   `json:"virtualParentSearchFirst"`
 	VirtualGuideHeading                  bool   `json:"virtualGuideHeading"`
 	VirtualBackButton                    bool   `json:"virtualBackButton"`
 	ChannelCategoryName                  string `json:"channelCategoryName"`
@@ -1428,6 +1449,19 @@ JSON.stringify((function() {
   state.category = "virtual:International / Argentina / Sports";
   renderLivePage();
   const virtualView = document.elements.view ? document.elements.view.innerHTML : "";
+  const originalVirtualGroupSource = state.adminCategorySettings.virtualGroupSource;
+  state.adminCategorySettings.virtualGroupSource = "profile_group";
+  normalizeAdminCategorySettings();
+  state.category = "virtual:US TV";
+  renderLivePage();
+  const virtualParentView = document.elements.view ? document.elements.view.innerHTML : "";
+  const virtualParentBrowseOnly = virtualParentView.indexOf('data-category="virtual:US TV / NY"') !== -1
+    && virtualParentView.indexOf('data-virtual-category-view="guide"') === -1
+    && virtualParentView.indexOf('class="home-guide guide-scroll"') === -1;
+  const virtualParentSearchFirst = virtualParentView.indexOf('id="folder-filter"') !== -1
+    && (virtualParentView.indexOf('folder-filter-actions') === -1 || virtualParentView.indexOf('id="folder-filter"') < virtualParentView.indexOf('folder-filter-actions'));
+  state.adminCategorySettings.virtualGroupSource = originalVirtualGroupSource;
+  normalizeAdminCategorySettings();
   const replayChannel = channelByID("channel:world-cup-replay");
   state.currentChannel = replayChannel;
   renderPlayerPage();
@@ -1582,6 +1616,8 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     simpleFeaturedViewToggle: simpleFeaturedView.indexOf('data-virtual-category-view="guide"') !== -1 && simpleFeaturedView.indexOf('data-virtual-category-view="list"') !== -1,
     simpleFeaturedSourcePage: simpleFeaturedView.indexOf(">Featured Groups<") !== -1 && simpleFeaturedView.indexOf(">Groups<") !== -1 && simpleFeaturedView.indexOf(">Admin Favorites<") !== -1,
     virtualBreadcrumbRoot: virtualView.indexOf(">Groups</button>") !== -1,
+	virtualParentBrowseOnly: virtualParentBrowseOnly,
+	virtualParentSearchFirst: virtualParentSearchFirst,
     virtualGuideHeading: virtualView.indexOf(">TV Guide<") !== -1,
     virtualBackButton: virtualView.indexOf(">Back</button>") !== -1,
     channelCategoryName: channel ? channel.categoryName : "",
@@ -2960,6 +2996,9 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 			t.Fatalf("virtual folder guide must include %q", want)
 		}
 	}
+	if !strings.Contains(virtualFolder, `const browseOnly = !useGroupSelector && children.length > 0;`) || !strings.Contains(virtualFolder, `if (browseOnly) {`) {
+		t.Fatal("virtual parent folders must return before guide rendering")
+	}
 
 	// The VM integration test exercises details-first clicks, guide windowing,
 	// and exact player return state. These checks keep their public hooks stable.
@@ -3116,7 +3155,8 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.multiview-video { width: 100%; height: 100%; object-fit: contain; background: #050505; }`,
 		`.home-guide.guide-scroll, .home-guide .guide-scroll, .home-guide #guide-scroll { min-height: 0; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; overscroll-behavior-y: auto; scrollbar-gutter: auto; }`,
 		`.virtual-folder-workspace.is-guide { position: relative; isolation: isolate; display: flex; flex-direction: column; min-height: 0; height: calc(100dvh - 7.4rem); max-height: calc(100dvh - 5.75rem); margin-top: -0.45rem; }`,
-		`.folder-guide-grid { position: relative; z-index: 2; flex: 0 0 auto; }`,
+		`.folder-filter { margin: 0.55rem 0 0.8rem; max-width: 100%; display: flex; align-items: center; gap: 0.8rem; }`,
+		`.folder-filter-actions { margin-left: auto; display: flex; align-items: stretch; justify-content: flex-end;`,
 		`.virtual-folder-guide { position: relative; z-index: 1; display: flex; flex: 1 1 auto; min-height: 0; margin-top: 0.7rem;`,
 		`@media (min-width: 800px) and (max-width: 900px)`,
 		`.virtual-folder-workspace.is-guide .virtual-folder-guide .home-guide { flex: 1 1 auto; height: 100%; min-height: 0; margin-top: 0; overflow: auto; overscroll-behavior: contain;`,
