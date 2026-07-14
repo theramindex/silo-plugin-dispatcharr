@@ -3164,12 +3164,21 @@ function toggleBroadcastEventChannels(eventID) {
   else state.expandedEvents[eventID] = true;
   renderEventsPage();
 }
-function favoriteCards(channels) {
-  if (!channels.length) return "<div class=\"empty\">No favorite channels yet.</div>";
-  return "<div class=\"row-scroll\">" + channels.map(function(channel, index) {
-    const controls = favoriteMap()[channel.id] ? "<div class=\"settings-actions\"><button data-favorite-move=\"up\" data-channel-id=\"" + escapeHTML(channel.id) + "\"" + (index === 0 ? " disabled" : "") + ">Move up</button><button data-favorite-move=\"down\" data-channel-id=\"" + escapeHTML(channel.id) + "\"" + (index === channels.length - 1 ? " disabled" : "") + ">Move down</button></div>" : "";
-    return "<div class=\"favorite-card\"><button class=\"continue-card\" data-channel=\"" + escapeHTML(channel.id) + "\"><div class=\"poster-box\">" + (channel.logoUrl ? "<img src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">" : "<span>" + escapeHTML((channel.name || "TV").slice(0, 5)) + "</span>") + "</div><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><div class=\"muted\">" + escapeHTML(channel.categoryName || "Live TV") + "</div></button>" + controls + "</div>";
+function favoriteCards(channels, hasFavorites) {
+  if (!channels.length) {
+    const filtered = !!(hasFavorites && state.folderQuery);
+    return "<div class=\"favorites-empty\"><div class=\"favorites-empty-icon\">" + icon(filtered ? "search" : "heart") + "</div><strong>" + (filtered ? "No matching favorites" : "No favorite channels yet") + "</strong><p>" + (filtered ? "Try a different channel or program name." : "Favorite a channel from Home or Guide and it will appear here.") + "</p>" + (filtered ? "" : "<button type=\"button\" class=\"favorites-empty-action\" data-favorites-action=\"guide\">" + icon("guide") + "<span>Open Guide</span></button>") + "</div>";
+  }
+  return "<div class=\"favorites-grid\">" + channels.map(function(channel, index) {
+    const controls = favoriteMap()[channel.id] ? "<div class=\"favorite-order-controls\" aria-label=\"Reorder " + escapeHTML(channel.name || "channel") + "\"><button type=\"button\" class=\"favorite-order-up\" data-favorite-move=\"up\" data-channel-id=\"" + escapeHTML(channel.id) + "\" aria-label=\"Move " + escapeHTML(channel.name || "channel") + " up\" title=\"Move up\"" + (index === 0 ? " disabled" : "") + ">" + icon("chevron-down") + "</button><button type=\"button\" data-favorite-move=\"down\" data-channel-id=\"" + escapeHTML(channel.id) + "\" aria-label=\"Move " + escapeHTML(channel.name || "channel") + " down\" title=\"Move down\"" + (index === channels.length - 1 ? " disabled" : "") + ">" + icon("chevron-down") + "</button></div>" : "";
+    return "<article class=\"favorite-card\"><button class=\"continue-card\" data-channel=\"" + escapeHTML(channel.id) + "\"><div class=\"poster-box\">" + (channel.logoUrl ? "<img src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">" : "<span>" + escapeHTML((channel.name || "TV").slice(0, 5)) + "</span>") + "</div><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><div class=\"muted\">" + escapeHTML(channel.categoryName || "Live TV") + "</div></button>" + controls + "</article>";
   }).join("") + "</div>";
+}
+function favoritesPage(channels) {
+  const filtered = channels.filter(channelMatchesFolderQuery).slice(0, 60);
+  const count = channels.length;
+  const countLabel = count + " " + (count === 1 ? "channel" : "channels");
+  return "<section class=\"favorites-page\"><header class=\"favorites-header\"><div class=\"favorites-heading\"><span>My Live TV</span><h2>Favorite channels</h2><p>Your saved channels, ready to watch.</p></div><div class=\"favorites-count\">" + escapeHTML(countLabel) + "</div></header><label class=\"favorites-search\"><span>" + icon("search") + "</span><input id=\"folder-filter\" type=\"search\" placeholder=\"Filter favorites\" value=\"" + escapeHTML(state.folderQuery || "") + "\" autocomplete=\"off\" aria-label=\"Filter favorite channels\"></label>" + favoriteCards(filtered, count > 0) + "</section>";
 }
 function compareCategoryDisplayName(left, right) {
   const leftName = String((left && (left.name || left.id)) || "");
@@ -3532,8 +3541,7 @@ function renderNestedFolderGroupSelect(children) {
 function renderLivePage() {
   const channels = visibleChannels(false);
   if (state.view === "favorites") {
-    const filtered = channels.filter(channelMatchesFolderQuery);
-    byId("view").innerHTML = sectionHeader("Favorite channels") + folderFilterHTML("Filter favorites") + favoriteCards(filtered.slice(0, 60));
+    byId("view").innerHTML = favoritesPage(channels);
     return;
   }
   if (state.category.indexOf("virtual:") === 0 || state.category.indexOf("featured:") === 0) {
@@ -6440,6 +6448,12 @@ document.addEventListener("click", function(event) {
   if (favoriteMove) {
     event.preventDefault();
     moveFavorite(favoriteMove.getAttribute("data-channel-id"), favoriteMove.getAttribute("data-favorite-move"));
+    return;
+  }
+  const favoritesAction = event.target.closest("[data-favorites-action]");
+  if (favoritesAction) {
+    event.preventDefault();
+    setView(favoritesAction.getAttribute("data-favorites-action") || "guide");
     return;
   }
   const multiviewAction = event.target.closest("[data-multiview-action]");

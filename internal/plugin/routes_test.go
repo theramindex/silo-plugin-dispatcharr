@@ -3018,6 +3018,15 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	if !strings.Contains(virtualFolder, `const browseOnly = !useGroupSelector && children.length > 0;`) || !strings.Contains(virtualFolder, `if (browseOnly) {`) {
 		t.Fatal("virtual parent folders must return before guide rendering")
 	}
+	favorites := functionBody("favoritesPage")
+	for _, want := range []string{`class=\"favorites-page\"`, `class=\"favorites-empty\"`, `class=\"favorites-grid\"`, `data-favorites-action=\"guide\"`, `aria-label=\"Move `} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("favorites workspace must include %q", want)
+		}
+	}
+	if !strings.Contains(favorites, `Filter favorite channels`) {
+		t.Fatal("favorites workspace must expose an accessible full-page filter")
+	}
 
 	// The VM integration test exercises details-first clicks, guide windowing,
 	// and exact player return state. These checks keep their public hooks stable.
@@ -3141,6 +3150,9 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	}
 
 	for _, want := range []string{
+		`.favorites-page {`,
+		`.favorites-grid {`,
+		`.favorites-empty {`,
 		`.guide-scroll {`,
 		`.shell.is-guide .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; padding-bottom: 0; }`,
 		`.shell.is-guide #view { min-height: 0; overflow: hidden; }`,
