@@ -380,7 +380,7 @@ function normalizeAdminCategorySettings() {
   state.adminCategorySettings.collapseDuplicateVirtualGroups = state.adminCategorySettings.collapseDuplicateVirtualGroups !== false;
   delete state.adminCategorySettings.collapseDuplicateProfileGroups;
   state.adminCategorySettings.virtualGroupSource = normalizeVirtualGroupSource(state.adminCategorySettings.virtualGroupSource, state.adminCategorySettings.inferChannelNameGroups === true);
-  if (state.adminCategorySettings.virtualGroupSource === "profile_group") state.adminCategorySettings.mode = "delimiter";
+  if (state.adminCategorySettings.virtualGroupSource === "profile" || state.adminCategorySettings.virtualGroupSource === "profile_group") state.adminCategorySettings.mode = "delimiter";
   state.adminCategorySettings.inferChannelNameGroups = state.adminCategorySettings.virtualGroupSource !== "group";
   state.adminCategorySettings.ecmURL = normalizeAdminECMURL(state.adminCategorySettings.ecmURL);
   state.adminCategorySettings.ecmEnabled = !!state.adminCategorySettings.ecmURL;
@@ -394,20 +394,34 @@ function normalizeAdminCategorySettings() {
 }
 function normalizeVirtualGroupSource(value, inferLegacy) {
   const mode = String(value || "").trim();
-  if (mode === "group" || mode === "group_channel" || mode === "channel" || mode === "profile_group") return mode;
+  if (mode === "group" || mode === "group_channel" || mode === "channel" || mode === "profile" || mode === "profile_group") return mode;
   return inferLegacy ? "group_channel" : "group";
 }
 function virtualGroupSourceMode() {
   return normalizeVirtualGroupSource(adminSettings().virtualGroupSource, adminSettings().inferChannelNameGroups === true);
 }
 function useSourceGroupVirtualPaths() {
-  return virtualGroupSourceMode() !== "channel";
+  const source = virtualGroupSourceMode();
+  return source === "group" || source === "group_channel" || source === "profile_group";
 }
 function useChannelNameVirtualPaths() {
-  return virtualGroupSourceMode() !== "group";
+  const source = virtualGroupSourceMode();
+  return source === "channel" || source === "group_channel";
 }
 function useProfileGroupVirtualPaths() {
   return virtualGroupSourceMode() === "profile_group";
+}
+function useChannelProfileVirtualPaths() {
+  const source = virtualGroupSourceMode();
+  return source === "profile" || source === "profile_group";
+}
+function organizationLayerState() {
+  const source = virtualGroupSourceMode();
+  return {
+    profiles: source === "profile" || source === "profile_group",
+    groups: source === "group" || source === "group_channel" || source === "profile_group",
+    channels: source === "channel" || source === "group_channel"
+  };
 }
 function normalizeCategoryRenames(value) {
   const seen = {};
@@ -1019,6 +1033,9 @@ function localMarketPathPartsForChannel(channel, sourceParts) {
 }
 function virtualPathsForChannel(channel) {
   const paths = [];
+  if (virtualGroupSourceMode() === "profile") {
+    return uniqueIDs(profilePathsForChannel(channel));
+  }
   if (useProfileGroupVirtualPaths()) {
     profileVirtualPathsForChannel(channel).forEach(function(path) { paths.push(path); });
     return uniqueIDs(paths);
@@ -4691,6 +4708,19 @@ function updateCategoryParsingField(field, target) {
   markAdminSettingsDraft();
   renderAdminPage();
 }
+function updateOrganizationLayer(field, target) {
+  const settings = state.adminCategorySettings || defaultAdminCategorySettings();
+  const layers = organizationLayerState();
+  layers[field] = !!target.checked;
+  if (layers.profiles && layers.groups) settings.virtualGroupSource = "profile_group";
+  else if (layers.profiles) settings.virtualGroupSource = "profile";
+  else if (layers.groups) settings.virtualGroupSource = layers.channels ? "group_channel" : "group";
+  else settings.virtualGroupSource = "channel";
+  state.adminCategorySettings = settings;
+  normalizeAdminCategorySettings();
+  markAdminSettingsDraft();
+  renderAdminPage();
+}
 function updateAdminECMField(field, target) {
   const settings = state.adminCategorySettings || defaultAdminCategorySettings();
   if (field === "url") settings.ecmURL = target.value;
@@ -4989,7 +5019,7 @@ function renderAdminTopbarTabs() {
     + "<button id=\"admin-tab-general\" role=\"tab\" type=\"button\" data-admin-tab=\"general\" aria-selected=\"" + (state.adminTab === "general" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "general" ? "active" : "") + "\">" + icon("settings") + "<span>General</span></button>"
     + "<button id=\"admin-tab-playback\" role=\"tab\" type=\"button\" data-admin-tab=\"playback\" aria-selected=\"" + (state.adminTab === "playback" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "playback" ? "active" : "") + "\">" + icon("play") + "<span>Playback</span></button>"
     + "<button id=\"admin-tab-sports\" role=\"tab\" type=\"button\" data-admin-tab=\"sports\" aria-selected=\"" + (state.adminTab === "sports" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "sports" ? "active" : "") + "\">" + icon("trophy") + "<span>Sports</span></button>"
-    + "<button id=\"admin-tab-organization\" role=\"tab\" type=\"button\" data-admin-tab=\"organization\" aria-selected=\"" + (state.adminTab === "organization" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "organization" ? "active" : "") + "\">" + icon("guide") + "<span>Organization</span></button>"
+    + "<button id=\"admin-tab-organization\" role=\"tab\" type=\"button\" data-admin-tab=\"organization\" aria-selected=\"" + (state.adminTab === "organization" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "organization" ? "active" : "") + "\">" + icon("guide") + "<span>Profiles &amp; Groups</span></button>"
     + "<button id=\"admin-tab-events\" role=\"tab\" type=\"button\" data-admin-tab=\"events\" aria-selected=\"" + (state.adminTab === "events" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "events" ? "active" : "") + "\">" + icon("clock") + "<span>Events</span></button>"
     + "<button id=\"admin-tab-integrations\" role=\"tab\" type=\"button\" data-admin-tab=\"integrations\" aria-selected=\"" + (state.adminTab === "integrations" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "integrations" ? "active" : "") + "\">" + icon("integrations") + "<span>Integrations</span></button>"
     + (adminECMEnabled() ? "<button id=\"admin-tab-manager\" role=\"tab\" type=\"button\" data-admin-tab=\"manager\" aria-selected=\"" + (state.adminTab === "manager" ? "true" : "false") + "\" aria-controls=\"view\" class=\"" + (state.adminTab === "manager" ? "active" : "") + "\">" + icon("external") + "<span>Channel Manager</span></button>" : "");
@@ -5034,8 +5064,8 @@ function renderAdminSettingsTab(tab) {
       + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Live Rewind</h2><p>Bounded shared channel buffers for pause and rewind.</p></div></div><div id=\"admin-timeshift-settings\" class=\"settings-list\"></div></div>";
   }
   if (tab === "organization") {
-    return "<div class=\"settings-card organization-method-card\"><div class=\"settings-card-head\"><div><h2>Browse hierarchy</h2><p>Choose how Dispatcharr profiles, groups, and channel names become folders in Silo.</p></div></div><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
-      + "<div class=\"settings-card organization-overrides-card\"><div class=\"settings-card-head\"><div><h2>Presentation overrides</h2><p>Add another browse path for a source group without changing Dispatcharr.</p></div><span class=\"profile-selection-summary\">" + categoryAliases().length + " configured</span></div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>";
+    return "<div class=\"settings-card organization-method-card\"><div class=\"settings-card-head\"><div><h2>Profiles &amp; Groups</h2><p>Choose which Dispatcharr layers build the Live TV browse hierarchy, then control how their names become folders.</p></div></div><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
+      + "<div class=\"settings-card organization-overrides-card\"><div class=\"settings-card-head\"><div><h2>Presentation overrides</h2><p>Publish a source group at an additional browse path without changing Dispatcharr.</p></div><span class=\"profile-selection-summary\">" + categoryAliases().length + " configured</span></div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>";
   }
   if (tab === "sports") {
     return "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Sports</h2><p>Combine live Dispatcharr events with replays from selected Silo Sports libraries.</p></div></div><div id=\"admin-sports-settings\" class=\"settings-list\"></div></div>";
@@ -5263,18 +5293,22 @@ function renderAdminCategorySettings() {
   const settings = adminSettings();
   const root = byId("admin-category-settings");
   const profileAccess = state.app && state.app.source && state.app.source.profileAccess ? state.app.source.profileAccess : {};
-  const sourceHelp = "Choose whether virtual groups come from Dispatcharr groups, profiles, channel names, or a combination. Every profile and group pipe segment becomes a nested folder.";
-  const nested = settings.mode !== "normal" ? "<div class=\"settings-list-nested\">"
-    + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Delimiter</strong><small>Split source names into nested virtual groups.</small></span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Sports - NHL Teams</option></select></div>"
-    + "<div class=\"settings-row settings-form-row virtual-label-row\"><span class=\"settings-field-copy\"><strong>Virtual groups label</strong><small>Only the suffix after Virtual is editable.</small></span><div class=\"virtual-label-control\"><span>Virtual</span><input data-admin-category-field=\"virtualGroupLabel\" value=\"" + escapeHTML(virtualGroupLabelSuffix(settings.virtualGroupLabel)) + "\" placeholder=\"Groups\"></div></div>"
+  const layers = organizationLayerState();
+  const nested = settings.mode !== "normal" ? "<div class=\"organization-parsing-grid\">"
+    + "<label class=\"organization-field\"><span><strong>Delimiter</strong><small>Split names into nested folders.</small></span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe · Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash · Sports - NHL Teams</option></select></label>"
+    + "<label class=\"organization-field\"><span><strong>Library label</strong><small>Name the generated browse collection.</small></span><div class=\"virtual-label-control\"><span>Virtual</span><input data-admin-category-field=\"virtualGroupLabel\" value=\"" + escapeHTML(virtualGroupLabelSuffix(settings.virtualGroupLabel)) + "\" placeholder=\"Groups\"></div></label>"
     + "</div>" : "";
   root.innerHTML = adminSaveStatusHTML()
-    + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Mode</strong><small>Choose how Silo builds the browse hierarchy.</small></span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Normal</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">By delimiter</option></select></div>"
+    + "<section class=\"organization-section organization-layers\"><div class=\"organization-section-heading\"><div><strong>Hierarchy layers</strong><span>These switches apply globally to every channel.</span></div><span class=\"organization-layer-count\">" + (Number(layers.profiles) + Number(layers.groups)) + " active</span></div><div class=\"organization-layer-grid\">"
+    + "<label class=\"organization-layer-toggle\"><span class=\"organization-layer-icon\">" + icon("guide") + "</span><span><strong>Channel Profiles</strong><small>Use profiles as top-level libraries, such as US Sports, US News, or Kids.</small></span><input type=\"checkbox\" data-admin-organization-layer=\"profiles\"" + (layers.profiles ? " checked" : "") + "></label>"
+    + "<label class=\"organization-layer-toggle\"><span class=\"organization-layer-icon\">" + icon("settings") + "</span><span><strong>Channel Groups</strong><small>Use groups as folders within a profile or as the top-level hierarchy.</small></span><input type=\"checkbox\" data-admin-organization-layer=\"groups\"" + (layers.groups ? " checked" : "") + "></label>"
+    + "</div></section>"
+    + "<section class=\"organization-section organization-parsing\"><div class=\"organization-section-heading\"><div><strong>Name parsing</strong><span>Control how profile and group names become nested folders.</span></div></div>"
+    + "<div class=\"organization-parsing-grid\"><label class=\"organization-field\"><span><strong>Folder mode</strong><small>Keep source names whole or split them into paths.</small></span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Keep names as provided</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">Split into nested folders</option></select></label></div>"
     + nested
-    + "<div class=\"settings-row settings-form-row settings-source-row\"><span class=\"settings-field-copy\"><strong>Virtual group source</strong><small>" + escapeHTML(sourceHelp) + "</small></span><select data-admin-category-field=\"virtualGroupSource\"><option value=\"group\"" + (virtualGroupSourceMode() === "group" ? " selected" : "") + ">Group pipe</option><option value=\"group_channel\"" + (virtualGroupSourceMode() === "group_channel" ? " selected" : "") + ">Group pipe + channel pipe</option><option value=\"profile_group\"" + (virtualGroupSourceMode() === "profile_group" ? " selected" : "") + ">Profile pipe + group pipe</option><option value=\"channel\"" + (virtualGroupSourceMode() === "channel" ? " selected" : "") + ">Channel pipe</option></select></div>"
-    + "<label class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Collapse duplicate virtual groups</strong><small>Skip repeated names when group, profile, or channel path labels overlap.</small></span><input type=\"checkbox\" data-admin-category-field=\"collapseDuplicateVirtualGroups\"" + (settings.collapseDuplicateVirtualGroups !== false ? " checked" : "") + "></label>"
+    + "<div class=\"organization-options\"><label><span><strong>Channel-name folders</strong><small>Use channel names as a fallback hierarchy. Required when Profiles and Groups are both off.</small></span><input type=\"checkbox\" data-admin-organization-layer=\"channels\"" + (layers.channels ? " checked" : "") + ((!layers.profiles && !layers.groups) || layers.profiles ? " disabled" : "") + "></label><label><span><strong>Collapse duplicate names</strong><small>Remove repeated labels where profile, group, and channel paths overlap.</small></span><input type=\"checkbox\" data-admin-category-field=\"collapseDuplicateVirtualGroups\"" + (settings.collapseDuplicateVirtualGroups !== false ? " checked" : "") + "></label></div></section>"
     + renderOrganizationPreview(settings)
-    + (virtualGroupSourceMode() === "profile_group" && profileAccess.status !== "available" ? "<div class=\"settings-note settings-warning\">" + escapeHTML(profileAccess.message || "No Channel Profiles are available to the configured Dispatcharr account. Assign profiles in Dispatcharr, then refresh Live TV.") + "</div>" : "")
+    + (useChannelProfileVirtualPaths() && profileAccess.status !== "available" ? "<div class=\"settings-note settings-warning\">" + escapeHTML(profileAccess.message || "No Channel Profiles are available to the configured Dispatcharr account. Assign profiles in Dispatcharr, then refresh Live TV.") + "</div>" : "")
     + (settings.mode === "normal" ? "<div class=\"settings-note\">Channel groups are shown as provided, without remapping or resorting.</div>" : "");
 }
 function organizationPreviewPath(settings) {
@@ -5289,7 +5323,7 @@ function organizationPreviewPath(settings) {
   const channelPath = channel.name || "Channel";
   const source = normalizeVirtualGroupSource(settings.virtualGroupSource, settings.inferChannelNameGroups === true);
   const stages = [];
-  if (source === "profile_group") stages.push({ label: "Profile path", value: split(profile, "Profile").join(" / ") });
+  if (source === "profile" || source === "profile_group") stages.push({ label: "Profile path", value: split(profile, "Profile").join(" / ") });
   if (source === "group" || source === "group_channel" || source === "profile_group") stages.push({ label: "Group path", value: split(group, "Group").join(" / ") });
   if (source === "channel" || source === "group_channel") stages.push({ label: "Channel path", value: split(channelPath, "Channel").join(" / ") });
   return stages;
@@ -5371,7 +5405,7 @@ function renderAdminCategoryAliasSettings() {
   const loadState = state.adminSourceGroupsError
     ? "<div class=\"settings-note settings-warning settings-note-action alias-source-state\"><span>Could not load source groups: " + escapeHTML(state.adminSourceGroupsError) + "</span><button type=\"button\" data-admin-alias-action=\"retry\">Retry</button></div>"
     : (!state.adminSourceGroupsLoaded && !state.adminSourceGroupsLoading ? "<div class=\"settings-note alias-source-state\">Open Organization to load available Dispatcharr groups.</div>" : "");
-  const addRow = "<div class=\"alias-builder\"><label><span>Source group</span><select id=\"admin-alias-source\"" + (!sourceReady ? " disabled" : "") + ">" + sourceSelectOptions + "</select></label><label><span>Also show as</span><input id=\"admin-alias-path\" placeholder=\"Category | Subcategory\"" + (!sourceReady ? " disabled" : "") + "></label><button data-admin-alias-action=\"add\"" + (!sourceReady ? " disabled" : "") + ">Add</button></div>";
+  const addRow = "<div class=\"alias-builder\"><div class=\"alias-builder-step\"><span class=\"alias-step-number\">1</span><label><span>Source group</span><select id=\"admin-alias-source\"" + (!sourceReady ? " disabled" : "") + ">" + sourceSelectOptions + "</select></label></div><span class=\"alias-builder-arrow\" aria-hidden=\"true\">→</span><div class=\"alias-builder-step\"><span class=\"alias-step-number\">2</span><label><span>Additional browse path</span><input id=\"admin-alias-path\" placeholder=\"Category | Subcategory\"" + (!sourceReady ? " disabled" : "") + "></label></div><button data-admin-alias-action=\"add\"" + (!sourceReady ? " disabled" : "") + ">Add path</button></div>";
   const rows = aliases.map(function(alias, index) {
     const count = adminSourceGroupCount(alias.sourcePath);
     return "<div class=\"alias-table-row" + (!count ? " stale" : "") + "\"><div class=\"alias-table-source\"><strong title=\"" + escapeHTML(alias.sourcePath) + "\">" + escapeHTML(alias.sourcePath) + "</strong>" + (!count ? "<small>Source not found</small>" : "") + "</div><span class=\"alias-table-arrow\">&rarr;</span><label><input data-admin-alias-index=\"" + index + "\" data-admin-alias-field=\"aliasPath\" value=\"" + escapeHTML(alias.aliasPath) + "\" title=\"" + escapeHTML(alias.aliasPath) + "\" aria-label=\"Alternative group name\"></label><span class=\"alias-table-count\">" + escapeHTML(String(count)) + "</span><span class=\"alias-table-actions\"><button data-admin-alias-action=\"remove\" data-admin-alias-index=\"" + index + "\">Remove</button></span></div>";
@@ -6647,6 +6681,11 @@ document.addEventListener("change", function(event) {
   const adminField = event.target.getAttribute("data-admin-category-field");
   if (adminField) {
     updateCategoryParsingField(adminField, event.target);
+    return;
+  }
+  const organizationLayer = event.target.getAttribute("data-admin-organization-layer");
+  if (organizationLayer) {
+    updateOrganizationLayer(organizationLayer, event.target);
     return;
   }
   const adminECMField = event.target.getAttribute("data-admin-ecm-field");

@@ -167,7 +167,7 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	}
 	virtualGroupSource := strings.TrimSpace(asStringValue(payload["virtualGroupSource"]))
 	switch virtualGroupSource {
-	case "group", "group_channel", "profile_group", "channel":
+	case "group", "group_channel", "profile", "profile_group", "channel":
 	default:
 		if inferChannelNameGroups {
 			virtualGroupSource = "group_channel"
@@ -175,7 +175,7 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 			virtualGroupSource = "group"
 		}
 	}
-	if virtualGroupSource == "profile_group" {
+	if virtualGroupSource == "profile" || virtualGroupSource == "profile_group" {
 		mode = "delimiter"
 	}
 	inferChannelNameGroups = virtualGroupSource != "group"
