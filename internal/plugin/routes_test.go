@@ -3019,13 +3019,18 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		t.Fatal("virtual parent folders must return before guide rendering")
 	}
 	favorites := functionBody("favoritesPage")
-	for _, want := range []string{`class=\"favorites-page\"`, `class=\"favorites-empty\"`, `class=\"favorites-grid\"`, `data-favorites-action=\"guide\"`, `aria-label=\"Move `} {
+	for _, want := range []string{`class=\"favorites-page\"`, `class=\"favorites-empty\"`, `class=\"favorites-grid\"`, `data-favorites-action=\"guide\"`, `data-favorite-remove=`, `aria-label=\"Move `} {
 		if !strings.Contains(script, want) {
 			t.Fatalf("favorites workspace must include %q", want)
 		}
 	}
 	if !strings.Contains(favorites, `Filter favorite channels`) {
 		t.Fatal("favorites workspace must expose an accessible full-page filter")
+	}
+	for _, removed := range []string{`My Live TV`, `Your saved channels, ready to watch.`} {
+		if strings.Contains(favorites, removed) {
+			t.Fatalf("favorites workspace must not include removed heading copy %q", removed)
+		}
 	}
 
 	// The VM integration test exercises details-first clicks, guide windowing,
@@ -3153,6 +3158,8 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.favorites-page {`,
 		`.favorites-grid {`,
 		`.favorites-empty {`,
+		`.favorite-card .continue-card strong {`,
+		`.favorite-card-actions .favorite-remove`,
 		`.guide-scroll {`,
 		`.shell.is-guide .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; padding-bottom: 0; }`,
 		`.shell.is-guide #view { min-height: 0; overflow: hidden; }`,
