@@ -9,6 +9,7 @@ const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-ve
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
 const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", folderGroupPickerOpen: false, searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "type", adminConnectionStatus: "idle", adminConnectionMessage: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+state.sportsReplayStandaloneEvents = [];
 
 state.sportsReplayPromise = null;
 state.sportsReplayGeneration = 0;
@@ -693,6 +694,7 @@ function saveAdminCategorySettings() {
     state.sportsReplayKey = "";
     state.sportsReplayItems = [];
     state.sportsReplayMatches = {};
+    state.sportsReplayStandaloneEvents = [];
     state.adminSaveStatus = "saved";
     state.adminSaveMessage = "Saved plugin settings.";
     if (state.view === "admin") renderAdminPage();
@@ -2299,13 +2301,18 @@ function buildSportsReplayMatches(events, replayItems) {
 }
 function sportsReplayCatalogWindows(events) {
   const matcher = window.SportsReplayMatcher;
-  return matcher && typeof matcher.catalogWindows === "function" ? matcher.catalogWindows(events) : [];
+  if (!matcher || typeof matcher.catalogWindows !== "function") return [];
+  const windows = matcher.catalogWindows(events);
+  if (windows.length) return windows;
+  const now = Math.floor(Date.now() / 1000);
+  return [[new Date((now - 365 * 86400) * 1000).toISOString().slice(0, 10), new Date((now + 86400) * 1000).toISOString().slice(0, 10)]];
 }
 function loadSportsReplays(force) {
   if (!sportsEnabled() || !configuredSportsLibraryIDs().length) {
     state.sportsReplayGeneration += 1;
     state.sportsReplayItems = [];
     state.sportsReplayMatches = {};
+    state.sportsReplayStandaloneEvents = [];
     state.sportsReplayKey = "";
     state.sportsReplaysLoading = false;
     state.sportsReplayPromise = null;
@@ -2331,6 +2338,7 @@ function loadSportsReplays(force) {
       if (generation !== state.sportsReplayGeneration) return state.sportsReplayMatches;
       state.sportsReplayItems = [];
       state.sportsReplayMatches = {};
+      state.sportsReplayStandaloneEvents = [];
       state.sportsReplayKey = key;
       return state.sportsReplayMatches;
     }
@@ -2348,6 +2356,19 @@ function loadSportsReplays(force) {
       const replayItems = dedupeSportsReplayItems([].concat.apply([], successful.map(function(result) { return result.items; })));
       state.sportsReplayItems = replayItems;
       state.sportsReplayMatches = buildSportsReplayMatches(eventSnapshot, replayItems);
+      const matchedContentIDs = {};
+      Object.keys(state.sportsReplayMatches).forEach(function(eventID) {
+        items(state.sportsReplayMatches[eventID]).forEach(function(match) {
+          const contentID = String(match && match.item && match.item.content_id || "");
+          if (contentID) matchedContentIDs[contentID] = true;
+        });
+      });
+      state.sportsReplayStandaloneEvents = replayItems.filter(function(item) {
+        return !matchedContentIDs[String(item && item.content_id || "")];
+      }).slice(0, 120).map(standaloneSportsReplayEvent);
+      state.sportsReplayStandaloneEvents.forEach(function(event) {
+        state.sportsReplayMatches[event.id] = [{ confidence: "high", item: event.replayItem }];
+      });
       state.sportsReplayKey = key;
       state.sportsReplaysError = failed.length ? failed.length + " replay " + (failed.length === 1 ? "library is" : "libraries are") + " temporarily unavailable." : (truncated.length ? "Some replay results were limited to protect performance." : "");
       return state.sportsReplayMatches;
@@ -2391,7 +2412,6 @@ function loadSports(force, preparedOnly) {
   state.sportsLoading = true;
   return getJSON("/dispatcharr/api/sports" + (force && !preparedOnly ? "?refresh=1" : "")).then(function(payload) {
     state.sports = payload || { events: [], leagues: [] };
-    delete state.sports.error;
     applySportsFavoritesToPayload();
     loadSportsReplays(force);
     if (state.sports.refreshing) scheduleSportsPoll();
@@ -2500,6 +2520,7 @@ function sportsEventIsLive(event) {
   return startUnix <= Math.floor(Date.now() / 1000) + 3 * 3600;
 }
 function renderSportsFeature(event) {
+  if (event && event.replayOnly) return renderStandaloneSportsReplayFeature(event);
   const channels = uniqueEventChannels(event.channels);
   const art = sportsEventArtwork(event, "backdrop");
   const live = sportsEventIsLive(event);
@@ -2510,6 +2531,16 @@ function renderSportsFeature(event) {
     + "<h1>" + escapeHTML(sportsEventTitle(event)) + "</h1>"
     + renderSportsFeatureScore(event)
     + "<div class=\"sports-feature-actions\">" + watch + "<button type=\"button\" class=\"sports-secondary-action\" data-sports-open-event=\"" + escapeHTML(event.id || "") + "\">Event details" + icon("chevron-right") + "</button></div>"
+    + "</div></section>";
+}
+function renderStandaloneSportsReplayFeature(event) {
+  const item = event.replayItem || {};
+  const art = sportsReplayArtwork(item, "backdrop");
+  return "<section class=\"sports-feature" + (art ? " has-art" : " no-art") + "\">"
+    + (art ? "<img class=\"sports-feature-art\" src=\"" + escapeHTML(art) + "\" alt=\"\">" : "")
+    + "<div class=\"sports-feature-copy\"><span class=\"sports-eyebrow\">From your Silo Sports library</span>"
+    + "<h1>" + escapeHTML(sportsReplayItemTitle(item)) + "</h1><p>" + escapeHTML(sportsReplayDate(item)) + "</p>"
+    + "<div class=\"sports-feature-actions\"><a class=\"sports-primary-action\" href=\"" + escapeHTML(sportsReplayHref(item)) + "\">" + icon("play") + "<span>Watch replay</span></a></div>"
     + "</div></section>";
 }
 function renderSportsFeatureScore(event) {
@@ -2541,6 +2572,7 @@ function renderSportsLeagueMark(league) {
   return "<span class=\"sports-league-mark\" aria-label=\"" + escapeHTML(name) + "\">" + icon("trophy") + "</span>";
 }
 function renderSportsEventTile(event) {
+  if (event && event.replayOnly) return renderStandaloneSportsReplayTile(event);
   const live = sportsEventIsLive(event);
   const showScore = !!(live || event.completed);
   return "<article class=\"sports-event-tile" + (live ? " live" : "") + "\"><button type=\"button\" class=\"sports-event-main\" data-sports-open-event=\"" + escapeHTML(event.id || "") + "\">"
@@ -2548,6 +2580,37 @@ function renderSportsEventTile(event) {
     + "<span class=\"sports-event-teams\">" + renderSportsTileTeam(event.away, event.awayScore, showScore) + "<em>vs</em>" + renderSportsTileTeam(event.home, event.homeScore, showScore) + "</span>"
     + "<span class=\"sports-event-title\">" + escapeHTML(sportsEventTitle(event)) + "</span></button>"
     + renderSportsTileAvailability(event) + "</article>";
+}
+function standaloneSportsReplayEvent(item) {
+  const contentID = String(item && item.content_id || "");
+  const title = sportsReplayItemTitle(item);
+  const dateValue = item && (item.release_date || item.first_air_date || (item.sort_metrics || {}).release_date);
+  const dateUnix = dateValue ? Math.floor(new Date(dateValue).getTime() / 1000) : 0;
+  return {
+    id: "silo-replay:" + contentID,
+    name: title,
+    shortName: title,
+    leagueId: "silo-sports-library",
+    leagueName: "Silo Sports Library",
+    sportName: "Replay",
+    startUnix: Number.isFinite(dateUnix) ? dateUnix : 0,
+    completed: true,
+    live: false,
+    replayOnly: true,
+    replayItem: item,
+    home: {},
+    away: {},
+    channels: []
+  };
+}
+function renderStandaloneSportsReplayTile(event) {
+  const item = event.replayItem || {};
+  const art = sportsReplayArtwork(item, "backdrop");
+  return "<article class=\"sports-event-tile sports-replay-tile\"><a class=\"sports-event-main\" href=\"" + escapeHTML(sportsReplayHref(item)) + "\">"
+    + (art ? "<img class=\"sports-replay-tile-art\" src=\"" + escapeHTML(art) + "\" alt=\"\">" : "<span class=\"sports-coverage-placeholder\">" + icon("play") + "</span>")
+    + "<span class=\"sports-event-meta\"><b>Silo Sports Library</b><small>" + escapeHTML(sportsReplayDate(item)) + "</small></span>"
+    + "<span class=\"sports-event-title\">" + escapeHTML(sportsReplayItemTitle(item)) + "</span></a>"
+    + "<div class=\"sports-event-availability\"><span>Replay available</span>" + icon("chevron-right") + "</div></article>";
 }
 function renderSportsTileTeam(team, score, showScore) {
   return "<span class=\"sports-event-team\">" + renderSportsTeamLogo(team || {}, "sports-event-team-logo") + "<strong>" + escapeHTML(sportsTeamName(team)) + "</strong>" + (showScore ? "<b>" + escapeHTML(score || "0") + "</b>" : "") + "</span>";
@@ -2669,7 +2732,8 @@ function renderSportsLeagueFilters(payload) {
 }
 function filteredSportsEvents(payload) {
   const now = Math.floor(Date.now() / 1000);
-  return items(payload && payload.events).filter(function(event) {
+  const sourceEvents = items(payload && payload.events).concat(state.sportsTab === "replays" ? items(state.sportsReplayStandaloneEvents) : []);
+  return sourceEvents.filter(function(event) {
     const channelCount = uniqueEventChannels(event.channels).length;
     const replayCount = sportsReplayMatchesForEvent(event).length;
     if (!sportsEventHasPlayableAccess(event)) return false;
