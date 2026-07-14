@@ -28,6 +28,7 @@ type sportsEventEnricher interface {
 const (
 	sportsChannelMinimumScore  = 28
 	sportsProviderFetchTimeout = 4 * time.Second
+	sportsBuildTimeout         = 30 * time.Second
 )
 
 type sportsEventCache struct {
@@ -37,12 +38,20 @@ type sportsEventCache struct {
 	ExpiresAfter time.Time
 }
 
+type sportsPreparedCache struct {
+	Payload      SportsPayload
+	ExpiresAfter time.Time
+	Ready        bool
+	Refreshing   bool
+}
+
 type SportsPayload struct {
 	UpdatedAtUnix int64          `json:"updatedAtUnix"`
 	Source        string         `json:"source"`
 	Leagues       []SportsLeague `json:"leagues"`
 	Events        []SportsEvent  `json:"events"`
 	FavoriteTeams []string       `json:"favoriteTeams"`
+	Refreshing    bool           `json:"refreshing,omitempty"`
 	Error         string         `json:"error,omitempty"`
 }
 
@@ -109,7 +118,7 @@ func (s *HTTPRoutesServer) handleSports(ctx context.Context, request *pluginv1.H
 	if request.GetMethod() != "" && request.GetMethod() != http.MethodGet {
 		return textResponse(http.StatusMethodNotAllowed, "method not allowed"), nil
 	}
-	payload := s.sportsPayload(ctx, queryValue(request, "refresh") == "1")
+	payload := s.preparedSportsPayload(queryValue(request, "refresh") == "1")
 	return s.respondJSON(http.StatusOK, payload)
 }
 
@@ -154,6 +163,62 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 		payload.Error = err.Error()
 	}
 	return payload
+}
+
+func (s *HTTPRoutesServer) preparedSportsPayload(refresh bool) SportsPayload {
+	now := time.Now()
+	s.sportsPreparedMu.Lock()
+	needsRefresh := !s.sportsPrepared.Ready || refresh || now.After(s.sportsPrepared.ExpiresAfter)
+	if needsRefresh && !s.sportsPrepared.Refreshing {
+		s.sportsPrepared.Refreshing = true
+		go s.rebuildSportsPayload(refresh)
+	}
+	payload := cloneSportsPayload(s.sportsPrepared.Payload)
+	payload.Refreshing = s.sportsPrepared.Refreshing
+	if !s.sportsPrepared.Ready && payload.Source == "" {
+		provider := s.sportsProvider
+		if provider == nil {
+			provider = noopSportsProvider{}
+		}
+		payload.Source = provider.Source()
+	}
+	s.sportsPreparedMu.Unlock()
+	return payload
+}
+
+func (s *HTTPRoutesServer) rebuildSportsPayload(refresh bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), sportsBuildTimeout)
+	payload := s.sportsPayload(ctx, refresh)
+	cancel()
+
+	now := time.Now()
+	s.sportsPreparedMu.Lock()
+	if payload.Error != "" && s.sportsPrepared.Ready && len(s.sportsPrepared.Payload.Events) > 0 {
+		stale := cloneSportsPayload(s.sportsPrepared.Payload)
+		stale.Error = payload.Error
+		payload = stale
+	}
+	payload.Refreshing = false
+	s.sportsPrepared.Payload = cloneSportsPayload(payload)
+	s.sportsPrepared.Ready = true
+	s.sportsPrepared.Refreshing = false
+	s.sportsPrepared.ExpiresAfter = now.Add(sportsPreparedTTL(payload))
+	s.sportsPreparedMu.Unlock()
+}
+
+func sportsPreparedTTL(payload SportsPayload) time.Duration {
+	if payload.Error != "" || len(payload.Events) == 0 {
+		return 30 * time.Second
+	}
+	return sportsCacheTTL(payload.Events)
+}
+
+func cloneSportsPayload(payload SportsPayload) SportsPayload {
+	clone := payload
+	clone.Events = cloneSportsEvents(payload.Events)
+	clone.Leagues = append([]SportsLeague(nil), payload.Leagues...)
+	clone.FavoriteTeams = append([]string(nil), payload.FavoriteTeams...)
+	return clone
 }
 
 func sportsSortStartUnix(event SportsEvent) int64 {
