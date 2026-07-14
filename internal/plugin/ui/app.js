@@ -3110,7 +3110,7 @@ function renderBroadcastEventCard(event) {
   const uniqueChannels = uniqueEventChannels(event.channels);
   const windows = items(event.windows);
   const meta = [event.keyword || "", windows.length > 1 ? windows.length + " coverage windows" : "", uniqueChannels.length ? uniqueChannels.length + " channel" + (uniqueChannels.length === 1 ? "" : "s") : ""].filter(Boolean).map(function(value, index) { return "<span" + (index === 0 && event.keyword ? " class=\"event-keyword\"" : "") + ">" + escapeHTML(value) + "</span>"; }).join("");
-  return "<article " + cardClass + (sportsEventIsLive(event) ? " live" : "") + '"><div class="sports-card-head"><div class="sports-card-title"><span class="sports-league-pill">' + escapeHTML(event.categoryName || "Events") + "</span><strong data-overflow-tooltip=\"" + escapeHTML(event.name || title) + "\">" + escapeHTML(title) + "</strong></div><div class=\"sports-status\">" + escapeHTML(status) + "</div></div>"
+  return "<article " + cardClass + (sportsEventIsLive(event) ? " live" : "") + '"><header class="event-card-head"><span class="event-card-category">' + escapeHTML(event.categoryName || "Events") + "</span><span class=\"event-card-status\">" + escapeHTML(status) + "</span><strong class=\"event-card-title\" data-overflow-tooltip=\"" + escapeHTML(event.name || title) + "\">" + escapeHTML(title) + "</strong></header>"
     + "<div class=\"event-card-body" + (artwork ? "" : " no-art") + "\">" + poster + "<div class=\"event-details\"><p data-overflow-description=\"true\">" + escapeHTML(event.description || "No event details available.") + "</p><div class=\"event-meta\">" + meta + "</div>" + renderEventBroadcastWindows(event) + "</div></div>"
     + renderBroadcastEventChannels(event)
     + "</article>";

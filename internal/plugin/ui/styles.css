@@ -364,8 +364,15 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-card.final { background: color-mix(in srgb, var(--panel) 90%, var(--rail-2)); }
 .sports-channel small { color: var(--muted); font-size: 0.7rem; font-weight: 760; }
 .sports-league-pill { width: max-content; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.38rem; background: var(--rail-2); }
+.event-card { grid-template-areas: "header" "body" "channels"; gap: 0; padding: 0; overflow: hidden; }
+.event-card-head { grid-area: header; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "category status" "title title"; align-items: center; gap: 0.42rem 0.7rem; min-width: 0; padding: 0.85rem 0.95rem 0.72rem; border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent); }
+.event-card-category { grid-area: category; width: max-content; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 0.68rem; font-weight: 850; text-transform: uppercase; }
+.event-card-status { grid-area: status; color: var(--muted); font-size: 0.72rem; font-weight: 760; white-space: nowrap; }
+.event-card.live .event-card-status { color: #ff716b; }
+.event-card-title { grid-area: title; display: -webkit-box; min-width: 0; overflow: hidden; color: var(--text); font-size: 1rem; font-weight: 850; line-height: 1.18; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .event-card-body { display: grid; grid-template-columns: 5.7rem minmax(0, 1fr); gap: 0.8rem; min-width: 0; align-items: start; }
 .event-card-body.no-art, .event-card-body:not(:has(.event-poster)) { grid-template-columns: minmax(0, 1fr); }
+.event-card .event-card-body { grid-area: body; padding: 0.8rem 0.95rem; }
 .event-poster { border: 1px solid var(--line); border-radius: 0.5rem; background: color-mix(in srgb, var(--rail-2) 72%, transparent); min-height: 5.7rem; aspect-ratio: 1; display: grid; place-items: center; overflow: hidden; color: var(--muted); font-size: 0.72rem; font-weight: 950; text-align: center; padding: 0.35rem; }
 .event-poster img { width: 100%; height: 100%; object-fit: cover; }
 .event-poster:empty, .event-poster[hidden] { display: none; }
@@ -374,6 +381,8 @@ button { cursor: pointer; touch-action: manipulation; }
 .event-meta { display: flex; flex-wrap: wrap; gap: 0.35rem; min-width: 0; }
 .event-meta span { border: 1px solid var(--line); border-radius: 999px; background: var(--rail-2); color: var(--muted); padding: 0.16rem 0.44rem; font-size: 0.68rem; font-weight: 850; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .event-meta .event-keyword { color: var(--text); }
+.event-card > .sports-channels { justify-content: flex-start; padding: 0.7rem 0.95rem 0.85rem; border-top: 1px solid color-mix(in srgb, var(--line) 72%, transparent); }
+.event-card > .sports-channels .sports-channel-wrap { justify-self: start; min-width: min(12rem, 100%); }
 .event-broadcast-windows { display: grid; gap: 0.28rem; margin-top: 0.6rem; padding-top: 0.55rem; border-top: 1px solid var(--line); }
 .event-broadcast-window { display: flex; align-items: baseline; justify-content: space-between; gap: 0.7rem; min-width: 0; }
 .event-broadcast-window strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: 0.73rem; }
