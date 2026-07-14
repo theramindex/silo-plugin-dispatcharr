@@ -1045,8 +1045,10 @@ function profileVirtualPathsForChannel(channel) {
   if (!sourcePath) return [];
   const paths = [];
   const sourceParts = String(sourcePath || "").split(" / ").map(normalizedNameToken).filter(Boolean);
-  const groupPaths = [sourcePath].concat(aliasVirtualPathsForSourcePath(sourcePath));
+  const aliasPaths = aliasVirtualPathsForSourcePath(sourcePath);
+  const groupPaths = [sourcePath].concat(aliasPaths);
   const marketParts = localMarketPathPartsForChannel(channel, sourceParts);
+  aliasPaths.forEach(function(aliasPath) { paths.push(aliasPath); });
   profilePathsForChannel(channel).forEach(function(profilePath) {
     paths.push(profilePath);
     groupPaths.forEach(function(groupPath) {
@@ -5305,8 +5307,13 @@ function adminSourceGroups() {
   effectiveChannels(false).forEach(function(channel) {
     const sourcePath = sourceCategoryOriginalLabel(channel);
     if (!sourcePath) return;
-    groups[sourcePath] = groups[sourcePath] || { sourcePath: sourcePath, count: 0 };
-    groups[sourcePath].count++;
+    const parts = parsedCategoryPath(sourcePath).map(normalizedNameToken).filter(Boolean);
+    const separator = adminSettings().delimiter === "dash" ? " - " : " | ";
+    const paths = parts.length ? parts.map(function(_, index) { return parts.slice(0, index + 1).join(separator); }) : [sourcePath];
+    uniqueIDs(paths).forEach(function(path) {
+      groups[path] = groups[path] || { sourcePath: path, count: 0 };
+      groups[path].count++;
+    });
   });
   return Object.keys(groups).sort().map(function(sourcePath) { return groups[sourcePath]; });
 }
