@@ -2413,7 +2413,7 @@ function loadSports(force, preparedOnly) {
   return getJSON("/dispatcharr/api/sports" + (force && !preparedOnly ? "?refresh=1" : "")).then(function(payload) {
     state.sports = payload || { events: [], leagues: [] };
     applySportsFavoritesToPayload();
-    loadSportsReplays(force);
+    loadSportsReplays(force && !preparedOnly);
     if (state.sports.refreshing) scheduleSportsPoll();
     else stopSportsPoll(true);
     return state.sports;

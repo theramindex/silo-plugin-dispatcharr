@@ -155,6 +155,10 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 	for index := range events {
 		events[index].Home.Favorite = false
 		events[index].Away.Favorite = false
+		if strings.HasPrefix(events[index].ID, "epg:") && len(events[index].Channels) > 0 {
+			events[index].Channels = mergeSportsChannelMatches(events[index].Channels)
+			continue
+		}
 		events[index].Channels = mergeSportsChannelMatches(events[index].Channels, channelIndex.Match(events[index]))
 	}
 	sort.Slice(events, func(i, j int) bool {
@@ -301,7 +305,25 @@ func sportsEventsFromGuide(snapshot cache.Snapshot, now time.Time) []SportsEvent
 	for _, event := range byKey {
 		events = append(events, *event)
 	}
-	return normalizeSportsEvents(events)
+	events = normalizeSportsEvents(events)
+	sort.Slice(events, func(i, j int) bool {
+		if events[i].Live != events[j].Live {
+			return events[i].Live
+		}
+		leftFuture := events[i].StartUnix >= now.Unix()
+		rightFuture := events[j].StartUnix >= now.Unix()
+		if leftFuture != rightFuture {
+			return leftFuture
+		}
+		if leftFuture {
+			return events[i].StartUnix < events[j].StartUnix
+		}
+		return events[i].StartUnix > events[j].StartUnix
+	})
+	if len(events) > 250 {
+		events = events[:250]
+	}
+	return events
 }
 
 func guideSportsLeague(value string) (string, string, string, bool) {

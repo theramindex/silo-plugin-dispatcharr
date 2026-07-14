@@ -317,6 +317,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`function renderStandaloneSportsReplayFeature(event)`,
 		`function renderStandaloneSportsReplayTile(event)`,
 		`const windows = matcher.catalogWindows(events);`,
+		`loadSportsReplays(force && !preparedOnly);`,
 		`const response = await coreFetch(route(url));`,
 		`if (!coreAccessToken && coreStoredValue("refresh_token")) {`,
 		`error.status = response.status`,
