@@ -312,6 +312,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`Search movies, tv shows, channels and more`,
 		`function renderSportsPage()`,
 		`function renderSportsTopbarTabs()`,
+		`const response = await coreFetch(route(url));`,
+		`if (!coreAccessToken && coreStoredValue("refresh_token")) {`,
 		`error.status = response.status`,
 		`Your Silo session expired. Refresh the page or sign in again.`,
 		`function compareSportsEventsForTab(left, right)`,
@@ -1301,8 +1303,8 @@ vm.runInContext(source, sandbox);
 	if err := json.Unmarshal(output, &result); err != nil {
 		t.Fatalf("decode core auth regression: %v\n%s", err, output)
 	}
-	if len(result.Calls) != 3 || result.Calls[0].Auth != "" || result.Calls[1].URL != "/api/v1/auth/refresh" || result.Calls[2].Auth != "Bearer fresh-access" {
-		t.Fatalf("expected protected request, token refresh, and authorized retry; got %+v", result.Calls)
+	if len(result.Calls) != 2 || result.Calls[0].URL != "/api/v1/auth/refresh" || result.Calls[1].Auth != "Bearer fresh-access" {
+		t.Fatalf("expected proactive token refresh followed by an authorized request; got %+v", result.Calls)
 	}
 	if result.RefreshToken != "fresh-refresh" {
 		t.Fatalf("expected rotated refresh token to be stored, got %q", result.RefreshToken)
