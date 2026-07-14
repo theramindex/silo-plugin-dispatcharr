@@ -8,7 +8,7 @@ const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuff
 const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "type", adminConnectionStatus: "idle", adminConnectionMessage: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "type", adminConnectionStatus: "idle", adminConnectionMessage: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 
 state.sportsReplayPromise = null;
 state.sportsReplayGeneration = 0;
@@ -2365,16 +2365,32 @@ function loadSportsReplays(force) {
   state.sportsReplayPromise = promise;
   return promise;
 }
-function loadSports(force) {
+function stopSportsPoll(resetAttempts) {
+  if (state.sportsPollTimer) clearTimeout(state.sportsPollTimer);
+  state.sportsPollTimer = null;
+  if (resetAttempts) state.sportsPollAttempts = 0;
+}
+function scheduleSportsPoll() {
+  if (state.sportsPollTimer || state.sportsPollAttempts >= 24) return;
+  state.sportsPollAttempts += 1;
+  state.sportsPollTimer = setTimeout(function() {
+    state.sportsPollTimer = null;
+    loadSports(true, true);
+  }, 1500);
+}
+function loadSports(force, preparedOnly) {
   if (!sportsEnabled()) return Promise.resolve({ events: [], leagues: [] });
   if (state.sportsLoading) return Promise.resolve(state.sports || { events: [], leagues: [] });
   if (state.sports && !force) return Promise.resolve(state.sports);
+  if (force && !preparedOnly) stopSportsPoll(true);
   state.sportsLoading = true;
-  return getJSON("/dispatcharr/api/sports" + (force ? "?refresh=1" : "")).then(function(payload) {
+  return getJSON("/dispatcharr/api/sports" + (force && !preparedOnly ? "?refresh=1" : "")).then(function(payload) {
     state.sports = payload || { events: [], leagues: [] };
     delete state.sports.error;
     applySportsFavoritesToPayload();
     loadSportsReplays(force);
+    if (state.sports.refreshing) scheduleSportsPoll();
+    else stopSportsPoll(true);
     return state.sports;
   }).catch(function(error) {
     if (!state.sports) state.sports = { events: [], leagues: [], error: readableError(error) };
@@ -2411,7 +2427,7 @@ function renderSportsTopbarTabs() {
   root.innerHTML = "";
 }
 function renderSportsTabFilters(payload) {
-  const refreshing = state.sportsLoading || state.sportsReplaysLoading;
+  const refreshing = state.sportsLoading || !!(payload && payload.refreshing) || state.sportsReplaysLoading;
   const refreshClass = "sports-refresh" + (refreshing ? " is-loading" : "");
   const refreshDisabled = refreshing ? " disabled aria-busy=\"true\"" : "";
   return "<div class=\"sports-filter-row\"><div class=\"view-toggle\" aria-label=\"Sports filter\">" + sportsTabButtonsHTML() + "</div>"
@@ -2454,7 +2470,7 @@ function sportsSectionHTML(title, action, body, className) {
 function renderSportsBrowse(payload, events) {
   const featured = sportsFeaturedEvent(events);
   const remaining = events.filter(function(event) { return !featured || event.id !== featured.id; });
-  const loading = state.sportsLoading || (state.sportsTab === "replays" && state.sportsReplaysLoading);
+  const loading = state.sportsLoading || !!(payload && payload.refreshing) || (state.sportsTab === "replays" && state.sportsReplaysLoading);
   const eventBody = remaining.length ? "<div class=\"sports-event-grid\">" + remaining.map(renderSportsEventTile).join("") + "</div>" : (!featured ? "<div class=\"empty\">" + (loading ? "Loading sports..." : "No sports matches.") + "</div>" : "");
   return "<div class=\"sports-pinned\">" + renderSportsTabFilters(payload) + "</div>"
     + "<div class=\"sports-score-scroll sports-browse\">"
@@ -2862,7 +2878,7 @@ function renderPlayerSportsDrawer() {
   }
   const events = playerSportsEvents();
   const channels = playerSportsChannels(events);
-  const loading = state.sportsLoading && !state.sports;
+  const loading = (state.sportsLoading && !state.sports) || !!(state.sports && state.sports.refreshing && !events.length);
   const status = byId("player-sports-status");
   if (status) status.textContent = loading ? "Loading live sports." : (events.length ? events.length + " live or upcoming sports events available." : "No live or upcoming sports events available.");
   root.innerHTML = "<div class=\"player-sports-head\"><div><strong>Live Sports</strong><span>Scores and matched channels</span></div><button type=\"button\" data-player-action=\"sports-close\" aria-label=\"Close live sports\">" + icon("x") + "</button></div>"

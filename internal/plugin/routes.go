@@ -50,6 +50,8 @@ type HTTPRoutesServer struct {
 	sportsProvider      sportsProvider
 	sportsCache         sportsEventCache
 	sportsMu            sync.Mutex
+	sportsPrepared      sportsPreparedCache
+	sportsPreparedMu    sync.Mutex
 	timeShift           *timeshift.Manager
 }
 

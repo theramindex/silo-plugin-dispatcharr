@@ -27,6 +27,29 @@ type deadlineSportsProvider struct {
 	maxRemaining time.Duration
 }
 
+type blockingSportsProvider struct {
+	events  []SportsEvent
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+	calls   atomic.Int32
+}
+
+func (p *blockingSportsProvider) Events(ctx context.Context, _ time.Time) ([]SportsEvent, error) {
+	p.calls.Add(1)
+	p.once.Do(func() { close(p.started) })
+	select {
+	case <-p.release:
+		return cloneSportsEvents(p.events), nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (*blockingSportsProvider) Source() string {
+	return "blocking-test"
+}
+
 func (p *deadlineSportsProvider) Events(ctx context.Context, _ time.Time) ([]SportsEvent, error) {
 	deadline, ok := ctx.Deadline()
 	if !ok {
@@ -139,6 +162,41 @@ func TestSportsPayloadBoundsProviderWorkBelowPluginRouteDeadline(t *testing.T) {
 	}
 	if payload.Error == "" || payload.Source != "deadline-test" {
 		t.Fatalf("expected provider error payload, got %+v", payload)
+	}
+}
+
+func TestSportsRouteReturnsWhilePreparedPayloadBuildRuns(t *testing.T) {
+	t.Parallel()
+
+	provider := &blockingSportsProvider{
+		events:  []SportsEvent{{ID: "event:ready", LeagueID: "nfl", LeagueName: "NFL", Name: "Jets at Giants", StartUnix: 1700000000}},
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	server := NewHTTPRoutesServer(cache.NewStore())
+	server.sportsProvider = provider
+
+	startedAt := time.Now()
+	payload := fetchSportsPayloadOnce(t, server, false)
+	if elapsed := time.Since(startedAt); elapsed > 250*time.Millisecond {
+		t.Fatalf("sports route waited for background build: %s", elapsed)
+	}
+	if !payload.Refreshing || payload.Source != "blocking-test" {
+		t.Fatalf("expected refreshing placeholder, got %+v", payload)
+	}
+	select {
+	case <-provider.started:
+	case <-time.After(time.Second):
+		t.Fatal("sports payload build did not start")
+	}
+	close(provider.release)
+
+	ready := fetchSportsPayload(t, server)
+	if ready.Refreshing || len(ready.Events) != 1 || ready.Events[0].ID != "event:ready" {
+		t.Fatalf("expected prepared sports payload, got %+v", ready)
+	}
+	if calls := provider.calls.Load(); calls != 1 {
+		t.Fatalf("expected one background provider call, got %d", calls)
 	}
 }
 
@@ -354,17 +412,8 @@ func TestHTTPRoutesServerSportsUsesStaleCacheOnProviderError(t *testing.T) {
 	}
 	server.sportsProvider = staticSportsProvider{err: errors.New("provider down")}
 	server.sportsCache.ExpiresAfter = time.Now().Add(-time.Second)
-	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/dispatcharr/api/sports"})
-	if err != nil {
-		t.Fatalf("sports route: %v", err)
-	}
-	if response.GetStatusCode() != http.StatusOK {
-		t.Fatalf("expected 200, got %d", response.GetStatusCode())
-	}
-	var payload SportsPayload
-	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
-		t.Fatalf("unmarshal payload: %v", err)
-	}
+	server.sportsPrepared.ExpiresAfter = time.Now().Add(-time.Second)
+	payload := fetchSportsPayload(t, server)
 	if payload.Error == "" || len(payload.Events) != 1 || payload.Events[0].ID != "event:cached" {
 		t.Fatalf("expected stale cached event with error, got %+v", payload)
 	}
@@ -706,7 +755,26 @@ func TestPickSportarrEventImagePrefersBackdropAndPriority(t *testing.T) {
 
 func fetchSportsPayload(t *testing.T, server *HTTPRoutesServer) SportsPayload {
 	t.Helper()
-	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/dispatcharr/api/sports"})
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		payload := fetchSportsPayloadOnce(t, server, false)
+		if !payload.Refreshing {
+			return payload
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("sports payload did not finish preparing: %+v", payload)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func fetchSportsPayloadOnce(t *testing.T, server *HTTPRoutesServer, refresh bool) SportsPayload {
+	t.Helper()
+	path := "/dispatcharr/api/sports"
+	if refresh {
+		path += "?refresh=1"
+	}
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: path})
 	if err != nil {
 		t.Fatalf("sports route: %v", err)
 	}
