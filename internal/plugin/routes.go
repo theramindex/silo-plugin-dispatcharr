@@ -111,9 +111,10 @@ func newHTTPRoutesServer(store *cache.Store, settingsProvider func() config.Sett
 }
 
 type ChannelsPayload struct {
-	SourceName string           `json:"sourceName"`
-	Channels   []PublicChannel  `json:"channels"`
-	Categories []model.Category `json:"categories"`
+	SourceName string                 `json:"sourceName"`
+	Channels   []PublicChannel        `json:"channels"`
+	Categories []model.Category       `json:"categories"`
+	Profiles   []model.ChannelProfile `json:"profiles,omitempty"`
 }
 
 type PublicChannel struct {
@@ -590,6 +591,7 @@ func (s *HTTPRoutesServer) channelsPayload() ChannelsPayload {
 		SourceName: snapshot.Catalog.Source.Name,
 		Channels:   publicChannels(snapshot.Catalog.Channels),
 		Categories: liveCategories(snapshot),
+		Profiles:   append([]model.ChannelProfile(nil), snapshot.Catalog.Source.Profiles...),
 	}
 }
 
