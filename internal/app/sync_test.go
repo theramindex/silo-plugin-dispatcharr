@@ -482,6 +482,7 @@ func TestSyncDirectLoginScopesChannelsAndGuideToChannelProfile(t *testing.T) {
 		DispatcharrUser: "demo",
 		DispatcharrPass: "secret",
 		ChannelProfile:  "The Ramindex - NYC",
+		ChannelGroups:   []string{"locals-ny"},
 		ChannelRefreshH: 24,
 		EPGRefreshH:     24,
 	}, 610)
@@ -492,6 +493,9 @@ func TestSyncDirectLoginScopesChannelsAndGuideToChannelProfile(t *testing.T) {
 	snapshot := store.Current()
 	if len(snapshot.Catalog.Channels) != 1 || snapshot.Catalog.Channels[0].Name != "New York ABC" {
 		t.Fatalf("expected only NYC profile channel, got %+v", snapshot.Catalog.Channels)
+	}
+	if len(snapshot.Catalog.Content.LiveCategories) != 2 {
+		t.Fatalf("expected complete group inventory to remain available for lineup editing, got %+v", snapshot.Catalog.Content.LiveCategories)
 	}
 	if got := snapshot.Catalog.Channels[0].ProfileIDs; len(got) != 1 || got[0] != "10" {
 		t.Fatalf("expected synced channel to include profile membership, got %+v", got)
@@ -633,6 +637,26 @@ func TestProfileMembershipDeduplicatesRepeatedChannelRows(t *testing.T) {
 	})
 	if got := membership["2"]; len(got) != 2 || got[0] != "10" || got[1] != "11" {
 		t.Fatalf("expected one membership per profile, got %+v", got)
+	}
+}
+
+func TestSelectedChannelProfilesUnionsMultipleProfiles(t *testing.T) {
+	profile, channels, err := selectedChannelProfiles([]string{"10", "West"}, "", []dispatcharr.ChannelProfile{
+		{ID: "10", Name: "East", Channels: []dispatcharr.String{"1", "2"}},
+		{ID: "20", Name: "West", Channels: []dispatcharr.String{"2", "3"}},
+	})
+	if err != nil {
+		t.Fatalf("select profiles: %v", err)
+	}
+	if profile != nil || len(channels) != 3 || !channels["1"] || !channels["2"] || !channels["3"] {
+		t.Fatalf("unexpected profile union: profile=%+v channels=%+v", profile, channels)
+	}
+}
+
+func TestSelectedChannelGroupsTrimsAndDeduplicates(t *testing.T) {
+	groups := selectedChannelGroups([]string{" locals ", "sports", "locals", ""})
+	if len(groups) != 2 || !groups["locals"] || !groups["sports"] {
+		t.Fatalf("unexpected selected groups: %+v", groups)
 	}
 }
 

@@ -4783,12 +4783,16 @@ function updateAdminTimeShiftField(field, target) {
   renderAdminPage();
 }
 function defaultAdminConnection() {
-  return { sourceMode: "direct_login", baseUrl: "", username: "", password: "", apiKey: "", channelProfile: "", m3uUrl: "", epgXmlUrl: "", secretConfigured: false, m3uConfigured: false, epgXmlConfigured: false, configured: false, origin: "empty" };
+  return { sourceMode: "direct_login", baseUrl: "", username: "", password: "", apiKey: "", channelProfile: "", channelProfiles: [], channelGroups: [], m3uUrl: "", epgXmlUrl: "", secretConfigured: false, m3uConfigured: false, epgXmlConfigured: false, configured: false, origin: "empty" };
 }
 function normalizeAdminConnection(value) {
   const connection = Object.assign(defaultAdminConnection(), value || {});
   if (["direct_login", "api_key", "xtream", "m3u_xmltv"].indexOf(connection.sourceMode) < 0) connection.sourceMode = "direct_login";
   ["baseUrl", "username", "password", "apiKey", "channelProfile", "m3uUrl", "epgXmlUrl", "origin"].forEach(function(key) { connection[key] = String(connection[key] || ""); });
+  connection.channelProfiles = uniqueIDs(items(connection.channelProfiles).map(function(value) { return String(value || "").trim(); }).filter(Boolean));
+  connection.channelGroups = uniqueIDs(items(connection.channelGroups).map(function(value) { return String(value || "").trim(); }).filter(Boolean));
+  if (!connection.channelProfiles.length && connection.channelProfile) connection.channelProfiles = [connection.channelProfile];
+  connection.channelProfile = connection.channelProfiles.length === 1 ? connection.channelProfiles[0] : "";
   connection.secretConfigured = !!connection.secretConfigured;
   connection.m3uConfigured = !!connection.m3uConfigured;
   connection.epgXmlConfigured = !!connection.epgXmlConfigured;
@@ -4824,6 +4828,50 @@ function updateAdminConnectionField(field, target) {
   }
   renderAdminTopbarActions();
 }
+function adminLineupInventory(kind) {
+  if (kind === "profiles") return availableChannelProfiles().map(function(profile) {
+    return { id: String(profile.id || profile.name || ""), name: profile.name || profile.id || "Unnamed profile", count: Number(profile.channelCount || 0) };
+  }).filter(function(item) { return !!item.id; });
+  const counts = {};
+  effectiveChannels(false).forEach(function(channel) {
+    if (channel.categoryId) counts[channel.categoryId] = (counts[channel.categoryId] || 0) + 1;
+  });
+  return items(state.app && state.app.categories).map(function(group) {
+    return { id: String(group.id || ""), name: group.name || group.id || "Unnamed group", count: Number(counts[group.id] || 0) };
+  }).filter(function(item) { return !!item.id; });
+}
+function updateAdminLineupSelection(kind, id, checked) {
+  const connection = normalizeAdminConnection(state.adminConnection);
+  const field = kind === "profiles" ? "channelProfiles" : "channelGroups";
+  const inventory = adminLineupInventory(kind);
+  const allIDs = inventory.map(function(item) { return item.id; });
+  let selected = connection[field].length ? connection[field].slice() : allIDs.slice();
+  selected = selected.filter(function(value) { return value !== id; });
+  if (checked) selected.push(id);
+  selected = uniqueIDs(selected);
+  if (!selected.length && allIDs.length) {
+    showAppToast("Keep at least one " + (kind === "profiles" ? "profile" : "group") + " selected.");
+    renderAdminPage();
+    return;
+  }
+  connection[field] = selected.length === allIDs.length && allIDs.every(function(value) { return selected.indexOf(value) >= 0; }) ? [] : selected;
+  connection.channelProfile = connection.channelProfiles.length === 1 ? connection.channelProfiles[0] : "";
+  state.adminConnection = connection;
+  state.adminConnectionStatus = "dirty";
+  state.adminConnectionMessage = "Unsaved lineup changes.";
+  renderAdminPage();
+}
+function useAllAdminLineup(kind) {
+  const connection = normalizeAdminConnection(state.adminConnection);
+  if (kind === "profiles") {
+    connection.channelProfiles = [];
+    connection.channelProfile = "";
+  } else connection.channelGroups = [];
+  state.adminConnection = connection;
+  state.adminConnectionStatus = "dirty";
+  state.adminConnectionMessage = "Unsaved lineup changes.";
+  renderAdminPage();
+}
 function adminConnectionPayload(action) {
   const connection = normalizeAdminConnection(state.adminConnection);
   return {
@@ -4834,6 +4882,8 @@ function adminConnectionPayload(action) {
     password: connection.password,
     apiKey: connection.apiKey,
     channelProfile: connection.channelProfile,
+    channelProfiles: connection.channelProfiles,
+    channelGroups: connection.channelGroups,
     m3uUrl: connection.m3uUrl,
     epgXmlUrl: connection.epgXmlUrl
   };
@@ -4921,12 +4971,30 @@ function renderAdminConnectionFields(connection) {
 }
 function renderAdminLineupFields(connection) {
   if (connection.sourceMode === "direct_login" || connection.sourceMode === "api_key") {
-    return "<div class=\"source-form\"><label class=\"source-field-wide\"><span>Channel profile <small>· optional</small></span><input data-admin-connection-field=\"channelProfile\" value=\"" + escapeHTML(connection.channelProfile) + "\" placeholder=\"Leave blank to parse all profiles\"><small>Use one exact profile name or ID to scope this installation. Leave it blank to include every profile available to this account.</small></label></div>";
+    return "<div class=\"admin-lineup-grid\">" + renderAdminLineupSelector("profiles", "Profiles", "Choose the Dispatcharr profiles available in Live TV.", connection.channelProfiles) + renderAdminLineupSelector("groups", "Channel groups", "Optionally narrow the lineup to specific groups.", connection.channelGroups) + "</div>";
   }
   const copy = connection.sourceMode === "xtream"
     ? "Channels and groups are imported from the Xtream account returned by Dispatcharr. Profile-based organization is not available in this mode."
     : "Channel groups come from the M3U playlist and program data comes from XMLTV. Profile-based organization is not available in this mode.";
   return "<div class=\"source-lineup-summary\">" + icon("guide") + "<div><strong>Lineup follows the configured source</strong><span>" + escapeHTML(copy) + "</span></div></div>";
+}
+function renderAdminLineupSelector(kind, title, description, selection) {
+  const inventory = adminLineupInventory(kind);
+  const selected = items(selection);
+  const allSelected = selected.length === 0;
+  const summary = allSelected ? "All " + kind : selected.length + " selected";
+  const rows = inventory.map(function(item) {
+    const checked = allSelected || selected.indexOf(item.id) >= 0;
+    const detail = item.count ? String(item.count) + " channels" : "Available " + (kind === "profiles" ? "profile" : "group");
+    return "<label class=\"admin-lineup-option\" data-admin-lineup-search-value=\"" + escapeHTML(lower(item.name + " " + item.id)) + "\"><span><strong>" + escapeHTML(item.name) + "</strong><small>" + escapeHTML(detail) + "</small></span><input type=\"checkbox\" data-admin-lineup-kind=\"" + kind + "\" data-admin-lineup-id=\"" + escapeHTML(item.id) + "\"" + (checked ? " checked" : "") + "></label>";
+  }).join("");
+  const body = inventory.length ? rows : "<div class=\"admin-lineup-empty\">Save the connection and refresh the catalog to load " + kind + ".</div>";
+  return "<section class=\"admin-lineup-selector\"><header><div><h4>" + title + "</h4><p>" + description + "</p></div><button type=\"button\" data-admin-lineup-all=\"" + kind + "\">" + escapeHTML(summary) + "</button></header><label class=\"admin-lineup-search\">" + icon("search") + "<input data-admin-lineup-filter=\"" + kind + "\" placeholder=\"Filter " + kind + "\" aria-label=\"Filter " + kind + "\"></label><div class=\"admin-lineup-options\" data-admin-lineup-options=\"" + kind + "\">" + body + "</div></section>";
+}
+function adminLineupSummary(connection) {
+  const profileCopy = connection.channelProfiles.length ? connection.channelProfiles.length + " profile" + (connection.channelProfiles.length === 1 ? "" : "s") : "All profiles";
+  const groupCopy = connection.channelGroups.length ? connection.channelGroups.length + " group" + (connection.channelGroups.length === 1 ? "" : "s") : "all groups";
+  return profileCopy + " · " + groupCopy;
 }
 function adminConnectionEndpoint(connection) {
   if (connection.sourceMode === "m3u_xmltv") return connection.m3uConfigured ? "Playlist and guide saved securely" : "Playlist URL required";
@@ -4963,7 +5031,7 @@ function renderAdminConnectionTab() {
   if (connection.configured) {
     inventory = "<div class=\"source-table\" role=\"table\" aria-label=\"Dispatcharr connections\"><div class=\"source-table-head\" role=\"row\"><span>Connection</span><span>Account</span><span>Channels</span><span>Mode</span><span>Status</span><span>Actions</span></div>"
       + "<div class=\"source-table-row\" role=\"row\"><div class=\"source-primary\"><strong>Dispatcharr</strong><small>" + escapeHTML(adminConnectionEndpoint(connection)) + "</small></div>"
-      + "<div class=\"source-user\"><span>" + escapeHTML(adminConnectionAccount(connection)) + "</span><small>" + (connection.channelProfile ? escapeHTML(connection.channelProfile) : "All available profiles") + "</small></div>"
+      + "<div class=\"source-user\"><span>" + escapeHTML(adminConnectionAccount(connection)) + "</span><small>" + escapeHTML(adminLineupSummary(connection)) + "</small></div>"
       + "<div class=\"source-count\"><strong>" + escapeHTML(String(status.channelCount || items(state.app && state.app.channels).length || 0)) + "</strong><small>channels</small></div>"
       + "<div class=\"source-format\"><span>" + escapeHTML(sourceModeLabel(connection.sourceMode)) + "</span><small>source</small></div>"
       + "<span class=\"source-status enabled\">Configured</span><div class=\"source-actions\"><button type=\"button\" data-admin-connection-action=\"test-saved\">" + icon("loader") + "<span>Test</span></button><button type=\"button\" data-admin-connection-action=\"edit\">" + icon("settings") + "<span>Edit</span></button></div></div></div>";
@@ -6481,6 +6549,12 @@ document.addEventListener("click", function(event) {
     updateAdminConnectionField("sourceMode", { value: adminSourceMode.getAttribute("data-admin-source-mode") });
     return;
   }
+  const adminLineupAll = event.target.closest("[data-admin-lineup-all]");
+  if (adminLineupAll) {
+    event.preventDefault();
+    useAllAdminLineup(adminLineupAll.getAttribute("data-admin-lineup-all"));
+    return;
+  }
   const adminConnectionAction = event.target.closest("[data-admin-connection-action]");
   if (adminConnectionAction) {
     event.preventDefault();
@@ -6734,6 +6808,20 @@ document.addEventListener("change", function(event) {
   render();
 });
 document.addEventListener("input", function(event) {
+  const lineupFilter = event.target.getAttribute("data-admin-lineup-filter");
+  if (lineupFilter) {
+    const query = lower(event.target.value || "").trim();
+    document.querySelectorAll("[data-admin-lineup-options=\"" + lineupFilter + "\"] [data-admin-lineup-search-value]").forEach(function(option) {
+      option.hidden = !!query && String(option.getAttribute("data-admin-lineup-search-value") || "").indexOf(query) < 0;
+    });
+    return;
+  }
+  const lineupKind = event.target.getAttribute("data-admin-lineup-kind");
+  const lineupID = event.target.getAttribute("data-admin-lineup-id");
+  if (lineupKind && lineupID) {
+    updateAdminLineupSelection(lineupKind, lineupID, !!event.target.checked);
+    return;
+  }
   if (event.target && event.target.id === "guide-category-search") {
     state.guideCategoryQuery = event.target.value || "";
     const options = document.querySelector(".guide-category-options");

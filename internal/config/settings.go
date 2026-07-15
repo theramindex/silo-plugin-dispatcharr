@@ -30,6 +30,8 @@ type Settings struct {
 	DispatcharrPass   string
 	DispatcharrAPIKey string
 	ChannelProfile    string
+	ChannelProfiles   []string
+	ChannelGroups     []string
 	XtreamBaseURL     string
 	XtreamUsername    string
 	XtreamPassword    string
@@ -121,6 +123,8 @@ func CatalogCacheKey(settings Settings) string {
 		strings.TrimSpace(settings.DispatcharrUser),
 		strings.TrimSpace(settings.DispatcharrAPIKey),
 		strings.TrimSpace(settings.ChannelProfile),
+		strings.Join(normalizeStringSelection(settings.ChannelProfiles), ","),
+		strings.Join(normalizeStringSelection(settings.ChannelGroups), ","),
 		strings.TrimSpace(settings.XtreamBaseURL),
 		strings.TrimSpace(settings.XtreamUsername),
 		strings.TrimSpace(settings.M3UURL),
@@ -128,4 +132,18 @@ func CatalogCacheKey(settings Settings) string {
 	}
 	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
 	return hex.EncodeToString(sum[:])
+}
+
+func normalizeStringSelection(values []string) []string {
+	seen := map[string]bool{}
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		normalized = append(normalized, value)
+	}
+	return normalized
 }

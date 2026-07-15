@@ -156,6 +156,8 @@ type adminConnectionPayload struct {
 	Password         string            `json:"password,omitempty"`
 	APIKey           string            `json:"apiKey,omitempty"`
 	ChannelProfile   string            `json:"channelProfile,omitempty"`
+	ChannelProfiles  []string          `json:"channelProfiles,omitempty"`
+	ChannelGroups    []string          `json:"channelGroups,omitempty"`
 	M3UURL           string            `json:"m3uUrl,omitempty"`
 	EPGXMLURL        string            `json:"epgXmlUrl,omitempty"`
 	SecretConfigured bool              `json:"secretConfigured"`
@@ -927,7 +929,13 @@ func (s *HTTPRoutesServer) currentConnection() (config.ConnectionSettings, strin
 }
 
 func publicAdminConnection(connection config.ConnectionSettings, origin string) adminConnectionPayload {
-	payload := adminConnectionPayload{SourceMode: connection.SourceMode, ChannelProfile: connection.ChannelProfile, Origin: origin}
+	payload := adminConnectionPayload{
+		SourceMode:      connection.SourceMode,
+		ChannelProfile:  connection.ChannelProfile,
+		ChannelProfiles: append([]string(nil), connection.ChannelProfiles...),
+		ChannelGroups:   append([]string(nil), connection.ChannelGroups...),
+		Origin:          origin,
+	}
 	switch connection.SourceMode {
 	case config.SourceModeXtream:
 		payload.BaseURL = connection.XtreamBaseURL
@@ -953,7 +961,12 @@ func publicAdminConnection(connection config.ConnectionSettings, origin string) 
 
 func connectionFromAdminPayload(payload adminConnectionPayload, current config.ConnectionSettings) config.ConnectionSettings {
 	sameMode := payload.SourceMode == current.SourceMode
-	candidate := config.ConnectionSettings{SourceMode: payload.SourceMode, ChannelProfile: payload.ChannelProfile}
+	candidate := config.ConnectionSettings{
+		SourceMode:      payload.SourceMode,
+		ChannelProfile:  payload.ChannelProfile,
+		ChannelProfiles: append([]string(nil), payload.ChannelProfiles...),
+		ChannelGroups:   append([]string(nil), payload.ChannelGroups...),
+	}
 	switch payload.SourceMode {
 	case config.SourceModeAPIKey:
 		candidate.DispatcharrURL = payload.BaseURL
