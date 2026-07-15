@@ -18,6 +18,8 @@ type ConnectionSettings struct {
 	DispatcharrPass   string     `json:"dispatcharrPass,omitempty"`
 	DispatcharrAPIKey string     `json:"dispatcharrApiKey,omitempty"`
 	ChannelProfile    string     `json:"channelProfile,omitempty"`
+	ChannelProfiles   []string   `json:"channelProfiles,omitempty"`
+	ChannelGroups     []string   `json:"channelGroups,omitempty"`
 	XtreamBaseURL     string     `json:"xtreamBaseUrl,omitempty"`
 	XtreamUsername    string     `json:"xtreamUsername,omitempty"`
 	XtreamPassword    string     `json:"xtreamPassword,omitempty"`
@@ -33,6 +35,8 @@ func ConnectionFromSettings(settings Settings) ConnectionSettings {
 		DispatcharrPass:   settings.DispatcharrPass,
 		DispatcharrAPIKey: settings.DispatcharrAPIKey,
 		ChannelProfile:    settings.ChannelProfile,
+		ChannelProfiles:   append([]string(nil), settings.ChannelProfiles...),
+		ChannelGroups:     append([]string(nil), settings.ChannelGroups...),
 		XtreamBaseURL:     settings.XtreamBaseURL,
 		XtreamUsername:    settings.XtreamUsername,
 		XtreamPassword:    settings.XtreamPassword,
@@ -48,6 +52,8 @@ func (connection ConnectionSettings) Apply(settings *Settings) {
 	settings.DispatcharrPass = connection.DispatcharrPass
 	settings.DispatcharrAPIKey = connection.DispatcharrAPIKey
 	settings.ChannelProfile = connection.ChannelProfile
+	settings.ChannelProfiles = append([]string(nil), connection.ChannelProfiles...)
+	settings.ChannelGroups = append([]string(nil), connection.ChannelGroups...)
 	settings.XtreamBaseURL = connection.XtreamBaseURL
 	settings.XtreamUsername = connection.XtreamUsername
 	settings.XtreamPassword = connection.XtreamPassword
@@ -59,6 +65,16 @@ func NormalizeConnection(connection ConnectionSettings) (ConnectionSettings, err
 	connection.DispatcharrURL = strings.TrimRight(strings.TrimSpace(connection.DispatcharrURL), "/")
 	connection.DispatcharrUser = strings.TrimSpace(connection.DispatcharrUser)
 	connection.ChannelProfile = strings.TrimSpace(connection.ChannelProfile)
+	connection.ChannelProfiles = normalizeStringSelection(connection.ChannelProfiles)
+	connection.ChannelGroups = normalizeStringSelection(connection.ChannelGroups)
+	if len(connection.ChannelProfiles) == 0 && connection.ChannelProfile != "" {
+		connection.ChannelProfiles = []string{connection.ChannelProfile}
+	}
+	if len(connection.ChannelProfiles) == 1 {
+		connection.ChannelProfile = connection.ChannelProfiles[0]
+	} else if len(connection.ChannelProfiles) > 1 {
+		connection.ChannelProfile = ""
+	}
 	connection.XtreamBaseURL = strings.TrimRight(strings.TrimSpace(connection.XtreamBaseURL), "/")
 	connection.XtreamUsername = strings.TrimSpace(connection.XtreamUsername)
 	connection.M3UURL = strings.TrimSpace(connection.M3UURL)
@@ -98,7 +114,11 @@ func (store *ConnectionStore) Load() (ConnectionSettings, bool, error) {
 	if err := json.Unmarshal(data, &connection); err != nil {
 		return ConnectionSettings{}, false, fmt.Errorf("decode connection settings: %w", err)
 	}
-	return connection, true, nil
+	normalized, err := NormalizeConnection(connection)
+	if err != nil {
+		return ConnectionSettings{}, false, fmt.Errorf("validate connection settings: %w", err)
+	}
+	return normalized, true, nil
 }
 
 func (store *ConnectionStore) Save(connection ConnectionSettings) error {

@@ -642,6 +642,27 @@ func TestHTTPRoutesServerAdminConnectionSavePreservesExistingSecret(t *testing.T
 	}
 }
 
+func TestHTTPRoutesServerAdminConnectionSavesLineupSelections(t *testing.T) {
+	t.Parallel()
+	store := config.NewConnectionStore(filepath.Join(t.TempDir(), "connection.json"))
+	if err := store.Save(config.ConnectionSettings{SourceMode: config.SourceModeAPIKey, DispatcharrURL: "https://dispatcharr.example.com", DispatcharrAPIKey: "secret"}); err != nil {
+		t.Fatalf("seed connection: %v", err)
+	}
+	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), nil)
+	server.connectionStorage = store
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method: http.MethodPost, Path: "/dispatcharr/api/admin-connection", Headers: map[string]string{"x-silo-user-role": "admin"},
+		Body: []byte(`{"sourceMode":"api_key","baseUrl":"https://dispatcharr.example.com","channelProfiles":["10","20"],"channelGroups":["locals"]}`),
+	})
+	if err != nil || response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("save lineup: status=%d err=%v body=%s", response.GetStatusCode(), err, response.GetBody())
+	}
+	saved, ok, err := store.Load()
+	if err != nil || !ok || len(saved.ChannelProfiles) != 2 || len(saved.ChannelGroups) != 1 || saved.ChannelGroups[0] != "locals" {
+		t.Fatalf("unexpected saved lineup: ok=%v err=%v connection=%+v", ok, err, saved)
+	}
+}
+
 func TestConnectionFromAdminPayloadDoesNotReuseSecretAcrossSourceModes(t *testing.T) {
 	t.Parallel()
 
@@ -892,13 +913,18 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	if connectionInputStart < 0 {
 		t.Fatal("expected admin connection input handler")
 	}
-	connectionInputEnd := strings.Index(body[connectionInputStart:], `function adminConnectionPayload(action) {`)
+	connectionInputEnd := strings.Index(body[connectionInputStart:], `function adminLineupInventory(kind) {`)
 	if connectionInputEnd < 0 {
 		t.Fatal("expected admin connection payload after input handler")
 	}
 	connectionInputBody := body[connectionInputStart : connectionInputStart+connectionInputEnd]
 	if strings.Count(connectionInputBody, `renderAdminPage();`) != 1 || !strings.Contains(connectionInputBody, `if (field === "sourceMode")`) || !strings.Contains(connectionInputBody, `renderAdminTopbarActions();`) {
 		t.Fatal("connection text input must preserve focus while source mode changes may rebuild the form")
+	}
+	for _, want := range []string{`data-admin-lineup-kind`, `data-admin-lineup-id`, `data-admin-lineup-filter`, `channelProfiles: connection.channelProfiles`, `channelGroups: connection.channelGroups`} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected admin lineup selector marker %q", want)
+		}
 	}
 	if strings.Contains(body, "dispatcharr-admin-token") {
 		t.Fatal("expected admin page to rely on Silo route authorization, not a custom browser token")

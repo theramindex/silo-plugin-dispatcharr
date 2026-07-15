@@ -35,6 +35,43 @@ func TestConnectionStoreRoundTrip(t *testing.T) {
 	}
 }
 
+func TestConnectionStorePersistsMultipleLineupSelections(t *testing.T) {
+	store := NewConnectionStore(filepath.Join(t.TempDir(), "connection.json"))
+	want := ConnectionSettings{
+		SourceMode: SourceModeDirectLogin, DispatcharrURL: "https://dispatcharr.example.com",
+		DispatcharrUser: "admin", DispatcharrPass: "secret",
+		ChannelProfiles: []string{" NY ", "CA", "NY"},
+		ChannelGroups:   []string{"locals", "sports", "locals"},
+	}
+	if err := store.Save(want); err != nil {
+		t.Fatalf("save connection: %v", err)
+	}
+	got, ok, err := store.Load()
+	if err != nil || !ok {
+		t.Fatalf("load connection: ok=%v err=%v", ok, err)
+	}
+	if len(got.ChannelProfiles) != 2 || got.ChannelProfiles[0] != "NY" || got.ChannelProfiles[1] != "CA" || got.ChannelProfile != "" {
+		t.Fatalf("unexpected profile selections: %+v", got)
+	}
+	if len(got.ChannelGroups) != 2 || got.ChannelGroups[0] != "locals" || got.ChannelGroups[1] != "sports" {
+		t.Fatalf("unexpected group selections: %+v", got)
+	}
+}
+
+func TestConnectionStoreMigratesLegacyChannelProfile(t *testing.T) {
+	store := NewConnectionStore(filepath.Join(t.TempDir(), "connection.json"))
+	if err := store.Save(ConnectionSettings{
+		SourceMode: SourceModeDirectLogin, DispatcharrURL: "https://dispatcharr.example.com",
+		DispatcharrUser: "admin", DispatcharrPass: "secret", ChannelProfile: "NY",
+	}); err != nil {
+		t.Fatalf("save connection: %v", err)
+	}
+	got, ok, err := store.Load()
+	if err != nil || !ok || len(got.ChannelProfiles) != 1 || got.ChannelProfiles[0] != "NY" {
+		t.Fatalf("legacy profile was not migrated: ok=%v err=%v connection=%+v", ok, err, got)
+	}
+}
+
 func TestConnectionStoreRejectsIncompleteSource(t *testing.T) {
 	store := NewConnectionStore(filepath.Join(t.TempDir(), "connection.json"))
 	err := store.Save(ConnectionSettings{SourceMode: SourceModeAPIKey, DispatcharrURL: "https://dispatcharr.example.com"})

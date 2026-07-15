@@ -128,7 +128,7 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 	}
 	profiles, profilesErr := client.ChannelProfiles(ctx)
 	if profilesErr != nil {
-		if settings.EffectiveSourceMode() == config.SourceModeAPIKey || strings.TrimSpace(settings.ChannelProfile) != "" {
+		if settings.EffectiveSourceMode() == config.SourceModeAPIKey || strings.TrimSpace(settings.ChannelProfile) != "" || len(settings.ChannelProfiles) > 0 {
 			err := fmt.Errorf("dispatcharr channel profiles unavailable: %w", profilesErr)
 			s.recordSyncFailure(ctx, nowUnix, err)
 			return err
@@ -140,7 +140,7 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 	if profilesErr == nil && len(profiles) == 0 {
 		currentUser, currentUserErr = client.CurrentUser(ctx)
 	}
-	profile, allowedChannels, err := selectedChannelProfile(settings.ChannelProfile, profiles)
+	profile, allowedChannels, err := selectedChannelProfiles(settings.ChannelProfiles, settings.ChannelProfile, profiles)
 	if err != nil {
 		s.recordSyncFailure(ctx, nowUnix, err)
 		return err
@@ -149,6 +149,7 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 
 	content := model.ContentState{LiveCategories: make([]model.Category, 0, len(groups))}
 	categoryNames := map[string]string{}
+	allowedGroups := selectedChannelGroups(settings.ChannelGroups)
 	for _, group := range groups {
 		category := mapping.MapDispatcharrCategory(group)
 		if category.ID == "" || category.Name == "" {
@@ -166,6 +167,9 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 			continue
 		}
 		if allowedChannels != nil && !allowedChannels[upstream.ID.String()] {
+			continue
+		}
+		if allowedGroups != nil && !allowedGroups[upstream.EffectiveGroupID.String()] {
 			continue
 		}
 		channel := mapping.MapDispatcharrChannel(upstream, client.LiveStreamURL(upstream.UUID.String()))
@@ -373,25 +377,65 @@ func xtreamConnectionSettings(settings config.Settings) (string, string, string)
 	return settings.XtreamBaseURL, settings.XtreamUsername, settings.XtreamPassword
 }
 
-func selectedChannelProfile(selection string, profiles []dispatcharr.ChannelProfile) (*dispatcharr.ChannelProfile, map[string]bool, error) {
-	selection = strings.TrimSpace(selection)
-	if selection == "" {
+func selectedChannelProfiles(selections []string, legacySelection string, profiles []dispatcharr.ChannelProfile) (*dispatcharr.ChannelProfile, map[string]bool, error) {
+	if len(selections) == 0 && strings.TrimSpace(legacySelection) != "" {
+		selections = []string{legacySelection}
+	}
+	selections = uniqueTrimmedStrings(selections)
+	if len(selections) == 0 {
 		return nil, nil, nil
 	}
-	for _, profile := range profiles {
-		if profile.ID.String() != selection && !strings.EqualFold(strings.TrimSpace(profile.Name.String()), selection) {
+	allowed := map[string]bool{}
+	var selected *dispatcharr.ChannelProfile
+	for _, selection := range selections {
+		matched := false
+		for _, profile := range profiles {
+			if profile.ID.String() != selection && !strings.EqualFold(strings.TrimSpace(profile.Name.String()), selection) {
+				continue
+			}
+			for _, channelID := range profile.Channels {
+				if value := strings.TrimSpace(channelID.String()); value != "" {
+					allowed[value] = true
+				}
+			}
+			if len(selections) == 1 {
+				copy := profile
+				selected = &copy
+			}
+			matched = true
+			break
+		}
+		if !matched {
+			return nil, nil, fmt.Errorf("dispatcharr channel profile %q was not found", selection)
+		}
+	}
+	return selected, allowed, nil
+}
+
+func selectedChannelGroups(selections []string) map[string]bool {
+	selections = uniqueTrimmedStrings(selections)
+	if len(selections) == 0 {
+		return nil
+	}
+	selected := make(map[string]bool, len(selections))
+	for _, selection := range selections {
+		selected[selection] = true
+	}
+	return selected
+}
+
+func uniqueTrimmedStrings(values []string) []string {
+	seen := map[string]bool{}
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
 			continue
 		}
-		allowed := make(map[string]bool, len(profile.Channels))
-		for _, channelID := range profile.Channels {
-			if value := strings.TrimSpace(channelID.String()); value != "" {
-				allowed[value] = true
-			}
-		}
-		matched := profile
-		return &matched, allowed, nil
+		seen[value] = true
+		result = append(result, value)
 	}
-	return nil, nil, fmt.Errorf("dispatcharr channel profile %q was not found", selection)
+	return result
 }
 
 func profileIDsByDispatcharrChannel(profiles []dispatcharr.ChannelProfile) map[string][]string {
@@ -723,10 +767,11 @@ func (s *Service) dispatcharrGuidePrograms(ctx context.Context, settings config.
 		return nil, err
 	}
 	profiles, _ := client.ChannelProfiles(ctx)
-	_, allowedChannels, err := selectedChannelProfile(settings.ChannelProfile, profiles)
+	_, allowedChannels, err := selectedChannelProfiles(settings.ChannelProfiles, settings.ChannelProfile, profiles)
 	if err != nil {
 		return nil, err
 	}
+	allowedGroups := selectedChannelGroups(settings.ChannelGroups)
 
 	channelByGuideID := map[string]string{}
 	channelByUpstreamID := map[string]string{}
@@ -735,6 +780,9 @@ func (s *Service) dispatcharrGuidePrograms(ctx context.Context, settings config.
 			continue
 		}
 		if allowedChannels != nil && !allowedChannels[upstream.ID.String()] {
+			continue
+		}
+		if allowedGroups != nil && !allowedGroups[upstream.EffectiveGroupID.String()] {
 			continue
 		}
 		channel := mapping.MapDispatcharrChannel(upstream, client.LiveStreamURL(upstream.UUID.String()))
