@@ -5210,8 +5210,7 @@ function renderAdminSettingsTab(tab) {
       + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Live Rewind</h2><p>Bounded shared channel buffers for pause and rewind.</p></div></div><div id=\"admin-timeshift-settings\" class=\"settings-list\"></div></div>";
   }
   if (tab === "organization") {
-    return "<div id=\"admin-category-settings\" class=\"organization-settings-root\"></div>"
-      + "<div class=\"settings-card organization-overrides-card\"><div class=\"settings-card-head\"><div><h2>Presentation overrides</h2><p>Publish a source group at an additional browse path without changing Dispatcharr.</p></div><span class=\"profile-selection-summary\">" + categoryAliases().length + " configured</span></div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>";
+    return "<div id=\"admin-category-settings\" class=\"organization-settings-root\"></div>";
   }
   if (tab === "sports") {
     return "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Sports</h2><p>Combine live Dispatcharr events with replays from selected Silo Sports libraries.</p></div></div><div id=\"admin-sports-settings\" class=\"settings-list\"></div></div>";
@@ -5440,7 +5439,31 @@ function renderAdminCategorySettings() {
   const root = byId("admin-category-settings");
   const profileAccess = state.app && state.app.source && state.app.source.profileAccess ? state.app.source.profileAccess : {};
   const layers = organizationLayerState();
-  const kind = state.adminOrganizationTab === "groups" ? "groups" : "profiles";
+  const activeTab = state.adminOrganizationTab === "groups" || state.adminOrganizationTab === "rules" ? state.adminOrganizationTab : "profiles";
+  const kind = activeTab === "groups" ? "groups" : "profiles";
+  const profileCount = adminLineupInventory("profiles").length;
+  const groupCount = adminLineupInventory("groups").length;
+  const tabs = "<div class=\"organization-tabs\" role=\"tablist\" aria-label=\"Dispatcharr organization settings\"><button type=\"button\" role=\"tab\" data-admin-organization-tab=\"profiles\" aria-selected=\"" + (activeTab === "profiles" ? "true" : "false") + "\" class=\"" + (activeTab === "profiles" ? "active" : "") + "\"><span>Profiles</span><small>" + profileCount + "</small></button><button type=\"button\" role=\"tab\" data-admin-organization-tab=\"groups\" aria-selected=\"" + (activeTab === "groups" ? "true" : "false") + "\" class=\"" + (activeTab === "groups" ? "active" : "") + "\"><span>Groups</span><small>" + groupCount + "</small></button><button type=\"button\" role=\"tab\" data-admin-organization-tab=\"rules\" aria-selected=\"" + (activeTab === "rules" ? "true" : "false") + "\" class=\"" + (activeTab === "rules" ? "active" : "") + "\"><span>Rules</span></button></div>";
+  const heading = "<div class=\"organization-browser-heading\"><div><h2>Profiles &amp; Groups</h2><p>Choose what appears in Live TV, then control how those names become folders.</p></div></div>";
+  const nested = settings.mode !== "normal" ? "<div class=\"organization-parsing-grid\">"
+    + "<label class=\"organization-field\"><span><strong>Delimiter</strong><small>Split names into nested folders.</small></span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe · Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash · Sports - NHL Teams</option></select></label>"
+    + "<label class=\"organization-field\"><span><strong>Library label</strong><small>Name the generated browse collection.</small></span><div class=\"virtual-label-control\"><span>Virtual</span><input data-admin-category-field=\"virtualGroupLabel\" value=\"" + escapeHTML(virtualGroupLabelSuffix(settings.virtualGroupLabel)) + "\" placeholder=\"Groups\"></div></label>"
+    + "</div>" : "";
+  if (activeTab === "rules") {
+    root.innerHTML = adminSaveStatusHTML() + "<section class=\"organization-browser organization-rules-view\">" + heading + "<div class=\"organization-control-row is-rules\">" + tabs + "</div>"
+      + "<section class=\"settings-card organization-rules-card\"><div class=\"settings-card-head\"><div><h2>Folder rules</h2><p>Control how enabled profile and group names become nested browse paths.</p></div></div>"
+      + "<div class=\"organization-section\"><div class=\"organization-section-heading\"><div><strong>Hierarchy layers</strong><span>Choose whether profiles and groups contribute folders to every channel path.</span></div><span class=\"organization-layer-count\">" + (Number(layers.profiles) + Number(layers.groups)) + " active</span></div><div class=\"organization-layer-grid\">"
+      + "<label class=\"organization-layer-toggle\"><span class=\"organization-layer-icon\">" + icon("guide") + "</span><span><strong>Channel Profiles</strong><small>Use enabled profiles as top-level libraries.</small></span><input type=\"checkbox\" data-admin-organization-layer=\"profiles\"" + (layers.profiles ? " checked" : "") + "></label>"
+      + "<label class=\"organization-layer-toggle\"><span class=\"organization-layer-icon\">" + icon("settings") + "</span><span><strong>Channel Groups</strong><small>Use enabled groups as folders within a profile or as the top-level hierarchy.</small></span><input type=\"checkbox\" data-admin-organization-layer=\"groups\"" + (layers.groups ? " checked" : "") + "></label></div></div>"
+      + "<div class=\"organization-section organization-parsing\"><div class=\"organization-parsing-grid\"><label class=\"organization-field\"><span><strong>Folder mode</strong><small>Keep source names whole or split them into paths.</small></span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Keep names as provided</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">Split into nested folders</option></select></label></div>"
+      + nested
+      + "<div class=\"organization-options\"><label><span><strong>Channel-name folders</strong><small>Use channel names as a fallback hierarchy. Required when Profiles and Groups are both off.</small></span><input type=\"checkbox\" data-admin-organization-layer=\"channels\"" + (layers.channels ? " checked" : "") + ((!layers.profiles && !layers.groups) || layers.profiles ? " disabled" : "") + "></label><label><span><strong>Collapse duplicate names</strong><small>Remove repeated labels where profile, group, and channel paths overlap.</small></span><input type=\"checkbox\" data-admin-category-field=\"collapseDuplicateVirtualGroups\"" + (settings.collapseDuplicateVirtualGroups !== false ? " checked" : "") + "></label></div></div>"
+      + renderOrganizationPreview(settings)
+      + (useChannelProfileVirtualPaths() && profileAccess.status !== "available" ? "<div class=\"settings-note settings-warning\">" + escapeHTML(profileAccess.message || "No Channel Profiles are available to the configured Dispatcharr account. Assign profiles in Dispatcharr, then refresh Live TV.") + "</div>" : "")
+      + (settings.mode === "normal" ? "<div class=\"settings-note\">Channel groups are shown as provided, without remapping or resorting.</div>" : "") + "</section>"
+      + "<section class=\"settings-card organization-overrides-card\"><div class=\"settings-card-head\"><div><h2>Presentation overrides</h2><p>Publish a source group at an additional browse path without changing Dispatcharr.</p></div><span class=\"profile-selection-summary\">" + categoryAliases().length + " configured</span></div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></section></section>";
+    return;
+  }
   const inventory = adminLineupInventory(kind);
   const connection = normalizeAdminConnection(state.adminConnection || state.savedAdminConnection);
   const field = kind === "profiles" ? "channelProfiles" : "channelGroups";
@@ -5459,23 +5482,10 @@ function renderAdminCategorySettings() {
   const empty = state.adminSourceGroupsLoading ? "Loading " + kind + "..." : (state.adminSourceGroupsError ? "Could not load " + kind + ". Refresh the catalog and try again." : "No " + kind + " are available for this connection.");
   const activeCount = selected.filter(function(id) { return inventory.some(function(item) { return item.id === id; }); }).length;
   const summary = activeCount === inventory.length && inventory.length ? "All " + inventory.length + " enabled" : activeCount + " of " + inventory.length + " enabled";
-  const layerEnabled = kind === "profiles" ? layers.profiles : layers.groups;
-  const nested = settings.mode !== "normal" ? "<div class=\"organization-parsing-grid\">"
-    + "<label class=\"organization-field\"><span><strong>Delimiter</strong><small>Split names into nested folders.</small></span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe · Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash · Sports - NHL Teams</option></select></label>"
-    + "<label class=\"organization-field\"><span><strong>Library label</strong><small>Name the generated browse collection.</small></span><div class=\"virtual-label-control\"><span>Virtual</span><input data-admin-category-field=\"virtualGroupLabel\" value=\"" + escapeHTML(virtualGroupLabelSuffix(settings.virtualGroupLabel)) + "\" placeholder=\"Groups\"></div></label>"
-    + "</div>" : "";
   root.innerHTML = adminSaveStatusHTML()
-    + "<section class=\"organization-browser\"><div class=\"organization-browser-heading\"><div><h2>Profiles &amp; Groups</h2><p>Choose the Dispatcharr profiles and channel groups available in Live TV.</p></div><span class=\"profile-selection-summary\">" + escapeHTML(summary) + "</span></div>"
-    + "<div class=\"organization-tabs\" role=\"tablist\" aria-label=\"Dispatcharr lineup type\"><button type=\"button\" role=\"tab\" data-admin-organization-tab=\"profiles\" aria-selected=\"" + (kind === "profiles" ? "true" : "false") + "\" class=\"" + (kind === "profiles" ? "active" : "") + "\"><span>Profiles</span><small>" + adminLineupInventory("profiles").length + "</small></button><button type=\"button\" role=\"tab\" data-admin-organization-tab=\"groups\" aria-selected=\"" + (kind === "groups" ? "true" : "false") + "\" class=\"" + (kind === "groups" ? "active" : "") + "\"><span>Groups</span><small>" + adminLineupInventory("groups").length + "</small></button></div>"
-    + "<div class=\"organization-toolbar\"><label class=\"organization-search\">" + icon("search") + "<input data-admin-organization-filter placeholder=\"Filter " + kind + "\" value=\"" + escapeHTML(state.adminOrganizationQuery || "") + "\" aria-label=\"Filter " + kind + "\"></label><button type=\"button\" class=\"admin-outline-action\" data-admin-lineup-all=\"" + kind + "\">Enable all</button><label class=\"organization-folder-toggle\"><span><strong>Use " + (kind === "profiles" ? "profile" : "group") + " names as folders</strong><small>Lineup access and folder visibility are controlled separately.</small></span><input type=\"checkbox\" data-admin-organization-layer=\"" + kind + "\"" + (layerEnabled ? " checked" : "") + "></label></div>"
-    + "<div class=\"organization-item-grid\">" + cards + "<div class=\"organization-empty organization-filter-empty\"" + (inventory.length && matchingCount ? " hidden" : "") + ">" + escapeHTML(inventory.length ? "No " + kind + " match this filter." : empty) + "</div></div></section>"
-    + "<section class=\"settings-card organization-rules-card\"><div class=\"settings-card-head\"><div><h2>Folder rules</h2><p>Control how enabled profile and group names become nested browse paths.</p></div></div><div class=\"organization-section organization-parsing\">"
-    + "<div class=\"organization-parsing-grid\"><label class=\"organization-field\"><span><strong>Folder mode</strong><small>Keep source names whole or split them into paths.</small></span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Keep names as provided</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">Split into nested folders</option></select></label></div>"
-    + nested
-    + "<div class=\"organization-options\"><label><span><strong>Channel-name folders</strong><small>Use channel names as a fallback hierarchy. Required when Profiles and Groups are both off.</small></span><input type=\"checkbox\" data-admin-organization-layer=\"channels\"" + (layers.channels ? " checked" : "") + ((!layers.profiles && !layers.groups) || layers.profiles ? " disabled" : "") + "></label><label><span><strong>Collapse duplicate names</strong><small>Remove repeated labels where profile, group, and channel paths overlap.</small></span><input type=\"checkbox\" data-admin-category-field=\"collapseDuplicateVirtualGroups\"" + (settings.collapseDuplicateVirtualGroups !== false ? " checked" : "") + "></label></div></div>"
-    + renderOrganizationPreview(settings)
-    + (useChannelProfileVirtualPaths() && profileAccess.status !== "available" ? "<div class=\"settings-note settings-warning\">" + escapeHTML(profileAccess.message || "No Channel Profiles are available to the configured Dispatcharr account. Assign profiles in Dispatcharr, then refresh Live TV.") + "</div>" : "")
-    + (settings.mode === "normal" ? "<div class=\"settings-note\">Channel groups are shown as provided, without remapping or resorting.</div>" : "") + "</section>";
+    + "<section class=\"organization-browser\"><div class=\"organization-browser-heading\"><div><h2>Profiles &amp; Groups</h2><p>Choose what appears in Live TV, then control how those names become folders.</p></div><span class=\"profile-selection-summary\">" + escapeHTML(summary) + "</span></div>"
+    + "<div class=\"organization-control-row\">" + tabs + "<label class=\"organization-search\">" + icon("search") + "<input data-admin-organization-filter placeholder=\"Filter " + kind + "\" value=\"" + escapeHTML(state.adminOrganizationQuery || "") + "\" aria-label=\"Filter " + kind + "\"></label><details class=\"organization-bulk-menu\"><summary title=\"" + (kind === "profiles" ? "Profile" : "Group") + " actions\" aria-label=\"" + (kind === "profiles" ? "Profile" : "Group") + " actions\">" + icon("ellipsis") + "</summary><div><button type=\"button\" data-admin-lineup-all=\"" + kind + "\">" + icon("check") + "<span>Enable all " + kind + "</span></button></div></details></div>"
+    + "<div class=\"organization-item-grid\">" + cards + "<div class=\"organization-empty organization-filter-empty\"" + (inventory.length && matchingCount ? " hidden" : "") + ">" + escapeHTML(inventory.length ? "No " + kind + " match this filter." : empty) + "</div></div></section>";
 }
 function organizationPreviewPath(settings) {
   const channel = effectiveChannels(false)[0] || {};
@@ -6686,7 +6696,8 @@ document.addEventListener("click", function(event) {
   const adminOrganizationTab = event.target.closest("[data-admin-organization-tab]");
   if (adminOrganizationTab) {
     event.preventDefault();
-    state.adminOrganizationTab = adminOrganizationTab.getAttribute("data-admin-organization-tab") === "groups" ? "groups" : "profiles";
+    const organizationTab = adminOrganizationTab.getAttribute("data-admin-organization-tab");
+    state.adminOrganizationTab = organizationTab === "groups" || organizationTab === "rules" ? organizationTab : "profiles";
     state.adminOrganizationQuery = "";
     renderAdminPage();
     return;
