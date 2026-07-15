@@ -8,7 +8,7 @@ const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuff
 const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", folderGroupPickerOpen: false, searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "type", adminConnectionStatus: "idle", adminConnectionMessage: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", folderGroupPickerOpen: false, searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "connection", adminConnectionStatus: "idle", adminConnectionMessage: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 state.guideCategoryPickerOpen = false;
 state.guideCategoryQuery = "";
 state.sportsReplayStandaloneEvents = [];
@@ -4876,7 +4876,7 @@ function discardAdminConnection() {
   state.adminConnection = cloneAdminConnection(state.savedAdminConnection);
   if (state.app && state.app.source) state.app.source.mode = state.adminConnection.sourceMode;
   state.adminConnectionEditorOpen = false;
-  state.adminConnectionEditorStep = "type";
+  state.adminConnectionEditorStep = "connection";
   state.adminConnectionStatus = "idle";
   state.adminConnectionMessage = "";
   renderAdminPage();
@@ -4884,7 +4884,7 @@ function discardAdminConnection() {
 function openAdminConnectionEditor(create) {
   state.adminConnection = cloneAdminConnection(create ? defaultAdminConnection() : state.savedAdminConnection);
   state.adminConnectionEditorOpen = true;
-  state.adminConnectionEditorStep = "type";
+  state.adminConnectionEditorStep = "connection";
   state.adminConnectionStatus = "idle";
   state.adminConnectionMessage = "";
   renderAdminPage();
@@ -4895,10 +4895,9 @@ function openAdminConnectionEditor(create) {
 }
 function adminConnectionModeDefinitions() {
   return [
-    ["direct_login", "Dispatcharr Direct", "Dashboard username and password"],
-    ["api_key", "Dispatcharr API Key", "Admin API key without a saved password"],
-    ["xtream", "Xtream Codes", "Dispatcharr API and Xtream credentials"],
-    ["m3u_xmltv", "M3U + XMLTV", "Playlist and guide URLs"]
+    ["direct_login", "Dispatcharr Direct", "Admin Username and Password"],
+    ["api_key", "Dispatcharr API Key", "Admin API Key"],
+    ["xtream", "Xtream Codes", "Xtream credentials from Dispatcharr"]
   ];
 }
 function adminConnectionModeOptions(connection) {
@@ -4943,20 +4942,17 @@ function renderAdminConnectionEditor() {
   const connection = normalizeAdminConnection(state.adminConnection);
   const warning = state.adminConnectionStatus === "error";
   const message = state.adminConnectionMessage ? "<div id=\"admin-connection-message\" class=\"settings-note" + (warning ? " settings-warning" : "") + "\" role=\"status\">" + escapeHTML(state.adminConnectionMessage) + "</div>" : "<div id=\"admin-connection-message\" class=\"settings-note hide\" role=\"status\"></div>";
-  const migration = connection.origin === "silo" ? "<div class=\"settings-note\">This source is loaded from legacy Silo plugin settings. Saving moves connection management into Dispatcharr Admin.</div>" : "";
   const step = state.adminConnectionEditorStep;
   let content = "";
-  if (step === "type") content = "<div class=\"source-step-copy\"><h3>Connection type</h3><p>Choose the source format and authentication method used by this installation.</p></div><div class=\"source-mode-options\">" + adminConnectionModeOptions(connection) + "</div>";
-  else if (step === "connection") content = "<div class=\"source-step-copy\"><h3>Connection</h3><p>Credentials are stored by the plugin and are never returned to the browser after saving.</p></div><div class=\"source-form\">" + renderAdminConnectionFields(connection) + "</div>";
+  if (step === "connection") content = "<div class=\"source-step-copy\"><h3>Connection</h3><p>Choose a login type, then enter its connection details.</p></div><div class=\"source-mode-options\">" + adminConnectionModeOptions(connection) + "</div><div class=\"source-form source-connection-fields\">" + renderAdminConnectionFields(connection) + "</div>";
   else content = "<div class=\"source-step-copy\"><h3>Lineup</h3><p>Control which Dispatcharr channels become available in Live TV.</p></div>" + renderAdminLineupFields(connection);
   const busy = state.adminConnectionStatus === "saving" || state.adminConnectionStatus === "testing";
   return "<div class=\"source-dialog-backdrop\" data-admin-connection-backdrop=\"true\"><section class=\"source-dialog\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"source-dialog-title\">"
     + "<header><span class=\"source-dialog-icon\">" + icon("guide") + "</span><div><h2 id=\"source-dialog-title\">" + (state.savedAdminConnection && state.savedAdminConnection.configured ? "Edit Dispatcharr" : "Add Dispatcharr") + "</h2><p>Connect this Silo installation to its Live TV source.</p></div><button type=\"button\" class=\"source-close\" data-admin-connection-action=\"cancel\" aria-label=\"Close connection setup\">" + icon("x") + "</button></header>"
     + "<div class=\"source-dialog-body\"><nav class=\"source-dialog-nav\" aria-label=\"Connection setup steps\">"
-    + "<button type=\"button\" data-admin-connection-step=\"type\" class=\"" + (step === "type" ? "active" : "") + "\">" + icon("settings") + "<span>Type</span></button>"
     + "<button type=\"button\" data-admin-connection-step=\"connection\" class=\"" + (step === "connection" ? "active" : "") + "\">" + icon("integrations") + "<span>Connection</span></button>"
     + "<button type=\"button\" data-admin-connection-step=\"lineup\" class=\"" + (step === "lineup" ? "active" : "") + "\">" + icon("guide") + "<span>Lineup</span></button></nav>"
-    + "<div class=\"source-dialog-content\">" + message + migration + content + "</div></div>"
+    + "<div class=\"source-dialog-content\">" + message + content + "</div></div>"
     + "<footer><button type=\"button\" data-admin-connection-action=\"cancel\"" + (busy ? " disabled" : "") + ">Cancel</button><button type=\"button\" class=\"admin-outline-action\" data-admin-connection-action=\"test\"" + (busy ? " disabled" : "") + ">" + icon("loader") + "<span>" + (state.adminConnectionStatus === "testing" ? "Testing" : "Test Connection") + "</span></button><button type=\"button\" class=\"admin-save\" data-admin-connection-action=\"save\"" + (busy ? " disabled" : "") + ">" + (state.adminConnectionStatus === "saving" ? "Saving" : "Save Connection") + "</button></footer></section></div>";
 }
 function renderAdminConnectionTab() {
@@ -6475,7 +6471,7 @@ document.addEventListener("click", function(event) {
   const adminConnectionStep = event.target.closest("[data-admin-connection-step]");
   if (adminConnectionStep) {
     event.preventDefault();
-    state.adminConnectionEditorStep = adminConnectionStep.getAttribute("data-admin-connection-step") || "type";
+    state.adminConnectionEditorStep = adminConnectionStep.getAttribute("data-admin-connection-step") || "connection";
     renderAdminPage();
     return;
   }

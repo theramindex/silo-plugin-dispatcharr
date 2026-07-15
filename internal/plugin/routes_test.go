@@ -770,9 +770,11 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`data-admin-tab=\"source\"`,
 		`data-admin-connection-field=\"baseUrl\"`,
 		`data-admin-connection-action=\"save\"`,
-		`data-admin-connection-step=\"type\"`,
 		`data-admin-connection-step=\"connection\"`,
 		`data-admin-connection-step=\"lineup\"`,
+		`Admin Username and Password`,
+		`Admin API Key`,
+		`Xtream credentials from Dispatcharr`,
 		`Save Connection`,
 		`Refresh Catalog`,
 		`class=\"source-table\"`,
@@ -915,6 +917,9 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	}
 	for _, removed := range []string{
 		`Admin-only status panel. No usernames, passwords, or API keys are shown.`,
+		`data-admin-connection-step=\"type\"`,
+		`This source is loaded from legacy Silo plugin settings.`,
+		`["m3u_xmltv", "M3U + XMLTV", "Playlist and guide URLs"]`,
 		`<div class=\"settings-card\"><h2>Preview</h2>`,
 		`function adminCategoryPreview()`,
 		`Group Renames`,

@@ -986,13 +986,14 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .settings-card h2 { margin: 0; font-size: 1.05rem; line-height: 1.2; font-weight: 650; }
 .settings-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 0.85rem; }
 .settings-card-head p { margin: 0.32rem 0 0; max-width: 48rem; color: var(--muted); font-size: 0.82rem; line-height: 1.35; }
-.source-mode-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.6rem; }
+.source-mode-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.6rem; }
 .source-mode-options button { min-width: 0; min-height: 5.4rem; border: 1px solid var(--line); border-radius: 0.5rem; background: transparent; color: var(--muted); display: grid; align-content: center; gap: 0.24rem; padding: 0.75rem; text-align: left; }
 .source-mode-options button:hover { background: var(--panel); color: var(--text); }
 .source-mode-options button.active { border-color: var(--text); background: var(--panel-2); color: var(--text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 28%, transparent); }
 .source-mode-options strong, .source-mode-options span { display: block; min-width: 0; }
 .source-mode-options strong { font-size: 0.86rem; }
 .source-mode-options span { color: var(--muted); font-size: 0.7rem; line-height: 1.3; }
+.source-connection-fields { margin-top: 1.25rem; }
 .source-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
 .source-form label { min-width: 0; display: grid; align-content: start; gap: 0.34rem; color: var(--muted); font-size: 0.76rem; font-weight: 820; }
 .source-form label > span small, .source-form label > small { color: var(--muted); font-size: 0.7rem; font-weight: 650; line-height: 1.35; }
