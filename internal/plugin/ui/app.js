@@ -11,6 +11,8 @@ const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "asse
 const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", folderGroupPickerOpen: false, searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "connection", adminConnectionStatus: "idle", adminConnectionMessage: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 state.guideCategoryPickerOpen = false;
 state.guideCategoryQuery = "";
+state.adminOrganizationTab = "profiles";
+state.adminOrganizationQuery = "";
 state.sportsReplayStandaloneEvents = [];
 
 state.sportsReplayPromise = null;
@@ -207,6 +209,20 @@ function adminSettingsSignature(settings) {
 }
 function adminSettingsDirty() {
   return adminSettingsSignature(state.adminCategorySettings) !== adminSettingsSignature(state.savedAdminCategorySettings);
+}
+function adminLineupDirty() {
+  const current = normalizeAdminConnection(state.adminConnection);
+  const saved = normalizeAdminConnection(state.savedAdminConnection);
+  const signature = function(connection) {
+    return JSON.stringify({
+      profiles: connection.channelProfiles.slice().sort(),
+      groups: connection.channelGroups.slice().sort()
+    });
+  };
+  return signature(current) !== signature(saved);
+}
+function adminOrganizationDirty() {
+  return adminSettingsDirty() || adminLineupDirty();
 }
 function markAdminSettingsDraft() {
   if (state.adminSaveStatus !== "saving") {
@@ -727,6 +743,69 @@ function discardAdminCategorySettings() {
   state.adminSaveStatus = "idle";
   state.adminSaveMessage = "";
   if (state.category.indexOf("virtual:") === 0 && !categoryName(state.category)) state.category = "";
+  renderAdminPage();
+}
+async function saveAdminOrganizationSettings() {
+  if (state.adminSaveStatus === "saving" || state.adminConnectionStatus === "saving") return;
+  const saveRules = adminSettingsDirty();
+  const saveLineup = adminLineupDirty();
+  if (!saveRules && !saveLineup) return;
+  state.adminSaveStatus = "saving";
+  state.adminSaveMessage = "Saving...";
+  if (saveLineup) state.adminConnectionStatus = "saving";
+  renderAdminPage();
+  const failures = [];
+  if (saveRules) {
+    try {
+      const saved = await postJSON(adminSettingsURL(), state.adminCategorySettings);
+      state.adminCategorySettings = readAdminSettingsValue(saved);
+      normalizeAdminCategorySettings();
+      await persistAdminCategorySettingsInSilo(state.adminCategorySettings);
+      state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
+      state.sportsReplayKey = "";
+      state.sportsReplayItems = [];
+      state.sportsReplayMatches = {};
+      state.sportsReplayStandaloneEvents = [];
+    } catch (error) {
+      failures.push("Folder rules could not be saved: " + readableError(error));
+    }
+  }
+  if (saveLineup) {
+    try {
+      const result = await postJSON("/dispatcharr/api/admin-connection", adminConnectionPayload("save"));
+      const returned = result && result.connection ? normalizeAdminConnection(result.connection) : normalizeAdminConnection(state.adminConnection);
+      state.adminConnection = returned;
+      state.adminConnection.password = "";
+      state.adminConnection.apiKey = "";
+      state.savedAdminConnection = cloneAdminConnection(state.adminConnection);
+      state.adminConnectionStatus = "saved";
+      state.adminConnectionMessage = "Lineup saved. Catalog refresh queued.";
+      refreshAdminStatus();
+    } catch (error) {
+      state.adminConnectionStatus = "error";
+      state.adminConnectionMessage = "Lineup could not be saved: " + readableError(error);
+      failures.push(state.adminConnectionMessage);
+    }
+  }
+  if (failures.length) {
+    state.adminSaveStatus = "error";
+    state.adminSaveMessage = failures.join(" ");
+    showAppToast("Some organization changes could not be saved.");
+  } else {
+    state.adminSaveStatus = "saved";
+    state.adminSaveMessage = "Organization saved.";
+    showAppToast("Profiles and groups saved.");
+  }
+  renderAdminPage();
+}
+function discardAdminOrganizationSettings() {
+  if (state.adminSaveStatus === "saving" || state.adminConnectionStatus === "saving") return;
+  state.adminCategorySettings = cloneAdminCategorySettings(state.savedAdminCategorySettings);
+  state.adminConnection = cloneAdminConnection(state.savedAdminConnection);
+  state.adminSaveStatus = "idle";
+  state.adminSaveMessage = "";
+  state.adminConnectionStatus = "idle";
+  state.adminConnectionMessage = "";
   renderAdminPage();
 }
 async function getJSON(url) {
@@ -1528,6 +1607,7 @@ async function loadAdminSourceGroups(force) {
     const payload = await getJSON("/dispatcharr/api/channels");
     state.app.channels = items(payload && payload.channels);
     state.app.categories = items(payload && payload.categories);
+    state.app.source.profiles = items(payload && payload.profiles);
     state.profileSelectionIDMap = null;
     state.profileChannelFilterMap = null;
     state.adminSourceGroupsLoaded = true;
@@ -5101,9 +5181,11 @@ function renderAdminTopbarActions() {
       + "<button class=\"admin-primary-action\" data-admin-connection-action=\"" + (configured ? "edit" : "add") + "\">" + icon(configured ? "settings" : "guide") + "<span>" + (configured ? "Edit Connection" : "Add Connection") + "</span></button>";
     return;
   }
-  const dirty = adminSettingsDirty();
-  const saving = state.adminSaveStatus === "saving";
-  const status = state.adminSaveMessage || (dirty ? "Unsaved changes." : "All changes saved.");
+  const dirty = state.adminTab === "organization" ? adminOrganizationDirty() : adminSettingsDirty();
+  const saving = state.adminSaveStatus === "saving" || (state.adminTab === "organization" && state.adminConnectionStatus === "saving");
+  const failed = state.adminSaveStatus === "error" || (state.adminTab === "organization" && state.adminConnectionStatus === "error");
+  const failureMessage = state.adminSaveMessage || state.adminConnectionMessage;
+  const status = saving ? "Saving..." : (failed ? (failureMessage || "Could not save changes.") : (dirty ? "Unsaved changes." : (state.adminSaveMessage || "All changes saved.")));
   root.setAttribute("aria-busy", saving ? "true" : "false");
   root.innerHTML = "<span class=\"admin-save-status\" role=\"status\" aria-live=\"polite\">" + escapeHTML(status) + "</span><button class=\"admin-save\" data-admin-settings-action=\"save\"" + ((!dirty || saving) ? " disabled" : "") + ">" + (saving ? "Saving" : "Save") + "</button><button class=\"admin-discard\" data-admin-settings-action=\"discard\"" + ((!dirty || saving) ? " disabled" : "") + ">Discard</button>";
 }
@@ -5128,7 +5210,7 @@ function renderAdminSettingsTab(tab) {
       + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Live Rewind</h2><p>Bounded shared channel buffers for pause and rewind.</p></div></div><div id=\"admin-timeshift-settings\" class=\"settings-list\"></div></div>";
   }
   if (tab === "organization") {
-    return "<div class=\"settings-card organization-method-card\"><div class=\"settings-card-head\"><div><h2>Profiles &amp; Groups</h2><p>Choose which Dispatcharr layers build the Live TV browse hierarchy, then control how their names become folders.</p></div></div><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
+    return "<div id=\"admin-category-settings\" class=\"organization-settings-root\"></div>"
       + "<div class=\"settings-card organization-overrides-card\"><div class=\"settings-card-head\"><div><h2>Presentation overrides</h2><p>Publish a source group at an additional browse path without changing Dispatcharr.</p></div><span class=\"profile-selection-summary\">" + categoryAliases().length + " configured</span></div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>";
   }
   if (tab === "sports") {
@@ -5358,22 +5440,42 @@ function renderAdminCategorySettings() {
   const root = byId("admin-category-settings");
   const profileAccess = state.app && state.app.source && state.app.source.profileAccess ? state.app.source.profileAccess : {};
   const layers = organizationLayerState();
+  const kind = state.adminOrganizationTab === "groups" ? "groups" : "profiles";
+  const inventory = adminLineupInventory(kind);
+  const connection = normalizeAdminConnection(state.adminConnection || state.savedAdminConnection);
+  const field = kind === "profiles" ? "channelProfiles" : "channelGroups";
+  const selected = connection[field].length ? connection[field] : inventory.map(function(item) { return item.id; });
+  const selectedMap = {};
+  selected.forEach(function(id) { selectedMap[id] = true; });
+  const query = lower(state.adminOrganizationQuery || "").trim();
+  let matchingCount = 0;
+  const cards = inventory.map(function(item) {
+    const enabled = !!selectedMap[item.id];
+    const detail = item.count + " channel" + (item.count === 1 ? "" : "s");
+    const matches = !query || lower(item.name + " " + item.id).indexOf(query) >= 0;
+    if (matches) matchingCount++;
+    return "<label class=\"organization-item-card" + (enabled ? " is-enabled" : "") + "\" data-admin-organization-search=\"" + escapeHTML(lower(item.name + " " + item.id)) + "\"" + (matches ? "" : " hidden") + "><span class=\"organization-item-icon\">" + icon(kind === "profiles" ? "guide" : "settings") + "</span><span class=\"organization-item-copy\"><strong>" + escapeHTML(item.name) + "</strong><small>" + escapeHTML(detail) + "</small></span><span class=\"organization-item-status\">" + (enabled ? "Enabled" : "Excluded") + "</span><input type=\"checkbox\" data-admin-lineup-kind=\"" + kind + "\" data-admin-lineup-id=\"" + escapeHTML(item.id) + "\"" + (enabled ? " checked" : "") + " aria-label=\"Include " + escapeHTML(item.name) + "\"></label>";
+  }).join("");
+  const empty = state.adminSourceGroupsLoading ? "Loading " + kind + "..." : (state.adminSourceGroupsError ? "Could not load " + kind + ". Refresh the catalog and try again." : "No " + kind + " are available for this connection.");
+  const activeCount = selected.filter(function(id) { return inventory.some(function(item) { return item.id === id; }); }).length;
+  const summary = activeCount === inventory.length && inventory.length ? "All " + inventory.length + " enabled" : activeCount + " of " + inventory.length + " enabled";
+  const layerEnabled = kind === "profiles" ? layers.profiles : layers.groups;
   const nested = settings.mode !== "normal" ? "<div class=\"organization-parsing-grid\">"
     + "<label class=\"organization-field\"><span><strong>Delimiter</strong><small>Split names into nested folders.</small></span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe · Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash · Sports - NHL Teams</option></select></label>"
     + "<label class=\"organization-field\"><span><strong>Library label</strong><small>Name the generated browse collection.</small></span><div class=\"virtual-label-control\"><span>Virtual</span><input data-admin-category-field=\"virtualGroupLabel\" value=\"" + escapeHTML(virtualGroupLabelSuffix(settings.virtualGroupLabel)) + "\" placeholder=\"Groups\"></div></label>"
     + "</div>" : "";
   root.innerHTML = adminSaveStatusHTML()
-    + "<section class=\"organization-section organization-layers\"><div class=\"organization-section-heading\"><div><strong>Hierarchy layers</strong><span>These switches apply globally to every channel.</span></div><span class=\"organization-layer-count\">" + (Number(layers.profiles) + Number(layers.groups)) + " active</span></div><div class=\"organization-layer-grid\">"
-    + "<label class=\"organization-layer-toggle\"><span class=\"organization-layer-icon\">" + icon("guide") + "</span><span><strong>Channel Profiles</strong><small>Use profiles as top-level libraries, such as US Sports, US News, or Kids.</small></span><input type=\"checkbox\" data-admin-organization-layer=\"profiles\"" + (layers.profiles ? " checked" : "") + "></label>"
-    + "<label class=\"organization-layer-toggle\"><span class=\"organization-layer-icon\">" + icon("settings") + "</span><span><strong>Channel Groups</strong><small>Use groups as folders within a profile or as the top-level hierarchy.</small></span><input type=\"checkbox\" data-admin-organization-layer=\"groups\"" + (layers.groups ? " checked" : "") + "></label>"
-    + "</div></section>"
-    + "<section class=\"organization-section organization-parsing\"><div class=\"organization-section-heading\"><div><strong>Name parsing</strong><span>Control how profile and group names become nested folders.</span></div></div>"
+    + "<section class=\"organization-browser\"><div class=\"organization-browser-heading\"><div><h2>Profiles &amp; Groups</h2><p>Choose the Dispatcharr profiles and channel groups available in Live TV.</p></div><span class=\"profile-selection-summary\">" + escapeHTML(summary) + "</span></div>"
+    + "<div class=\"organization-tabs\" role=\"tablist\" aria-label=\"Dispatcharr lineup type\"><button type=\"button\" role=\"tab\" data-admin-organization-tab=\"profiles\" aria-selected=\"" + (kind === "profiles" ? "true" : "false") + "\" class=\"" + (kind === "profiles" ? "active" : "") + "\"><span>Profiles</span><small>" + adminLineupInventory("profiles").length + "</small></button><button type=\"button\" role=\"tab\" data-admin-organization-tab=\"groups\" aria-selected=\"" + (kind === "groups" ? "true" : "false") + "\" class=\"" + (kind === "groups" ? "active" : "") + "\"><span>Groups</span><small>" + adminLineupInventory("groups").length + "</small></button></div>"
+    + "<div class=\"organization-toolbar\"><label class=\"organization-search\">" + icon("search") + "<input data-admin-organization-filter placeholder=\"Filter " + kind + "\" value=\"" + escapeHTML(state.adminOrganizationQuery || "") + "\" aria-label=\"Filter " + kind + "\"></label><button type=\"button\" class=\"admin-outline-action\" data-admin-lineup-all=\"" + kind + "\">Enable all</button><label class=\"organization-folder-toggle\"><span><strong>Use " + (kind === "profiles" ? "profile" : "group") + " names as folders</strong><small>Lineup access and folder visibility are controlled separately.</small></span><input type=\"checkbox\" data-admin-organization-layer=\"" + kind + "\"" + (layerEnabled ? " checked" : "") + "></label></div>"
+    + "<div class=\"organization-item-grid\">" + cards + "<div class=\"organization-empty organization-filter-empty\"" + (inventory.length && matchingCount ? " hidden" : "") + ">" + escapeHTML(inventory.length ? "No " + kind + " match this filter." : empty) + "</div></div></section>"
+    + "<section class=\"settings-card organization-rules-card\"><div class=\"settings-card-head\"><div><h2>Folder rules</h2><p>Control how enabled profile and group names become nested browse paths.</p></div></div><div class=\"organization-section organization-parsing\">"
     + "<div class=\"organization-parsing-grid\"><label class=\"organization-field\"><span><strong>Folder mode</strong><small>Keep source names whole or split them into paths.</small></span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Keep names as provided</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">Split into nested folders</option></select></label></div>"
     + nested
-    + "<div class=\"organization-options\"><label><span><strong>Channel-name folders</strong><small>Use channel names as a fallback hierarchy. Required when Profiles and Groups are both off.</small></span><input type=\"checkbox\" data-admin-organization-layer=\"channels\"" + (layers.channels ? " checked" : "") + ((!layers.profiles && !layers.groups) || layers.profiles ? " disabled" : "") + "></label><label><span><strong>Collapse duplicate names</strong><small>Remove repeated labels where profile, group, and channel paths overlap.</small></span><input type=\"checkbox\" data-admin-category-field=\"collapseDuplicateVirtualGroups\"" + (settings.collapseDuplicateVirtualGroups !== false ? " checked" : "") + "></label></div></section>"
+    + "<div class=\"organization-options\"><label><span><strong>Channel-name folders</strong><small>Use channel names as a fallback hierarchy. Required when Profiles and Groups are both off.</small></span><input type=\"checkbox\" data-admin-organization-layer=\"channels\"" + (layers.channels ? " checked" : "") + ((!layers.profiles && !layers.groups) || layers.profiles ? " disabled" : "") + "></label><label><span><strong>Collapse duplicate names</strong><small>Remove repeated labels where profile, group, and channel paths overlap.</small></span><input type=\"checkbox\" data-admin-category-field=\"collapseDuplicateVirtualGroups\"" + (settings.collapseDuplicateVirtualGroups !== false ? " checked" : "") + "></label></div></div>"
     + renderOrganizationPreview(settings)
     + (useChannelProfileVirtualPaths() && profileAccess.status !== "available" ? "<div class=\"settings-note settings-warning\">" + escapeHTML(profileAccess.message || "No Channel Profiles are available to the configured Dispatcharr account. Assign profiles in Dispatcharr, then refresh Live TV.") + "</div>" : "")
-    + (settings.mode === "normal" ? "<div class=\"settings-note\">Channel groups are shown as provided, without remapping or resorting.</div>" : "");
+    + (settings.mode === "normal" ? "<div class=\"settings-note\">Channel groups are shown as provided, without remapping or resorting.</div>" : "") + "</section>";
 }
 function organizationPreviewPath(settings) {
   const channel = effectiveChannels(false)[0] || {};
@@ -6526,8 +6628,14 @@ document.addEventListener("click", function(event) {
   if (adminSettingsAction) {
     event.preventDefault();
     const action = adminSettingsAction.getAttribute("data-admin-settings-action");
-    if (action === "save") saveAdminCategorySettings();
-    if (action === "discard") discardAdminCategorySettings();
+    if (action === "save") {
+      if (state.adminTab === "organization") saveAdminOrganizationSettings();
+      else saveAdminCategorySettings();
+    }
+    if (action === "discard") {
+      if (state.adminTab === "organization") discardAdminOrganizationSettings();
+      else discardAdminCategorySettings();
+    }
     return;
   }
   const adminConnectionBackdrop = event.target.closest("[data-admin-connection-backdrop]");
@@ -6573,6 +6681,14 @@ document.addEventListener("click", function(event) {
   if (adminTab) {
     event.preventDefault();
     setAdminTab(adminTab.getAttribute("data-admin-tab"));
+    return;
+  }
+  const adminOrganizationTab = event.target.closest("[data-admin-organization-tab]");
+  if (adminOrganizationTab) {
+    event.preventDefault();
+    state.adminOrganizationTab = adminOrganizationTab.getAttribute("data-admin-organization-tab") === "groups" ? "groups" : "profiles";
+    state.adminOrganizationQuery = "";
+    renderAdminPage();
     return;
   }
   const virtualCategoryViewTarget = event.target.closest("[data-virtual-category-view]");
@@ -6808,6 +6924,18 @@ document.addEventListener("change", function(event) {
   render();
 });
 document.addEventListener("input", function(event) {
+  if (event.target.hasAttribute("data-admin-organization-filter")) {
+    state.adminOrganizationQuery = event.target.value || "";
+    const query = lower(state.adminOrganizationQuery).trim();
+    let visibleCount = 0;
+    document.querySelectorAll("[data-admin-organization-search]").forEach(function(card) {
+      card.hidden = !!query && String(card.getAttribute("data-admin-organization-search") || "").indexOf(query) < 0;
+      if (!card.hidden) visibleCount++;
+    });
+    const empty = document.querySelector(".organization-filter-empty");
+    if (empty) empty.hidden = visibleCount > 0;
+    return;
+  }
   const lineupFilter = event.target.getAttribute("data-admin-lineup-filter");
   if (lineupFilter) {
     const query = lower(event.target.value || "").trim();

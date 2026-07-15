@@ -61,10 +61,12 @@ func TestHTTPRoutesServerStatusRoute(t *testing.T) {
 func TestHTTPRoutesServerChannelsAndGuideRoutes(t *testing.T) {
 	t.Parallel()
 
+	source := model.LiveTVSource(model.SourceModeXtream)
+	source.Profiles = []model.ChannelProfile{{ID: "10", Name: "US Sports", ChannelCount: 12}}
 	store := cache.NewStore()
 	store.Replace(cache.Snapshot{
 		Catalog: model.CatalogState{
-			Source: model.LiveTVSource(model.SourceModeXtream),
+			Source: source,
 			Channels: []model.Channel{
 				{ID: "xtream:1", Name: "News HD"},
 			},
@@ -89,6 +91,9 @@ func TestHTTPRoutesServerChannelsAndGuideRoutes(t *testing.T) {
 	}
 	if len(channelsPayload.Channels) != 1 || channelsPayload.Channels[0].Name != "News HD" {
 		t.Fatalf("unexpected channels payload: %+v", channelsPayload)
+	}
+	if len(channelsPayload.Profiles) != 1 || channelsPayload.Profiles[0].Name != "US Sports" {
+		t.Fatalf("expected channels payload to include profile inventory, got %+v", channelsPayload.Profiles)
 	}
 
 	query, _ := structpb.NewStruct(map[string]any{"channel_id": "xtream:1"})
@@ -824,16 +829,23 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`Connection status refreshed.`,
 		`Presentation overrides`,
 		`Profiles &amp; Groups`,
-		`data-admin-organization-layer=\"profiles\"`,
-		`data-admin-organization-layer=\"groups\"`,
+		`data-admin-organization-tab=\"profiles\"`,
+		`data-admin-organization-tab=\"groups\"`,
+		`data-admin-organization-filter`,
+		`organization-item-card`,
+		`organization-item-status`,
+		`organization-rules-card`,
 		`data-admin-organization-layer=\"channels\"`,
+		`function adminOrganizationDirty()`,
+		`function saveAdminOrganizationSettings()`,
+		`function discardAdminOrganizationSettings()`,
 		`function renderAdminCategoryAliasSettings()`,
 		`function loadAdminSourceGroups(force)`,
 		`getJSON("/dispatcharr/api/channels")`,
 		`Loading source groups...`,
 		`Select a source group`,
 		`data-admin-alias-action=\"retry\"`,
-		`organization-method-card`,
+		`organization-settings-root`,
 		`organization-settings`,
 		`function renderAdminECMSettings()`,
 		`root.innerHTML = adminSaveStatusHTML() + "<div class=\"settings-row ecm-url-row compact-row\"`,
@@ -848,8 +860,9 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`function virtualGroupSourceMode()`,
 		`function inferredChannelNameGroupPaths(channel)`,
 		`function updateOrganizationLayer(field, target)`,
-		`Channel Profiles`,
-		`Channel Groups`,
+		`Choose the Dispatcharr profiles and channel groups available in Live TV.`,
+		`Enable all`,
+		`Folder rules`,
 		`Channel-name folders`,
 		`Collapse duplicate names`,
 		`return !!adminECMURL();`,
