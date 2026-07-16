@@ -8,7 +8,7 @@ const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuff
 const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", folderGroupPickerOpen: false, searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "connection", adminConnectionStatus: "idle", adminConnectionMessage: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", folderGroupPickerOpen: false, searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "connection", adminConnectionStatus: "idle", adminConnectionMessage: "", adminConnectionLoading: false, adminConnectionLoadError: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 state.guideCategoryPickerOpen = false;
 state.guideCategoryQuery = "";
 state.adminOrganizationTab = "profiles";
@@ -198,7 +198,7 @@ function defaultEventKeywordRules() {
   ];
 }
 function defaultAdminCategorySettings() {
-  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", appDisplayName: "Live TV (Dispatcharr)", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, allowRecordingsByDefault: true, sportsEnabled: true, sportsLibraryIds: [], sportsFirstPlayerEnabled: false, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
+  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", appDisplayName: "Live TV (Dispatcharr)", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, allowRecordingsByDefault: true, sportsEnabled: true, sportsLibraryIds: [], sportsFirstPlayerEnabled: false, hlsBufferSeconds: 12, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
 }
 function cloneAdminCategorySettings(settings) {
   try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -385,6 +385,7 @@ function normalizeAdminCategorySettings() {
     return Number.isInteger(id) && id > 0 ? String(id) : "";
   }).filter(Boolean)).map(function(value) { return Number(value); });
   state.adminCategorySettings.sportsFirstPlayerEnabled = state.adminCategorySettings.sportsFirstPlayerEnabled === true;
+  state.adminCategorySettings.hlsBufferSeconds = Math.max(5, Math.min(60, Math.round(Number(state.adminCategorySettings.hlsBufferSeconds) || 12)));
   state.adminCategorySettings.liveRewindEnabled = state.adminCategorySettings.liveRewindEnabled === true;
   state.adminCategorySettings.liveRewindCacheGB = Math.max(1, Math.min(500, Number(state.adminCategorySettings.liveRewindCacheGB) || 5));
   state.adminCategorySettings.liveRewindWindowMinutes = [15, 30, 60, 90, 120].indexOf(Number(state.adminCategorySettings.liveRewindWindowMinutes)) !== -1 ? Number(state.adminCategorySettings.liveRewindWindowMinutes) : 30;
@@ -1579,24 +1580,47 @@ async function loadApp() {
 }
 async function loadAdminApp() {
   state.app = { preferences: defaultPrefs(), channels: [], categories: [], programs: [], source: { mode: "direct_login", profiles: [] }, status: {} };
+  state.adminConnectionLoading = true;
+  state.adminConnectionLoadError = "";
   state.adminSourceGroupsLoaded = false;
   state.adminSourceGroupsLoading = false;
   state.adminSourceGroupsError = "";
   const results = await Promise.all([
     getJSON("/dispatcharr/api/status").catch(function() { return {}; }),
     getJSON("/dispatcharr/api/admin-settings").catch(function() { return defaultAdminCategorySettings(); }),
-    getJSON("/dispatcharr/api/admin-connection")
+    getJSON("/dispatcharr/api/admin-connection").catch(function(error) {
+      state.adminConnectionLoadError = readableError(error) || "Could not load the saved connection.";
+      return null;
+    })
   ]);
   state.app.status = results[0] || {};
   state.adminCategorySettings = readAdminSettingsValue(results[1]);
   normalizeAdminCategorySettings();
   state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
-  state.adminConnection = normalizeAdminConnection(results[2]);
+  state.adminConnection = normalizeAdminConnection(results[2] || state.adminConnection || state.savedAdminConnection);
   state.savedAdminConnection = cloneAdminConnection(state.adminConnection);
+  state.adminConnectionLoading = false;
   state.app.source.mode = state.adminConnection.sourceMode;
   if (state.app.status && state.app.status.profileAccess) state.app.source.profileAccess = state.app.status.profileAccess;
   render();
   if (state.adminTab === "organization") loadAdminSourceGroups(false);
+}
+async function reloadAdminConnection() {
+  if (state.adminConnectionLoading) return;
+  state.adminConnectionLoading = true;
+  state.adminConnectionLoadError = "";
+  renderAdminPage();
+  try {
+    const connection = normalizeAdminConnection(await getJSON("/dispatcharr/api/admin-connection"));
+    state.adminConnection = connection;
+    state.savedAdminConnection = cloneAdminConnection(connection);
+    if (state.app && state.app.source) state.app.source.mode = connection.sourceMode;
+  } catch (error) {
+    state.adminConnectionLoadError = readableError(error) || "Could not load the saved connection.";
+  } finally {
+    state.adminConnectionLoading = false;
+    renderAdminPage();
+  }
 }
 async function loadAdminSourceGroups(force) {
   if (state.adminSourceGroupsLoading || (state.adminSourceGroupsLoaded && !force)) return;
@@ -2013,12 +2037,25 @@ function searchFilters() {
     { id: "recordings", label: "Recordings" }
   ];
 }
+function firstSearchMatches(collection, predicate, limit) {
+  const matches = [];
+  const source = items(collection);
+  for (let index = 0; index < source.length && matches.length < limit; index += 1) {
+    if (predicate(source[index])) matches.push(source[index]);
+  }
+  return matches;
+}
 function searchResultSections(query) {
   const filter = state.searchType || "all";
   const include = function(id) { return filter === "all" || filter === id; };
   const sections = [];
+  let programCatalog = null;
+  const programs = function() {
+    if (!programCatalog) programCatalog = programsFor("");
+    return programCatalog;
+  };
   if (include("channels")) {
-    const channels = searchableChannels().filter(function(channel) { return channelMatchesSearch(channel, query); }).slice(0, 18);
+    const channels = firstSearchMatches(searchableChannels(), function(channel) { return channelMatchesSearch(channel, query); }, 18);
     sections.push({ id: "channels", title: "Channels", rows: channels.map(function(channel) {
       return {
         attrs: "data-search-channel=\"" + escapeHTML(channel.id) + "\"",
@@ -2030,7 +2067,7 @@ function searchResultSections(query) {
     }) });
   }
   if (include("groups")) {
-    const groups = allDiscoveryGroups().filter(function(group) { return groupMatchesSearch(group, query); }).slice(0, 18);
+    const groups = firstSearchMatches(allDiscoveryGroups(), function(group) { return groupMatchesSearch(group, query); }, 18);
     sections.push({ id: "groups", title: "Groups", rows: groups.map(function(group) {
       return {
         attrs: "data-search-category=\"" + escapeHTML(group.id) + "\"",
@@ -2042,8 +2079,8 @@ function searchResultSections(query) {
     }) });
   }
   if (include("programs")) {
-    const programs = programsFor("").filter(function(program) { return programMatchesSearch(program, query); }).slice(0, 18);
-    sections.push({ id: "programs", title: "Guide Programs", rows: programs.map(function(program) {
+    const matchingPrograms = firstSearchMatches(programs(), function(program) { return programMatchesSearch(program, query); }, 18);
+    sections.push({ id: "programs", title: "Guide Programs", rows: matchingPrograms.map(function(program) {
       const channel = channelByID(program.channelId) || {};
       return {
         attrs: "data-search-program-channel=\"" + escapeHTML(program.channelId || "") + "\" data-search-program=\"" + escapeHTML(program.id || "") + "\"",
@@ -2058,7 +2095,7 @@ function searchResultSections(query) {
     }) });
   }
   if (include("airings")) {
-    const airings = groupedUpcomingAirings(programsFor(""), query).slice(0, 12);
+    const airings = groupedUpcomingAirings(programs(), query).slice(0, 12);
     sections.push({ id: "airings", title: "Upcoming Airings", rows: airings.map(function(group) {
       const first = group.programs[0] || {};
       const channel = channelByID(first.channelId) || {};
@@ -2072,8 +2109,8 @@ function searchResultSections(query) {
     }) });
   }
   if (include("sports")) {
-    const programs = programsFor("").filter(function(program) { return programLooksSports(program) && programMatchesSearch(program, query); }).slice(0, 12);
-    sections.push({ id: "sports", title: "Sports From Guide", rows: programs.map(function(program) {
+    const matchingPrograms = firstSearchMatches(programs(), function(program) { return programLooksSports(program) && programMatchesSearch(program, query); }, 12);
+    sections.push({ id: "sports", title: "Sports From Guide", rows: matchingPrograms.map(function(program) {
       const channel = channelByID(program.channelId) || {};
       return {
         attrs: "data-search-program-channel=\"" + escapeHTML(program.channelId || "") + "\" data-search-program=\"" + escapeHTML(program.id || "") + "\"",
@@ -2085,8 +2122,8 @@ function searchResultSections(query) {
     }) });
   }
   if (include("events")) {
-    const programs = programsFor("").filter(function(program) { return programLooksEvent(program) && programMatchesSearch(program, query); }).slice(0, 12);
-    sections.push({ id: "events", title: "Events From Guide", rows: programs.map(function(program) {
+    const matchingPrograms = firstSearchMatches(programs(), function(program) { return programLooksEvent(program) && programMatchesSearch(program, query); }, 12);
+    sections.push({ id: "events", title: "Events From Guide", rows: matchingPrograms.map(function(program) {
       const channel = channelByID(program.channelId) || {};
       return {
         attrs: "data-search-program-channel=\"" + escapeHTML(program.channelId || "") + "\" data-search-program=\"" + escapeHTML(program.id || "") + "\"",
@@ -2098,8 +2135,8 @@ function searchResultSections(query) {
     }) });
   }
   if (include("movies")) {
-    const vodMovies = items(state.app && state.app.vod && state.app.vod.items).filter(function(item) { return contentMatchesSearch("vod", item, query); }).slice(0, 8);
-    const guideMovies = programsFor("").filter(function(program) { return programLooksMovie(program) && programMatchesSearch(program, query); }).slice(0, 8);
+    const vodMovies = firstSearchMatches(state.app && state.app.vod && state.app.vod.items, function(item) { return contentMatchesSearch("vod", item, query); }, 8);
+    const guideMovies = firstSearchMatches(programs(), function(program) { return programLooksMovie(program) && programMatchesSearch(program, query); }, 8);
     sections.push({ id: "movies", title: "Movies", rows: vodMovies.map(function(item) {
       return {
         attrs: "",
@@ -2121,7 +2158,7 @@ function searchResultSections(query) {
     })) });
   }
   if (include("shows")) {
-    const shows = items(state.app && state.app.series && state.app.series.items).filter(function(item) { return contentMatchesSearch("series", item, query); }).slice(0, 12);
+    const shows = firstSearchMatches(state.app && state.app.series && state.app.series.items, function(item) { return contentMatchesSearch("series", item, query); }, 12);
     sections.push({ id: "shows", title: "Shows", rows: shows.map(function(item) {
       return {
         attrs: "",
@@ -2134,7 +2171,7 @@ function searchResultSections(query) {
     }) });
   }
   if (include("recordings") && state.recordings && state.recordings.available) {
-    const recordings = normalizeRecordings(state.recordings).filter(function(recording) { return recordingMatchesSearch(recording, query); }).slice(0, 12);
+    const recordings = firstSearchMatches(normalizeRecordings(state.recordings), function(recording) { return recordingMatchesSearch(recording, query); }, 12);
     sections.push({ id: "recordings", title: "Recordings", rows: recordings.map(function(recording) {
       const playbackURL = recordingPlaybackURL(recording);
       return {
@@ -2160,12 +2197,13 @@ function renderSearchResultCard(row) {
 function renderSearchResults(query) {
   const sections = searchResultSections(query);
   const savePass = query && !keywordPasses().some(function(pass) { return lower(pass.keyword) === lower(query); }) ? "<button class=\"search-save-pass\" type=\"button\" data-keyword-pass-add=\"" + escapeHTML(query) + "\">Save Keyword Pass</button>" : "";
-  if (!sections.length) return "<div class=\"search-empty\">No matches found." + savePass + "</div>";
+  if (!sections.length) return "<div class=\"search-empty\"><span>" + icon("search") + "</span><strong>No matches for &ldquo;" + escapeHTML(query) + "&rdquo;</strong><p>Try a channel name, category, or program title.</p>" + savePass + "</div>";
   return (savePass ? "<div class=\"search-pass-action\">" + savePass + "</div>" : "") + "<div class=\"search-results\">" + sections.map(function(section) {
-    return sectionHeader(section.title) + "<div class=\"search-result-list\">" + section.rows.map(renderSearchResultRow).join("") + "</div>";
+    return "<section class=\"search-result-section\"><header class=\"search-result-section-head\"><h3>" + escapeHTML(section.title) + "</h3><span>" + section.rows.length + (section.rows.length === 1 ? " result" : " results") + "</span></header><div class=\"search-result-list\">" + section.rows.map(renderSearchResultRow).join("") + "</div></section>";
   }).join("") + "</div>";
 }
 const SEARCH_RESULTS_DELAY_MS = 180;
+const SEARCH_MIN_QUERY_LENGTH = 2;
 let searchResultsTimer = null;
 function clearSearchResultsTimer() {
   if (!searchResultsTimer) return;
@@ -2173,7 +2211,10 @@ function clearSearchResultsTimer() {
   searchResultsTimer = null;
 }
 function renderSearchPageResults() {
-  return searchNeedle() ? renderSearchResults(searchNeedle()) : renderSearchStart();
+  const query = searchNeedle();
+  if (!query) return renderSearchStart();
+  if (query.length < SEARCH_MIN_QUERY_LENGTH) return "<div class=\"search-start-empty search-query-hint\"><span>" + icon("search") + "</span><strong>Keep typing</strong><p>Enter at least two characters to search the full lineup.</p></div>";
+  return renderSearchResults(query);
 }
 function updateSearchPageResults() {
   const root = byId("search-page-results");
@@ -2227,12 +2268,16 @@ function renderSearchStart() {
 }
 function renderSearchPage() {
   const root = byId("view");
+  const main = document.querySelector(".main");
+  if (main) main.scrollLeft = 0;
+  if (root) root.scrollLeft = 0;
   const query = state.searchQuery || "";
   const filter = state.searchType || "all";
-  const filterHTML = "<div class=\"search-chip-row\">" + searchFilters().map(function(item) {
+  const filterHTML = "<div class=\"search-scope-row\" aria-label=\"Search scope\">" + searchFilters().map(function(item) {
     return "<button class=\"search-chip" + (filter === item.id ? " active" : "") + "\" type=\"button\" data-search-type=\"" + escapeHTML(item.id) + "\">" + escapeHTML(item.label) + "</button>";
   }).join("") + "</div>";
-  root.innerHTML = "<div class=\"search-page\"><div class=\"search-hero\"><h2>Search</h2><div class=\"search-form\"><input id=\"search-page-input\" class=\"search-field\" value=\"" + escapeHTML(query) + "\" placeholder=\"Search movies, tv shows, channels and more\" autocomplete=\"off\" aria-label=\"Search movies, television, channels, and programs\"><button class=\"search-cancel\" type=\"button\" data-search-cancel=\"true\">Cancel</button></div></div>" + filterHTML + "<div id=\"search-page-results\" class=\"search-page-results\" aria-live=\"polite\">" + renderSearchPageResults() + "</div></div>";
+  const clear = query ? "<button class=\"search-query-clear\" type=\"button\" data-search-query-clear=\"true\" aria-label=\"Clear search\">" + icon("x") + "</button>" : "";
+  root.innerHTML = "<div class=\"search-page\"><header class=\"search-commandbar\"><div class=\"search-commandbar-title\"><h2>Search</h2><span>Channels, groups, and guide</span></div><div class=\"search-form\"><label class=\"search-input-shell\"><span>" + icon("search") + "</span><input id=\"search-page-input\" class=\"search-field\" value=\"" + escapeHTML(query) + "\" placeholder=\"Channels, programs, movies or shows\" autocomplete=\"off\" spellcheck=\"false\">" + clear + "</label><button class=\"search-cancel\" type=\"button\" data-search-cancel=\"true\">Done</button></div>" + filterHTML + "</header><div id=\"search-page-results\" class=\"search-page-results\" aria-live=\"polite\">" + renderSearchPageResults() + "</div></div>";
   const input = byId("search-page-input");
   if (input && document.activeElement !== input) {
     setTimeout(function() {
@@ -4211,7 +4256,7 @@ function attachMultiviewPlayers() {
   items(state.multiviewTiles).forEach(function(tile) {
     const video = byId(tile.videoID);
     if (!video || tile.attached || !tile.channel) return;
-    const attachment = attachVideoSource(video, browserStreamURL(tile.channel), { rewindable: isRewindableChannel(tile.channel), format: tile.channel.streamFormat });
+    const attachment = attachVideoSource(video, browserStreamURL(tile.channel), { rewindable: isRewindableChannel(tile.channel), format: tile.channel.streamFormat, hlsBufferSeconds: tile.channel.hlsBufferSeconds });
     tile.hls = attachment.hls;
     tile.tsPlayer = attachment.tsPlayer;
     tile.attached = true;
@@ -4377,7 +4422,7 @@ async function prepareTimeShift(channel) {
 function fallbackFromTimeShift(channel, message) {
   if (state.view !== "player" || !channel || !state.currentChannel || channel.id !== state.currentChannel.id) return;
   stopTimeShiftSession();
-  setVideoSource(browserStreamURL(channel), { rewindable: isRewindableChannel(channel), format: channel.streamFormat });
+  setVideoSource(browserStreamURL(channel), { rewindable: isRewindableChannel(channel), format: channel.streamFormat, hlsBufferSeconds: channel.hlsBufferSeconds });
   if (message) showPlayerToast(message);
 }
 function timeShiftSeek(delta) {
@@ -4420,8 +4465,24 @@ function applyAspectMode() {
   const video = byId("player");
   if (video) video.style.objectFit = state.aspectMode === "fit" ? "contain" : "cover";
 }
+function boundedHLSBufferSeconds(value) {
+  return Math.max(5, Math.min(60, Math.round(Number(value) || 12)));
+}
+function liveHLSOptions(value) {
+  const seconds = boundedHLSBufferSeconds(value);
+  return {
+    liveSyncDuration: seconds,
+    liveMaxLatencyDuration: Math.max(seconds + 3, seconds * 2),
+    maxBufferLength: seconds,
+    maxMaxBufferLength: Math.max(seconds * 2, 30),
+    backBufferLength: 30,
+    startFragPrefetch: true,
+    maxLiveSyncPlaybackRate: 1.15
+  };
+}
 function attachVideoSource(video, url, options) {
   const rewindable = !!(options && options.rewindable);
+  const managedTimeShift = !!(options && options.managedTimeShift);
   const attachment = {
     hls: null,
     tsPlayer: null,
@@ -4437,16 +4498,28 @@ function attachVideoSource(video, url, options) {
   };
   const isHLS = (options && options.format === "hls") || url.indexOf(".m3u8") !== -1;
   if (window.Hls && Hls.isSupported() && isHLS) {
-    attachment.hls = new Hls(rewindable ? { liveSyncDurationCount: 1, liveMaxLatencyDurationCount: 5, maxBufferLength: 60 } : {});
-    if (options && typeof options.onFatal === "function") {
-      let fatalHandled = false;
-      attachment.hls.on(Hls.Events.ERROR, function(_, data) {
-        if (!fatalHandled && data && data.fatal) {
-          fatalHandled = true;
-          options.onFatal(data);
+    attachment.hls = new Hls(managedTimeShift ? { liveSyncDurationCount: 1, liveMaxLatencyDurationCount: 5, maxBufferLength: 60 } : liveHLSOptions(options && options.hlsBufferSeconds));
+    let recoveryAttempts = 0;
+    let fatalHandled = false;
+    attachment.hls.on(Hls.Events.FRAG_LOADED, function() { recoveryAttempts = 0; });
+    attachment.hls.on(Hls.Events.ERROR, function(_, data) {
+      if (!data || !data.fatal) return;
+      if (!managedTimeShift && recoveryAttempts < 2) {
+        recoveryAttempts += 1;
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          attachment.hls.startLoad();
+          return;
         }
-      });
-    }
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          attachment.hls.recoverMediaError();
+          return;
+        }
+      }
+      if (!fatalHandled && options && typeof options.onFatal === "function") {
+        fatalHandled = true;
+        options.onFatal(data);
+      }
+    });
     attachment.hls.loadSource(url);
     attachment.hls.attachMedia(video);
   } else if (window.mpegts && mpegts.isSupported() && !isHLS) {
@@ -4829,6 +4902,7 @@ function updateAdminIdentityField(field, target) {
 function updateAdminPlayerField(field, target) {
   const settings = state.adminCategorySettings || defaultAdminCategorySettings();
   if (field === "sports") settings.sportsFirstPlayerEnabled = !!target.checked;
+  if (field === "hls-buffer") settings.hlsBufferSeconds = Number(target.value || 12);
   state.adminCategorySettings = settings;
   normalizeAdminCategorySettings();
   markAdminSettingsDraft();
@@ -5107,7 +5181,10 @@ function renderAdminConnectionTab() {
   const connection = normalizeAdminConnection(state.savedAdminConnection);
   const status = state.app && state.app.status ? state.app.status : {};
   const message = state.adminConnectionMessage && !state.adminConnectionEditorOpen ? "<div class=\"settings-note" + (state.adminConnectionStatus === "error" ? " settings-warning" : "") + "\" role=\"status\">" + escapeHTML(state.adminConnectionMessage) + "</div>" : "";
+  const loadError = state.adminConnectionLoadError ? "<div class=\"settings-note settings-warning settings-note-action\" role=\"alert\"><span>Connection details could not be loaded: " + escapeHTML(state.adminConnectionLoadError) + "</span><button type=\"button\" data-admin-connection-action=\"retry-load\">Retry</button></div>" : "";
   let inventory = "<div class=\"source-empty\"><strong>No Dispatcharr connection</strong><span>Add a connection to import channels, guide data, and profiles into Silo.</span><button type=\"button\" class=\"source-add\" data-admin-connection-action=\"add\">Add Connection</button></div>";
+  if (state.adminConnectionLoading && !connection.configured) inventory = "<div class=\"source-empty\" role=\"status\"><strong>Loading Dispatcharr connection</strong><span>Your other admin settings remain available while the connection is loaded.</span></div>";
+  else if (state.adminConnectionLoadError && !connection.configured) inventory = "<div class=\"source-empty\"><strong>Connection status unavailable</strong><span>The saved connection was not changed. Retry when Silo or Dispatcharr is reachable.</span><button type=\"button\" class=\"source-add\" data-admin-connection-action=\"retry-load\">Retry</button></div>";
   if (connection.configured) {
     inventory = "<div class=\"source-table\" role=\"table\" aria-label=\"Dispatcharr connections\"><div class=\"source-table-head\" role=\"row\"><span>Connection</span><span>Account</span><span>Channels</span><span>Mode</span><span>Status</span><span>Actions</span></div>"
       + "<div class=\"source-table-row\" role=\"row\"><div class=\"source-primary\"><strong>Dispatcharr</strong><small>" + escapeHTML(adminConnectionEndpoint(connection)) + "</small></div>"
@@ -5116,7 +5193,7 @@ function renderAdminConnectionTab() {
       + "<div class=\"source-format\"><span>" + escapeHTML(sourceModeLabel(connection.sourceMode)) + "</span><small>source</small></div>"
       + "<span class=\"source-status enabled\">Configured</span><div class=\"source-actions\"><button type=\"button\" data-admin-connection-action=\"test-saved\">" + icon("loader") + "<span>Test</span></button><button type=\"button\" data-admin-connection-action=\"edit\">" + icon("settings") + "<span>Edit</span></button></div></div></div>";
   }
-  return adminStatusPanel() + message + "<div class=\"settings-card source-manager-card\"><div class=\"settings-card-head\"><div><h2>Connections</h2><p>Manage the source that powers Live TV, guide data, profiles, and playback.</p></div><span class=\"profile-selection-summary\">" + (connection.configured ? "1 connection" : "Not configured") + "</span></div>" + inventory + "</div>" + renderAdminConnectionEditor();
+  return adminStatusPanel() + loadError + message + "<div class=\"settings-card source-manager-card\"><div class=\"settings-card-head\"><div><h2>Connections</h2><p>Manage the source that powers Live TV, guide data, profiles, and playback.</p></div><span class=\"profile-selection-summary\">" + (connection.configured ? "1 connection" : (state.adminConnectionLoadError ? "Unavailable" : "Not configured")) + "</span></div>" + inventory + "</div>" + renderAdminConnectionEditor();
 }
 function renderAdminPage() {
   normalizeAdminCategorySettings();
@@ -5176,6 +5253,10 @@ function renderAdminTopbarActions() {
     return;
   }
   if (state.adminTab === "source") {
+    if (state.adminConnectionLoading || state.adminConnectionLoadError) {
+      root.innerHTML = "<button class=\"admin-outline-action\" data-admin-connection-action=\"retry-load\"" + (state.adminConnectionLoading ? " disabled aria-busy=\"true\"" : "") + ">" + icon("loader") + "<span>" + (state.adminConnectionLoading ? "Loading Connection" : "Retry Connection") + "</span></button>";
+      return;
+    }
     const configured = !!(state.savedAdminConnection && state.savedAdminConnection.configured);
     root.innerHTML = "<button class=\"admin-outline-action\" data-admin-connection-action=\"refresh\"" + (state.adminStatusRefreshing ? " disabled aria-busy=\"true\"" : "") + ">" + icon("loader") + "<span>" + (state.adminStatusRefreshing ? "Refreshing" : "Refresh Catalog") + "</span></button>"
       + "<button class=\"admin-primary-action\" data-admin-connection-action=\"" + (configured ? "edit" : "add") + "\">" + icon(configured ? "settings" : "guide") + "<span>" + (configured ? "Edit Connection" : "Add Connection") + "</span></button>";
@@ -5241,7 +5322,8 @@ function renderAdminPlayerSettings() {
   const root = byId("admin-player-settings");
   if (!root) return;
   const settings = adminSettings();
-  root.innerHTML = "<label class=\"settings-row compact-row\"><span><strong>Sports-first player</strong><small>Open the score and matched-channel player only for channels launched from Sports.</small></span><input type=\"checkbox\" data-admin-player-field=\"sports\"" + (settings.sportsFirstPlayerEnabled ? " checked" : "") + "></label>";
+  root.innerHTML = "<label class=\"settings-row compact-row\"><span><strong>Sports-first player</strong><small>Open the score and matched-channel player only for channels launched from Sports.</small></span><input type=\"checkbox\" data-admin-player-field=\"sports\"" + (settings.sportsFirstPlayerEnabled ? " checked" : "") + "></label>"
+    + "<label class=\"settings-row compact-row\"><span><strong>HLS resilience buffer</strong><small>Keep this many seconds of live HLS in browser memory. Higher values tolerate unstable connections but increase delay.</small></span><span class=\"settings-unit-field\"><input type=\"number\" min=\"5\" max=\"60\" step=\"1\" value=\"" + escapeHTML(boundedHLSBufferSeconds(settings.hlsBufferSeconds)) + "\" data-admin-player-field=\"hls-buffer\"><em>seconds</em></span></label>";
 }
 function renderAdminSportsSettings() {
   const root = byId("admin-sports-settings");
@@ -5982,7 +6064,7 @@ function setVideoSource(url, options) {
   }
   if (state.hls) { state.hls.destroy(); state.hls = null; }
   if (state.tsPlayer) { state.tsPlayer.destroy(); state.tsPlayer = null; }
-  const attachment = attachVideoSource(video, url, { rewindable: rewindable, format: options && options.format, onFatal: options && options.onFatal });
+  const attachment = attachVideoSource(video, url, { rewindable: rewindable, managedTimeShift: !!(options && options.managedTimeShift), format: options && options.format, hlsBufferSeconds: options && options.hlsBufferSeconds, onFatal: options && options.onFatal });
   state.hls = attachment.hls;
   state.tsPlayer = attachment.tsPlayer;
   setTimeout(updateAudioMenu, 500);
@@ -6029,7 +6111,7 @@ async function playChannel(channel) {
     showPlayerToast("Preparing Live Rewind...");
     try {
       const manifestURL = await prepareTimeShift(channel);
-      setVideoSource(manifestURL, { rewindable: true, format: "hls", onFatal: function() { fallbackFromTimeShift(channel, "Live Rewind stopped. Continuing live."); } });
+      setVideoSource(manifestURL, { rewindable: true, managedTimeShift: true, format: "hls", onFatal: function() { fallbackFromTimeShift(channel, "Live Rewind stopped. Continuing live."); } });
       state.timeShiftTimelineTimer = setInterval(updateTimeShiftUI, 1000);
       const video = byId("player");
       if (video) {
@@ -6042,7 +6124,7 @@ async function playChannel(channel) {
       if (timeShiftAttempt === state.timeShiftAttempt && !(error && error.superseded)) fallbackFromTimeShift(channel, "Live Rewind unavailable. Playing live.");
     }
   } else {
-    setVideoSource(browserStreamURL(channel), { rewindable: isRewindableChannel(channel), format: channel.streamFormat });
+    setVideoSource(browserStreamURL(channel), { rewindable: isRewindableChannel(channel), format: channel.streamFormat, hlsBufferSeconds: channel.hlsBufferSeconds });
   }
   if (timeShiftAttempt !== state.timeShiftAttempt || !state.currentChannel || state.currentChannel.id !== channel.id) return;
   const guide = await getJSON("/dispatcharr/api/guide?channel_id=" + encodeURIComponent(channel.id)).catch(function() { return { programs: [] }; });
@@ -6414,6 +6496,13 @@ document.addEventListener("click", function(event) {
     setView(state.searchReturnView || "home");
     return;
   }
+  const searchQueryClear = event.target.closest("[data-search-query-clear]");
+  if (searchQueryClear) {
+    event.preventDefault();
+    state.searchQuery = "";
+    renderSearchPage();
+    return;
+  }
   const searchClear = event.target.closest("[data-search-clear]");
   if (searchClear) {
     event.preventDefault();
@@ -6681,6 +6770,7 @@ document.addEventListener("click", function(event) {
     else if (action === "edit") openAdminConnectionEditor(false);
     else if (action === "cancel" || action === "discard") discardAdminConnection();
     else if (action === "refresh") refreshAdminCatalog();
+    else if (action === "retry-load") reloadAdminConnection();
     else if (action === "test-saved") {
       openAdminConnectionEditor(false);
       submitAdminConnection("test");

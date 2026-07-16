@@ -14,6 +14,9 @@ const DefaultAdminSettingsFile = "/var/lib/continuum/plugins/silo.ramindex.dispa
 const defaultAdminECMURL = ""
 const defaultAdminAppDisplayName = "Live TV (Dispatcharr)"
 const maxAdminAppDisplayNameLength = 80
+const defaultHLSBufferSeconds = 12
+const minimumHLSBufferSeconds = 5
+const maximumHLSBufferSeconds = 60
 
 type adminSettingsStorage interface {
 	Load() (json.RawMessage, bool, error)
@@ -155,6 +158,7 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	liveRewindWindowMinutes := clampChoice(payload["liveRewindWindowMinutes"], 30, []int{15, 30, 60, 90, 120})
 	liveRewindMinFreeGB := clampNumber(payload["liveRewindMinFreeGB"], 2, 1, 100)
 	liveRewindMaxChannels := int(clampNumber(payload["liveRewindMaxChannels"], 20, 1, 100))
+	hlsBufferSeconds := int(clampNumber(payload["hlsBufferSeconds"], defaultHLSBufferSeconds, minimumHLSBufferSeconds, maximumHLSBufferSeconds))
 	collapseDuplicateVirtualGroups := true
 	if enabled, ok := payload["collapseDuplicateVirtualGroups"].(bool); ok {
 		collapseDuplicateVirtualGroups = enabled
@@ -206,6 +210,7 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 		"liveRewindWindowMinutes":        liveRewindWindowMinutes,
 		"liveRewindMinFreeGB":            liveRewindMinFreeGB,
 		"liveRewindMaxChannels":          liveRewindMaxChannels,
+		"hlsBufferSeconds":               hlsBufferSeconds,
 		"collapseDuplicateVirtualGroups": collapseDuplicateVirtualGroups,
 		"inferChannelNameGroups":         inferChannelNameGroups,
 		"categoryRenames":                categoryRenames,

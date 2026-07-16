@@ -118,16 +118,17 @@ type ChannelsPayload struct {
 }
 
 type PublicChannel struct {
-	ID           string   `json:"id"`
-	SourceID     string   `json:"sourceId"`
-	Name         string   `json:"name"`
-	Number       string   `json:"number,omitempty"`
-	GuideID      string   `json:"guideId,omitempty"`
-	LogoURL      string   `json:"logoUrl,omitempty"`
-	CategoryID   string   `json:"categoryId,omitempty"`
-	CategoryName string   `json:"categoryName,omitempty"`
-	ProfileIDs   []string `json:"profileIds,omitempty"`
-	StreamFormat string   `json:"streamFormat,omitempty"`
+	ID               string   `json:"id"`
+	SourceID         string   `json:"sourceId"`
+	Name             string   `json:"name"`
+	Number           string   `json:"number,omitempty"`
+	GuideID          string   `json:"guideId,omitempty"`
+	LogoURL          string   `json:"logoUrl,omitempty"`
+	CategoryID       string   `json:"categoryId,omitempty"`
+	CategoryName     string   `json:"categoryName,omitempty"`
+	ProfileIDs       []string `json:"profileIds,omitempty"`
+	StreamFormat     string   `json:"streamFormat,omitempty"`
+	HLSBufferSeconds int      `json:"hlsBufferSeconds,omitempty"`
 }
 
 type PublicVODItem struct {
@@ -569,7 +570,7 @@ func (s *HTTPRoutesServer) buildAppPayload() AppPayload {
 	return AppPayload{
 		Status:       s.healthPayload(),
 		Source:       snapshot.Catalog.Source,
-		Channels:     publicChannels(snapshot.Catalog.Channels),
+		Channels:     publicChannels(snapshot.Catalog.Channels, s.hlsBufferSeconds()),
 		Categories:   liveCategories(snapshot),
 		Capabilities: appCapabilities(snapshot.Catalog.Source.Mode),
 	}
@@ -589,7 +590,7 @@ func (s *HTTPRoutesServer) channelsPayload() ChannelsPayload {
 	snapshot := s.store.Current()
 	return ChannelsPayload{
 		SourceName: snapshot.Catalog.Source.Name,
-		Channels:   publicChannels(snapshot.Catalog.Channels),
+		Channels:   publicChannels(snapshot.Catalog.Channels, s.hlsBufferSeconds()),
 		Categories: liveCategories(snapshot),
 		Profiles:   append([]model.ChannelProfile(nil), snapshot.Catalog.Source.Profiles...),
 	}
@@ -616,20 +617,26 @@ func (s *HTTPRoutesServer) vodPayload() ContentPayload {
 	}
 }
 
-func publicChannels(channels []model.Channel) []PublicChannel {
+func publicChannels(channels []model.Channel, hlsBufferSeconds int) []PublicChannel {
 	result := make([]PublicChannel, 0, len(channels))
 	for _, channel := range channels {
+		streamFormat := publicStreamFormat(channel.StreamURL)
+		channelHLSBufferSeconds := 0
+		if streamFormat == "hls" {
+			channelHLSBufferSeconds = hlsBufferSeconds
+		}
 		result = append(result, PublicChannel{
-			ID:           channel.ID,
-			SourceID:     channel.SourceID,
-			Name:         channel.Name,
-			Number:       channel.Number,
-			GuideID:      channel.GuideID,
-			LogoURL:      channel.LogoURL,
-			CategoryID:   channel.CategoryID,
-			CategoryName: channel.CategoryName,
-			ProfileIDs:   append([]string(nil), channel.ProfileIDs...),
-			StreamFormat: publicStreamFormat(channel.StreamURL),
+			ID:               channel.ID,
+			SourceID:         channel.SourceID,
+			Name:             channel.Name,
+			Number:           channel.Number,
+			GuideID:          channel.GuideID,
+			LogoURL:          channel.LogoURL,
+			CategoryID:       channel.CategoryID,
+			CategoryName:     channel.CategoryName,
+			ProfileIDs:       append([]string(nil), channel.ProfileIDs...),
+			StreamFormat:     streamFormat,
+			HLSBufferSeconds: channelHLSBufferSeconds,
 		})
 	}
 	return result
@@ -1208,6 +1215,22 @@ func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) s
 }
 
 func (s *HTTPRoutesServer) appDisplayName() string {
+	return asStringValue(s.normalizedAdminSettings()["appDisplayName"])
+}
+
+func (s *HTTPRoutesServer) hlsBufferSeconds() int {
+	value := s.normalizedAdminSettings()["hlsBufferSeconds"]
+	switch typed := value.(type) {
+	case int:
+		return typed
+	case float64:
+		return int(typed)
+	default:
+		return defaultHLSBufferSeconds
+	}
+}
+
+func (s *HTTPRoutesServer) normalizedAdminSettings() map[string]any {
 	var raw json.RawMessage
 	if s.store != nil && s.store.HasAdminSettings() {
 		raw = s.store.AdminSettings()
@@ -1228,7 +1251,7 @@ func (s *HTTPRoutesServer) appDisplayName() string {
 	if len(raw) > 0 {
 		_ = json.Unmarshal(raw, &payload)
 	}
-	return asStringValue(normalizeAdminSettingsPayload(payload)["appDisplayName"])
+	return normalizeAdminSettingsPayload(payload)
 }
 
 func pluginAssetVersion() string {

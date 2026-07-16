@@ -113,6 +113,24 @@ func TestHTTPRoutesServerChannelsAndGuideRoutes(t *testing.T) {
 	}
 }
 
+func TestPublicChannelsExposeHLSBufferOnlyForHLS(t *testing.T) {
+	t.Parallel()
+
+	channels := publicChannels([]model.Channel{
+		{ID: "hls:1", Name: "HLS", StreamURL: "https://example.test/live.m3u8"},
+		{ID: "ts:1", Name: "MPEG-TS", StreamURL: "https://example.test/live.ts"},
+	}, 24)
+	if len(channels) != 2 {
+		t.Fatalf("expected two public channels, got %d", len(channels))
+	}
+	if channels[0].StreamFormat != "hls" || channels[0].HLSBufferSeconds != 24 {
+		t.Fatalf("expected HLS channel buffer hint, got %+v", channels[0])
+	}
+	if channels[1].StreamFormat != "mpegts" || channels[1].HLSBufferSeconds != 0 {
+		t.Fatalf("expected non-HLS channel to omit buffer hint, got %+v", channels[1])
+	}
+}
+
 func TestHTTPRoutesServerAppRouteIncludesAppLayerPayload(t *testing.T) {
 	t.Parallel()
 
@@ -314,7 +332,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`function recordingSchedulingEnabled()`,
 		`/dispatcharr/api/recordings/capability`,
 		`Scheduling requires a Dispatcharr admin account or Admin API Key.`,
-		`Search movies, tv shows, channels and more`,
+		`Channels, programs, movies or shows`,
 		`function renderSportsPage()`,
 		`function renderSportsTopbarTabs()`,
 		`state.sportsReplayStandaloneEvents = [];`,
@@ -373,7 +391,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`.nav button.active { background: var(--text); color: var(--bg); }`,
 		`font-size: 1.25rem; line-height: 1.4; font-weight: 600;`,
 		`.search-hero h2 { margin: 0; font-size: 1.875rem;`,
-		`.search-page { width: 100%; max-width: 74rem; padding: 0.35rem 0 2rem; display: grid; grid-template-columns: minmax(0, 1fr);`,
+		`.search-page { width: 100%; max-width: 100%; min-width: 0; padding: 0.35rem 0 2rem; display: grid; grid-template-columns: minmax(0, 1fr);`,
 		`.search-hero { display: grid; grid-template-columns: auto minmax(0, 1fr);`,
 		`width: 100%; max-width: 100%; min-width: 0;`,
 		`.search-field { width: 100%; min-width: 0;`,
@@ -789,6 +807,11 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`const adminSettingsKey = "adminCategorySettings"`,
 		`adminTab: isAdminRoute ? "source" : "settings"`,
 		`function loadAdminApp()`,
+		`adminConnectionLoadError`,
+		`getJSON("/dispatcharr/api/admin-connection").catch`,
+		`function reloadAdminConnection()`,
+		`data-admin-connection-action=\"retry-load\"`,
+		`Connection details could not be loaded`,
 		`/dispatcharr/api/admin-connection`,
 		`function renderAdminConnectionTab()`,
 		`function renderAdminConnectionEditor()`,
@@ -3216,6 +3239,27 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	if !strings.Contains(browserStreamURL, `sourceMode() === "xtream"`) {
 		t.Fatal("Xtream output profiles must not be applied to Dispatcharr Direct streams")
 	}
+	attachVideoSource := functionBody("attachVideoSource")
+	for _, want := range []string{`liveHLSOptions`, `Hls.ErrorTypes.NETWORK_ERROR`, `startLoad()`, `Hls.ErrorTypes.MEDIA_ERROR`, `recoverMediaError()`, `managedTimeShift`} {
+		if !strings.Contains(attachVideoSource, want) {
+			t.Fatalf("HLS playback resilience must include %q", want)
+		}
+	}
+	liveHLSOptions := functionBody("liveHLSOptions")
+	for _, want := range []string{`liveSyncDuration`, `liveMaxLatencyDuration`, `maxBufferLength`, `backBufferLength`, `maxLiveSyncPlaybackRate`} {
+		if !strings.Contains(liveHLSOptions, want) {
+			t.Fatalf("HLS buffer options must include %q", want)
+		}
+	}
+	renderSearchPage := functionBody("renderSearchPage")
+	for _, want := range []string{`search-commandbar`, `search-input-shell`, `search-scope-row`, `search-query-clear`} {
+		if !strings.Contains(renderSearchPage, want) {
+			t.Fatalf("standardized search page must include %q", want)
+		}
+	}
+	if !strings.Contains(script, `const SEARCH_MIN_QUERY_LENGTH = 2`) {
+		t.Fatal("search must wait for a meaningful query before scanning the full lineup")
+	}
 	playerSports := functionBody("renderPlayerSportsDrawer")
 	for _, want := range []string{`player-sports-drawer`, `player-sports-status`, `Live &amp; upcoming`, `Sports channels`} {
 		if !strings.Contains(playerSports, want) {
@@ -3259,6 +3303,8 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.recovery-panel`,
 		`.filter-sections`,
 		`.filter-section`,
+		`.search-commandbar {`,
+		`.search-result-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));`,
 		`.organization-preview`,
 		`.event-card-body.no-art`,
 		`.event-card { grid-template-areas: "header" "body" "channels";`,
