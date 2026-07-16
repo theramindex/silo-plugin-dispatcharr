@@ -83,6 +83,20 @@ func TestNormalizeAdminSettingsClampsLiveRewindLimits(t *testing.T) {
 	}
 }
 
+func TestNormalizeAdminSettingsHLSBufferDefaultsAndClamps(t *testing.T) {
+	t.Parallel()
+
+	if got := normalizeAdminSettingsPayload(map[string]any{})["hlsBufferSeconds"]; got != 12 {
+		t.Fatalf("expected default HLS buffer of 12 seconds, got %v", got)
+	}
+	if got := normalizeAdminSettingsPayload(map[string]any{"hlsBufferSeconds": float64(1)})["hlsBufferSeconds"]; got != 5 {
+		t.Fatalf("expected minimum HLS buffer clamp of 5 seconds, got %v", got)
+	}
+	if got := normalizeAdminSettingsPayload(map[string]any{"hlsBufferSeconds": float64(90)})["hlsBufferSeconds"]; got != 60 {
+		t.Fatalf("expected maximum HLS buffer clamp of 60 seconds, got %v", got)
+	}
+}
+
 func TestNormalizeAdminSettingsSportsFirstPlayerEnabledDefaultsFalse(t *testing.T) {
 	t.Parallel()
 
