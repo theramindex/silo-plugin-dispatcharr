@@ -208,6 +208,65 @@ func TestSportsPayloadFallsBackToGuideMatchups(t *testing.T) {
 	assertSportsMatch(t, payload.Events[0].Channels, "ch:wnba-2")
 }
 
+func TestNormalizeSportsEventFreshnessExpiresStaleLiveGames(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.July, 25, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name      string
+		event     SportsEvent
+		completed bool
+	}{
+		{
+			name: "recent live event remains live",
+			event: SportsEvent{
+				Live:       true,
+				Status:     "live",
+				StatusText: "Top 4th",
+				StartUnix:  now.Add(-2 * time.Hour).Unix(),
+				EndUnix:    now.Add(time.Hour).Unix(),
+			},
+		},
+		{
+			name: "past end time expires",
+			event: SportsEvent{
+				Live:       true,
+				Status:     "live",
+				StatusText: "Top 3rd",
+				StartUnix:  now.Add(-6 * time.Hour).Unix(),
+				EndUnix:    now.Add(-3 * time.Hour).Unix(),
+			},
+			completed: true,
+		},
+		{
+			name: "missing end time eventually expires",
+			event: SportsEvent{
+				Live:       true,
+				Status:     "live",
+				StatusText: "Live",
+				StartUnix:  now.Add(-19 * time.Hour).Unix(),
+			},
+			completed: true,
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			got := normalizeSportsEventFreshness(test.event, now)
+			if test.completed {
+				if got.Live || !got.Completed || got.Status != "final" || got.StatusText != "Final" {
+					t.Fatalf("expected stale event to become final, got %+v", got)
+				}
+				return
+			}
+			if !got.Live || got.Completed {
+				t.Fatalf("expected current event to remain live, got %+v", got)
+			}
+		})
+	}
+}
+
 func TestSportsEventsFromGuideCapsFallbackSlate(t *testing.T) {
 	t.Parallel()
 

@@ -116,6 +116,53 @@ func TestHTTPRoutesServerEventsExcludesEventSeriesStudioPrograms(t *testing.T) {
 	assertNoBroadcastEventMatch(t, event.Channels, "ch:studio")
 }
 
+func TestHTTPRoutesServerEventsDoesNotMatchSummaryOnlyKeywords(t *testing.T) {
+	t.Parallel()
+
+	start := time.Now().Add(24 * time.Hour).Unix()
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{{ID: "ch:news", Name: "Local News", CategoryID: "news", CategoryName: "News"}},
+		Programs: []model.Program{{
+			ID:        "p:news",
+			ChannelID: "ch:news",
+			Title:     "Evening News",
+			Summary:   "A preview of the Grammy Awards and other entertainment headlines.",
+			StartUnix: start,
+			EndUnix:   start + 3600,
+		}},
+		Content: model.ContentState{LiveCategories: []model.Category{{ID: "news", Name: "News", Kind: "live"}}},
+	}})
+
+	payload := fetchEventsPayload(t, NewHTTPRoutesServer(store))
+	if len(payload.Events) != 0 {
+		t.Fatalf("expected summary-only keyword to be ignored, got %+v", payload.Events)
+	}
+}
+
+func TestHTTPRoutesServerEventsRejectsSportsKeywordsOnNonSportsChannels(t *testing.T) {
+	t.Parallel()
+
+	start := time.Now().Add(24 * time.Hour).Unix()
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{{ID: "ch:music", Name: "MC Dance EDM", CategoryID: "music", CategoryName: "International TV | Music"}},
+		Programs: []model.Program{{
+			ID:        "p:race",
+			ChannelID: "ch:music",
+			Title:     "Formula 1",
+			StartUnix: start,
+			EndUnix:   start + 2*3600,
+		}},
+		Content: model.ContentState{LiveCategories: []model.Category{{ID: "music", Name: "International TV | Music", Kind: "live"}}},
+	}})
+
+	payload := fetchEventsPayload(t, NewHTTPRoutesServer(store))
+	if len(payload.Events) != 0 {
+		t.Fatalf("expected non-sports channel event to be rejected, got %+v", payload.Events)
+	}
+}
+
 func TestHTTPRoutesServerEventsGroupsEventSeriesBroadcastWindows(t *testing.T) {
 	t.Parallel()
 

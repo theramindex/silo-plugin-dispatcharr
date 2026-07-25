@@ -153,6 +153,7 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 	}
 	channelIndex := newSportsChannelIndex(snapshot)
 	for index := range events {
+		events[index] = normalizeSportsEventFreshness(events[index], now)
 		events[index].Home.Favorite = false
 		events[index].Away.Favorite = false
 		if strings.HasPrefix(events[index].ID, "epg:") && len(events[index].Channels) > 0 {
@@ -186,6 +187,24 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 		payload.Error = err.Error()
 	}
 	return payload
+}
+
+func normalizeSportsEventFreshness(event SportsEvent, now time.Time) SportsEvent {
+	if !event.Live {
+		return event
+	}
+	stale := event.EndUnix > 0 && event.EndUnix < now.Add(-2*time.Hour).Unix()
+	if !stale && event.StartUnix > 0 && event.StartUnix < now.Add(-18*time.Hour).Unix() {
+		stale = true
+	}
+	if !stale {
+		return event
+	}
+	event.Live = false
+	event.Completed = true
+	event.Status = "final"
+	event.StatusText = "Final"
+	return event
 }
 
 func mergeSportsGuideEvents(events, guideEvents []SportsEvent) []SportsEvent {

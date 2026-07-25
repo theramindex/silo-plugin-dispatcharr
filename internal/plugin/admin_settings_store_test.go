@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -201,5 +202,25 @@ func TestNormalizeAdminSettingsAppDisplayName(t *testing.T) {
 				t.Fatalf("expected appDisplayName %q, got %q", tt.expected, got)
 			}
 		})
+	}
+}
+
+func TestNormalizeAdminSettingsFeaturedEventIDs(t *testing.T) {
+	t.Parallel()
+
+	input := []any{" guide:grammys ", "guide:grammys", ""}
+	for index := 0; index < 110; index++ {
+		input = append(input, fmt.Sprintf("event:%03d", index))
+	}
+	normalized := normalizeAdminSettingsPayload(map[string]any{"featuredEventIds": input})
+	ids, ok := normalized["featuredEventIds"].([]string)
+	if !ok {
+		t.Fatalf("expected normalized string IDs, got %#v", normalized["featuredEventIds"])
+	}
+	if len(ids) != 100 {
+		t.Fatalf("expected bounded list of 100 IDs, got %d", len(ids))
+	}
+	if ids[0] != "guide:grammys" || ids[1] != "event:000" {
+		t.Fatalf("expected trimmed, deduplicated IDs in source order, got %#v", ids[:2])
 	}
 }

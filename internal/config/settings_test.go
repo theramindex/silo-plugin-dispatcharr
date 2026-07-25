@@ -179,7 +179,7 @@ func TestUserConfigSchema_DeclaresCurrentPreferenceShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected preferences schema properties, got %q", preferences.GetJsonSchema())
 	}
-	for _, key := range []string{"favorites", "autoFavorites", "hiddenCategories", "sportsFavoriteTeams", "keywordPasses", "recentSearches", "recentChannels", "continueWatching", "playback", "categoryParsing", "profileSelection", "customGroups", "customGroupMemberships", "savedLineups"} {
+	for _, key := range []string{"favorites", "autoFavorites", "hiddenCategories", "sportsFavoriteTeams", "featuredEvents", "keywordPasses", "recentSearches", "recentChannels", "continueWatching", "playback", "categoryParsing", "profileSelection", "customGroups", "customGroupMemberships", "savedLineups"} {
 		if _, ok := properties[key]; !ok {
 			t.Fatalf("expected preferences schema to declare %q", key)
 		}
@@ -235,7 +235,7 @@ func TestUserConfigSchema_DeclaresAdminCategorySettingsShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected admin category settings schema properties, got %q", adminSettings.GetJsonSchema())
 	}
-	for _, key := range []string{"mode", "delimiter", "virtualGroupLabel", "appDisplayName", "virtualGroupSource", "ecmEnabled", "ecmURL", "allowRecordingsByDefault", "sportsFirstPlayerEnabled", "liveRewindEnabled", "liveRewindCacheGB", "liveRewindWindowMinutes", "liveRewindMinFreeGB", "liveRewindMaxChannels", "collapseDuplicateVirtualGroups", "inferChannelNameGroups", "categoryRenames", "categoryAliases", "eventKeywords"} {
+	for _, key := range []string{"mode", "delimiter", "virtualGroupLabel", "appDisplayName", "virtualGroupSource", "ecmEnabled", "ecmURL", "allowRecordingsByDefault", "sportsFirstPlayerEnabled", "liveRewindEnabled", "liveRewindCacheGB", "liveRewindWindowMinutes", "liveRewindMinFreeGB", "liveRewindMaxChannels", "collapseDuplicateVirtualGroups", "inferChannelNameGroups", "categoryRenames", "categoryAliases", "featuredEventIds", "eventKeywords"} {
 		if _, ok := properties[key]; !ok {
 			t.Fatalf("expected admin category settings schema to declare %q", key)
 		}

@@ -188,6 +188,7 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	ecmEnabled := ecmURL != ""
 	categoryRenames := normalizeCategoryRenames(payload["categoryRenames"])
 	categoryAliases := normalizeCategoryAliases(payload["categoryAliases"])
+	featuredEventIDs := normalizeAdminStringIDs(payload["featuredEventIds"], 100)
 	eventKeywords := normalizeAdminEventKeywordRules(payload["eventKeywords"])
 	if len(eventKeywords) == 0 {
 		eventKeywords = normalizeDefaultAdminEventKeywordRules()
@@ -215,8 +216,37 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 		"inferChannelNameGroups":         inferChannelNameGroups,
 		"categoryRenames":                categoryRenames,
 		"categoryAliases":                categoryAliases,
+		"featuredEventIds":               featuredEventIDs,
 		"eventKeywords":                  eventKeywords,
 	}
+}
+
+func normalizeAdminStringIDs(value any, limit int) []string {
+	rows, ok := value.([]any)
+	if !ok {
+		if typed, typedOK := value.([]string); typedOK {
+			rows = make([]any, len(typed))
+			for index := range typed {
+				rows[index] = typed[index]
+			}
+		} else {
+			return []string{}
+		}
+	}
+	seen := map[string]bool{}
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		id := strings.TrimSpace(asStringValue(row))
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		ids = append(ids, id)
+		if limit > 0 && len(ids) >= limit {
+			break
+		}
+	}
+	return ids
 }
 
 func normalizeSportsLibraryIDs(value any) []int {
