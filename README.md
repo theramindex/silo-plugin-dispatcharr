@@ -63,8 +63,8 @@ first-class Live TV provider capability.
   route SDK does not provide a user identity to plugin handlers
 - Coordinates manual, scheduled, channel-only, and guide-only refreshes through
   one serialized job state and preserves the last known good guide on failure
-- Loads guide, VOD, and series separately from the lightweight app bootstrap;
-  refresh polling uses only the status endpoint
+- Loads guide data separately from the lightweight app bootstrap; refresh
+  polling uses only the status endpoint
 - Keeps stale metadata visible when sync fails
 - Exposes a plugin status route at `/dispatcharr/status`
 - Exposes a Silo-hosted IPTV app:
@@ -74,8 +74,6 @@ first-class Live TV provider capability.
   - `/dispatcharr/api/channels`
   - `/dispatcharr/api/guide`
   - `/dispatcharr/api/categories`
-  - `/dispatcharr/api/vod`
-  - `/dispatcharr/api/series`
   - `/dispatcharr/api/recordings` (`GET` lists Dispatcharr DVR rows, `POST` schedules an EPG program on Dispatcharr)
   - `/dispatcharr/api/timeshift/*` (shared Live Rewind leases, status, and administration)
   - `/dispatcharr/api/sports`

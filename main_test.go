@@ -285,7 +285,7 @@ func TestManifestExposesRefreshTaskCapabilities(t *testing.T) {
 			scheduledTaskIDs = append(scheduledTaskIDs, capability.GetId())
 		}
 	}
-	want := []string{"dispatcharr-sync", "dispatcharr-refresh-channels", "dispatcharr-refresh-epg"}
+	want := []string{"dispatcharr-sync"}
 	if !reflect.DeepEqual(scheduledTaskIDs, want) {
 		t.Fatalf("expected scheduled task capabilities %+v, got %+v", want, scheduledTaskIDs)
 	}

@@ -122,7 +122,7 @@ function icon(name) {
 }
 function menuIcon(name) { return "<span class=\"menu-icon\">" + icon(name) + "</span>"; }
 function defaultPrefs() {
-  return { favorites: {}, favoriteOrder: [], autoFavorites: {}, hiddenCategories: {}, sportsFavoriteTeams: {}, keywordPasses: [], recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, profileSelection: { mode: "all", profileIds: [] }, customGroups: [], customGroupMemberships: {}, savedLineups: [] };
+  return { favorites: {}, favoriteOrder: [], autoFavorites: {}, hiddenCategories: {}, sportsFavoriteTeams: {}, featuredEvents: {}, keywordPasses: [], recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, profileSelection: { mode: "all", profileIds: [] }, customGroups: [], customGroupMemberships: {}, savedLineups: [] };
 }
 function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
 function availableChannelProfiles() {
@@ -198,7 +198,7 @@ function defaultEventKeywordRules() {
   ];
 }
 function defaultAdminCategorySettings() {
-  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", appDisplayName: "Live TV (Dispatcharr)", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, allowRecordingsByDefault: true, sportsEnabled: true, sportsLibraryIds: [], sportsFirstPlayerEnabled: false, hlsBufferSeconds: 12, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
+  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", appDisplayName: "Live TV (Dispatcharr)", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, allowRecordingsByDefault: true, sportsEnabled: true, sportsLibraryIds: [], sportsFirstPlayerEnabled: false, hlsBufferSeconds: 12, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], featuredEventIds: [], eventKeywords: defaultEventKeywordRules() };
 }
 function cloneAdminCategorySettings(settings) {
   try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -285,6 +285,15 @@ function favoriteMap() { return prefs().favorites || {}; }
 function autoFavoriteMap() { return prefs().autoFavorites || {}; }
 function hiddenMap() { return prefs().hiddenCategories || {}; }
 function sportsFavoriteTeamMap() { return prefs().sportsFavoriteTeams || {}; }
+function featuredEventMap() { return prefs().featuredEvents || {}; }
+function adminFeaturedEventMap() {
+  const featured = {};
+  items(adminSettings().featuredEventIds).forEach(function(id) {
+    id = String(id || "").trim();
+    if (id) featured[id] = true;
+  });
+  return featured;
+}
 function normalizeKeywordPasses(value) {
   const seen = {};
   return items(value).map(function(pass) {
@@ -330,6 +339,7 @@ function mergePrefs(remote) {
     autoFavorites: Object.assign({}, remote.autoFavorites),
     hiddenCategories: Object.assign({}, remote.hiddenCategories),
     sportsFavoriteTeams: Object.assign({}, remote.sportsFavoriteTeams),
+    featuredEvents: Object.assign({}, remote.featuredEvents),
     keywordPasses: normalizeKeywordPasses(remote.keywordPasses),
     recentSearches: uniqueIDs(items(remote.recentSearches).map(function(value) { return String(value || "").trim(); }).filter(Boolean)).slice(0, 12),
     recentChannels: uniqueIDs(items(remote.recentChannels)).slice(0, 24),
@@ -348,6 +358,7 @@ function normalizePreferences() {
   state.app.preferences.categoryParsing = Object.assign(defaultPrefs().categoryParsing, state.app.preferences.categoryParsing || {});
   state.app.preferences.profileSelection = normalizeProfileSelection(state.app.preferences.profileSelection);
   state.app.preferences.sportsFavoriteTeams = state.app.preferences.sportsFavoriteTeams || {};
+  state.app.preferences.featuredEvents = state.app.preferences.featuredEvents || {};
   state.app.preferences.keywordPasses = normalizeKeywordPasses(state.app.preferences.keywordPasses);
   state.app.preferences.recentSearches = uniqueIDs(items(state.app.preferences.recentSearches).map(function(value) { return String(value || "").trim(); }).filter(Boolean)).slice(0, 12);
   state.app.preferences.customGroups = items(state.app.preferences.customGroups);
@@ -385,6 +396,9 @@ function normalizeAdminCategorySettings() {
     return Number.isInteger(id) && id > 0 ? String(id) : "";
   }).filter(Boolean)).map(function(value) { return Number(value); });
   state.adminCategorySettings.sportsFirstPlayerEnabled = state.adminCategorySettings.sportsFirstPlayerEnabled === true;
+  state.adminCategorySettings.featuredEventIds = uniqueIDs(items(state.adminCategorySettings.featuredEventIds).map(function(id) {
+    return String(id || "").trim();
+  }).filter(Boolean)).slice(0, 100);
   state.adminCategorySettings.hlsBufferSeconds = Math.max(5, Math.min(60, Math.round(Number(state.adminCategorySettings.hlsBufferSeconds) || 12)));
   state.adminCategorySettings.liveRewindEnabled = state.adminCategorySettings.liveRewindEnabled === true;
   state.adminCategorySettings.liveRewindCacheGB = Math.max(1, Math.min(500, Number(state.adminCategorySettings.liveRewindCacheGB) || 5));
@@ -610,8 +624,6 @@ function compactAppPayloadForCache(payload, stripSummary, channelsOnly) {
     channels: items(payload.channels),
     categories: items(payload.categories),
     programs: channelsOnly ? [] : compactProgramsForCache(payload.programs, stripSummary),
-    vod: { available: !!(payload.vod && payload.vod.available), categories: [], items: [] },
-    series: { available: !!(payload.series && payload.series.available), categories: [], items: [] },
     preferences: defaultPrefs(),
     sessions: [],
     capabilities: payload.capabilities || {}
@@ -933,6 +945,24 @@ function effectiveChannels(includeHidden) {
     return (left.sourceIndex || 0) - (right.sourceIndex || 0);
   });
 }
+function channelLogicalKey(channel) {
+  if (!channel) return "";
+  const guideID = lower(channel.guideId).trim();
+  if (guideID) return "guide:" + guideID;
+  const name = lower(channel.name).replace(/\s+/g, " ").trim();
+  const category = lower(sourceCategoryLabel(channel)).replace(/\s+/g, " ").trim();
+  const logo = lower(channel.logoUrl).trim();
+  return "channel:" + [name, category, logo].join("|");
+}
+function dedupeChannels(channels) {
+  const seen = {};
+  return items(channels).filter(function(channel) {
+    const key = channelLogicalKey(channel) || ("id:" + String(channel && channel.id || ""));
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
 function sourceCategoryID(id) { return "source:" + String(id || ""); }
 function customCategoryID(id) { return "custom:" + String(id || ""); }
 function virtualCategoryID(path) { return "virtual:" + String(path || ""); }
@@ -1213,13 +1243,13 @@ function channelInSelectedCategory(channel, id) {
 }
 function visibleChannels(ignoreQuery) {
   const hidden = hiddenMap();
-  const channels = effectiveChannels(false).filter(function(channel) {
+  const channels = dedupeChannels(effectiveChannels(false).filter(function(channel) {
     if (channel.categoryId && hidden[channel.categoryId]) return false;
     if (state.view !== "favorites" && state.category && !channelInSelectedCategory(channel, state.category)) return false;
     if (!ignoreQuery && state.query && !guideChannelMatchesQuery(channel)) return false;
     if (state.view === "favorites" && !favoriteMap()[channel.id] && !autoFavoriteMap()[channel.id]) return false;
     return true;
-  });
+  }));
   return state.view === "favorites" ? orderedFavoriteChannels(channels) : channels;
 }
 function orderedFavoriteChannels(channels) {
@@ -1505,8 +1535,6 @@ async function hydrateApp(payload, options) {
   const previousApp = state.app || {};
   payload = payload || {};
   payload.programs = Array.isArray(payload.programs) ? payload.programs : items(previousApp.programs);
-  payload.vod = payload.vod || previousApp.vod || { available: false, categories: [], items: [] };
-  payload.series = payload.series || previousApp.series || { available: false, categories: [], items: [] };
   state.app = payload;
   if (options.localCache) {
     state.app.preferences = defaultPrefs();
@@ -1539,20 +1567,13 @@ async function refreshStatusData() {
   }
   return status || {};
 }
-async function refreshSupplementalData(includeContent) {
+async function refreshSupplementalData() {
   if (!state.app) return;
-  const requests = [getJSON("/dispatcharr/api/guide").catch(function(error) {
+  const payload = await getJSON("/dispatcharr/api/guide").catch(function(error) {
     try { console.warn("Dispatcharr guide load failed", error); } catch (_) {}
     return null;
-  })];
-  if (includeContent) {
-    requests.push(getJSON("/dispatcharr/api/vod").catch(function() { return null; }));
-    requests.push(getJSON("/dispatcharr/api/series").catch(function() { return null; }));
-  }
-  const payloads = await Promise.all(requests);
-  if (payloads[0]) state.app.programs = items(payloads[0].programs);
-  if (includeContent && payloads[1]) state.app.vod = payloads[1];
-  if (includeContent && payloads[2]) state.app.series = payloads[2];
+  });
+  if (payload) state.app.programs = items(payload.programs);
   rebuildProgramIndex();
   writeLocalAppCache(state.app);
 }
@@ -1570,7 +1591,7 @@ async function loadApp() {
     state.appLoadedFromCache = false;
     await loadRecordingCapability();
     render();
-    await refreshSupplementalData(true);
+    await refreshSupplementalData();
     render();
   } catch (error) {
     if (!renderedCachedApp) throw error;
@@ -1737,7 +1758,7 @@ async function refreshGuideBlockData() {
     if (guideNeedsFollowupRefresh(previousEPGSuccess)) {
       await pollGuideRefresh(previousEPGSuccess);
     }
-    await refreshSupplementalData(true);
+    await refreshSupplementalData();
     state.recordings = null;
     refreshVisibleGuideBlock();
     showAppToast(guideRefreshAdvanced(previousEPGSuccess) ? "Guide refreshed from Dispatcharr." : "Guide refresh finished without newer EPG data.");
@@ -1836,7 +1857,7 @@ async function tickGuideAutoRefresh() {
   state.guideLastAutoFetchAt = now;
   try {
     await refreshStatusData();
-    await refreshSupplementalData(false);
+    await refreshSupplementalData();
     if (state.view !== "guide") return;
     if (guideSearchFocused()) {
       resetGuideRows();
@@ -1869,25 +1890,31 @@ function renderHome() {
 function channelsForSavedLineup(lineup) {
   if (!lineup || !lineup.categoryId) return [];
   const hidden = hiddenMap();
-  return effectiveChannels(false).filter(function(channel) {
+  return dedupeChannels(effectiveChannels(false).filter(function(channel) {
     if (channel.categoryId && hidden[channel.categoryId]) return false;
     return channelInSelectedCategory(channel, lineup.categoryId);
-  });
+  }));
 }
 function savedLineupCategoryLabel(categoryID) {
   const id = String(categoryID || "");
   const path = id.indexOf("virtual:") === 0 ? virtualCategoryPath(id) : (id.indexOf("featured:") === 0 ? featuredCategoryPath(id) : "");
   if (path) return path.split(" / ").join(" | ");
-  return categoryName(id) || "My Channels";
+  return categoryName(id) || "Saved lineup";
 }
 function renderSavedLineupsHome() {
   const lineups = savedLineups();
-  if (!lineups.length) return "";
-  return sectionHeader("My Channels") + "<div class=\"saved-lineup-grid\">" + lineups.map(function(lineup) {
+  const groups = customGroupCategories();
+  if (!lineups.length && !groups.length) return "";
+  const lineupCards = lineups.map(function(lineup) {
     const count = channelsForSavedLineup(lineup).length;
-    const meta = count ? count + " channels" : "No matching channels";
-    return "<div class=\"saved-lineup-item\"><button type=\"button\" class=\"saved-lineup-open\" data-saved-lineup-open=\"" + escapeHTML(lineup.id) + "\"><strong>" + escapeHTML(lineup.name) + "</strong><span>" + escapeHTML(meta) + "</span></button><button type=\"button\" class=\"saved-lineup-edit\" data-saved-lineup-edit=\"" + escapeHTML(lineup.id) + "\" aria-label=\"Edit " + escapeHTML(lineup.name) + "\" title=\"Edit channel list\">" + icon("settings") + "</button></div>";
-  }).join("") + "</div>";
+    const meta = ["Saved lineup", count ? count + " channels" : "No matching channels"].join(" · ");
+    return "<div class=\"saved-lineup-item\"><button type=\"button\" class=\"saved-lineup-open\" data-saved-lineup-open=\"" + escapeHTML(lineup.id) + "\"><strong>" + escapeHTML(lineup.name) + "</strong><span>" + escapeHTML(meta) + "</span></button><button type=\"button\" class=\"saved-lineup-edit\" data-saved-lineup-edit=\"" + escapeHTML(lineup.id) + "\" aria-label=\"Edit " + escapeHTML(lineup.name) + "\" title=\"Edit saved lineup\">" + icon("settings") + "</button></div>";
+  });
+  const groupCards = groups.map(function(group) {
+    const meta = ["Custom group", group.count ? group.count + " channels" : "No channels"].join(" · ");
+    return "<div class=\"saved-lineup-item\"><button type=\"button\" class=\"saved-lineup-open\" data-category=\"" + escapeHTML(group.id) + "\"><strong>" + escapeHTML(group.name) + "</strong><span>" + escapeHTML(meta) + "</span></button></div>";
+  });
+  return sectionHeader("Saved Lineups") + "<div class=\"saved-lineup-grid\">" + lineupCards.concat(groupCards).join("") + "</div>";
 }
 function emptyStateHTML(title, detail) {
   detail = String(detail || "").trim();
@@ -1934,9 +1961,9 @@ function searchNeedle() {
 }
 function searchableChannels() {
   const hidden = hiddenMap();
-  return effectiveChannels(false).filter(function(channel) {
+  return dedupeChannels(effectiveChannels(false).filter(function(channel) {
     return !(channel.categoryId && hidden[channel.categoryId]);
-  });
+  }));
 }
 function channelMatchesSearch(channel, query) {
   const haystack = [channel.name, channel.number, channel.categoryName, sourceCategoryLabel(channel), sourceCategoryRawLabel(channel)].join(" ");
@@ -1946,15 +1973,6 @@ function programMatchesSearch(program, query) {
   if (programIsGuidePlaceholder(program)) return false;
   const channel = channelByID(program.channelId) || {};
   const haystack = [program.title, program.summary, program.description, channel.name, channel.categoryName].join(" ");
-  return lower(haystack).indexOf(query) !== -1;
-}
-function contentCategoryName(kind, item) {
-  const payload = state.app && state.app[kind] ? state.app[kind] : {};
-  const match = items(payload.categories).find(function(category) { return category.id === item.categoryId; });
-  return (match && match.name) || "";
-}
-function contentMatchesSearch(kind, item, query) {
-  const haystack = [item.name, item.title, item.description, item.rating, contentCategoryName(kind, item)].join(" ");
   return lower(haystack).indexOf(query) !== -1;
 }
 function allDiscoveryGroups() {
@@ -1977,7 +1995,7 @@ function guideUnavailableLabel() {
 }
 function programIsGuidePlaceholder(program) {
   const title = normalizeProgramTitle(program && program.title);
-  return /^(no games? today|data not available|no (guide )?(data|information|programming)( available)?|programming unavailable|information not available)$/.test(title);
+  return /^(tba|to be announced|sendepause|sign off|off air|no games? today|data not available|no (guide )?(data|information|programming)( available)?|programming unavailable|information not available)$/.test(title);
 }
 function programSearchText(program) {
   const channel = channelByID(program.channelId) || {};
@@ -1996,7 +2014,9 @@ function programIsUpcoming(program) {
 }
 function programLooksSports(program) {
   if (programIsGuidePlaceholder(program)) return false;
-  return /\b(vs\.?|@|game|match|cup|league|racing|football|baseball|basketball|soccer|hockey|f1|formula|mlb|nba|nfl|nhl|mls|wnba|premier)\b/i.test(programSearchText(program));
+  const channel = channelByID(program.channelId) || {};
+  const text = [program.title, channel.name, channel.categoryName].join(" ");
+  return /\b(vs\.?| at |cup|league|racing|grand prix|football|baseball|basketball|soccer|hockey|golf|tennis|boxing|mma|ufc|f1|formula|mlb|nba|nfl|nhl|mls|wnba|premier|sports?)\b/i.test(" " + text + " ");
 }
 function programLooksMovie(program) {
   if (programIsGuidePlaceholder(program)) return false;
@@ -2004,7 +2024,7 @@ function programLooksMovie(program) {
 }
 function programLooksEvent(program) {
   if (programIsGuidePlaceholder(program)) return false;
-  return /\b(awards|parade|special|ceremony|debate|concert|festival|live)\b/i.test(programSearchText(program));
+  return /\b(awards|parade|special|ceremony|debate|concert|festival|inauguration|election night)\b/i.test(String(program.title || ""));
 }
 function groupedUpcomingAirings(programs, query) {
   const groups = {};
@@ -2033,7 +2053,6 @@ function searchFilters() {
     { id: "sports", label: "Sports" },
     { id: "events", label: "Events" },
     { id: "movies", label: "Movies" },
-    { id: "shows", label: "Shows" },
     { id: "recordings", label: "Recordings" }
   ];
 }
@@ -2045,6 +2064,28 @@ function firstSearchMatches(collection, predicate, limit) {
   }
   return matches;
 }
+function searchMatchScore(primary, secondary, query) {
+  const needle = lower(query).trim();
+  const title = lower(primary).replace(/\s+/g, " ").trim();
+  const details = lower(secondary);
+  if (!needle) return 0;
+  if (title === needle) return 1000;
+  if (title.indexOf(needle) === 0) return 800;
+  if (title.indexOf(needle) !== -1) return 600;
+  if (details.indexOf(needle) !== -1) return 300;
+  return 0;
+}
+function rankedSearchMatches(collection, scorer, limit) {
+  return items(collection).map(function(item, index) {
+    return { item: item, index: index, score: scorer(item) };
+  }).filter(function(result) {
+    return result.score > 0;
+  }).sort(function(left, right) {
+    return right.score - left.score || left.index - right.index;
+  }).slice(0, limit).map(function(result) {
+    return result.item;
+  });
+}
 function searchResultSections(query) {
   const filter = state.searchType || "all";
   const include = function(id) { return filter === "all" || filter === id; };
@@ -2055,7 +2096,9 @@ function searchResultSections(query) {
     return programCatalog;
   };
   if (include("channels")) {
-    const channels = firstSearchMatches(searchableChannels(), function(channel) { return channelMatchesSearch(channel, query); }, 18);
+    const channels = rankedSearchMatches(searchableChannels(), function(channel) {
+      return searchMatchScore(channel.name, [channel.number, channel.categoryName, sourceCategoryLabel(channel), sourceCategoryRawLabel(channel)].join(" "), query);
+    }, 18);
     sections.push({ id: "channels", title: "Channels", rows: channels.map(function(channel) {
       return {
         attrs: "data-search-channel=\"" + escapeHTML(channel.id) + "\"",
@@ -2067,7 +2110,9 @@ function searchResultSections(query) {
     }) });
   }
   if (include("groups")) {
-    const groups = firstSearchMatches(allDiscoveryGroups(), function(group) { return groupMatchesSearch(group, query); }, 18);
+    const groups = rankedSearchMatches(allDiscoveryGroups(), function(group) {
+      return searchMatchScore(group.name, [group.id, group.kind].join(" "), query);
+    }, 18);
     sections.push({ id: "groups", title: "Groups", rows: groups.map(function(group) {
       return {
         attrs: "data-search-category=\"" + escapeHTML(group.id) + "\"",
@@ -2079,7 +2124,12 @@ function searchResultSections(query) {
     }) });
   }
   if (include("programs")) {
-    const matchingPrograms = firstSearchMatches(programs(), function(program) { return programMatchesSearch(program, query); }, 18);
+    const matchingPrograms = rankedSearchMatches(programs().filter(function(program) {
+      return !programIsGuidePlaceholder(program);
+    }), function(program) {
+      const channel = channelByID(program.channelId) || {};
+      return searchMatchScore(program.title, [program.summary, program.description, channel.name, channel.categoryName].join(" "), query);
+    }, 18);
     sections.push({ id: "programs", title: "Guide Programs", rows: matchingPrograms.map(function(program) {
       const channel = channelByID(program.channelId) || {};
       return {
@@ -2109,7 +2159,10 @@ function searchResultSections(query) {
     }) });
   }
   if (include("sports")) {
-    const matchingPrograms = firstSearchMatches(programs(), function(program) { return programLooksSports(program) && programMatchesSearch(program, query); }, 12);
+    const matchingPrograms = rankedSearchMatches(programs().filter(programLooksSports), function(program) {
+      const channel = channelByID(program.channelId) || {};
+      return searchMatchScore(program.title, [channel.name, channel.categoryName].join(" "), query);
+    }, 12);
     sections.push({ id: "sports", title: "Sports From Guide", rows: matchingPrograms.map(function(program) {
       const channel = channelByID(program.channelId) || {};
       return {
@@ -2122,7 +2175,10 @@ function searchResultSections(query) {
     }) });
   }
   if (include("events")) {
-    const matchingPrograms = firstSearchMatches(programs(), function(program) { return programLooksEvent(program) && programMatchesSearch(program, query); }, 12);
+    const matchingPrograms = rankedSearchMatches(programs().filter(programLooksEvent), function(program) {
+      const channel = channelByID(program.channelId) || {};
+      return searchMatchScore(program.title, [channel.name, channel.categoryName].join(" "), query);
+    }, 12);
     sections.push({ id: "events", title: "Events From Guide", rows: matchingPrograms.map(function(program) {
       const channel = channelByID(program.channelId) || {};
       return {
@@ -2135,18 +2191,8 @@ function searchResultSections(query) {
     }) });
   }
   if (include("movies")) {
-    const vodMovies = firstSearchMatches(state.app && state.app.vod && state.app.vod.items, function(item) { return contentMatchesSearch("vod", item, query); }, 8);
-    const guideMovies = firstSearchMatches(programs(), function(program) { return programLooksMovie(program) && programMatchesSearch(program, query); }, 8);
-    sections.push({ id: "movies", title: "Movies", rows: vodMovies.map(function(item) {
-      return {
-        attrs: "",
-        disabled: true,
-        art: item.posterUrl ? "<img src=\"" + escapeHTML(item.posterUrl) + "\" alt=\"\">" : "<span class=\"logo logo-fallback\">VOD</span>",
-        title: item.name || "Untitled movie",
-        meta: ["Movie", contentCategoryName("vod", item), item.rating].filter(Boolean).join(" - "),
-        action: "On Demand"
-      };
-    }).concat(guideMovies.map(function(program) {
+    const guideMovies = firstSearchMatches(programs(), function(program) { return programLooksMovie(program) && programMatchesSearch(program, query); }, 12);
+    sections.push({ id: "movies", title: "Movies From Guide", rows: guideMovies.map(function(program) {
       const channel = channelByID(program.channelId) || {};
       return {
         attrs: "data-search-program-channel=\"" + escapeHTML(program.channelId || "") + "\" data-search-program=\"" + escapeHTML(program.id || "") + "\"",
@@ -2154,19 +2200,6 @@ function searchResultSections(query) {
         title: program.title || "Movie",
         meta: ["Guide", dateTimeLabel(program.startUnix), channel.name || ""].filter(Boolean).join(" - "),
         action: "Details"
-      };
-    })) });
-  }
-  if (include("shows")) {
-    const shows = firstSearchMatches(state.app && state.app.series && state.app.series.items, function(item) { return contentMatchesSearch("series", item, query); }, 12);
-    sections.push({ id: "shows", title: "Shows", rows: shows.map(function(item) {
-      return {
-        attrs: "",
-        disabled: true,
-        art: item.posterUrl ? "<img src=\"" + escapeHTML(item.posterUrl) + "\" alt=\"\">" : "<span class=\"logo logo-fallback\">TV</span>",
-        title: item.name || "Untitled show",
-        meta: ["Show", contentCategoryName("series", item), item.releaseDate].filter(Boolean).join(" - "),
-        action: "On Demand"
       };
     }) });
   }
@@ -2257,8 +2290,7 @@ function renderSearchStart() {
     { id: "airings", label: "Upcoming Airings", icon: "guide" },
     { id: "sports", label: "Sports", icon: "search" },
     { id: "events", label: "Events", icon: "guide" },
-    { id: "movies", label: "Movies", icon: "play" },
-    { id: "shows", label: "Shows", icon: "multiview" }
+    { id: "movies", label: "Movies", icon: "play" }
   ].map(function(item) {
     return "<button class=\"search-category-tile\" type=\"button\" data-search-type=\"" + escapeHTML(item.id) + "\">" + icon(item.icon) + "<strong>" + escapeHTML(item.label) + "</strong></button>";
   }).join("") + "</div>";
@@ -2277,7 +2309,7 @@ function renderSearchPage() {
     return "<button class=\"search-chip" + (filter === item.id ? " active" : "") + "\" type=\"button\" data-search-type=\"" + escapeHTML(item.id) + "\">" + escapeHTML(item.label) + "</button>";
   }).join("") + "</div>";
   const clear = query ? "<button class=\"search-query-clear\" type=\"button\" data-search-query-clear=\"true\" aria-label=\"Clear search\">" + icon("x") + "</button>" : "";
-  root.innerHTML = "<div class=\"search-page\"><header class=\"search-commandbar\"><div class=\"search-commandbar-title\"><h2>Search</h2><span>Channels, groups, and guide</span></div><div class=\"search-form\"><label class=\"search-input-shell\"><span>" + icon("search") + "</span><input id=\"search-page-input\" class=\"search-field\" value=\"" + escapeHTML(query) + "\" placeholder=\"Channels, programs, movies or shows\" autocomplete=\"off\" spellcheck=\"false\">" + clear + "</label><button class=\"search-cancel\" type=\"button\" data-search-cancel=\"true\">Done</button></div>" + filterHTML + "</header><div id=\"search-page-results\" class=\"search-page-results\" aria-live=\"polite\">" + renderSearchPageResults() + "</div></div>";
+  root.innerHTML = "<div class=\"search-page\"><header class=\"search-commandbar\"><div class=\"search-commandbar-title\"><h2>Search</h2><span>Channels, groups, and guide</span></div><div class=\"search-form\"><label class=\"search-input-shell\"><span>" + icon("search") + "</span><input id=\"search-page-input\" class=\"search-field\" value=\"" + escapeHTML(query) + "\" placeholder=\"Channels, programs, sports, or events\" autocomplete=\"off\" spellcheck=\"false\">" + clear + "</label><button class=\"search-cancel\" type=\"button\" data-search-cancel=\"true\">Done</button></div>" + filterHTML + "</header><div id=\"search-page-results\" class=\"search-page-results\" aria-live=\"polite\">" + renderSearchPageResults() + "</div></div>";
   const input = byId("search-page-input");
   if (input && document.activeElement !== input) {
     setTimeout(function() {
@@ -3198,10 +3230,10 @@ function loadEvents(force) {
   });
 }
 function eventTabLabel(tab) {
-  return ({ live: "Live", upcoming: "Upcoming", all: "All" })[tab] || "Live";
+  return ({ featured: "Featured", live: "Live", upcoming: "Upcoming", all: "All" })[tab] || "Live";
 }
 function eventTabButtonsHTML() {
-  return ["upcoming", "live", "all"].map(function(tab) {
+  return ["featured", "upcoming", "live", "all"].map(function(tab) {
     return "<button type=\"button\" data-event-tab=\"" + tab + "\" class=\"" + (state.eventsTab === tab ? "active" : "") + "\" aria-pressed=\"" + (state.eventsTab === tab ? "true" : "false") + "\">" + escapeHTML(eventTabLabel(tab)) + "</button>";
   }).join("");
 }
@@ -3233,14 +3265,22 @@ function renderEventCategoryFilters(payload) {
 }
 function filteredBroadcastEvents(payload) {
   const now = Math.floor(Date.now() / 1000);
+  const personal = featuredEventMap();
+  const global = adminFeaturedEventMap();
   return items(payload && payload.events).filter(function(event) {
     if (!profileSelectionIsAll() && !uniqueEventChannels(event.channels).length) return false;
     if (state.eventCategory && event.categoryId !== state.eventCategory) return false;
     const live = sportsEventIsLive(event);
+    if (state.eventsTab === "featured" && !global[event.id] && !personal[event.id]) return false;
     if (state.eventsTab === "live" && !live) return false;
     const startUnix = Number(event.startUnix || 0);
     if (state.eventsTab === "upcoming" && (event.completed || live || (startUnix > 0 && startUnix < now - 3600))) return false;
     return true;
+  }).sort(function(left, right) {
+    const leftPriority = global[left.id] ? 4 : (personal[left.id] ? 3 : (sportsEventIsLive(left) ? 2 : 1));
+    const rightPriority = global[right.id] ? 4 : (personal[right.id] ? 3 : (sportsEventIsLive(right) ? 2 : 1));
+    if (leftPriority !== rightPriority) return rightPriority - leftPriority;
+    return Number(left.startUnix || Number.MAX_SAFE_INTEGER) - Number(right.startUnix || Number.MAX_SAFE_INTEGER);
   });
 }
 function broadcastEventMatchesQuery(event) {
@@ -3255,12 +3295,27 @@ function renderBroadcastEventCard(event) {
   const poster = artwork ? "<div class=\"event-poster\"><img src=\"" + escapeHTML(artwork) + "\" alt=\"\" onerror=\"this.closest('.event-poster').remove();\"></div>" : "";
   const cardClass = artwork ? 'class="event-card sports-card' : 'class="event-card no-art sports-card';
   const uniqueChannels = uniqueEventChannels(event.channels);
+  const globallyFeatured = !!adminFeaturedEventMap()[event.id];
+  const personallyFeatured = !!featuredEventMap()[event.id];
+  const featured = globallyFeatured || personallyFeatured;
+  const featureLabel = globallyFeatured ? "Featured by admin" : (personallyFeatured ? "Remove from featured" : "Feature event");
+  const featureControl = "<button type=\"button\" class=\"event-feature-button" + (featured ? " active" : "") + "\" data-event-feature=\"" + escapeHTML(event.id || "") + "\"" + (globallyFeatured ? " disabled" : "") + " aria-label=\"" + escapeHTML(featureLabel) + "\" aria-pressed=\"" + (featured ? "true" : "false") + "\">" + icon(featured ? "heart-solid" : "heart") + "</button>";
   const windows = items(event.windows);
   const meta = [event.keyword || "", windows.length > 1 ? windows.length + " coverage windows" : "", uniqueChannels.length ? uniqueChannels.length + " channel" + (uniqueChannels.length === 1 ? "" : "s") : ""].filter(Boolean).map(function(value, index) { return "<span" + (index === 0 && event.keyword ? " class=\"event-keyword\"" : "") + ">" + escapeHTML(value) + "</span>"; }).join("");
-  return "<article " + cardClass + (sportsEventIsLive(event) ? " live" : "") + '"><header class="event-card-head"><span class="event-card-category">' + escapeHTML(event.categoryName || "Events") + "</span><span class=\"event-card-status\">" + escapeHTML(status) + "</span><strong class=\"event-card-title\" data-overflow-tooltip=\"" + escapeHTML(event.name || title) + "\">" + escapeHTML(title) + "</strong></header>"
+  return "<article " + cardClass + (sportsEventIsLive(event) ? " live" : "") + (featured ? " featured" : "") + '"><header class="event-card-head"><span class="event-card-category">' + escapeHTML(event.categoryName || "Events") + "</span><span class=\"event-card-status\">" + escapeHTML(status) + "</span>" + featureControl + "<strong class=\"event-card-title\" data-overflow-tooltip=\"" + escapeHTML(event.name || title) + "\">" + escapeHTML(title) + "</strong></header>"
     + "<div class=\"event-card-body" + (artwork ? "" : " no-art") + "\">" + poster + "<div class=\"event-details\"><p data-overflow-description=\"true\">" + escapeHTML(event.description || "No event details available.") + "</p><div class=\"event-meta\">" + meta + "</div>" + renderEventBroadcastWindows(event) + "</div></div>"
     + renderBroadcastEventChannels(event)
     + "</article>";
+}
+function toggleFeaturedEvent(eventID) {
+  eventID = String(eventID || "").trim();
+  if (!eventID || adminFeaturedEventMap()[eventID]) return;
+  const featured = Object.assign({}, featuredEventMap());
+  if (featured[eventID]) delete featured[eventID];
+  else featured[eventID] = true;
+  state.app.preferences.featuredEvents = featured;
+  savePrefs();
+  renderEventsPage();
 }
 function renderEventBroadcastWindows(event) {
   const windows = items(event && event.windows);
@@ -3338,7 +3393,6 @@ function categoryGrid() {
   const sourceCategories = sourceCategoriesWithChannels(function(channel) {
     return !(channel.categoryId && hidden[channel.categoryId]);
   });
-  const custom = customGroupCategories();
   const listing = adminListingCategories("");
   const featured = sourceCategories.filter(function(category) { return !!category.featured; }).sort(compareCategoryDisplayName);
   const featuredSourceIDs = {};
@@ -3348,7 +3402,6 @@ function categoryGrid() {
   });
   const sections = [];
   if (featured.length) sections.push(categoryGridSection(featuredGroupLabel(), featured));
-  if (custom.length) sections.push(categoryGridSection("My Groups", custom));
   if (regularListing.length) sections.push(categoryGridSection(adminListingTitle(), regularListing));
   if (!listing.length && sourceCategories.length) sections.push(categoryGridSection(adminListingTitle(), sourceCategories));
   return sections.length ? sections.join("") : "<div class=\"empty\">No groups yet.</div>";
@@ -3566,7 +3619,7 @@ function maybeWarmGuideForChannels(channels, key) {
   postJSON("/dispatcharr/api/guide/ping", { channelIds: channelIds }).then(function(result) {
     if (result && result.refreshing) {
       setTimeout(function() {
-        refreshStatusData().then(function() { return refreshSupplementalData(false); }).then(render).catch(function() {});
+        refreshStatusData().then(function() { return refreshSupplementalData(); }).then(render).catch(function() {});
       }, 12000);
     }
   }).catch(function(error) {
@@ -3911,7 +3964,7 @@ function saveSavedLineupEditor() {
   savePrefs();
   closeSavedLineupEditor();
   render();
-  showAppToast("Saved to My Channels.");
+  showAppToast("Saved lineup.");
 }
 function deleteSavedLineupEditor() {
   const editor = state.savedLineupEditor;
@@ -3924,7 +3977,7 @@ function deleteSavedLineupEditor() {
   savePrefs();
   closeSavedLineupEditor();
   render();
-  showAppToast("Removed from My Channels.");
+  showAppToast("Removed saved lineup.");
 }
 function savedLineupModalHTML(editor) {
   const title = editor.isNew ? "Save Channel List" : "Edit Channel List";
@@ -5225,6 +5278,7 @@ function renderAdminPage() {
     renderAdminCategoryAliasSettings();
   }
   if (state.adminTab === "events") {
+    renderAdminFeaturedEventSettings();
     renderAdminEventKeywordSettings();
   }
   if (state.adminTab === "integrations") {
@@ -5297,7 +5351,8 @@ function renderAdminSettingsTab(tab) {
     return "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Sports</h2><p>Combine live Dispatcharr events with replays from selected Silo Sports libraries.</p></div></div><div id=\"admin-sports-settings\" class=\"settings-list\"></div></div>";
   }
   if (tab === "events") {
-    return "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Event Keywords</h2><p>Events are detected from the Dispatcharr guide. One keyword per line or comma-separated.</p></div></div><div id=\"admin-event-keyword-settings\" class=\"settings-list event-keyword-list\"></div></div>";
+    return "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Featured events</h2><p>Pin important guide events above automatic recommendations for everyone.</p></div></div><div id=\"admin-featured-event-settings\" class=\"settings-list admin-featured-event-list\"></div></div>"
+      + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Event Keywords</h2><p>Events are detected from the Dispatcharr guide. One keyword per line or comma-separated.</p></div></div><div id=\"admin-event-keyword-settings\" class=\"settings-list event-keyword-list\"></div></div>";
   }
   return "<div class=\"settings-card settings-card-compact\"><h2>App identity</h2><div id=\"admin-identity-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card settings-card-compact\"><h2>Recordings</h2><div id=\"admin-recording-settings\" class=\"settings-list\"></div></div>";
@@ -5682,6 +5737,42 @@ function renderAdminEventKeywordSettings() {
     const series = row.eventSeries ? "<div class=\"event-keyword-options\"><label><span>Exclude</span><textarea data-admin-event-keyword-index=\"" + index + "\" data-admin-event-keyword-field=\"excludeKeywords\" aria-label=\"" + escapeHTML(label + " exclusion keywords") + "\">" + escapeHTML(row.excludeKeywords.join("\n")) + "</textarea></label><label class=\"event-window-field\"><span>Coverage window</span><span><input type=\"number\" min=\"15\" max=\"360\" step=\"15\" data-admin-event-keyword-index=\"" + index + "\" data-admin-event-keyword-field=\"groupWindowMinutes\" value=\"" + escapeHTML(String(row.groupWindowMinutes || 60)) + "\"><small>minutes</small></span></label></div>" : "";
     return "<div class=\"settings-row event-keyword-row" + (row.eventSeries ? " event-series-rule" : "") + "\"><span class=\"event-keyword-label\">" + escapeHTML(label) + (row.eventSeries ? "<small>Event series</small>" : "") + "</span><div class=\"event-keyword-fields\"><label><span>Match</span><textarea data-admin-event-keyword-index=\"" + index + "\" data-admin-event-keyword-field=\"keywords\" aria-label=\"" + escapeHTML(label + " event keywords") + "\">" + escapeHTML(row.keywords.join("\n")) + "</textarea></label>" + series + "</div></div>";
   }).join("");
+}
+function renderAdminFeaturedEventSettings() {
+  const root = byId("admin-featured-event-settings");
+  if (!root) return;
+  if (!state.events && !state.eventsLoading) {
+    state.eventsLoading = true;
+    getJSON("/dispatcharr/api/events").then(function(payload) {
+      state.events = payload || { events: [], categories: [] };
+    }).catch(function(error) {
+      state.events = { events: [], categories: [], error: readableError(error) };
+    }).finally(function() {
+      state.eventsLoading = false;
+      if (state.view === "admin" && state.adminTab === "events") renderAdminPage();
+    });
+  }
+  const selected = adminFeaturedEventMap();
+  const events = items(state.events && state.events.events).filter(function(event) {
+    return !event.completed || selected[event.id];
+  }).sort(function(left, right) {
+    if (!!selected[left.id] !== !!selected[right.id]) return selected[left.id] ? -1 : 1;
+    if (sportsEventIsLive(left) !== sportsEventIsLive(right)) return sportsEventIsLive(left) ? -1 : 1;
+    return Number(left.startUnix || Number.MAX_SAFE_INTEGER) - Number(right.startUnix || Number.MAX_SAFE_INTEGER);
+  }).slice(0, 40);
+  if (state.eventsLoading && !events.length) {
+    root.innerHTML = "<div class=\"settings-note\">Loading detected events...</div>";
+    return;
+  }
+  if (!events.length) {
+    root.innerHTML = "<div class=\"settings-note" + (state.events && state.events.error ? " settings-warning" : "") + "\">" + escapeHTML((state.events && state.events.error) || "No upcoming guide events are currently detected.") + "</div>";
+    return;
+  }
+  root.innerHTML = "<div class=\"admin-featured-event-grid\">" + events.map(function(event) {
+    const checked = !!selected[event.id];
+    const status = sportsEventIsLive(event) ? "Live now" : eventStatusLabel(event);
+    return "<label class=\"admin-featured-event-row\"><span><strong>" + escapeHTML(event.shortName || event.name || "Event") + "</strong><small>" + escapeHTML([event.categoryName, status].filter(Boolean).join(" · ")) + "</small></span><input type=\"checkbox\" data-admin-featured-event-id=\"" + escapeHTML(event.id || "") + "\"" + (checked ? " checked" : "") + "></label>";
+  }).join("") + "</div>";
 }
 function updateAdminEventKeywords(index, field, value) {
   const settings = state.adminCategorySettings || defaultAdminCategorySettings();
@@ -6666,6 +6757,12 @@ document.addEventListener("click", function(event) {
     toggleBroadcastEventChannels(eventExpand.getAttribute("data-event-expand"));
     return;
   }
+  const eventFeature = event.target.closest("[data-event-feature]");
+  if (eventFeature) {
+    event.preventDefault();
+    toggleFeaturedEvent(eventFeature.getAttribute("data-event-feature"));
+    return;
+  }
   const recordingPlayback = event.target.closest("[data-recording-playback]");
   if (recordingPlayback) {
     event.preventDefault();
@@ -7131,6 +7228,19 @@ document.addEventListener("input", function(event) {
       input.focus();
       input.setSelectionRange(input.value.length, input.value.length);
     }
+    return;
+  }
+  const adminFeaturedEventID = event.target.getAttribute("data-admin-featured-event-id");
+  if (adminFeaturedEventID) {
+    const settings = state.adminCategorySettings || defaultAdminCategorySettings();
+    const selected = {};
+    items(settings.featuredEventIds).forEach(function(id) { selected[String(id || "")] = true; });
+    if (event.target.checked) selected[adminFeaturedEventID] = true;
+    else delete selected[adminFeaturedEventID];
+    settings.featuredEventIds = Object.keys(selected);
+    state.adminCategorySettings = settings;
+    markAdminSettingsDraft();
+    renderAdminTopbarActions();
     return;
   }
   const adminCategoryField = event.target.getAttribute("data-admin-category-field");

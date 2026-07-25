@@ -315,6 +315,9 @@ func detectGuideBroadcastEvents(snapshot cache.Snapshot, now time.Time, rules []
 		if !ok {
 			continue
 		}
+		if !eventChannelPlausible(rule.CategoryID, channel, categoryNames[channel.CategoryID]) {
+			continue
+		}
 		key := broadcastProgramMergeKey(program, rule.CategoryID)
 		event := byKey[key]
 		if event == nil {
@@ -355,12 +358,13 @@ func detectGuideBroadcastEvents(snapshot cache.Snapshot, now time.Time, rules []
 }
 
 func matchEventKeyword(program model.Program, rules []EventKeywordRule) (EventKeywordRule, string, bool) {
-	text := normalizeMatchText(strings.Join([]string{program.Title, program.Summary}, " "))
+	titleText := normalizeMatchText(program.Title)
+	exclusionText := normalizeMatchText(strings.Join([]string{program.Title, program.Summary}, " "))
 	for _, rule := range rules {
 		for _, keyword := range rule.Keywords {
 			normalizedKeyword := normalizeMatchText(keyword)
-			if normalizedKeyword != "" && strings.Contains(" "+text+" ", " "+normalizedKeyword+" ") {
-				if matchEventExclusion(text, rule.ExcludeKeywords) {
+			if normalizedKeyword != "" && strings.Contains(" "+titleText+" ", " "+normalizedKeyword+" ") {
+				if matchEventExclusion(exclusionText, rule.ExcludeKeywords) {
 					break
 				}
 				return rule, keyword, true
@@ -368,6 +372,28 @@ func matchEventKeyword(program model.Program, rules []EventKeywordRule) (EventKe
 		}
 	}
 	return EventKeywordRule{}, "", false
+}
+
+func eventChannelPlausible(categoryID string, channel model.Channel, categoryName string) bool {
+	switch categoryID {
+	case "golf", "motor-racing", "combat-sports", "tennis":
+	default:
+		return true
+	}
+	text := normalizeMatchText(strings.Join([]string{channel.Name, channel.CategoryName, categoryName}, " "))
+	sportsSignals := []string{"sport", "sports", "espn", "golf", "tennis", "racing", "formula", "motor", "ufc", "fight", "boxing", "mma", "ppv", "event"}
+	for _, signal := range sportsSignals {
+		if strings.Contains(" "+text+" ", " "+signal+" ") {
+			return true
+		}
+	}
+	nonSportsSignals := []string{"music", "kids", "religion", "movie", "entertainment", "persian", "news"}
+	for _, signal := range nonSportsSignals {
+		if strings.Contains(" "+text+" ", " "+signal+" ") {
+			return false
+		}
+	}
+	return true
 }
 
 func matchEventExclusion(normalizedText string, exclusions []string) bool {

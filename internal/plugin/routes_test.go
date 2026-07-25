@@ -332,7 +332,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`function recordingSchedulingEnabled()`,
 		`/dispatcharr/api/recordings/capability`,
 		`Scheduling requires a Dispatcharr admin account or Admin API Key.`,
-		`Channels, programs, movies or shows`,
+		`Channels, programs, sports, or events`,
 		`function renderSportsPage()`,
 		`function renderSportsTopbarTabs()`,
 		`state.sportsReplayStandaloneEvents = [];`,
@@ -493,7 +493,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		!strings.Contains(body, `+ sectionHeaderWithActions("TV Guide", "<button type=\"button\" class=\"section-action\" data-view=\"guide\">Open Guide</button>" + guideFreshnessHTML())`) ||
 		!strings.Contains(body, `+ renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true })`) ||
 		!strings.Contains(body, `+ categoryGrid();`) {
-		t.Fatalf("expected home page order to be My Channels, continue watching, favorites, guide grid, then group sections")
+		t.Fatalf("expected home page order to be saved lineups, continue watching, favorites, guide grid, then group sections")
 	}
 	virtualWorkspaceIndex := strings.Index(body, `const browseOnly = !useGroupSelector && children.length > 0;`)
 	virtualHeaderIndex := strings.Index(body, `const folderHeader = virtualFolderHeader(path, featured, !browseOnly)`)
@@ -525,7 +525,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if strings.Index(filterFunction, `folder-filter-actions`) > strings.Index(filterFunction, `id=\"folder-filter\"`) {
 		t.Fatalf("expected Xtream-style category picker before the folder search")
 	}
-	for _, want := range []string{`savedLineups: []`, `function renderSavedLineupsHome()`, `Hide final groups`, `renderFolderGroupPicker(children, state.savedLineupGroupCategoryID, "saved")`, `Saved to My Channels.`} {
+	for _, want := range []string{`savedLineups: []`, `function renderSavedLineupsHome()`, `Hide final groups`, `renderFolderGroupPicker(children, state.savedLineupGroupCategoryID, "saved")`, `Saved lineup.`} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected saved lineup UI contract %q", want)
 		}
@@ -600,6 +600,8 @@ func TestManifestDeclaresPublicApplicationRoutesOnly(t *testing.T) {
 		"POST /dispatcharr/api/hidden-categories",
 		"GET /dispatcharr/api/playback",
 		"POST /dispatcharr/api/playback",
+		"GET /dispatcharr/api/vod",
+		"GET /dispatcharr/api/series",
 	} {
 		if seen[route] {
 			t.Fatalf("manifest must not advertise process-global user state route %s", route)
@@ -3445,12 +3447,18 @@ func TestPlayerAppUsesLightweightRefreshPolling(t *testing.T) {
 	for _, marker := range []string{
 		`getJSON("/dispatcharr/api/status")`,
 		`getJSON("/dispatcharr/api/guide")`,
-		`getJSON("/dispatcharr/api/vod")`,
-		`getJSON("/dispatcharr/api/series")`,
 		`attempt < 300`,
 	} {
 		if !strings.Contains(script, marker) {
 			t.Fatalf("expected lightweight refresh marker %q", marker)
+		}
+	}
+	for _, obsolete := range []string{
+		`getJSON("/dispatcharr/api/vod")`,
+		`getJSON("/dispatcharr/api/series")`,
+	} {
+		if strings.Contains(script, obsolete) {
+			t.Fatalf("player must not request unsupported content endpoint %q", obsolete)
 		}
 	}
 }
