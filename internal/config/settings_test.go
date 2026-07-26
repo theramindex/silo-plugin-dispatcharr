@@ -235,7 +235,7 @@ func TestUserConfigSchema_DeclaresAdminCategorySettingsShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected admin category settings schema properties, got %q", adminSettings.GetJsonSchema())
 	}
-	for _, key := range []string{"mode", "delimiter", "virtualGroupLabel", "appDisplayName", "virtualGroupSource", "ecmEnabled", "ecmURL", "allowRecordingsByDefault", "sportsFirstPlayerEnabled", "liveRewindEnabled", "liveRewindCacheGB", "liveRewindWindowMinutes", "liveRewindMinFreeGB", "liveRewindMaxChannels", "collapseDuplicateVirtualGroups", "inferChannelNameGroups", "categoryRenames", "categoryAliases", "featuredEventIds", "eventKeywords"} {
+	for _, key := range []string{"mode", "delimiter", "virtualGroupLabel", "appDisplayName", "virtualGroupSource", "ecmEnabled", "ecmURL", "allowRecordingsByDefault", "sportsFirstPlayerEnabled", "hlsBufferSeconds", "sportsEnabled", "sportsLibraryIds", "liveRewindEnabled", "liveRewindCacheGB", "liveRewindWindowMinutes", "liveRewindMinFreeGB", "liveRewindMaxChannels", "collapseDuplicateVirtualGroups", "flattenRedundantGroupWrappers", "inferChannelNameGroups", "categoryRenames", "categoryAliases", "featuredEventIds", "eventKeywords"} {
 		if _, ok := properties[key]; !ok {
 			t.Fatalf("expected admin category settings schema to declare %q", key)
 		}
@@ -247,8 +247,49 @@ func TestUserConfigSchema_DeclaresAdminCategorySettingsShape(t *testing.T) {
 	if property, ok := properties["sportsFirstPlayerEnabled"].(map[string]any); !ok || property["default"] != false {
 		t.Fatalf("expected sportsFirstPlayerEnabled schema default to be false, got %+v", properties["sportsFirstPlayerEnabled"])
 	}
+	if property, ok := properties["hlsBufferSeconds"].(map[string]any); !ok || property["default"] != float64(12) || property["minimum"] != float64(5) || property["maximum"] != float64(60) {
+		t.Fatalf("expected hlsBufferSeconds schema bounds/default, got %+v", properties["hlsBufferSeconds"])
+	}
+	if property, ok := properties["flattenRedundantGroupWrappers"].(map[string]any); !ok || property["default"] != true {
+		t.Fatalf("expected flattenRedundantGroupWrappers schema default to be true, got %+v", properties["flattenRedundantGroupWrappers"])
+	}
 	if additionalProperties, ok := schema["additionalProperties"].(bool); !ok || additionalProperties {
 		t.Fatalf("expected admin category settings schema to reject unknown keys, got %+v", schema["additionalProperties"])
+	}
+}
+
+func TestGlobalConfigSchema_AcceptsCompleteAdminSettings(t *testing.T) {
+	t.Parallel()
+
+	manifest := &pluginv1.PluginManifest{GlobalConfigSchema: GlobalConfigSchema()}
+	value := map[string]any{
+		"mode":                           "delimiter",
+		"delimiter":                      "pipe",
+		"virtualGroupLabel":              "Things",
+		"appDisplayName":                 "Live TV (Dispatcharr)",
+		"virtualGroupSource":             "profile_group",
+		"ecmEnabled":                     false,
+		"ecmURL":                         "",
+		"allowRecordingsByDefault":       true,
+		"sportsFirstPlayerEnabled":       true,
+		"hlsBufferSeconds":               12,
+		"sportsEnabled":                  true,
+		"sportsLibraryIds":               []any{1, 2},
+		"liveRewindEnabled":              true,
+		"liveRewindCacheGB":              5,
+		"liveRewindWindowMinutes":        30,
+		"liveRewindMinFreeGB":            2,
+		"liveRewindMaxChannels":          20,
+		"collapseDuplicateVirtualGroups": true,
+		"flattenRedundantGroupWrappers":  true,
+		"inferChannelNameGroups":         false,
+		"categoryRenames":                []any{},
+		"categoryAliases":                []any{},
+		"featuredEventIds":               []any{},
+		"eventKeywords":                  []any{},
+	}
+	if err := sdkconfig.ValidateManifestGlobalValue(manifest, "category_settings", value); err != nil {
+		t.Fatalf("expected complete admin settings to satisfy the SDK global config schema: %v", err)
 	}
 }
 
