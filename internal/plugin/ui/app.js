@@ -828,6 +828,21 @@ async function getJSON(url) {
   if (!response.ok) throw await requestError(response);
   return response.json();
 }
+async function getJSONWithin(url, timeoutMs, timeoutMessage) {
+  if (typeof AbortController === "undefined") return getJSON(url);
+  const controller = new AbortController();
+  const timer = setTimeout(function() { controller.abort(); }, Math.max(1000, Number(timeoutMs || 0)));
+  try {
+    const response = await coreFetch(route(url), { signal: controller.signal });
+    if (!response.ok) throw await requestError(response);
+    return response.json();
+  } catch (error) {
+    if (error && error.name === "AbortError") throw new Error(timeoutMessage || "The request took too long. Try again.");
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 async function postJSON(url, body) {
   const response = await coreFetch(route(url), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   if (!response.ok) throw await requestError(response);
@@ -2642,7 +2657,7 @@ function loadSports(force, preparedOnly) {
   if (state.sports && !force) return Promise.resolve(state.sports);
   if (force && !preparedOnly) stopSportsPoll(true);
   state.sportsLoading = true;
-  return getJSON("/dispatcharr/api/sports" + (force && !preparedOnly ? "?refresh=1" : "")).then(function(payload) {
+  return getJSONWithin("/dispatcharr/api/sports" + (force && !preparedOnly ? "?refresh=1" : ""), 12000, "Sports data took too long to respond. Try again.").then(function(payload) {
     state.sports = payload || { events: [], leagues: [] };
     applySportsFavoritesToPayload();
     loadSportsReplays(force && !preparedOnly);
@@ -4831,7 +4846,7 @@ function guideVisibleRange(totalRows, scrollTop, viewportHeight, rowHeight, head
   const overscan = guideWindowOverscan();
   const rowsScrollTop = Math.max(0, scrollTop - headerHeight);
   const start = Math.max(0, Math.floor(rowsScrollTop / rowHeight) - overscan);
-  const end = Math.min(totalRows, start + Math.min(60, visibleRows + overscan * 2));
+  const end = Math.min(totalRows, start + Math.min(40, visibleRows + overscan * 2));
   return { start: start, end: end };
 }
 function renderGuideWindow(force) {

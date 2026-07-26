@@ -105,7 +105,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .shell.is-sports .topbar, .shell.is-events .topbar { justify-content: flex-start; }
 .shell.is-sports .topbar .search, .shell.is-events .topbar .search { display: none; }
 .shell.is-sports .main, .shell.is-events .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
-.shell.is-sports #view, .shell.is-events #view { min-height: 0; overflow: hidden; }
+.shell.is-sports #view, .shell.is-events #view { min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-bottom: max(2rem, env(safe-area-inset-bottom)); }
 .shell.is-guide .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; padding-bottom: 0; }
 .shell.is-guide #view { min-height: 0; overflow: hidden; }
 .shell.is-guide .guide-page { min-height: 0; height: 100%; max-height: none; }

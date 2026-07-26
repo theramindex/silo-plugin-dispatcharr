@@ -15,6 +15,7 @@ import (
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
 )
 
@@ -339,6 +340,65 @@ func TestSportsRouteReturnsWhilePreparedPayloadBuildRuns(t *testing.T) {
 	if calls := provider.calls.Load(); calls != 1 {
 		t.Fatalf("expected one background provider call, got %d", calls)
 	}
+}
+
+func TestSportsRouteReturnsGuideFallbackWhileProviderBuildRuns(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{
+		Catalog: model.CatalogState{
+			Channels: []model.Channel{{ID: "channel:wnba", Name: "WNBA League Pass", CategoryID: "sports", CategoryName: "US Sports | WNBA"}},
+			Programs: []model.Program{{ID: "program:wnba", ChannelID: "channel:wnba", Title: "Indiana Fever vs Las Vegas Aces", StartUnix: now.Add(-time.Hour).Unix(), EndUnix: now.Add(time.Hour).Unix()}},
+		},
+		Health: model.SyncHealth{EPGLastSuccessUnix: now.Add(-time.Minute).Unix()},
+	})
+	provider := &blockingSportsProvider{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	server := NewHTTPRoutesServer(store)
+	server.sportsProvider = provider
+
+	payload := fetchSportsPayloadOnce(t, server, false)
+	if !payload.Refreshing || payload.Source != "EPG fallback" || len(payload.Events) != 1 {
+		t.Fatalf("expected immediate EPG fallback while provider builds, got %+v", payload)
+	}
+	if len(payload.Events[0].Channels) != 1 || payload.Events[0].Channels[0].ID != "channel:wnba" {
+		t.Fatalf("expected guide channel match in fallback, got %+v", payload.Events[0].Channels)
+	}
+	close(provider.release)
+}
+
+func TestSportsRouteDoesNotWaitForCatalogHydration(t *testing.T) {
+	t.Parallel()
+
+	block := make(chan struct{})
+	store := cache.NewStore()
+	syncer := &stubCatalogSyncer{store: store, block: block}
+	settings := config.Settings{
+		SourceMode:        config.SourceModeAPIKey,
+		DispatcharrURL:    "https://dispatcharr.example.com",
+		DispatcharrAPIKey: "secret",
+	}
+	server := NewHTTPRoutesServerWithSyncer(store, func() config.Settings { return settings }, syncer)
+
+	startedAt := time.Now()
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/dispatcharr/api/sports"})
+	if err != nil {
+		close(block)
+		t.Fatalf("sports route: %v", err)
+	}
+	if elapsed := time.Since(startedAt); elapsed > 250*time.Millisecond {
+		close(block)
+		t.Fatalf("sports route waited for catalog hydration: %s", elapsed)
+	}
+	if response.GetStatusCode() != http.StatusOK {
+		close(block)
+		t.Fatalf("expected 200, got %d", response.GetStatusCode())
+	}
+	close(block)
 }
 
 func TestMatchSportsChannelsDoesNotUseLeagueOnlyGroups(t *testing.T) {

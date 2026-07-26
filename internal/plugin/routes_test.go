@@ -1676,7 +1676,7 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 	restoredGuideScroll.querySelector = function(selector) { return selector === ".time-head" ? { offsetHeight: 32 } : null; };
 	renderGuideWindow(true);
 	const renderedGuideRows = (document.getElementById("epg").innerHTML.match(/class="epg-row"/g) || []).length;
-	const guideWindowBounded = state.guideWindowStart > 0 && renderedGuideRows > 0 && renderedGuideRows <= 60 && renderedGuideRows === state.guideWindowEnd - state.guideWindowStart;
+	const guideWindowBounded = state.guideWindowStart > 0 && renderedGuideRows > 0 && renderedGuideRows <= 40 && renderedGuideRows === state.guideWindowEnd - state.guideWindowStart;
 	const originalPreferences = state.app.preferences;
 	const originalPrograms = state.app.programs;
 	state.app.preferences = defaultPrefs();
@@ -3331,6 +3331,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.shell.is-guide #view { min-height: 0; overflow: hidden; }`,
 		`.shell.is-guide .guide-page { min-height: 0; height: 100%; max-height: none; }`,
 		`.shell.is-guide .guide-scroll { min-height: 0; }`,
+		`.shell.is-sports #view, .shell.is-events #view { min-height: 0; overflow-x: hidden; overflow-y: auto;`,
 		`.guide-window-spacer`,
 		`.guide-window`,
 		`.recovery-panel`,
@@ -3376,6 +3377,12 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`@media (prefers-reduced-motion: reduce)`,
 	} {
 		requireStyle(want)
+	}
+	loadSports := functionBody("loadSports")
+	for _, want := range []string{`getJSONWithin`, `12000`, `Sports data took too long to respond`} {
+		if !strings.Contains(loadSports, want) {
+			t.Fatalf("sports loading must include terminal request handling %q", want)
+		}
 	}
 	if !strings.Contains(compactStyles, `.sports-card{`) || !strings.Contains(compactStyles, `.admin-status-strip{`) || !strings.Contains(compactStyles, `.custom-group-browser,.custom-group-members{`) || !strings.Contains(compactStyles, `border-radius:0.5rem;`) {
 		t.Fatal("non-pill sports cards must keep an 8px-or-smaller radius")
