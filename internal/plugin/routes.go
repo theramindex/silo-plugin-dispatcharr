@@ -44,6 +44,8 @@ type HTTPRoutesServer struct {
 	connectionTester    func(context.Context, config.ConnectionSettings) error
 	coordinator         *RefreshCoordinator
 	hydrateMu           sync.Mutex
+	hydrateBackgroundMu sync.Mutex
+	hydrateBackground   bool
 	refreshMu           sync.Mutex
 	guideWarmLastUnix   int64
 	profileWarmLastUnix int64
@@ -304,12 +306,12 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 	case "/dispatcharr/api/timeshift/clear":
 		return s.handleTimeShiftClear(request), nil
 	case "/dispatcharr/api/sports":
-		s.ensureCatalogHydrated(ctx)
+		s.ensureCatalogHydratedAsync()
 		return s.handleSports(ctx, request)
 	case "/dispatcharr/api/sports/favorites":
 		return s.handleSportsFavorite(request)
 	case "/dispatcharr/api/events":
-		s.ensureCatalogHydrated(ctx)
+		s.ensureCatalogHydratedAsync()
 		return s.handleEvents(ctx, request)
 	case "/dispatcharr/api/preferences":
 		return s.handlePreferences(request)
@@ -396,6 +398,38 @@ func (s *HTTPRoutesServer) ensureCatalogHydrated(ctx context.Context) {
 	if len(s.store.Current().Catalog.Programs) == 0 || (tightDeadline && (sourceMode == config.SourceModeDirectLogin || sourceMode == config.SourceModeAPIKey)) {
 		_, _ = s.startBackgroundGuideWarm(settings)
 	}
+}
+
+func (s *HTTPRoutesServer) ensureCatalogHydratedAsync() {
+	if s.coordinator == nil || s.settingsProvider == nil {
+		return
+	}
+
+	settings := s.settingsProvider()
+	current := s.store.Current()
+	if len(current.Catalog.Channels) > 0 && catalogSnapshotMatchesSettings(current, settings) {
+		s.startBackgroundProfileWarm(current, settings)
+		return
+	}
+
+	s.hydrateBackgroundMu.Lock()
+	if s.hydrateBackground {
+		s.hydrateBackgroundMu.Unlock()
+		return
+	}
+	s.hydrateBackground = true
+	s.hydrateBackgroundMu.Unlock()
+
+	go func() {
+		defer func() {
+			s.hydrateBackgroundMu.Lock()
+			s.hydrateBackground = false
+			s.hydrateBackgroundMu.Unlock()
+		}()
+		ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+		defer cancel()
+		s.ensureCatalogHydrated(ctx)
+	}()
 }
 
 func catalogRequestHasTightDeadline(ctx context.Context) bool {

@@ -464,6 +464,18 @@ func (s *HTTPRoutesServer) preparedSportsPayload(refresh bool) SportsPayload {
 		}
 		payload.Source = provider.Source()
 	}
+	if !s.sportsPrepared.Ready && len(payload.Events) == 0 {
+		snapshot := s.store.Current()
+		if guideEvents := sportsEventsFromGuide(snapshot, now); len(guideEvents) > 0 {
+			payload.Events = guideEvents
+			payload.Leagues = sportsLeagues(guideEvents)
+			payload.Source = "EPG fallback"
+			payload.UpdatedAtUnix = snapshot.Health.EPGLastSuccessUnix
+			if payload.UpdatedAtUnix <= 0 {
+				payload.UpdatedAtUnix = now.Unix()
+			}
+		}
+	}
 	s.sportsPreparedMu.Unlock()
 	return payload
 }
