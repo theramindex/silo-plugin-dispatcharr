@@ -134,6 +134,12 @@ const categorySettingsJSONSchema = `{
       "type": "boolean",
       "default": false
     },
+    "hlsBufferSeconds": {
+      "type": "integer",
+      "minimum": 5,
+      "maximum": 60,
+      "default": 12
+    },
     "sportsEnabled": {
       "type": "boolean",
       "default": true
@@ -179,6 +185,10 @@ const categorySettingsJSONSchema = `{
       "default": "group"
     },
     "collapseDuplicateVirtualGroups": {
+      "type": "boolean",
+      "default": true
+    },
+    "flattenRedundantGroupWrappers": {
       "type": "boolean",
       "default": true
     },
