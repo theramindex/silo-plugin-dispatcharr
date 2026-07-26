@@ -5389,8 +5389,8 @@ function setAdminTab(tab) {
 }
 function renderAdminSettingsTab(tab) {
   if (tab === "playback") {
-    return "<div class=\"settings-card settings-card-compact\"><h2>Player</h2><div id=\"admin-player-settings\" class=\"settings-list\"></div></div>"
-      + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Live Rewind</h2><p>Bounded shared channel buffers for pause and rewind.</p></div></div><div id=\"admin-timeshift-settings\" class=\"settings-list\"></div></div>";
+    return "<div class=\"settings-card playback-streaming-card\"><div class=\"settings-card-head\"><div><h2>Streaming</h2><p>Balance playback stability against live-stream delay.</p></div></div><div id=\"admin-player-settings\"></div></div>"
+      + "<div class=\"settings-card playback-rewind-card\"><div class=\"settings-card-head playback-rewind-head\"><div><h2>Live Rewind</h2><p>Pause and rewind supported channels with a bounded shared disk cache.</p></div><div id=\"admin-timeshift-toggle\"></div></div><div id=\"admin-timeshift-settings\"></div></div>";
   }
   if (tab === "organization") {
     return "<div id=\"admin-category-settings\" class=\"organization-settings-root\"></div>";
@@ -5425,8 +5425,7 @@ function renderAdminPlayerSettings() {
   const root = byId("admin-player-settings");
   if (!root) return;
   const settings = adminSettings();
-  root.innerHTML = "<label class=\"settings-row compact-row\"><span><strong>Sports-first player</strong><small>Open the score and matched-channel player only for channels launched from Sports.</small></span><input type=\"checkbox\" data-admin-player-field=\"sports\"" + (settings.sportsFirstPlayerEnabled ? " checked" : "") + "></label>"
-    + "<label class=\"settings-row compact-row\"><span><strong>HLS resilience buffer</strong><small>Keep this many seconds of live HLS in browser memory. Higher values tolerate unstable connections but increase delay.</small></span><span class=\"settings-unit-field\"><input type=\"number\" min=\"5\" max=\"60\" step=\"1\" value=\"" + escapeHTML(boundedHLSBufferSeconds(settings.hlsBufferSeconds)) + "\" data-admin-player-field=\"hls-buffer\"><em>seconds</em></span></label>";
+  root.innerHTML = "<label class=\"playback-setting\"><span class=\"settings-field-copy\"><strong>HLS buffer</strong><small>Browser memory used to absorb short connection drops.</small></span><span class=\"settings-unit-field\"><input type=\"number\" min=\"5\" max=\"60\" step=\"1\" value=\"" + escapeHTML(boundedHLSBufferSeconds(settings.hlsBufferSeconds)) + "\" data-admin-player-field=\"hls-buffer\"><em>sec</em></span></label>";
 }
 function renderAdminSportsSettings() {
   const root = byId("admin-sports-settings");
@@ -5453,6 +5452,7 @@ function renderAdminSportsSettings() {
   }
   root.innerHTML = adminSaveStatusHTML()
     + "<label class=\"settings-row compact-row\"><span><strong>Enable Sports</strong><small>Show live scores and channels. Replays appear only when they match items in the selected libraries.</small></span><input type=\"checkbox\" data-admin-sports-field=\"enabled\"" + (settings.sportsEnabled ? " checked" : "") + "></label>"
+    + "<label class=\"settings-row compact-row\"><span><strong>Sports-first player</strong><small>Use the score and matched-channel player when a channel is launched from Sports.</small></span><input type=\"checkbox\" data-admin-player-field=\"sports\"" + (settings.sportsFirstPlayerEnabled ? " checked" : "") + (settings.sportsEnabled ? "" : " disabled") + "></label>"
     + "<div class=\"settings-card-head sports-library-head\"><div><h3>Replay libraries</h3><p>Select only dedicated Sports libraries. Each user still sees only libraries their Silo profile can access.</p></div><span class=\"profile-selection-summary\">" + configuredSportsLibraryIDs().length + " selected</span></div>"
     + libraryHTML;
   if (!state.sportsLibraries && !state.sportsLibrariesLoading) loadSportsLibraries(false);
@@ -5465,19 +5465,38 @@ function byteSizeLabel(value) {
 }
 function renderAdminTimeShiftSettings() {
   const root = byId("admin-timeshift-settings");
+  const toggleRoot = byId("admin-timeshift-toggle");
   if (!root) return;
   const settings = adminSettings();
   const status = state.timeShiftAdminStatus || {};
   const direct = isDispatcharrDirectSource();
+  const enabled = direct && settings.liveRewindEnabled;
+  const disabled = enabled ? "" : " disabled";
   const usage = state.timeShiftAdminLoading ? "Loading cache usage..." : (status.unavailable ? "Cache status is unavailable." : (state.timeShiftAdminStatus ? byteSizeLabel(status.bytes) + " of " + byteSizeLabel(status.maxBytes) + " · " + String(status.activeBuffers || 0) + " buffered channels · " + String(status.activeLeases || 0) + " viewers" : "Usage has not been checked yet."));
-  const windows = [15, 30, 60, 90, 120].map(function(minutes) { return "<option value=\"" + minutes + "\"" + (Number(settings.liveRewindWindowMinutes) === minutes ? " selected" : "") + ">" + minutes + " minutes</option>"; }).join("");
+  const windowOptions = [
+    { value: 15, label: "15 min" },
+    { value: 30, label: "30 min" },
+    { value: 60, label: "1 hr" },
+    { value: 90, label: "90 min" },
+    { value: 120, label: "2 hr" }
+  ].map(function(option) {
+    const selected = Number(settings.liveRewindWindowMinutes) === option.value;
+    return "<button type=\"button\" role=\"radio\" aria-checked=\"" + (selected ? "true" : "false") + "\" class=\"" + (selected ? "active" : "") + "\" data-admin-rewind-window=\"" + option.value + "\"" + disabled + ">" + option.label + "</button>";
+  }).join("");
+  if (toggleRoot) {
+    toggleRoot.innerHTML = "<label class=\"playback-master-toggle\"><span>" + (settings.liveRewindEnabled ? "On" : "Off") + "</span><input type=\"checkbox\" data-admin-timeshift-field=\"enabled\"" + (settings.liveRewindEnabled ? " checked" : "") + (direct ? "" : " disabled") + "></label>";
+  }
   root.innerHTML = adminSaveStatusHTML()
-    + "<label class=\"settings-row compact-row\"><span><strong>Enable Live Rewind</strong><small>Dispatcharr Direct MPEG-TS only. Unsupported channels fall back to normal playback.</small></span><input type=\"checkbox\" data-admin-timeshift-field=\"enabled\"" + (settings.liveRewindEnabled ? " checked" : "") + (direct ? "" : " disabled") + "></label>"
-    + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Total cache budget</strong><small>Shared across every user and buffered channel.</small></span><div class=\"settings-number-unit\"><input type=\"number\" min=\"1\" max=\"500\" step=\"1\" data-admin-timeshift-field=\"cache\" value=\"" + escapeHTML(String(settings.liveRewindCacheGB)) + "\"><span>GB</span></div></div>"
-    + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Maximum rewind window</strong><small>Oldest segments are removed first.</small></span><select data-admin-timeshift-field=\"window\">" + windows + "</select></div>"
-    + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Minimum free disk space</strong><small>Eviction starts before the server reaches this reserve.</small></span><div class=\"settings-number-unit\"><input type=\"number\" min=\"1\" max=\"100\" step=\"1\" data-admin-timeshift-field=\"free\" value=\"" + escapeHTML(String(settings.liveRewindMinFreeGB)) + "\"><span>GB</span></div></div>"
-    + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Maximum buffered channels</strong><small>Additional channels continue with normal live playback.</small></span><input type=\"number\" min=\"1\" max=\"100\" step=\"1\" data-admin-timeshift-field=\"channels\" value=\"" + escapeHTML(String(settings.liveRewindMaxChannels)) + "\"></div>"
-    + "<div class=\"settings-row compact-row timeshift-usage-row\"><span><strong>Cache usage</strong><small>" + escapeHTML(usage) + "</small></span><div class=\"settings-inline-actions\"><button type=\"button\" data-timeshift-admin-action=\"refresh\">Refresh</button><button type=\"button\" data-timeshift-admin-action=\"clear\" class=\"danger\">Clear cache</button></div></div>";
+    + (!direct ? "<div class=\"settings-note settings-warning\">Live Rewind requires Dispatcharr Direct MPEG-TS playback.</div>" : "")
+    + "<div class=\"timeshift-controls" + (enabled ? "" : " is-disabled") + "\">"
+    + "<div class=\"timeshift-window\"><span class=\"settings-field-copy\"><strong>Rewind window</strong><small>Older segments are removed first.</small></span><div class=\"settings-segmented\" role=\"radiogroup\" aria-label=\"Maximum rewind window\">" + windowOptions + "</div></div>"
+    + "<div class=\"timeshift-metrics\">"
+    + "<label class=\"timeshift-metric\"><span><strong>Storage budget</strong><small>Shared cache</small></span><span class=\"settings-number-unit\"><input type=\"number\" min=\"1\" max=\"500\" step=\"1\" data-admin-timeshift-field=\"cache\" value=\"" + escapeHTML(String(settings.liveRewindCacheGB)) + "\"" + disabled + "><em>GB</em></span></label>"
+    + "<label class=\"timeshift-metric\"><span><strong>Keep free</strong><small>Disk reserve</small></span><span class=\"settings-number-unit\"><input type=\"number\" min=\"1\" max=\"100\" step=\"1\" data-admin-timeshift-field=\"free\" value=\"" + escapeHTML(String(settings.liveRewindMinFreeGB)) + "\"" + disabled + "><em>GB</em></span></label>"
+    + "<label class=\"timeshift-metric\"><span><strong>Channel limit</strong><small>Concurrent buffers</small></span><input type=\"number\" min=\"1\" max=\"100\" step=\"1\" data-admin-timeshift-field=\"channels\" value=\"" + escapeHTML(String(settings.liveRewindMaxChannels)) + "\"" + disabled + "></label>"
+    + "</div>"
+    + "<div class=\"timeshift-usage-row\"><span class=\"settings-field-copy\"><strong>Cache usage</strong><small>" + escapeHTML(usage) + "</small></span><div class=\"settings-inline-actions\"><button type=\"button\" data-timeshift-admin-action=\"refresh\">Refresh</button><button type=\"button\" data-timeshift-admin-action=\"clear\" class=\"danger\">Clear cache</button></div></div>"
+    + "</div>";
   if (!state.timeShiftAdminStatus && !state.timeShiftAdminLoading) refreshAdminTimeShiftStatus(true);
 }
 async function refreshAdminTimeShiftStatus(quiet) {
@@ -6520,6 +6539,12 @@ document.addEventListener("click", function(event) {
     const action = timeShiftAdminAction.getAttribute("data-timeshift-admin-action");
     if (action === "refresh") refreshAdminTimeShiftStatus(false);
     if (action === "clear") clearAdminTimeShiftCache();
+    return;
+  }
+  const rewindWindow = event.target.closest("[data-admin-rewind-window]");
+  if (rewindWindow) {
+    event.preventDefault();
+    updateAdminTimeShiftField("window", { value: rewindWindow.getAttribute("data-admin-rewind-window") });
     return;
   }
   const adminSportsAction = event.target.closest("[data-admin-sports-action]");
