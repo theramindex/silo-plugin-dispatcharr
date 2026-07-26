@@ -881,6 +881,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`virtualGroupSource: "group"`,
 		`ecmEnabled: false`,
 		`collapseDuplicateVirtualGroups: true`,
+		`flattenRedundantGroupWrappers: true`,
 		`inferChannelNameGroups: false`,
 		`state.adminCategorySettings.virtualGroupSource = normalizeVirtualGroupSource(state.adminCategorySettings.virtualGroupSource, state.adminCategorySettings.inferChannelNameGroups === true)`,
 		`state.adminCategorySettings.ecmEnabled = !!state.adminCategorySettings.ecmURL`,
@@ -1025,6 +1026,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 					{"id": "channel:ny-news-sports", "name": "NY Sports News", "categoryId": "cat:news-sports", "categoryName": "News | Sports | Regional", "profileIds": []string{"profile-ny"}},
 					{"id": "channel:ny-us-news", "name": "NY News", "categoryId": "cat:us-tv-news", "categoryName": "US TV | News", "profileIds": []string{"profile-ny"}},
 					{"id": "channel:md-afn", "name": "AFN", "categoryId": "cat:us-tv-afn", "categoryName": "US TV | AFN", "profileIds": []string{"profile-md"}},
+					{"id": "channel:kids-ca", "name": "Kids Canada", "categoryId": "cat:intl-tv-ca", "categoryName": "International TV | CA", "profileIds": []string{"profile-kids", "profile-mixed"}},
+					{"id": "channel:kids-uk", "name": "Kids UK", "categoryId": "cat:intl-tv-uk", "categoryName": "International TV | UK", "profileIds": []string{"profile-kids"}},
+					{"id": "channel:mixed-news", "name": "Mixed News", "categoryId": "cat:intl-news", "categoryName": "International News | World", "profileIds": []string{"profile-mixed"}},
 				},
 				"categories": []map[string]any{
 					{"id": "cat:world-cup", "name": "* World Cup"},
@@ -1039,12 +1043,17 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 					{"id": "cat:news-sports", "name": "News | Sports | Regional"},
 					{"id": "cat:us-tv-news", "name": "US TV | News"},
 					{"id": "cat:us-tv-afn", "name": "US TV | AFN"},
+					{"id": "cat:intl-tv-ca", "name": "International TV | CA"},
+					{"id": "cat:intl-tv-uk", "name": "International TV | UK"},
+					{"id": "cat:intl-news", "name": "International News | World"},
 				},
 				"source": map[string]any{
 					"profiles": []map[string]any{
 						{"id": "profile-ny", "name": "US TV | NY", "channelCount": 3},
 						{"id": "profile-us-tv", "name": "US TV", "channelCount": 1},
 						{"id": "profile-md", "name": "US TV | MD", "channelCount": 1},
+						{"id": "profile-kids", "name": "International Kids", "channelCount": 2},
+						{"id": "profile-mixed", "name": "Mixed Profile", "channelCount": 2},
 					},
 				},
 			},
@@ -1100,6 +1109,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	}
 	if !result.SelectedProfileScoped {
 		t.Fatalf("expected an explicitly selected profile to hide other profile memberships: %+v", result)
+	}
+	if !result.RedundantWrapperFlattened || !result.RedundantWrapperExpanded || !result.MixedWrapperPreserved {
+		t.Fatalf("expected redundant shared wrappers to flatten by default, remain configurable, and preserve mixed roots: %+v", result)
 	}
 	if !result.DuplicateProfileCollapsed || !result.DuplicateProfileExpanded || !result.SharedRootProfileCollapsed || !result.SharedRootProfileExpanded || !result.DuplicateGroupCollapsed || !result.DuplicateGroupExpanded {
 		t.Fatalf("expected duplicate virtual group labels to collapse by default and expand when disabled: %+v", result)
@@ -1275,6 +1287,9 @@ type virtualAliasResult struct {
 	ProfileOnlyPath                      bool   `json:"profileOnlyPath"`
 	ProfileLocalMarketPath               bool   `json:"profileLocalMarketPath"`
 	SelectedProfileScoped                bool   `json:"selectedProfileScoped"`
+	RedundantWrapperFlattened            bool   `json:"redundantWrapperFlattened"`
+	RedundantWrapperExpanded             bool   `json:"redundantWrapperExpanded"`
+	MixedWrapperPreserved                bool   `json:"mixedWrapperPreserved"`
 	DuplicateProfileCollapsed            bool   `json:"duplicateProfileCollapsed"`
 	DuplicateProfileExpanded             bool   `json:"duplicateProfileExpanded"`
 	SharedRootProfileCollapsed           bool   `json:"sharedRootProfileCollapsed"`
@@ -1498,6 +1513,13 @@ JSON.stringify((function() {
 	  const nyLocalProfilePaths = virtualPathsForChannel(channelByID("channel:ny-local"));
 	  const nestedProfileGroupPaths = virtualPathsForChannel(channelByID("channel:ny-news-sports"));
 	  const singleFolderProfilePaths = virtualPathsForChannel(channelByID("channel:ny-us-news"));
+	  const flattenedWrapperPaths = virtualPathsForChannel(channelByID("channel:kids-ca"));
+	  const mixedWrapperPaths = virtualPathsForChannel(channelByID("channel:mixed-news"));
+	  state.adminCategorySettings.flattenRedundantGroupWrappers = false;
+	  normalizeAdminCategorySettings();
+	  const expandedWrapperPaths = virtualPathsForChannel(channelByID("channel:kids-ca"));
+	  state.adminCategorySettings.flattenRedundantGroupWrappers = true;
+	  normalizeAdminCategorySettings();
 	  state.adminCategorySettings.virtualGroupSource = "profile";
 	  normalizeAdminCategorySettings();
 	  const profileOnlyPaths = virtualPathsForChannel(channelByID("channel:ny-news-sports"));
@@ -1705,6 +1727,9 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 	profileOnlyPath: profileOnlyPath,
     profileLocalMarketPath: nyLocalProfilePaths.indexOf("US TV / NY / Locals / New York City") !== -1,
     selectedProfileScoped: selectedProfilePaths.length === 1 && selectedProfilePaths[0] === "US TV / NY",
+    redundantWrapperFlattened: flattenedWrapperPaths.indexOf("International Kids / CA") !== -1 && flattenedWrapperPaths.indexOf("International Kids / International TV / CA") === -1,
+    redundantWrapperExpanded: expandedWrapperPaths.indexOf("International Kids / International TV / CA") !== -1,
+    mixedWrapperPreserved: mixedWrapperPaths.indexOf("Mixed Profile / International News / World") !== -1 && mixedWrapperPaths.indexOf("Mixed Profile / World") === -1,
     duplicateProfileCollapsed: duplicateProfilePaths.indexOf("US TV") !== -1 && duplicateProfilePaths.indexOf("US TV / US TV") === -1,
     duplicateProfileExpanded: duplicateProfileExpandedPaths.indexOf("US TV / US TV") !== -1,
     sharedRootProfileCollapsed: sharedRootProfilePaths.indexOf("US TV / MD / AFN") !== -1 && sharedRootProfilePaths.indexOf("US TV / MD / US TV / AFN") === -1,
@@ -2494,7 +2519,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 		Method:  "POST",
 		Path:    "/dispatcharr/api/admin-settings",
 		Headers: map[string]string{"x-silo-user-role": "admin"},
-		Body:    []byte(`{"mode":"normal","delimiter":"pipe","virtualGroupLabel":" Virtual Categories ","virtualGroupSource":"profile_group","ecmURL":" https://ecm.example.test/manage ","allowRecordingsByDefault":false,"sportsEnabled":false,"sportsLibraryIds":[12,0,-4,12,7.5,"19",3],"collapseDuplicateVirtualGroups":false,"inferChannelNameGroups":true,"categoryRenames":[{"sourcePath":" International | Arabic | Sports ","displayName":" International Sports "},{"sourcePath":"International | Arabic | Sports","displayName":"Duplicate Ignored"},{"sourcePath":"","displayName":"Nowhere"},{"sourcePath":"International | TV","displayName":""}],"categoryAliases":[{"sourcePath":" International | Arabic | Sports ","aliasPath":" Sports | Arabic "},{"sourcePath":"International | Arabic | Sports","aliasPath":"Sports | Arabic"},{"sourcePath":"International | Arabic | Sports","aliasPath":"World Cup | Arabic"},{"sourcePath":"","aliasPath":"Nowhere"},{"sourcePath":"International | Arabic | Sports","aliasPath":""}]}`),
+		Body:    []byte(`{"mode":"normal","delimiter":"pipe","virtualGroupLabel":" Virtual Categories ","virtualGroupSource":"profile_group","ecmURL":" https://ecm.example.test/manage ","allowRecordingsByDefault":false,"sportsEnabled":false,"sportsLibraryIds":[12,0,-4,12,7.5,"19",3],"collapseDuplicateVirtualGroups":false,"flattenRedundantGroupWrappers":false,"inferChannelNameGroups":true,"categoryRenames":[{"sourcePath":" International | Arabic | Sports ","displayName":" International Sports "},{"sourcePath":"International | Arabic | Sports","displayName":"Duplicate Ignored"},{"sourcePath":"","displayName":"Nowhere"},{"sourcePath":"International | TV","displayName":""}],"categoryAliases":[{"sourcePath":" International | Arabic | Sports ","aliasPath":" Sports | Arabic "},{"sourcePath":"International | Arabic | Sports","aliasPath":"Sports | Arabic"},{"sourcePath":"International | Arabic | Sports","aliasPath":"World Cup | Arabic"},{"sourcePath":"","aliasPath":"Nowhere"},{"sourcePath":"International | Arabic | Sports","aliasPath":""}]}`),
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
@@ -2540,6 +2565,9 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	if payload["collapseDuplicateVirtualGroups"] != false {
 		t.Fatalf("expected duplicate virtual group collapse setting to persist: %+v", payload)
 	}
+	if payload["flattenRedundantGroupWrappers"] != false {
+		t.Fatalf("expected redundant wrapper flattening setting to persist: %+v", payload)
+	}
 	if payload["inferChannelNameGroups"] != true {
 		t.Fatalf("expected channel-name group inference flag to persist: %+v", payload)
 	}
@@ -2580,6 +2608,9 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	}
 	if persisted["collapseDuplicateVirtualGroups"] != false {
 		t.Fatalf("expected duplicate virtual group collapse setting to write through to host config: %+v", persisted)
+	}
+	if persisted["flattenRedundantGroupWrappers"] != false {
+		t.Fatalf("expected redundant wrapper flattening setting to write through to host config: %+v", persisted)
 	}
 	if persisted["inferChannelNameGroups"] != true {
 		t.Fatalf("expected channel-name group inference flag to write through to host config: %+v", persisted)
