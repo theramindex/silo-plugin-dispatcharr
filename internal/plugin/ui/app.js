@@ -5015,14 +5015,15 @@ function updateAdminIdentityField(field, target) {
   markAdminSettingsDraft();
   renderAdminPage();
 }
-function updateAdminPlayerField(field, target) {
+function updateAdminPlayerField(field, target, preserveInput) {
   const settings = state.adminCategorySettings || defaultAdminCategorySettings();
   if (field === "sports") settings.sportsFirstPlayerEnabled = !!target.checked;
   if (field === "hls-buffer") settings.hlsBufferSeconds = Number(target.value || 12);
   state.adminCategorySettings = settings;
   normalizeAdminCategorySettings();
   markAdminSettingsDraft();
-  renderAdminPage();
+  if (preserveInput) renderAdminTopbarActions();
+  else renderAdminPage();
 }
 function updateAdminSportsField(field, target) {
   const settings = state.adminCategorySettings || defaultAdminCategorySettings();
@@ -5040,7 +5041,7 @@ function updateAdminSportsField(field, target) {
   markAdminSettingsDraft();
   renderAdminPage();
 }
-function updateAdminTimeShiftField(field, target) {
+function updateAdminTimeShiftField(field, target, preserveInput) {
   const settings = state.adminCategorySettings || defaultAdminCategorySettings();
   if (field === "enabled") settings.liveRewindEnabled = !!target.checked;
   if (field === "cache") settings.liveRewindCacheGB = Number(target.value || 5);
@@ -5050,7 +5051,8 @@ function updateAdminTimeShiftField(field, target) {
   state.adminCategorySettings = settings;
   normalizeAdminCategorySettings();
   markAdminSettingsDraft();
-  renderAdminPage();
+  if (preserveInput) renderAdminTopbarActions();
+  else renderAdminPage();
 }
 function defaultAdminConnection() {
   return { sourceMode: "direct_login", baseUrl: "", username: "", password: "", apiKey: "", channelProfile: "", channelProfiles: [], channelGroups: [], m3uUrl: "", epgXmlUrl: "", secretConfigured: false, m3uConfigured: false, epgXmlConfigured: false, configured: false, origin: "empty" };
@@ -7210,6 +7212,16 @@ document.addEventListener("change", function(event) {
   render();
 });
 document.addEventListener("input", function(event) {
+  const adminPlayerField = event.target.getAttribute("data-admin-player-field");
+  if (adminPlayerField === "hls-buffer") {
+    updateAdminPlayerField(adminPlayerField, event.target, true);
+    return;
+  }
+  const adminTimeShiftField = event.target.getAttribute("data-admin-timeshift-field");
+  if (adminTimeShiftField && event.target.type === "number") {
+    updateAdminTimeShiftField(adminTimeShiftField, event.target, true);
+    return;
+  }
   if (event.target.hasAttribute("data-admin-organization-filter")) {
     state.adminOrganizationQuery = event.target.value || "";
     const query = lower(state.adminOrganizationQuery).trim();
