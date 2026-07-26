@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.dispatcharr",
-  "version": "0.3.78",
+  "version": "0.3.79",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -209,6 +209,48 @@
       "method": "POST",
       "path": "/dispatcharr/api/recordings",
       "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-timeshift-start",
+      "method": "POST",
+      "path": "/dispatcharr/api/timeshift/start",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-timeshift-status",
+      "method": "GET",
+      "path": "/dispatcharr/api/timeshift/status",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-timeshift-heartbeat",
+      "method": "POST",
+      "path": "/dispatcharr/api/timeshift/heartbeat",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-timeshift-stop",
+      "method": "POST",
+      "path": "/dispatcharr/api/timeshift/stop",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-timeshift-admin-status",
+      "method": "GET",
+      "path": "/dispatcharr/api/timeshift/admin-status",
+      "access": "admin",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-timeshift-clear",
+      "method": "POST",
+      "path": "/dispatcharr/api/timeshift/clear",
+      "access": "admin",
       "navigable": false
     },
     {
