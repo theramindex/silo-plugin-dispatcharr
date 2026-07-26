@@ -14,6 +14,7 @@ state.guideCategoryQuery = "";
 state.adminOrganizationTab = "profiles";
 state.adminOrganizationQuery = "";
 state.sportsReplayStandaloneEvents = [];
+let redundantProfileWrapperCache = { channels: null, profiles: null, signature: "", wrappers: {} };
 
 state.sportsReplayPromise = null;
 state.sportsReplayGeneration = 0;
@@ -198,7 +199,7 @@ function defaultEventKeywordRules() {
   ];
 }
 function defaultAdminCategorySettings() {
-  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", appDisplayName: "Live TV (Dispatcharr)", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, allowRecordingsByDefault: true, sportsEnabled: true, sportsLibraryIds: [], sportsFirstPlayerEnabled: false, hlsBufferSeconds: 12, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], featuredEventIds: [], eventKeywords: defaultEventKeywordRules() };
+  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", appDisplayName: "Live TV (Dispatcharr)", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, flattenRedundantGroupWrappers: true, allowRecordingsByDefault: true, sportsEnabled: true, sportsLibraryIds: [], sportsFirstPlayerEnabled: false, hlsBufferSeconds: 12, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], featuredEventIds: [], eventKeywords: defaultEventKeywordRules() };
 }
 function cloneAdminCategorySettings(settings) {
   try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -409,6 +410,7 @@ function normalizeAdminCategorySettings() {
     state.adminCategorySettings.collapseDuplicateVirtualGroups = state.adminCategorySettings.collapseDuplicateProfileGroups;
   }
   state.adminCategorySettings.collapseDuplicateVirtualGroups = state.adminCategorySettings.collapseDuplicateVirtualGroups !== false;
+  state.adminCategorySettings.flattenRedundantGroupWrappers = state.adminCategorySettings.flattenRedundantGroupWrappers !== false;
   delete state.adminCategorySettings.collapseDuplicateProfileGroups;
   state.adminCategorySettings.virtualGroupSource = normalizeVirtualGroupSource(state.adminCategorySettings.virtualGroupSource, state.adminCategorySettings.inferChannelNameGroups === true);
   if (state.adminCategorySettings.virtualGroupSource === "profile" || state.adminCategorySettings.virtualGroupSource === "profile_group") state.adminCategorySettings.mode = "delimiter";
@@ -1176,10 +1178,13 @@ function profileVirtualPathsForChannel(channel) {
   const groupPaths = [sourcePath].concat(aliasPaths);
   const marketParts = localMarketPathPartsForChannel(channel, sourceParts);
   aliasPaths.forEach(function(aliasPath) { paths.push(aliasPath); });
+  const redundantWrappers = redundantProfileGroupWrappers();
   profilePathsForChannel(channel).forEach(function(profilePath) {
     paths.push(profilePath);
     groupPaths.forEach(function(groupPath) {
-      const groupParts = String(groupPath || "").split(" / ").map(normalizedNameToken).filter(Boolean);
+      let groupParts = String(groupPath || "").split(" / ").map(normalizedNameToken).filter(Boolean);
+      const redundantWrapper = redundantWrappers[lower(profilePath)];
+      if (redundantWrapper && groupParts.length > 1 && lower(groupParts[0]) === redundantWrapper) groupParts = groupParts.slice(1);
       const combinedPath = appendVirtualPathParts(profilePath, groupParts);
       if (combinedPath) paths.push(combinedPath);
       const marketPath = appendVirtualPathParts(combinedPath || (profilePath + " / " + groupPath), marketParts);
@@ -1187,6 +1192,49 @@ function profileVirtualPathsForChannel(channel) {
     });
   });
   return uniqueIDs(paths);
+}
+function redundantProfileGroupWrappers() {
+  const settings = adminSettings();
+  if (settings.flattenRedundantGroupWrappers === false || !useProfileGroupVirtualPaths()) return {};
+  const channels = state.app && state.app.channels;
+  const profiles = state.app && state.app.source && state.app.source.profiles;
+  const selectedProfile = state.app && state.app.source && state.app.source.channelProfile;
+  const signature = [
+    settings.mode,
+    settings.delimiter,
+    settings.virtualGroupSource,
+    JSON.stringify(profileSelection()),
+    selectedProfile && selectedProfile.id ? selectedProfile.id : ""
+  ].join("|");
+  if (redundantProfileWrapperCache.channels === channels && redundantProfileWrapperCache.profiles === profiles && redundantProfileWrapperCache.signature === signature) {
+    return redundantProfileWrapperCache.wrappers;
+  }
+  const candidates = {};
+  effectiveChannels(false).forEach(function(candidateChannel) {
+    const candidateGroupPath = sourceGroupPathForChannel(candidateChannel);
+    const groupParts = String(candidateGroupPath || "").split(" / ").map(normalizedNameToken).filter(Boolean);
+    if (!groupParts.length) return;
+    profilePathsForChannel(candidateChannel).forEach(function(profilePath) {
+      const key = lower(profilePath);
+      const wrapper = lower(groupParts[0]);
+      if (!candidates[key]) {
+        candidates[key] = { wrapper: wrapper, eligible: groupParts.length > 1, tails: {} };
+        if (groupParts.length > 1) candidates[key].tails[lower(groupParts.slice(1).join(" / "))] = true;
+        return;
+      }
+      if (candidates[key].wrapper !== wrapper || groupParts.length < 2) {
+        candidates[key].eligible = false;
+        return;
+      }
+      candidates[key].tails[lower(groupParts.slice(1).join(" / "))] = true;
+    });
+  });
+  const wrappers = {};
+  Object.keys(candidates).forEach(function(key) {
+    if (candidates[key].eligible && Object.keys(candidates[key].tails).length > 1) wrappers[key] = candidates[key].wrapper;
+  });
+  redundantProfileWrapperCache = { channels: channels, profiles: profiles, signature: signature, wrappers: wrappers };
+  return wrappers;
 }
 function sourceGroupPathForChannel(channel) {
   return sourceVirtualPathForChannel(channel) || categoryDisplayName(sourceCategoryLabel(channel));
@@ -5594,7 +5642,7 @@ function renderAdminCategorySettings() {
       + "<label class=\"organization-layer-toggle\"><span class=\"organization-layer-icon\">" + icon("settings") + "</span><span><strong>Channel Groups</strong><small>Use enabled groups as folders within a profile or as the top-level hierarchy.</small></span><input type=\"checkbox\" data-admin-organization-layer=\"groups\"" + (layers.groups ? " checked" : "") + "></label></div></div>"
       + "<div class=\"organization-section organization-parsing\"><div class=\"organization-parsing-grid\"><label class=\"organization-field\"><span><strong>Folder mode</strong><small>Keep source names whole or split them into paths.</small></span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Keep names as provided</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">Split into nested folders</option></select></label></div>"
       + nested
-      + "<div class=\"organization-options\"><label><span><strong>Channel-name folders</strong><small>Use channel names as a fallback hierarchy. Required when Profiles and Groups are both off.</small></span><input type=\"checkbox\" data-admin-organization-layer=\"channels\"" + (layers.channels ? " checked" : "") + ((!layers.profiles && !layers.groups) || layers.profiles ? " disabled" : "") + "></label><label><span><strong>Collapse duplicate names</strong><small>Remove repeated labels where profile, group, and channel paths overlap.</small></span><input type=\"checkbox\" data-admin-category-field=\"collapseDuplicateVirtualGroups\"" + (settings.collapseDuplicateVirtualGroups !== false ? " checked" : "") + "></label></div></div>"
+      + "<div class=\"organization-options\"><label><span><strong>Channel-name folders</strong><small>Use channel names as a fallback hierarchy. Required when Profiles and Groups are both off.</small></span><input type=\"checkbox\" data-admin-organization-layer=\"channels\"" + (layers.channels ? " checked" : "") + ((!layers.profiles && !layers.groups) || layers.profiles ? " disabled" : "") + "></label><label><span><strong>Collapse duplicate names</strong><small>Remove repeated labels where profile, group, and channel paths overlap.</small></span><input type=\"checkbox\" data-admin-category-field=\"collapseDuplicateVirtualGroups\"" + (settings.collapseDuplicateVirtualGroups !== false ? " checked" : "") + "></label><label><span><strong>Flatten redundant wrapper folders</strong><small>Skip a shared intermediate group when every group under a profile starts with the same folder.</small></span><input type=\"checkbox\" data-admin-category-field=\"flattenRedundantGroupWrappers\"" + (settings.flattenRedundantGroupWrappers !== false ? " checked" : "") + "></label></div></div>"
       + renderOrganizationPreview(settings)
       + (useChannelProfileVirtualPaths() && profileAccess.status !== "available" ? "<div class=\"settings-note settings-warning\">" + escapeHTML(profileAccess.message || "No Channel Profiles are available to the configured Dispatcharr account. Assign profiles in Dispatcharr, then refresh Live TV.") + "</div>" : "")
       + (settings.mode === "normal" ? "<div class=\"settings-note\">Channel groups are shown as provided, without remapping or resorting.</div>" : "") + "</section>"

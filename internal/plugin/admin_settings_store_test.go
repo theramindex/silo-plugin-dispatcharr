@@ -98,6 +98,17 @@ func TestNormalizeAdminSettingsHLSBufferDefaultsAndClamps(t *testing.T) {
 	}
 }
 
+func TestNormalizeAdminSettingsFlattenRedundantGroupWrappers(t *testing.T) {
+	t.Parallel()
+
+	if got := normalizeAdminSettingsPayload(map[string]any{})["flattenRedundantGroupWrappers"]; got != true {
+		t.Fatalf("expected redundant wrapper flattening to default on, got %v", got)
+	}
+	if got := normalizeAdminSettingsPayload(map[string]any{"flattenRedundantGroupWrappers": false})["flattenRedundantGroupWrappers"]; got != false {
+		t.Fatalf("expected explicit redundant wrapper flattening disable to persist, got %v", got)
+	}
+}
+
 func TestNormalizeAdminSettingsSportsFirstPlayerEnabledDefaultsFalse(t *testing.T) {
 	t.Parallel()
 

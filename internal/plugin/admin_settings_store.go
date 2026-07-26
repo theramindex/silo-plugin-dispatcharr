@@ -165,6 +165,10 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	} else if enabled, ok := payload["collapseDuplicateProfileGroups"].(bool); ok {
 		collapseDuplicateVirtualGroups = enabled
 	}
+	flattenRedundantGroupWrappers := true
+	if enabled, ok := payload["flattenRedundantGroupWrappers"].(bool); ok {
+		flattenRedundantGroupWrappers = enabled
+	}
 	inferChannelNameGroups := false
 	if enabled, ok := payload["inferChannelNameGroups"].(bool); ok {
 		inferChannelNameGroups = enabled
@@ -213,6 +217,7 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 		"liveRewindMaxChannels":          liveRewindMaxChannels,
 		"hlsBufferSeconds":               hlsBufferSeconds,
 		"collapseDuplicateVirtualGroups": collapseDuplicateVirtualGroups,
+		"flattenRedundantGroupWrappers":  flattenRedundantGroupWrappers,
 		"inferChannelNameGroups":         inferChannelNameGroups,
 		"categoryRenames":                categoryRenames,
 		"categoryAliases":                categoryAliases,
