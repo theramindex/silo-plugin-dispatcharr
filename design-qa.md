@@ -15,10 +15,12 @@ final result: blocked
 - plugin release workflow: passed
 - Ramindex catalog validation: passed
 
-## Blocking condition
+## Production verification
 
-Production activation has not been authorized. The live browser therefore remains on `v0.3.83`, so a same-state prototype capture and reference/prototype visual comparison cannot be completed yet.
+- Installation `14` is active on `v0.3.90` and Silo is healthy.
+- Monumental Sports Network reproduced the original MPEG-TS playback path successfully: rewind start returned `202`, authenticated manifests and segments returned `200`, the video reached ready state `4`, remained unpaused, and its playback position advanced without a media error.
+- Provider-native HLS channels still use the direct redirect fallback and require a separate server-side HLS proxy improvement.
 
 ## Required next step
 
-Activate plugin installation `14` on `v0.3.90`, verify a timeshifted MPEG-TS channel loads its declared manifest and segment routes, then refresh the Sports page until Sportarr artwork enrichment is present, exercise the three/two/one-column event grid, team rail, and animated channel tray at desktop and narrow layouts, and compare the cards with the supplied Apple TV reference before marking this QA passed.
+Add an authenticated server-side proxy for provider-native HLS channels. For the remaining visual QA, refresh the Sports page until Sportarr artwork enrichment is present, exercise the three/two/one-column event grid, team rail, and animated channel tray at desktop and narrow layouts, and compare the cards with the supplied Apple TV reference before marking this QA passed.
