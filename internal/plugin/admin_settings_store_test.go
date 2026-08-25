@@ -39,6 +39,22 @@ func TestNormalizeAdminSettingsEventKeywordRuleDefaultsAndClamps(t *testing.T) {
 	}
 }
 
+func TestNormalizeAdminSettingsDropsLegacySportsEventRules(t *testing.T) {
+	t.Parallel()
+
+	normalized := normalizeAdminSettingsPayload(map[string]any{
+		"eventKeywords": []any{
+			map[string]any{"categoryId": "golf", "categoryName": "Golf", "keywords": []any{"PGA Tour"}},
+			map[string]any{"categoryId": "civic", "categoryName": "Civic", "keywords": []any{"Presidential Debate"}},
+		},
+	})
+
+	rules := normalized["eventKeywords"].([]map[string]any)
+	if len(rules) != 1 || rules[0]["categoryId"] != "civic" {
+		t.Fatalf("expected sports event rules to be removed, got %+v", rules)
+	}
+}
+
 func TestNormalizeAdminSettingsJSONRoundTripsEventKeywordRuleOptions(t *testing.T) {
 	t.Parallel()
 

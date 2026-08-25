@@ -369,6 +369,9 @@ func normalizeAdminEventKeywordRules(value any) []map[string]any {
 			continue
 		}
 		categoryID = normalizeEventCategoryID(categoryID, categoryName)
+		if isSportsEventCategoryID(categoryID) {
+			continue
+		}
 		if categoryName == "" {
 			categoryName = eventCategoryName(categoryID)
 		}
