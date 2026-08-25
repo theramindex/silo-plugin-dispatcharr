@@ -2654,6 +2654,30 @@ func TestPlayerUISupportsMovingChannelGroupsFromHomeToChannelsMenu(t *testing.T)
 	}
 }
 
+func TestPlayerUIChannelGroupTilesIncludeSemanticGlyphs(t *testing.T) {
+	t.Parallel()
+
+	script := playerAppJavaScript()
+	styles := playerStylesCSS()
+	for _, want := range []string{
+		`function categoryGlyphName(category)`,
+		`class=\"tile-glyph\"`,
+		`"kids": "<svg`,
+		`"news": "<svg`,
+		`"tv": "<svg`,
+		`"collection": "<svg`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("expected channel-group glyph support to include %q", want)
+		}
+	}
+	for _, want := range []string{`.tile .tile-glyph {`, `.tile .tile-glyph svg {`} {
+		if !strings.Contains(styles, want) {
+			t.Fatalf("expected channel-group glyph styles to include %q", want)
+		}
+	}
+}
+
 func TestHTTPRoutesServerAdminSettingsRouteReportsHostPersistFailure(t *testing.T) {
 	t.Parallel()
 

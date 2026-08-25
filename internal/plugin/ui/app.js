@@ -99,6 +99,10 @@ function icon(name) {
     "speaker-off": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m4.5 4.5 15 15M5 14.25h2.5l4.25 3.25v-5.75M11.75 8.7V6.5L8.8 8.75M16 10.8a3 3 0 0 1 .2 2.2'/></svg>",
     "airplay": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 17.25h-1.5A2.25 2.25 0 0 1 3 15V6.75A2.25 2.25 0 0 1 5.25 4.5h13.5A2.25 2.25 0 0 1 21 6.75V15a2.25 2.25 0 0 1-2.25 2.25h-1.5M8.25 21h7.5L12 16.5 8.25 21Z'/></svg>",
     "guide": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M4.5 6.75h15M4.5 12h15M4.5 17.25h15M8.25 4.5v15M15.75 4.5v15'/></svg>",
+    "kids": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><circle cx='9' cy='8.25' r='3'/><circle cx='16.5' cy='9.5' r='2.25'/><path stroke-linecap='round' stroke-linejoin='round' d='M3.75 19c.45-3.5 2.2-5.25 5.25-5.25S13.8 15.5 14.25 19M14.25 14.25c3.5-.65 5.5.95 6 4.75'/></svg>",
+    "news": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M5.25 5.25h11.5v13.5H6.5a2.25 2.25 0 0 1-2.25-2.25V6.25a1 1 0 0 1 1-1ZM16.75 8h3v8.5a2.25 2.25 0 0 1-2.25 2.25h-.75'/><path stroke-linecap='round' d='M7.75 9h6.5M7.75 12h6.5M7.75 15h4'/></svg>",
+    "tv": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m8.5 3.75 3.5 3 3.5-3M5.5 6.75h13A2.25 2.25 0 0 1 20.75 9v8.25a2.25 2.25 0 0 1-2.25 2.25h-13a2.25 2.25 0 0 1-2.25-2.25V9A2.25 2.25 0 0 1 5.5 6.75Z'/><path stroke-linecap='round' stroke-linejoin='round' d='M8.5 10.25v5.75l5-2.875-5-2.875ZM17.5 11.25h.01M17.5 15h.01'/></svg>",
+    "collection": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M4.5 5.25h6.25v5.5H4.5zM13.25 5.25h6.25v5.5h-6.25zM4.5 13.25h6.25v5.5H4.5zM13.25 13.25h6.25v5.5h-6.25z'/></svg>",
     "clock": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z'/><path stroke-linecap='round' stroke-linejoin='round' d='M12 7.5V12l3 2.25'/></svg>",
     "multiview": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M4.5 5.75h6.25v5.75H4.5zM13.25 5.75h6.25v5.75h-6.25zM4.5 14h6.25v4.25H4.5zM13.25 14h6.25v4.25h-6.25z'/></svg>",
     "trophy": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M8 4.5h8v4.25a4 4 0 0 1-8 0V4.5ZM9.5 14.5h5M12 12.75V18M8.5 20h7'/><path stroke-linecap='round' stroke-linejoin='round' d='M8 6H5.25v1.5A3.5 3.5 0 0 0 8.5 11M16 6h2.75v1.5A3.5 3.5 0 0 1 15.5 11'/></svg>",
@@ -3502,7 +3506,17 @@ function categoryGridSection(title, categories) {
 function categoryTileHTML(category) {
   const name = String((category && (category.name || category.id)) || "");
   const meta = String((category && category.count ? category.count + " channels" : (category && category.kind) || "") || "");
-  return "<button class=\"tile" + (state.category === category.id ? " active" : "") + "\" data-category=\"" + escapeHTML(category.id) + "\" aria-label=\"" + escapeHTML(meta ? name + ", " + meta : name) + "\"><span class=\"tile-copy\"><strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(name) + "</strong><span>" + escapeHTML(meta) + "</span></span><span class=\"tile-disclosure\" aria-hidden=\"true\">" + icon("chevron-right") + "</span></button>";
+  return "<button class=\"tile" + (state.category === category.id ? " active" : "") + "\" data-category=\"" + escapeHTML(category.id) + "\" aria-label=\"" + escapeHTML(meta ? name + ", " + meta : name) + "\"><span class=\"tile-glyph\" aria-hidden=\"true\">" + icon(categoryGlyphName(category)) + "</span><span class=\"tile-copy\"><strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(name) + "</strong><span>" + escapeHTML(meta) + "</span></span><span class=\"tile-disclosure\" aria-hidden=\"true\">" + icon("chevron-right") + "</span></button>";
+}
+function categoryGlyphName(category) {
+  const name = lower(category && (category.name || category.id));
+  if (/replay|catch.?up|archive/.test(name)) return "rewind";
+  if (/event|special/.test(name)) return "clock";
+  if (/kid|children|family|cartoon/.test(name)) return "kids";
+  if (/news|weather/.test(name)) return "news";
+  if (/sport|fight|racing/.test(name)) return "trophy";
+  if (/\btv\b|movie|film|series|entertainment/.test(name)) return "tv";
+  return "collection";
 }
 function activeVirtualCategoryID(path, featured) {
   return featured ? featuredCategoryID(path) : virtualCategoryID(path);
