@@ -1979,7 +1979,7 @@ function renderHome() {
   attachHomeGuidePageScroll();
 }
 function renderChannelsPage() {
-  byId("view").innerHTML = categoryGrid();
+  byId("view").innerHTML = categoryGrid({ includeAllGuide: true });
 }
 function channelsForSavedLineup(lineup) {
   if (!lineup || !lineup.categoryId) return [];
@@ -3505,7 +3505,9 @@ function compareCategoryDisplayName(left, right) {
   const rightName = String((right && (right.name || right.id)) || "");
   return leftName.localeCompare(rightName, undefined, { numeric: true, sensitivity: "base" }) || leftName.localeCompare(rightName) || String((left && left.id) || "").localeCompare(String((right && right.id) || ""));
 }
-function categoryGrid() {
+function categoryGrid(options) {
+  options = options || {};
+  const includeAllGuide = !!options.includeAllGuide;
   const hidden = hiddenMap();
   const sourceCategories = sourceCategoriesWithChannels(function(channel) {
     return !(channel.categoryId && hidden[channel.categoryId]);
@@ -3519,12 +3521,18 @@ function categoryGrid() {
   });
   const sections = [];
   if (featured.length) sections.push(categoryGridSection(featuredGroupLabel(), featured));
-  if (regularListing.length) sections.push(categoryGridSection(adminListingTitle(), regularListing));
-  if (!listing.length && sourceCategories.length) sections.push(categoryGridSection(adminListingTitle(), sourceCategories));
+  if (regularListing.length || (includeAllGuide && listing.length)) sections.push(categoryGridSection(adminListingTitle(), regularListing, includeAllGuide));
+  if (!listing.length && (sourceCategories.length || includeAllGuide)) sections.push(categoryGridSection(adminListingTitle(), sourceCategories, includeAllGuide));
   return sections.length ? sections.join("") : "<div class=\"empty\">No groups yet.</div>";
 }
-function categoryGridSection(title, categories) {
-  return sectionHeader(title) + "<div class=\"category-grid\">" + categories.map(categoryTileHTML).join("") + "</div>";
+function categoryGridSection(title, categories, includeAllGuide) {
+  const allGuide = includeAllGuide ? allChannelsGuideTileHTML() : "";
+  return sectionHeader(title) + "<div class=\"category-grid\">" + allGuide + categories.map(categoryTileHTML).join("") + "</div>";
+}
+function allChannelsGuideTileHTML() {
+  const count = visibleChannels(true).length;
+  const meta = count + " " + (count === 1 ? "channel" : "channels");
+  return "<button class=\"tile\" type=\"button\" data-all-channels-guide=\"true\" aria-label=\"All channels, " + escapeHTML(meta) + "\"><span class=\"tile-glyph\" aria-hidden=\"true\">" + icon("guide") + "</span><span class=\"tile-copy\"><strong>All</strong><span>" + escapeHTML(meta) + "</span></span><span class=\"tile-disclosure\" aria-hidden=\"true\">" + icon("chevron-right") + "</span></button>";
 }
 function categoryTileHTML(category) {
   const name = String((category && (category.name || category.id)) || "");
@@ -7145,6 +7153,12 @@ document.addEventListener("click", function(event) {
   if (channelTarget) {
     const channel = channelByID(channelTarget.getAttribute("data-channel"));
     if (channel) playChannel(channel);
+  }
+  const allChannelsGuide = event.target.closest("[data-all-channels-guide]");
+  if (allChannelsGuide) {
+    event.preventDefault();
+    setView("guide");
+    return;
   }
   const categoryTarget = event.target.closest("[data-category]");
   if (categoryTarget) setCategory(categoryTarget.getAttribute("data-category"));

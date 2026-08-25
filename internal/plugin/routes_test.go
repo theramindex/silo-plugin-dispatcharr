@@ -2724,6 +2724,10 @@ func TestPlayerUISupportsMovingChannelGroupsFromHomeToChannelsMenu(t *testing.T)
 		`state.adminCategorySettings.sideMenuMode = state.adminCategorySettings.sideMenuMode === "channels" ? "channels" : "guide";`,
 		`+ (channelGroupsInSideMenu() ? "" : categoryGrid());`,
 		`function renderChannelsPage()`,
+		`categoryGrid({ includeAllGuide: true })`,
+		`function allChannelsGuideTileHTML()`,
+		`data-all-channels-guide=\"true\"`,
+		`setView("guide")`,
 		`else if (state.view === "channels") renderChannelsPage();`,
 		`data-admin-identity-field=\"side-menu\"`,
 	} {
