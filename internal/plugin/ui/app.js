@@ -2873,10 +2873,11 @@ function renderSportsLeagueMark(league) {
 function renderSportsEventTile(event) {
   if (event && event.replayOnly) return renderStandaloneSportsReplayTile(event);
   const live = sportsEventIsLive(event);
-  return "<article class=\"sports-event-tile" + (live ? " live" : "") + "\"><button type=\"button\" class=\"sports-event-main\" data-sports-open-event=\"" + escapeHTML(event.id || "") + "\">"
-    + renderSportsMatchupThumbnail(event)
-    + "<span class=\"sports-event-meta\"><b>" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</b><small class=\"" + (live ? "live" : "") + "\">" + escapeHTML(sportsStatusLabel(event)) + "</small></span>"
-    + "<span class=\"sports-event-title\">" + escapeHTML(sportsEventTitle(event)) + "</span></button>"
+  const art = sportsEventArtwork(event, "backdrop");
+  const thumbnail = art ? renderSportsArtworkThumbnail(event, art) : renderSportsMatchupThumbnail(event);
+  const fallbackCopy = art ? "" : "<span class=\"sports-event-meta\"><b>" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</b><small class=\"" + (live ? "live" : "") + "\">" + escapeHTML(sportsStatusLabel(event)) + "</small></span><span class=\"sports-event-title\">" + escapeHTML(sportsEventTitle(event)) + "</span>";
+  return "<article class=\"sports-event-tile" + (live ? " live" : "") + (art ? " has-art" : " no-art") + "\"><button type=\"button\" class=\"sports-event-main\" data-sports-open-event=\"" + escapeHTML(event.id || "") + "\">"
+    + thumbnail + fallbackCopy + "</button>"
     + renderSportsTileAvailability(event) + "</article>";
 }
 function safeSportsTeamColor(value, fallback) {
@@ -2897,6 +2898,37 @@ function renderSportsMatchupThumbnail(event) {
     + "<span class=\"sports-matchup-thumb-center\">" + center + "<small>vs</small></span>"
     + "<span class=\"sports-matchup-thumb-team home\">" + renderSportsTeamLogo(home, "sports-matchup-thumb-logo") + "<strong>" + escapeHTML(sportsTeamAbbreviation(home)) + "</strong>" + (showScore ? "<em>" + escapeHTML(event.homeScore || "0") + "</em>" : "") + "</span>"
     + "</span>";
+}
+function renderSportsArtworkThumbnail(event, art) {
+  const live = sportsEventIsLive(event);
+  const status = sportsStatusLabel(event);
+  const identity = sportsEventIsRace(event) ? renderSportsArtworkRace(event) : renderSportsArtworkMatchup(event);
+  return "<span class=\"sports-artwork-thumb\">"
+    + "<img class=\"sports-artwork-thumb-bg\" src=\"" + escapeHTML(art) + "\" alt=\"\">"
+    + "<span class=\"sports-artwork-status" + (live ? " live" : "") + "\">" + escapeHTML(status) + "</span>"
+    + identity
+    + "<span class=\"sports-artwork-copy\"><small>" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</small><strong>" + escapeHTML(sportsEventTitle(event)) + "</strong></span>"
+    + "</span>";
+}
+function renderSportsArtworkMatchup(event) {
+  const away = event.away || {};
+  const home = event.home || {};
+  const leagueLogo = safeSportsMediaURL(event.leagueLogoUrl);
+  const showScore = !!(sportsEventIsLive(event) || event.completed);
+  const center = leagueLogo ? "<img src=\"" + escapeHTML(leagueLogo) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;\"><b hidden>VS</b>" : "<b>VS</b>";
+  return "<span class=\"sports-artwork-matchup\" aria-hidden=\"true\">"
+    + "<span class=\"sports-artwork-team\">" + renderSportsTeamLogo(away, "sports-artwork-team-logo") + "<strong>" + escapeHTML(sportsTeamAbbreviation(away)) + "</strong>" + (showScore ? "<em>" + escapeHTML(event.awayScore || "0") + "</em>" : "") + "</span>"
+    + "<span class=\"sports-artwork-center\">" + center + "</span>"
+    + "<span class=\"sports-artwork-team\">" + renderSportsTeamLogo(home, "sports-artwork-team-logo") + "<strong>" + escapeHTML(sportsTeamAbbreviation(home)) + "</strong>" + (showScore ? "<em>" + escapeHTML(event.homeScore || "0") + "</em>" : "") + "</span>"
+    + "</span>";
+}
+function renderSportsArtworkRace(event) {
+  const logo = safeSportsMediaURL(event.leagueLogoUrl);
+  const series = sportsTeamName(event.away || {}) || event.leagueName || "Motorsport";
+  const location = sportsTeamName(event.home || {}) || "Race";
+  return "<span class=\"sports-artwork-race\" aria-hidden=\"true\">"
+    + (logo ? "<img src=\"" + escapeHTML(logo) + "\" alt=\"\">" : "")
+    + "<span><strong>" + escapeHTML(series) + "</strong><small>" + escapeHTML(location) + "</small></span></span>";
 }
 function renderSportsRaceThumbnail(event) {
   const series = sportsTeamName(event.away || {}) || event.leagueName || "Motorsport";
