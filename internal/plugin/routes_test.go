@@ -3630,7 +3630,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.sports-feature.no-art {`,
 		`.sports-feature-fallback {`,
 		`.sports-league-grid {`,
-		`.sports-event-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));`,
+		`.sports-event-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start;`,
 		`@media (max-width: 1080px)`,
 		`.sports-artwork-thumb {`,
 		`.sports-artwork-matchup {`,
