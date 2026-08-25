@@ -129,6 +129,10 @@ first-class Live TV provider capability.
   [Sportarr public partner API](https://sportarr.net/docs/api). Sportarr is the
   canonical sports data source; the plugin does not maintain a second sports
   schedule model.
+- When Sportarr does not provide a league mark, recognized competition names
+  can use the public [Game Thumbs](https://github.com/sethwv/game-thumbs)
+  league-logo endpoint as a visual fallback. Unknown or generic sports buckets
+  retain the local trophy glyph.
 - Dispatcharr channels and guide programs are matched against Sportarr events
   to determine what is actually playable. Events without a confident channel
   match are omitted from live/upcoming browsing instead of presenting dead

@@ -2850,9 +2850,34 @@ function renderSportsLeagueShelf(payload, events) {
 }
 function renderSportsLeagueMark(league) {
   const name = league && (league.name || league.id) || "League";
-  const logo = safeSportsMediaURL(league && league.logoUrl);
-  if (logo) return "<span class=\"sports-league-mark has-logo\"><img src=\"" + escapeHTML(logo) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;\"><span hidden>" + icon("trophy") + "</span></span>";
+  const logo = safeSportsMediaURL(league && league.logoUrl) || gameThumbsLeagueLogoURL(league);
+  if (logo) return "<span class=\"sports-league-mark has-logo\"><img src=\"" + escapeHTML(logo) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;this.parentElement.classList.remove('has-logo');\"><span hidden>" + icon("trophy") + "</span></span>";
   return "<span class=\"sports-league-mark\" aria-label=\"" + escapeHTML(name) + "\">" + icon("trophy") + "</span>";
+}
+function gameThumbsLeagueLogoURL(league) {
+  const slug = gameThumbsLeagueSlug(league);
+  return slug ? "https://game-thumbs.swvn.io/" + slug + "/leaguelogo.png" : "";
+}
+function gameThumbsLeagueSlug(league) {
+  const value = lower([league && league.id, league && league.name].filter(Boolean).join(" "));
+  const aliases = [
+    [/\bindian premier league\b|\bipl\b/, "ipl"],
+    [/\bbangladesh premier league\b|\bbpl\b/, "bpl"],
+    [/\bcaribbean premier league\b|\bcpl\b/, "cpl"],
+    [/\benglish premier league\b|\bpremier league\b|\bepl\b/, "epl"],
+    [/\bnational football league\b|\bnfl\b/, "nfl"],
+    [/\bnational hockey league\b|\bnhl\b/, "nhl"],
+    [/\bwomen'?s national basketball association\b|\bwnba\b/, "wnba"],
+    [/\bnational basketball association\b|\bnba\b/, "nba"],
+    [/\bmajor league baseball\b|\bmlb\b/, "mlb"],
+    [/\bmajor league soccer\b|\bmls\b/, "mls"],
+    [/\bultimate fighting championship\b|\bufc\b/, "ufc"],
+    [/\bprofessional fighters league\b|\bpfl\b/, "pfl"],
+    [/\bbellator\b/, "bellator"],
+    [/\bboxing\b/, "boxing"]
+  ];
+  const match = aliases.find(function(entry) { return entry[0].test(value); });
+  return match ? match[1] : "";
 }
 function renderSportsEventTile(event) {
   if (event && event.replayOnly) return renderStandaloneSportsReplayTile(event);
