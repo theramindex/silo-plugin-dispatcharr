@@ -48,10 +48,11 @@ type sportsEventCache struct {
 }
 
 type sportsPreparedCache struct {
-	Payload      SportsPayload
-	ExpiresAfter time.Time
-	Ready        bool
-	Refreshing   bool
+	Payload          SportsPayload
+	ExpiresAfter     time.Time
+	GuideUpdatedUnix int64
+	Ready            bool
+	Refreshing       bool
 }
 
 type SportsPayload struct {
@@ -137,11 +138,12 @@ func (s *HTTPRoutesServer) handleSportsFavorite(request *pluginv1.HandleHTTPRequ
 
 func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) SportsPayload {
 	now := time.Now()
-	providerCtx, cancelProvider := context.WithTimeout(ctx, sportsProviderFetchTimeout)
-	events, updatedUnix, source, err := s.cachedSportsEvents(providerCtx, now, refresh)
-	cancelProvider()
 	snapshot := s.store.Current()
-	if guideEvents := sportsEventsFromGuide(snapshot, now); len(guideEvents) > 0 {
+	guideEvents, refreshScores := sportsEventsFromGuideWithScoreHints(snapshot, now)
+	providerCtx, cancelProvider := context.WithTimeout(ctx, sportsProviderFetchTimeout)
+	events, updatedUnix, source, err := s.cachedSportsEvents(providerCtx, now, refresh || refreshScores)
+	cancelProvider()
+	if len(guideEvents) > 0 {
 		if len(events) == 0 {
 			events = guideEvents
 			source = "EPG fallback"
@@ -193,6 +195,10 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 		payload.Error = err.Error()
 	}
 	return payload
+}
+
+func guideSportsTitleHasScoreLookupHint(title string) bool {
+	return strings.Contains(title, "ᴸᶦᵛᵉ") || strings.Contains(title, "ᴺᵉʷ")
 }
 
 func normalizeSportsEventFreshness(event SportsEvent, now time.Time) SportsEvent {
@@ -261,6 +267,11 @@ func sportsEventsSameIdentity(left, right SportsEvent) bool {
 }
 
 func sportsEventsFromGuide(snapshot cache.Snapshot, now time.Time) []SportsEvent {
+	events, _ := sportsEventsFromGuideWithScoreHints(snapshot, now)
+	return events
+}
+
+func sportsEventsFromGuideWithScoreHints(snapshot cache.Snapshot, now time.Time) ([]SportsEvent, bool) {
 	categoryNames := map[string]string{}
 	for _, category := range liveCategories(snapshot) {
 		categoryNames[category.ID] = category.Name
@@ -275,6 +286,7 @@ func sportsEventsFromGuide(snapshot cache.Snapshot, now time.Time) []SportsEvent
 	fromUnix := now.Add(-24 * time.Hour).Unix()
 	toUnix := now.Add(72 * time.Hour).Unix()
 	byKey := map[string]*SportsEvent{}
+	refreshScores := false
 	for _, program := range snapshot.Catalog.Programs {
 		if program.EndUnix < fromUnix || program.StartUnix > toUnix {
 			continue
@@ -294,6 +306,9 @@ func sportsEventsFromGuide(snapshot cache.Snapshot, now time.Time) []SportsEvent
 		}
 		if !sportsContext || !matchup {
 			continue
+		}
+		if program.StartUnix <= now.Unix() && program.EndUnix > now.Unix() && guideSportsTitleHasScoreLookupHint(program.Title) {
+			refreshScores = true
 		}
 
 		startBucket := program.StartUnix / (15 * 60)
@@ -363,7 +378,7 @@ func sportsEventsFromGuide(snapshot cache.Snapshot, now time.Time) []SportsEvent
 	if len(events) > 250 {
 		events = events[:250]
 	}
-	return events
+	return events, refreshScores
 }
 
 func guideSportsLeague(value string) (string, string, string, bool) {
@@ -533,8 +548,11 @@ func mergeSportsChannelMatches(groups ...[]SportsChannelMatch) []SportsChannelMa
 
 func (s *HTTPRoutesServer) preparedSportsPayload(refresh bool) SportsPayload {
 	now := time.Now()
+	snapshot := s.store.Current()
+	guideUpdatedUnix := snapshot.Health.EPGLastSuccessUnix
 	s.sportsPreparedMu.Lock()
-	needsRefresh := !s.sportsPrepared.Ready || refresh || now.After(s.sportsPrepared.ExpiresAfter)
+	guideChanged := guideUpdatedUnix > 0 && guideUpdatedUnix != s.sportsPrepared.GuideUpdatedUnix
+	needsRefresh := !s.sportsPrepared.Ready || refresh || guideChanged || now.After(s.sportsPrepared.ExpiresAfter)
 	if needsRefresh && !s.sportsPrepared.Refreshing {
 		s.sportsPrepared.Refreshing = true
 		go s.rebuildSportsPayload(refresh)
@@ -549,7 +567,6 @@ func (s *HTTPRoutesServer) preparedSportsPayload(refresh bool) SportsPayload {
 		payload.Source = provider.Source()
 	}
 	if !s.sportsPrepared.Ready && len(payload.Events) == 0 {
-		snapshot := s.store.Current()
 		if guideEvents := sportsEventsFromGuide(snapshot, now); len(guideEvents) > 0 {
 			payload.Events = guideEvents
 			payload.Leagues = sportsLeagues(guideEvents)
@@ -565,6 +582,7 @@ func (s *HTTPRoutesServer) preparedSportsPayload(refresh bool) SportsPayload {
 }
 
 func (s *HTTPRoutesServer) rebuildSportsPayload(refresh bool) {
+	guideUpdatedUnix := s.store.Current().Health.EPGLastSuccessUnix
 	ctx, cancel := context.WithTimeout(context.Background(), sportsBuildTimeout)
 	payload := s.sportsPayload(ctx, refresh)
 	cancel()
@@ -580,6 +598,7 @@ func (s *HTTPRoutesServer) rebuildSportsPayload(refresh bool) {
 	s.sportsPrepared.Payload = cloneSportsPayload(payload)
 	s.sportsPrepared.Ready = true
 	s.sportsPrepared.Refreshing = false
+	s.sportsPrepared.GuideUpdatedUnix = guideUpdatedUnix
 	s.sportsPrepared.ExpiresAfter = now.Add(sportsPreparedTTL(payload))
 	s.sportsPreparedMu.Unlock()
 }

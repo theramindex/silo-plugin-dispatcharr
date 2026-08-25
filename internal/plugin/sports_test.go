@@ -36,6 +36,20 @@ type blockingSportsProvider struct {
 	calls   atomic.Int32
 }
 
+type countingSportsProvider struct {
+	events []SportsEvent
+	calls  atomic.Int32
+}
+
+func (p *countingSportsProvider) Events(context.Context, time.Time) ([]SportsEvent, error) {
+	p.calls.Add(1)
+	return cloneSportsEvents(p.events), nil
+}
+
+func (*countingSportsProvider) Source() string {
+	return "counting-test"
+}
+
 func (p *blockingSportsProvider) Events(ctx context.Context, _ time.Time) ([]SportsEvent, error) {
 	p.calls.Add(1)
 	p.once.Do(func() { close(p.started) })
@@ -413,6 +427,139 @@ func TestSportsEventsFromGuideCleansPromoMetadataAndRejectsNonSportsShows(t *tes
 	cfp := byName[programs[5].Title]
 	if cfp.LeagueID != "college-football" || cfp.LeagueName != "College Football" || cfp.SportName != "Football" {
 		t.Fatalf("expected CFP event classified as college football, got %+v", cfp)
+	}
+}
+
+func TestSportsPayloadRefreshesScoresForAnnotatedGuideEvents(t *testing.T) {
+	for _, annotation := range []string{"ᴸᶦᵛᵉ", "ᴺᵉʷ"} {
+		t.Run(annotation, func(t *testing.T) {
+			now := time.Now()
+			title := "Fútbol UEFA Champions League : Sabah FK vs. Hapoel Beer Sheva " + annotation
+			store := cache.NewStore()
+			store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+				Channels: []model.Channel{{ID: "channel:sports", Name: "Sports Network", CategoryID: "sports", CategoryName: "Sports"}},
+				Programs: []model.Program{{ID: "program:annotated", ChannelID: "channel:sports", Title: title, StartUnix: now.Add(-30 * time.Minute).Unix(), EndUnix: now.Add(30 * time.Minute).Unix()}},
+				Content:  model.ContentState{LiveCategories: []model.Category{{ID: "sports", Name: "Sports", Kind: "live"}}},
+			}, Health: model.SyncHealth{EPGStatus: "ok", EPGLastSuccessUnix: now.Unix()}})
+			fresh := SportsEvent{
+				ID: "provider:event", LeagueID: "sports", LeagueName: "Sports", Name: "Sabah FK vs Hapoel Beer Sheva",
+				StartUnix: now.Add(-30 * time.Minute).Unix(), EndUnix: now.Add(30 * time.Minute).Unix(),
+				Away: SportsTeam{Name: "Sabah FK"}, Home: SportsTeam{Name: "Hapoel Beer Sheva"},
+				AwayScore: "1", HomeScore: "2", Live: true, Status: "live", StatusText: "Live",
+			}
+			provider := &countingSportsProvider{events: []SportsEvent{fresh}}
+			server := NewHTTPRoutesServer(store)
+			server.sportsProvider = provider
+			stale := fresh
+			stale.AwayScore, stale.HomeScore = "0", "0"
+			server.sportsCache = sportsEventCache{Events: []SportsEvent{stale}, UpdatedUnix: now.Add(-time.Minute).Unix(), Source: "counting-test", ExpiresAfter: now.Add(5 * time.Minute)}
+			server.sportsPrepared = sportsPreparedCache{
+				Payload:      SportsPayload{Events: []SportsEvent{stale}, Source: "counting-test", UpdatedAtUnix: now.Add(-time.Minute).Unix()},
+				ExpiresAfter: now.Add(5 * time.Minute), GuideUpdatedUnix: now.Add(-time.Minute).Unix(), Ready: true,
+			}
+
+			_ = server.preparedSportsPayload(false)
+			deadline := time.Now().Add(time.Second)
+			for provider.calls.Load() == 0 && time.Now().Before(deadline) {
+				time.Sleep(time.Millisecond)
+			}
+			if provider.calls.Load() != 1 {
+				t.Fatalf("expected %s annotation to force a score lookup, got %d provider calls", annotation, provider.calls.Load())
+			}
+			var payload SportsPayload
+			for time.Now().Before(deadline) {
+				payload = server.preparedSportsPayload(false)
+				if !payload.Refreshing {
+					break
+				}
+				time.Sleep(time.Millisecond)
+			}
+			if len(payload.Events) != 1 || payload.Events[0].AwayScore != "1" || payload.Events[0].HomeScore != "2" {
+				t.Fatalf("expected refreshed scores for %s annotation, got %+v", annotation, payload.Events)
+			}
+			if strings.Contains(payload.Events[0].Name, annotation) || strings.Contains(payload.Events[0].Home.Name, annotation) {
+				t.Fatalf("expected %s annotation hidden after score lookup, got %+v", annotation, payload.Events[0])
+			}
+		})
+	}
+}
+
+func TestSportsGuideScoreLookupHintsIgnoreUnqualifiedPrograms(t *testing.T) {
+	now := time.Now()
+	for _, test := range []struct {
+		name       string
+		title      string
+		start, end time.Time
+	}{
+		{name: "non sports", title: "Good Morning Arizona at 9am ᴺᵉʷ", start: now.Add(-time.Hour), end: now.Add(time.Hour)},
+		{name: "unannotated", title: "WNBA: Indiana Fever vs Chicago Sky", start: now.Add(-time.Hour), end: now.Add(time.Hour)},
+		{name: "upcoming", title: "WNBA: Indiana Fever vs Chicago Sky ᴺᵉʷ", start: now.Add(time.Hour), end: now.Add(3 * time.Hour)},
+		{name: "ended", title: "WNBA: Indiana Fever vs Chicago Sky ᴸᶦᵛᵉ", start: now.Add(-3 * time.Hour), end: now.Add(-time.Hour)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, refreshScores := sportsEventsFromGuideWithScoreHints(cache.Snapshot{Catalog: model.CatalogState{
+				Channels: []model.Channel{{ID: "channel:sports", Name: "Sports Network", CategoryID: "sports", CategoryName: "Sports"}},
+				Programs: []model.Program{{ID: "program:test", ChannelID: "channel:sports", Title: test.title, StartUnix: test.start.Unix(), EndUnix: test.end.Unix()}},
+				Content:  model.ContentState{LiveCategories: []model.Category{{ID: "sports", Name: "Sports", Kind: "live"}}},
+			}}, now)
+			if refreshScores {
+				t.Fatalf("expected %s program not to force a score lookup", test.name)
+			}
+		})
+	}
+}
+
+func TestPreparedSportsPayloadRebuildsAgainWhenGuideChangesDuringBuild(t *testing.T) {
+	now := time.Now()
+	store := cache.NewStore()
+	store.ReplaceExact(cache.Snapshot{Health: model.SyncHealth{EPGStatus: "ok", EPGLastSuccessUnix: now.Add(-time.Minute).Unix()}})
+	provider := &blockingSportsProvider{
+		events: []SportsEvent{{
+			ID: "provider:event", LeagueID: "wnba", LeagueName: "WNBA", Name: "Indiana Fever vs Chicago Sky",
+			Away: SportsTeam{Name: "Indiana Fever"}, Home: SportsTeam{Name: "Chicago Sky"}, Live: true,
+		}},
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	server := NewHTTPRoutesServer(store)
+	server.sportsProvider = provider
+	server.sportsPrepared = sportsPreparedCache{
+		Payload: SportsPayload{Source: "blocking-test"}, ExpiresAfter: now.Add(5 * time.Minute),
+		GuideUpdatedUnix: now.Add(-2 * time.Minute).Unix(), Ready: true,
+	}
+
+	_ = server.preparedSportsPayload(false)
+	select {
+	case <-provider.started:
+	case <-time.After(time.Second):
+		t.Fatal("initial sports rebuild did not start")
+	}
+	store.ReplaceExact(cache.Snapshot{
+		Catalog: model.CatalogState{
+			Channels: []model.Channel{{ID: "channel:wnba", Name: "WNBA League Pass", CategoryID: "wnba", CategoryName: "WNBA"}},
+			Programs: []model.Program{{ID: "program:annotated", ChannelID: "channel:wnba", Title: "WNBA: Indiana Fever vs Chicago Sky ᴸᶦᵛᵉ", StartUnix: now.Add(-time.Hour).Unix(), EndUnix: now.Add(time.Hour).Unix()}},
+			Content:  model.ContentState{LiveCategories: []model.Category{{ID: "wnba", Name: "WNBA", Kind: "live"}}},
+		},
+		Health: model.SyncHealth{EPGStatus: "ok", EPGLastSuccessUnix: now.Unix()},
+	})
+	close(provider.release)
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		server.sportsPreparedMu.Lock()
+		refreshing := server.sportsPrepared.Refreshing
+		server.sportsPreparedMu.Unlock()
+		if !refreshing {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	_ = server.preparedSportsPayload(false)
+	for provider.calls.Load() < 2 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if provider.calls.Load() != 2 {
+		t.Fatalf("expected changed guide revision to schedule a second score lookup, got %d provider calls", provider.calls.Load())
 	}
 }
 
