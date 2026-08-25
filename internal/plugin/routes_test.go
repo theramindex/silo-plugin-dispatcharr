@@ -3371,7 +3371,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		}
 	}
 	sportsMatchupThumbnail := functionBody("renderSportsMatchupThumbnail")
-	for _, want := range []string{`sportsEventIsRace`, `renderSportsRaceThumbnail`, `primaryColor`, `leagueLogoUrl`, `renderSportsTeamLogo`, `sports-matchup-thumb`, `sportsEventIsLive`} {
+	for _, want := range []string{`sportsEventIsRace`, `renderSportsRaceThumbnail`, `primaryColor`, `leagueLogoUrl`, `renderSportsTeamLogo`, `sportsTeamName`, `sports-matchup-thumb`, `sportsEventIsLive`} {
 		if !strings.Contains(sportsMatchupThumbnail, want) {
 			t.Fatalf("sports matchup thumbnail must include %q", want)
 		}
@@ -3387,6 +3387,10 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		if !strings.Contains(sportsArtworkThumbnail, want) {
 			t.Fatalf("art-backed sports thumbnail must include %q", want)
 		}
+	}
+	sportsArtworkMatchup := functionBody("renderSportsArtworkMatchup")
+	if !strings.Contains(sportsArtworkMatchup, `sportsTeamName`) {
+		t.Fatal("art-backed sports matchups must label logos with full team names")
 	}
 	for _, removed := range []string{`gameThumbsTeamLogoURL`, `gameThumbsLeagueSlug`} {
 		if strings.Contains(script, removed) {

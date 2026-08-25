@@ -2894,9 +2894,9 @@ function renderSportsMatchupThumbnail(event) {
   const showScore = !!(sportsEventIsLive(event) || event.completed);
   const center = leagueLogo ? "<img src=\"" + escapeHTML(leagueLogo) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;\"><b hidden>VS</b>" : "<b>VS</b>";
   return "<span class=\"sports-matchup-thumb\" aria-hidden=\"true\" style=\"--match-away:" + awayColor + ";--match-home:" + homeColor + "\">"
-    + "<span class=\"sports-matchup-thumb-team away\">" + renderSportsTeamLogo(away, "sports-matchup-thumb-logo") + "<strong>" + escapeHTML(sportsTeamAbbreviation(away)) + "</strong>" + (showScore ? "<em>" + escapeHTML(event.awayScore || "0") + "</em>" : "") + "</span>"
+    + "<span class=\"sports-matchup-thumb-team away\">" + renderSportsTeamLogo(away, "sports-matchup-thumb-logo") + "<strong>" + escapeHTML(sportsTeamName(away)) + "</strong>" + (showScore ? "<em>" + escapeHTML(event.awayScore || "0") + "</em>" : "") + "</span>"
     + "<span class=\"sports-matchup-thumb-center\">" + center + "<small>vs</small></span>"
-    + "<span class=\"sports-matchup-thumb-team home\">" + renderSportsTeamLogo(home, "sports-matchup-thumb-logo") + "<strong>" + escapeHTML(sportsTeamAbbreviation(home)) + "</strong>" + (showScore ? "<em>" + escapeHTML(event.homeScore || "0") + "</em>" : "") + "</span>"
+    + "<span class=\"sports-matchup-thumb-team home\">" + renderSportsTeamLogo(home, "sports-matchup-thumb-logo") + "<strong>" + escapeHTML(sportsTeamName(home)) + "</strong>" + (showScore ? "<em>" + escapeHTML(event.homeScore || "0") + "</em>" : "") + "</span>"
     + "</span>";
 }
 function renderSportsArtworkThumbnail(event, art) {
@@ -2917,9 +2917,9 @@ function renderSportsArtworkMatchup(event) {
   const showScore = !!(sportsEventIsLive(event) || event.completed);
   const center = leagueLogo ? "<img src=\"" + escapeHTML(leagueLogo) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;\"><b hidden>VS</b>" : "<b>VS</b>";
   return "<span class=\"sports-artwork-matchup\" aria-hidden=\"true\">"
-    + "<span class=\"sports-artwork-team\">" + renderSportsTeamLogo(away, "sports-artwork-team-logo") + "<strong>" + escapeHTML(sportsTeamAbbreviation(away)) + "</strong>" + (showScore ? "<em>" + escapeHTML(event.awayScore || "0") + "</em>" : "") + "</span>"
+    + "<span class=\"sports-artwork-team\">" + renderSportsTeamLogo(away, "sports-artwork-team-logo") + "<strong>" + escapeHTML(sportsTeamName(away)) + "</strong>" + (showScore ? "<em>" + escapeHTML(event.awayScore || "0") + "</em>" : "") + "</span>"
     + "<span class=\"sports-artwork-center\">" + center + "</span>"
-    + "<span class=\"sports-artwork-team\">" + renderSportsTeamLogo(home, "sports-artwork-team-logo") + "<strong>" + escapeHTML(sportsTeamAbbreviation(home)) + "</strong>" + (showScore ? "<em>" + escapeHTML(event.homeScore || "0") + "</em>" : "") + "</span>"
+    + "<span class=\"sports-artwork-team\">" + renderSportsTeamLogo(home, "sports-artwork-team-logo") + "<strong>" + escapeHTML(sportsTeamName(home)) + "</strong>" + (showScore ? "<em>" + escapeHTML(event.homeScore || "0") + "</em>" : "") + "</span>"
     + "</span>";
 }
 function renderSportsArtworkRace(event) {
