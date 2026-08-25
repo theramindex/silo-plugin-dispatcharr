@@ -2519,8 +2519,8 @@ function loadSportsLibraries(force) {
   if (state.sportsLibrariesLoading) return state.sportsLibrariesPromise || Promise.resolve(items(state.sportsLibraries));
   if (state.sportsLibraries && !force) return Promise.resolve(items(state.sportsLibraries));
   state.sportsLibrariesLoading = true;
-  state.sportsLibrariesError = "";
   state.sportsLibrariesPromise = coreGetJSON("/api/v1/user/libraries").then(function(payload) {
+    state.sportsLibrariesError = "";
     state.sportsLibraries = items(payload).filter(function(library) {
       return library && Number.isInteger(Number(library.id)) && Number(library.id) > 0;
     });
@@ -2595,6 +2595,7 @@ function loadSportsReplays(force) {
     state.sportsReplaysLoading = false;
     state.sportsReplayPromise = null;
     state.sportsReplayRefreshQueued = false;
+    state.sportsReplaysError = "";
     return Promise.resolve({});
   }
   if (state.sportsReplayPromise) {
@@ -2604,7 +2605,6 @@ function loadSportsReplays(force) {
   const generation = state.sportsReplayGeneration + 1;
   state.sportsReplayGeneration = generation;
   state.sportsReplaysLoading = true;
-  state.sportsReplaysError = "";
   const eventSnapshot = items(state.sports && state.sports.events).slice();
   const promise = loadSportsLibraries(force).then(function(libraries) {
     const libraryIDs = accessibleSportsLibraryIDs(libraries);
@@ -2618,6 +2618,7 @@ function loadSportsReplays(force) {
       state.sportsReplayMatches = {};
       state.sportsReplayStandaloneEvents = [];
       state.sportsReplayKey = key;
+      state.sportsReplaysError = "";
       return state.sportsReplayMatches;
     }
     return Promise.all(libraryIDs.map(function(libraryID) {
@@ -2733,9 +2734,14 @@ function renderSportsTabFilters(payload) {
   const refreshing = state.sportsLoading || !!(payload && payload.refreshing) || state.sportsReplaysLoading;
   const refreshClass = "sports-refresh" + (refreshing ? " is-loading" : "");
   const refreshDisabled = refreshing ? " disabled aria-busy=\"true\"" : "";
+  const replayStatus = sportsReplayStatusLabel();
   return "<div class=\"sports-filter-row\"><div class=\"view-toggle\" aria-label=\"Sports filter\">" + sportsTabButtonsHTML() + "</div>"
-    + "<span class=\"sports-data-source\">Data by " + escapeHTML(sportsDataSourceLabel(payload)) + "</span>"
+    + "<span class=\"sports-data-source\">Data by " + escapeHTML(sportsDataSourceLabel(payload)) + (replayStatus ? " <span class=\"sports-replay-status\">· " + escapeHTML(replayStatus) + "</span>" : "") + "</span>"
     + "<button type=\"button\" class=\"" + refreshClass + "\" data-sports-refresh=\"true\"" + refreshDisabled + ">" + icon("loader") + "<span>Refresh scores</span></button></div>";
+}
+function sportsReplayStatusLabel() {
+  if (!configuredSportsLibraryIDs().length) return "";
+  return state.sportsLibrariesError || state.sportsReplaysError ? "Replays temporarily unavailable" : "";
 }
 function sportsDataSourceLabel(payload) {
   return lower(payload && payload.source) === "sportarr" ? "Sportarr" : (payload && payload.source || "sports provider");
@@ -2750,8 +2756,7 @@ function renderSportsPage() {
   const selectedEvent = items(payload.events).find(function(event) { return String(event.id || "") === state.sportsSelectedEventID; });
   if (state.sportsSelectedEventID && !selectedEvent) state.sportsSelectedEventID = "";
   const league = sportsLeagueByID(payload, state.sportsLeague);
-  const status = recoveryPanelHTML(payload.error, "sports")
-    + ((state.sportsLibrariesError || state.sportsReplaysError) ? "<div class=\"sports-error\">Sports replays are temporarily unavailable.</div>" : "");
+  const status = recoveryPanelHTML(payload.error, "sports");
   let content = "";
   if (selectedEvent) content = renderSportsEventDetail(payload, selectedEvent);
   else if (league) content = renderSportsLeagueDetail(payload, league, events);
