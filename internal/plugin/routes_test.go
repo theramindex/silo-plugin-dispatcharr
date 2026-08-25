@@ -1445,6 +1445,85 @@ vm.runInContext(source, sandbox);
 	}
 }
 
+func TestPlayerSportsReplayWarningStaysInlineDuringRefresh(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	appScriptPath := filepath.Join(dir, "app.js")
+	runnerPath := filepath.Join(dir, "runner.js")
+	if err := os.WriteFile(appScriptPath, []byte(extractPlayerScript(t)), 0o600); err != nil {
+		t.Fatalf("write app script: %v", err)
+	}
+	nodeScript := fmt.Sprintf(`
+const fs = require("fs");
+const vm = require("vm");
+const source = fs.readFileSync(%q, "utf8").replace(/startGuideAutoRefresh\(\);[\s\S]*$/, "");
+function makeElement() {
+  return {
+    innerHTML: "", textContent: "", style: {}, dataset: {},
+    classList: { add: () => {}, remove: () => {}, toggle: () => {} },
+    setAttribute: () => {}, removeAttribute: () => {}, querySelector: () => null,
+    querySelectorAll: () => [], addEventListener: () => {}, focus: () => {}
+  };
+}
+const elements = {};
+const sandbox = {
+  window: { location: { pathname: "/api/v1/plugins/14/dispatcharr", search: "" }, addEventListener: () => {}, innerHeight: 800, scrollY: 0 },
+  document: { documentElement: { dataset: {} }, body: makeElement(), activeElement: null, hidden: false, querySelectorAll: () => [], querySelector: () => makeElement(), getElementById: (id) => elements[id] = elements[id] || makeElement(), addEventListener: () => {}, contains: () => true },
+  localStorage: { getItem: () => null, setItem: () => {} },
+  sessionStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+  navigator: { sendBeacon: () => true }, console, URLSearchParams,
+  requestAnimationFrame: (callback) => { callback(); return 1; }, cancelAnimationFrame: () => {},
+  getComputedStyle: () => ({ getPropertyValue: () => "", fontSize: "16px" }),
+  setTimeout, clearTimeout, setInterval, clearInterval, fetch: async () => ({ ok: true, status: 200, text: async () => "{}", json: async () => ({}) })
+};
+vm.createContext(sandbox);
+const testSource = source + "\n" + [
+  'state.app = { preferences: {}, source: {}, channels: [], categories: [] };',
+  'state.adminCategorySettings = Object.assign(defaultAdminCategorySettings(), { sportsLibraryIds: [1] });',
+  'state.sports = { events: [], leagues: [], source: "sportarr + EPG" };',
+  'state.sportsReplayKey = "loaded";',
+  'state.sportsReplaysError = "1 replay library is temporarily unavailable.";',
+  'renderSportsBrowse = function(payload) { return renderSportsTabFilters(payload); };',
+  'renderSportsPage();',
+  'const rendered = document.getElementById("view").innerHTML;',
+  'const standaloneWarning = rendered.indexOf("class=\\"sports-error\\"") !== -1;',
+  'const warningSharesSourceLine = rendered.indexOf("Data by sportarr + EPG <span class=\\"sports-replay-status\\">· Replays temporarily unavailable</span>") !== -1;',
+  'state.sportsReplayKey = "";',
+  'state.sportsReplaysError = "1 replay library is temporarily unavailable.";',
+  'loadSportsLibraries = function() { return new Promise(function() {}); };',
+  'loadSportsReplays(true);',
+  'const errorPreservedDuringRefresh = state.sportsReplaysError !== "";',
+  'state.sportsLibraries = null;',
+  'state.sportsLibrariesError = "Sports libraries are temporarily unavailable.";',
+  'coreGetJSON = function() { return new Promise(function() {}); };',
+  'loadSportsLibraries(true);',
+  'globalThis.__result = { standaloneWarning, warningSharesSourceLine, errorPreservedDuringRefresh, libraryErrorPreservedDuringRefresh: state.sportsLibrariesError !== "" };'
+].join("\n");
+vm.runInContext(testSource, sandbox);
+process.stdout.write(JSON.stringify(sandbox.__result));
+`, appScriptPath)
+	if err := os.WriteFile(runnerPath, []byte(nodeScript), 0o600); err != nil {
+		t.Fatalf("write sports replay warning runner: %v", err)
+	}
+	output, err := exec.Command("node", runnerPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("run sports replay warning regression: %v\n%s", err, output)
+	}
+	var result struct {
+		StandaloneWarning           bool `json:"standaloneWarning"`
+		WarningSharesSourceLine     bool `json:"warningSharesSourceLine"`
+		ErrorPreservedDuringRefresh bool `json:"errorPreservedDuringRefresh"`
+		LibraryErrorPreserved       bool `json:"libraryErrorPreservedDuringRefresh"`
+	}
+	if err := json.Unmarshal(output, &result); err != nil {
+		t.Fatalf("decode sports replay warning regression: %v\n%s", err, output)
+	}
+	if result.StandaloneWarning || !result.WarningSharesSourceLine || !result.ErrorPreservedDuringRefresh || !result.LibraryErrorPreserved {
+		t.Fatalf("expected replay warning to remain stable inside the sports source line, got %+v", result)
+	}
+}
+
 func runVirtualAliasScript(t *testing.T, script string, context map[string]any) virtualAliasResult {
 	t.Helper()
 

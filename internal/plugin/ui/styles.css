@@ -413,6 +413,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-pinned { display: grid; gap: 0.6rem; min-width: 0; }
 .sports-filter-row { display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; min-width: 0; }
 .sports-data-source { margin-left: auto; color: var(--muted); font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
+.sports-replay-status { color: var(--warn); }
 .sports-refresh { margin-left: auto; min-height: 2rem; display: inline-flex; align-items: center; gap: 0.35rem; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--muted); padding: 0.3rem 0.7rem; font-size: 0.8rem; font-weight: 600; }
 .sports-data-source + .sports-refresh { margin-left: 0; }
 .sports-refresh svg { width: 1rem; height: 1rem; }
