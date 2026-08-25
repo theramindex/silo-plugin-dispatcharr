@@ -3028,7 +3028,7 @@ function renderSportsLeagueDetail(payload, league, events) {
 function renderSportsTeamShelfCard(team) {
   const name = sportsTeamName(team);
   const favorite = !!sportsFavoriteTeamMap()[team.id];
-  return "<article class=\"sports-team-shelf-card\">" + renderSportsTeamLogo(team, "sports-team-shelf-logo") + "<span><strong>" + escapeHTML(name) + "</strong><small>" + (favorite ? "Following" : "Team") + "</small></span>" + (team.id ? "<button type=\"button\" class=\"sports-team-favorite" + (favorite ? " active" : "") + "\" data-sports-favorite-team=\"" + escapeHTML(team.id) + "\" data-sports-favorite-enabled=\"" + (favorite ? "false" : "true") + "\" aria-label=\"" + escapeHTML(favorite ? "Unfollow " + name : "Follow " + name) + "\" aria-pressed=\"" + (favorite ? "true" : "false") + "\">" + icon(favorite ? "heart-solid" : "heart") + "</button>" : "") + "</article>";
+  return "<article class=\"sports-team-shelf-card\"><span class=\"sports-team-shelf-mark\">" + renderSportsTeamLogo(team, "sports-team-shelf-logo") + "</span><span class=\"sports-team-shelf-copy\"><strong>" + escapeHTML(name) + "</strong><small>" + (favorite ? "Following" : "Team") + "</small></span>" + (team.id ? "<button type=\"button\" class=\"sports-team-favorite" + (favorite ? " active" : "") + "\" data-sports-favorite-team=\"" + escapeHTML(team.id) + "\" data-sports-favorite-enabled=\"" + (favorite ? "false" : "true") + "\" aria-label=\"" + escapeHTML(favorite ? "Unfollow " + name : "Follow " + name) + "\" aria-pressed=\"" + (favorite ? "true" : "false") + "\">" + icon(favorite ? "heart-solid" : "heart") + "</button>" : "") + "</article>";
 }
 function renderSportsEventDetail(payload, event) {
   const channels = uniqueEventChannels(event.channels);
