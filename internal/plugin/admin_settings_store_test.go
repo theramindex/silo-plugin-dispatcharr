@@ -133,6 +133,17 @@ func TestNormalizeAdminSettingsSportsFirstPlayerEnabledDefaultsFalse(t *testing.
 	}
 }
 
+func TestNormalizeAdminSettingsOnLaterEnabledDefaultsTrueAndPreservesFalse(t *testing.T) {
+	t.Parallel()
+
+	if normalized := normalizeAdminSettingsPayload(map[string]any{})["onLaterEnabled"]; normalized != true {
+		t.Fatalf("expected On Later to default to enabled, got %v", normalized)
+	}
+	if normalized := normalizeAdminSettingsPayload(map[string]any{"onLaterEnabled": false})["onLaterEnabled"]; normalized != false {
+		t.Fatalf("expected explicit On Later disable to persist, got %v", normalized)
+	}
+}
+
 func TestNormalizeAdminSettingsPreservesProfileOnlyHierarchy(t *testing.T) {
 	t.Parallel()
 

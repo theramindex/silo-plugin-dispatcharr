@@ -2606,7 +2606,7 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 		Method:  "POST",
 		Path:    "/dispatcharr/api/admin-settings",
 		Headers: map[string]string{"x-silo-user-role": "admin"},
-		Body:    []byte(`{"mode":"normal","delimiter":"pipe","virtualGroupLabel":" Virtual Categories ","virtualGroupSource":"profile_group","ecmURL":" https://ecm.example.test/manage ","allowRecordingsByDefault":false,"sportsEnabled":false,"sportsLibraryIds":[12,0,-4,12,7.5,"19",3],"collapseDuplicateVirtualGroups":false,"flattenRedundantGroupWrappers":false,"inferChannelNameGroups":true,"categoryRenames":[{"sourcePath":" International | Arabic | Sports ","displayName":" International Sports "},{"sourcePath":"International | Arabic | Sports","displayName":"Duplicate Ignored"},{"sourcePath":"","displayName":"Nowhere"},{"sourcePath":"International | TV","displayName":""}],"categoryAliases":[{"sourcePath":" International | Arabic | Sports ","aliasPath":" Sports | Arabic "},{"sourcePath":"International | Arabic | Sports","aliasPath":"Sports | Arabic"},{"sourcePath":"International | Arabic | Sports","aliasPath":"World Cup | Arabic"},{"sourcePath":"","aliasPath":"Nowhere"},{"sourcePath":"International | Arabic | Sports","aliasPath":""}]}`),
+		Body:    []byte(`{"mode":"normal","delimiter":"pipe","virtualGroupLabel":" Virtual Categories ","virtualGroupSource":"profile_group","ecmURL":" https://ecm.example.test/manage ","allowRecordingsByDefault":false,"onLaterEnabled":false,"sportsEnabled":false,"sportsLibraryIds":[12,0,-4,12,7.5,"19",3],"collapseDuplicateVirtualGroups":false,"flattenRedundantGroupWrappers":false,"inferChannelNameGroups":true,"categoryRenames":[{"sourcePath":" International | Arabic | Sports ","displayName":" International Sports "},{"sourcePath":"International | Arabic | Sports","displayName":"Duplicate Ignored"},{"sourcePath":"","displayName":"Nowhere"},{"sourcePath":"International | TV","displayName":""}],"categoryAliases":[{"sourcePath":" International | Arabic | Sports ","aliasPath":" Sports | Arabic "},{"sourcePath":"International | Arabic | Sports","aliasPath":"Sports | Arabic"},{"sourcePath":"International | Arabic | Sports","aliasPath":"World Cup | Arabic"},{"sourcePath":"","aliasPath":"Nowhere"},{"sourcePath":"International | Arabic | Sports","aliasPath":""}]}`),
 	})
 	if err != nil {
 		t.Fatalf("admin settings route: %v", err)
@@ -2641,6 +2641,9 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	}
 	if payload["allowRecordingsByDefault"] != false {
 		t.Fatalf("expected admin recording default to persist: %+v", payload)
+	}
+	if payload["onLaterEnabled"] != false {
+		t.Fatalf("expected On Later setting to persist: %+v", payload)
 	}
 	if payload["sportsEnabled"] != false {
 		t.Fatalf("expected explicit sports disable to persist: %+v", payload)
@@ -2693,6 +2696,9 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	if persisted["allowRecordingsByDefault"] != false {
 		t.Fatalf("expected admin recording default to write through to host config: %+v", persisted)
 	}
+	if persisted["onLaterEnabled"] != false {
+		t.Fatalf("expected On Later setting to write through to host config: %+v", persisted)
+	}
 	if persisted["collapseDuplicateVirtualGroups"] != false {
 		t.Fatalf("expected duplicate virtual group collapse setting to write through to host config: %+v", persisted)
 	}
@@ -2735,6 +2741,30 @@ func TestPlayerUISupportsMovingChannelGroupsFromHomeToChannelsMenu(t *testing.T)
 	} {
 		if !strings.Contains(script, want) {
 			t.Fatalf("expected configurable Channels navigation behavior to include %q", want)
+		}
+	}
+}
+
+func TestPlayerUIAdminCanDisableOnLater(t *testing.T) {
+	t.Parallel()
+
+	page := playerPageHTMLTemplate
+	script := playerAppJavaScript()
+	if !strings.Contains(page, `data-view="onlater"`) {
+		t.Fatal("expected the On Later navigation item to use the shared view visibility contract")
+	}
+	for _, want := range []string{
+		`onLaterEnabled: true`,
+		`function onLaterEnabled()`,
+		`state.adminCategorySettings.onLaterEnabled = state.adminCategorySettings.onLaterEnabled !== false;`,
+		`button.dataset.view === "onlater" && !onLaterEnabled()`,
+		`if (view === "onlater" && !onLaterEnabled()) view = "home";`,
+		`if (state.view === "onlater" && !onLaterEnabled()) state.view = "home";`,
+		`data-admin-identity-field=\"on-later\"`,
+		`Show On Later`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("expected configurable On Later navigation behavior to include %q", want)
 		}
 	}
 }
