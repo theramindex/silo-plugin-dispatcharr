@@ -571,6 +571,18 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-matchup-thumb-center img { grid-area: 1 / 1; width: 2rem; height: 2rem; object-fit: contain; }
 .sports-matchup-thumb-center b { grid-area: 1 / 1; font-size: 0.72rem; }
 .sports-matchup-thumb-center small { position: absolute; top: calc(100% + 0.25rem); left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.72); font-size: 0.58rem; font-weight: 900; text-transform: uppercase; }
+.sports-race-thumb { grid-template-columns: minmax(0, 1fr) auto; gap: clamp(1rem, 4vw, 3rem); padding: clamp(1rem, 3vw, 2rem); background: #171b22; }
+.sports-race-thumb::before { opacity: 0.14; background-size: 1.45rem 1.45rem; -webkit-mask-image: linear-gradient(90deg, #000, transparent 72%); mask-image: linear-gradient(90deg, #000, transparent 72%); }
+.sports-race-thumb::after { background: linear-gradient(112deg, transparent 0 58%, rgba(63, 207, 187, 0.08) 58% 100%); }
+.sports-race-series { position: relative; z-index: 1; min-width: 0; display: flex; align-items: center; gap: 0.9rem; }
+.sports-race-mark { width: clamp(3.7rem, 8vw, 5.25rem); height: clamp(3.7rem, 8vw, 5.25rem); flex: 0 0 auto; display: grid; place-items: center; border: 1px solid rgba(255,255,255,0.18); border-radius: 50%; background: #101319; color: #56d0bf; }
+.sports-race-mark img { width: 72%; height: 72%; object-fit: contain; }
+.sports-race-mark b { font-size: 1.25rem; font-weight: 950; letter-spacing: -0.05em; }
+.sports-race-series > span:last-child, .sports-race-location { min-width: 0; display: grid; gap: 0.2rem; }
+.sports-race-series small, .sports-race-location small { color: rgba(255,255,255,0.58); font-size: 0.6rem; font-weight: 850; letter-spacing: 0.09em; text-transform: uppercase; }
+.sports-race-series strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #f3f5f7; font-size: clamp(1.1rem, 2.2vw, 1.65rem); }
+.sports-race-location { position: relative; z-index: 1; max-width: 15rem; justify-items: end; text-align: right; }
+.sports-race-location strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #f3f5f7; font-size: clamp(1rem, 2vw, 1.35rem); }
 .sports-replay-tile .sports-event-main { position: relative; min-height: 9rem; align-content: end; overflow: hidden; text-decoration: none; isolation: isolate; }
 .sports-replay-tile-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.34; z-index: -1; }
 .sports-replay-tile .sports-coverage-placeholder { z-index: -1; }
@@ -621,6 +633,12 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-event-hero-copy { width: min(58rem, 100%); display: grid; gap: 0.9rem; padding: 2rem; }
 .sports-event-metadata { margin: -0.35rem 0 0; color: var(--muted); font-size: 0.8rem; font-weight: 650; }
 .sports-detail-score { width: min(46rem, 100%); display: grid; grid-template-columns: minmax(0, 1fr) minmax(7.5rem, auto) minmax(0, 1fr); align-items: center; gap: 0.85rem; }
+.sports-feature-race, .sports-detail-race, .sports-race-summary { width: min(42rem, 100%); display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 1rem; }
+.sports-feature-race > span, .sports-detail-race > span, .sports-race-summary > span { min-width: 0; display: grid; gap: 0.15rem; }
+.sports-feature-race > span:last-child, .sports-detail-race > span:last-child, .sports-race-summary > span:last-child { justify-items: end; text-align: right; }
+.sports-feature-race small, .sports-detail-race small, .sports-race-summary small { color: var(--muted); font-size: 0.62rem; font-weight: 850; letter-spacing: 0.08em; text-transform: uppercase; }
+.sports-feature-race strong, .sports-detail-race strong, .sports-race-summary strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sports-feature-race em, .sports-detail-race em, .sports-race-summary em { color: var(--text); font-size: 0.75rem; font-style: normal; font-weight: 850; }
 .sports-detail-team { min-width: 0; display: flex; align-items: center; gap: 0.65rem; }
 .sports-detail-team:last-child { flex-direction: row-reverse; text-align: right; }
 .sports-detail-team-logo { width: 4rem; height: 4rem; object-fit: contain; }
@@ -688,6 +706,11 @@ button { cursor: pointer; touch-action: manipulation; }
   .sports-feature-score { grid-template-columns: minmax(0, 1fr) minmax(5.5rem, auto) minmax(0, 1fr); gap: 0.45rem; }
   .sports-feature-score strong { font-size: 0.78rem; }
   .sports-feature-score b { font-size: 1.25rem; }
+  .sports-race-thumb { gap: 0.65rem; padding: 0.9rem; }
+  .sports-race-mark { width: 3.35rem; height: 3.35rem; }
+  .sports-race-series { gap: 0.6rem; }
+  .sports-race-series strong, .sports-race-location strong { font-size: 0.95rem; }
+  .sports-feature-race, .sports-detail-race, .sports-race-summary { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 0.45rem; }
   .sports-primary-action, .sports-secondary-action { min-height: 2.75rem; }
   .sports-league-grid { grid-template-columns: minmax(0, 1fr); }
   .sports-event-team { grid-template-columns: 2rem minmax(0, 1fr) auto; }

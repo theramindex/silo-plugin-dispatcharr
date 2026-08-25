@@ -2798,19 +2798,31 @@ function sportsFeaturedEvent(events) {
 }
 function sportsEventIsLive(event) {
   if (!event || !event.live || event.completed) return false;
+  const status = lower(event.status);
+  if (["airing", "replay", "highlights", "ended"].indexOf(status) !== -1) return false;
   const startUnix = Number(event.startUnix || 0);
   if (!startUnix) return true;
   return startUnix <= Math.floor(Date.now() / 1000) + 3 * 3600;
+}
+function sportsEventIsOnNow(event) {
+  if (!event || !event.live || event.completed) return false;
+  const startUnix = Number(event.startUnix || 0);
+  if (!startUnix) return true;
+  return startUnix <= Math.floor(Date.now() / 1000) + 3 * 3600;
+}
+function sportsEventIsRace(event) {
+  return lower(event && event.eventType) === "race";
 }
 function renderSportsFeature(event) {
   if (event && event.replayOnly) return renderStandaloneSportsReplayFeature(event);
   const channels = uniqueEventChannels(event.channels);
   const art = sportsEventArtwork(event, "backdrop");
   const live = sportsEventIsLive(event);
-  const watch = live && channels[0] ? "<button type=\"button\" class=\"sports-primary-action\" data-channel=\"" + escapeHTML(channels[0].id) + "\">" + icon("play") + "<span>Watch live</span></button>" : "";
+  const onNow = sportsEventIsOnNow(event);
+  const watch = onNow && channels[0] ? "<button type=\"button\" class=\"sports-primary-action\" data-channel=\"" + escapeHTML(channels[0].id) + "\">" + icon("play") + "<span>" + (live ? "Watch live" : "Watch now") + "</span></button>" : "";
   return "<section class=\"sports-feature" + (art ? " has-art" : " no-art") + "\">"
     + (art ? "<img class=\"sports-feature-art\" src=\"" + escapeHTML(art) + "\" alt=\"\">" : "")
-    + "<div class=\"sports-feature-copy\"><span class=\"sports-eyebrow\">" + escapeHTML(live ? "Featured live event" : "Next up") + "</span>"
+    + "<div class=\"sports-feature-copy\"><span class=\"sports-eyebrow\">" + escapeHTML(live ? "Featured live event" : (onNow ? sportsStatusLabel(event) : "Next up")) + "</span>"
     + "<h1>" + escapeHTML(sportsEventTitle(event)) + "</h1>"
     + renderSportsFeatureScore(event)
     + "<div class=\"sports-feature-actions\">" + watch + "<button type=\"button\" class=\"sports-secondary-action\" data-sports-open-event=\"" + escapeHTML(event.id || "") + "\">Event details" + icon("chevron-right") + "</button></div>"
@@ -2827,6 +2839,7 @@ function renderStandaloneSportsReplayFeature(event) {
     + "</div></section>";
 }
 function renderSportsFeatureScore(event) {
+  if (sportsEventIsRace(event)) return renderSportsRaceSummary(event, "sports-feature-race");
   const live = sportsEventIsLive(event);
   const showScore = !!(live || event.completed);
   return "<div class=\"sports-feature-score\">"
@@ -2871,6 +2884,7 @@ function safeSportsTeamColor(value, fallback) {
   return /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
 }
 function renderSportsMatchupThumbnail(event) {
+  if (sportsEventIsRace(event)) return renderSportsRaceThumbnail(event);
   const away = event.away || {};
   const home = event.home || {};
   const awayColor = safeSportsTeamColor(away.primaryColor || away.secondaryColor, "#262a32");
@@ -2883,6 +2897,21 @@ function renderSportsMatchupThumbnail(event) {
     + "<span class=\"sports-matchup-thumb-center\">" + center + "<small>vs</small></span>"
     + "<span class=\"sports-matchup-thumb-team home\">" + renderSportsTeamLogo(home, "sports-matchup-thumb-logo") + "<strong>" + escapeHTML(sportsTeamAbbreviation(home)) + "</strong>" + (showScore ? "<em>" + escapeHTML(event.homeScore || "0") + "</em>" : "") + "</span>"
     + "</span>";
+}
+function renderSportsRaceThumbnail(event) {
+  const series = sportsTeamName(event.away || {}) || event.leagueName || "Motorsport";
+  const location = sportsTeamName(event.home || {}) || "Race";
+  const logo = safeSportsMediaURL(event.leagueLogoUrl);
+  const mark = logo ? "<img src=\"" + escapeHTML(logo) + "\" alt=\"\">" : "<b>FE</b>";
+  return "<span class=\"sports-matchup-thumb sports-race-thumb\" aria-hidden=\"true\">"
+    + "<span class=\"sports-race-series\"><span class=\"sports-race-mark\">" + mark + "</span><span><small>Electric racing</small><strong>" + escapeHTML(series) + "</strong></span></span>"
+    + "<span class=\"sports-race-location\"><small>Race location</small><strong>" + escapeHTML(location) + "</strong></span>"
+    + "</span>";
+}
+function renderSportsRaceSummary(event, className) {
+  const series = sportsTeamName(event.away || {}) || event.leagueName || "Motorsport";
+  const location = sportsTeamName(event.home || {}) || "Race";
+  return "<div class=\"" + escapeHTML(className || "sports-race-summary") + "\"><span><small>Series</small><strong>" + escapeHTML(series) + "</strong></span><em>" + escapeHTML(sportsStatusLabel(event)) + "</em><span><small>Location</small><strong>" + escapeHTML(location) + "</strong></span></div>";
 }
 function standaloneSportsReplayEvent(item) {
   const contentID = String(item && item.content_id || "");
@@ -2982,6 +3011,7 @@ function renderSportsEventDetail(payload, event) {
     + sportsSectionHTML("More from " + (event.leagueName || event.leagueId || "this league"), "", relatedBody, "sports-related-section") + "</div>";
 }
 function renderSportsDetailScore(event) {
+  if (sportsEventIsRace(event)) return renderSportsRaceSummary(event, "sports-detail-race");
   const live = sportsEventIsLive(event);
   const showScore = !!(live || event.completed);
   const phase = live ? "Live" : (event.completed ? "Final" : (event.startUnix ? sportsDateLabel(event.startUnix) : "Time TBD"));
@@ -3041,10 +3071,10 @@ function filteredSportsEvents(payload) {
     const replayCount = sportsReplayMatchesForEvent(event).length;
     if (!sportsEventHasPlayableAccess(event)) return false;
     if (state.sportsLeague && event.leagueId !== state.sportsLeague) return false;
-    const live = sportsEventIsLive(event);
-    if (state.sportsTab === "live" && (!live || !channelCount)) return false;
+    const onNow = sportsEventIsOnNow(event);
+    if (state.sportsTab === "live" && (!onNow || !channelCount)) return false;
     const startUnix = Number(event.startUnix || 0);
-    if (state.sportsTab === "upcoming" && (!channelCount || event.completed || live || (startUnix > 0 && startUnix < now - 3600))) return false;
+    if (state.sportsTab === "upcoming" && (!channelCount || event.completed || onNow || (startUnix > 0 && startUnix < now - 3600))) return false;
     if (state.sportsTab === "replays" && !replayCount) return false;
     if (state.sportsTab === "favorites" && !sportsEventHasFavoriteTeam(event)) return false;
     return true;
@@ -3093,6 +3123,8 @@ function renderSportsEventCard(event) {
 }
 function sportsStatusLabel(event) {
   if (sportsEventIsLive(event)) return event.statusText || "Live";
+  const status = lower(event && event.status);
+  if (["airing", "replay", "highlights", "ended"].indexOf(status) !== -1) return event.statusText || ({ airing: "On now", replay: "Replay", highlights: "Highlights", ended: "Ended" })[status];
   if (event.completed) return event.statusText || "Final";
   if (event.startUnix) return sportsDateLabel(event.startUnix);
   return event.statusText || "Time TBD";
@@ -3115,6 +3147,7 @@ function renderSportsTeamLogo(team, className) {
   return "<span class=\"" + className + " logo-fallback\">" + escapeHTML(label) + "</span>";
 }
 function renderSportsMatchup(event, status) {
+  if (sportsEventIsRace(event)) return renderSportsRaceSummary(event, "sports-race-summary");
   const center = event.leagueName || event.leagueId || "Sports";
   const detail = status;
   const live = sportsEventIsLive(event);

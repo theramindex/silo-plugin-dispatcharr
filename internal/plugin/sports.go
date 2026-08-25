@@ -33,6 +33,8 @@ const (
 )
 
 var sportsMatchupSeparator = regexp.MustCompile(`(?i)\s+(?:vs\.?|v\.?|at|@)\s+`)
+var formulaERacePattern = regexp.MustCompile(`(?i)\bformul[ae]\s+e\b`)
+var raceLocationPrefix = regexp.MustCompile(`(?i)^\s*(?:v(?:s\.)?|at|@|:|-)\s*`)
 
 type sportsEventCache struct {
 	Events       []SportsEvent
@@ -220,6 +222,15 @@ func mergeSportsGuideEvents(events, guideEvents []SportsEvent) []SportsEvent {
 			break
 		}
 		if !matched {
+			if guideEvent.Live && guideEvent.Status == "airing" {
+				for _, providerEvent := range merged {
+					if providerEvent.Completed && providerEvent.StartUnix < guideEvent.StartUnix && sportsEventsSameIdentity(providerEvent, guideEvent) {
+						guideEvent.Status = "replay"
+						guideEvent.StatusText = "Replay"
+						break
+					}
+				}
+			}
 			merged = append(merged, guideEvent)
 		}
 	}
@@ -236,6 +247,10 @@ func sportsEventsSameMatchup(left, right SportsEvent) bool {
 			return false
 		}
 	}
+	return sportsEventsSameIdentity(left, right)
+}
+
+func sportsEventsSameIdentity(left, right SportsEvent) bool {
 	leftText := normalizeMatchText(strings.Join([]string{left.Name, left.ShortName, left.Away.Name, left.Home.Name}, " "))
 	rightText := normalizeMatchText(strings.Join([]string{right.Name, right.ShortName, right.Away.Name, right.Home.Name}, " "))
 	return strongSportsGuideMatch(leftText, right) && strongSportsGuideMatch(rightText, left)
@@ -267,6 +282,11 @@ func sportsEventsFromGuide(snapshot cache.Snapshot, now time.Time) []SportsEvent
 		categoryName := firstNonEmpty(categoryNames[channel.CategoryID], channel.CategoryName)
 		leagueID, leagueName, sportName, sportsContext := guideSportsLeague(strings.Join([]string{program.Title, channel.Name, categoryName}, " "))
 		awayName, homeName, matchup := guideSportsMatchup(program.Title)
+		eventType := ""
+		if series, location, race := guideSportsRace(program.Title); race {
+			awayName, homeName, matchup = series, location, true
+			eventType = "race"
+		}
 		if !sportsContext || !matchup {
 			continue
 		}
@@ -279,16 +299,10 @@ func sportsEventsFromGuide(snapshot cache.Snapshot, now time.Time) []SportsEvent
 			if endUnix <= program.StartUnix {
 				endUnix = program.StartUnix + 3*3600
 			}
-			live := program.StartUnix <= now.Unix() && endUnix > now.Unix()
-			completed := endUnix <= now.Unix()
-			status := "scheduled"
-			statusText := ""
-			if live {
-				status = "live"
-				statusText = "Live"
-			} else if completed {
-				status = "completed"
-				statusText = "Final"
+			live, completed, status, statusText := guideSportsBroadcastStatus(program, endUnix, now)
+			shortName := strings.TrimSpace(awayName + " vs " + homeName)
+			if eventType == "race" {
+				shortName = strings.Trim(strings.Join([]string{awayName, homeName}, " · "), " ·")
 			}
 			value := SportsEvent{
 				ID:         "epg:" + sportsHash(key),
@@ -296,8 +310,10 @@ func sportsEventsFromGuide(snapshot cache.Snapshot, now time.Time) []SportsEvent
 				LeagueName: leagueName,
 				SportName:  sportName,
 				Name:       strings.TrimSpace(program.Title),
-				ShortName:  strings.TrimSpace(awayName + " vs " + homeName),
+				ShortName:  shortName,
+				EventType:  eventType,
 				StartUnix:  program.StartUnix,
+				EndUnix:    endUnix,
 				Live:       live,
 				Completed:  completed,
 				Status:     status,
@@ -362,6 +378,7 @@ func guideSportsLeague(value string) (string, string, string, bool) {
 		{[]string{"world cup", "fifa"}, "world-cup", "World Cup", "Soccer"},
 		{[]string{"ufc", "mma"}, "mma", "MMA", "Combat Sports"},
 		{[]string{"boxing"}, "boxing", "Boxing", "Combat Sports"},
+		{[]string{"formula e", "formule e"}, "formula-e", "Formula E", "Motorsport"},
 		{[]string{"formula 1", "f1"}, "formula-1", "Formula 1", "Motorsport"},
 		{[]string{"tennis"}, "tennis", "Tennis", "Tennis"},
 		{[]string{"golf", "pga"}, "golf", "Golf", "Golf"},
@@ -380,14 +397,18 @@ func guideSportsLeague(value string) (string, string, string, bool) {
 }
 
 func guideSportsMatchup(title string) (string, string, bool) {
-	location := sportsMatchupSeparator.FindStringIndex(title)
-	if location == nil {
+	locations := sportsMatchupSeparator.FindAllStringIndex(title, -1)
+	if len(locations) == 0 {
 		return "", "", false
 	}
+	location := locations[len(locations)-1]
 	left := strings.TrimSpace(title[:location[0]])
 	right := strings.TrimSpace(title[location[1]:])
 	if colon := strings.LastIndex(left, ":"); colon >= 0 {
 		left = strings.TrimSpace(left[colon+1:])
+	}
+	if colon := strings.Index(right, ":"); colon >= 0 {
+		right = strings.TrimSpace(right[:colon])
 	}
 	left = strings.Trim(left, " -:|,.")
 	right = strings.Trim(right, " -:|,.")
@@ -395,6 +416,40 @@ func guideSportsMatchup(title string) (string, string, bool) {
 		return "", "", false
 	}
 	return left, right, true
+}
+
+func guideSportsRace(title string) (string, string, bool) {
+	location := formulaERacePattern.FindStringIndex(title)
+	if location == nil {
+		return "", "", false
+	}
+	venue := raceLocationPrefix.ReplaceAllString(strings.TrimSpace(title[location[1]:]), "")
+	venue = strings.Trim(venue, " -:|,.")
+	if venue == "" {
+		venue = "Race"
+	}
+	return "Formula E", venue, true
+}
+
+func guideSportsBroadcastStatus(program model.Program, endUnix int64, now time.Time) (bool, bool, string, string) {
+	live := program.StartUnix <= now.Unix() && endUnix > now.Unix()
+	completed := endUnix <= now.Unix()
+	text := normalizeMatchText(program.Title + " " + program.Summary)
+	if containsMatchTerm(text, "highlight") || containsMatchTerm(text, "highlights") {
+		return live, completed, "highlights", "Highlights"
+	}
+	for _, term := range []string{"rebroadcast", "replay", "re-air", "reair", "encore", "previously recorded", "tape delayed", "tape-delayed"} {
+		if containsMatchTerm(text, term) {
+			return live, completed, "replay", "Replay"
+		}
+	}
+	if live {
+		return true, false, "airing", "On now"
+	}
+	if completed {
+		return false, true, "ended", "Ended"
+	}
+	return false, false, "scheduled", ""
 }
 
 func sportsTeamInitials(name string) string {
