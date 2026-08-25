@@ -627,6 +627,7 @@ func normalizeSportsEvents(events []SportsEvent) []SportsEvent {
 		event.StatusText = strings.TrimSpace(event.StatusText)
 		event.Home = normalizeSportsTeam(event.Home)
 		event.Away = normalizeSportsTeam(event.Away)
+		event = applySportsIdentityFallbacks(event)
 		if event.ID == "" {
 			event.ID = stableSportsID(event)
 		}

@@ -268,6 +268,66 @@ func TestNormalizeSportsEventFreshnessExpiresStaleLiveGames(t *testing.T) {
 	}
 }
 
+func TestNormalizeSportsEventsAddsGameThumbsIdentityFallbacks(t *testing.T) {
+	t.Parallel()
+
+	events := normalizeSportsEvents([]SportsEvent{
+		{
+			LeagueID: "nba", LeagueName: "NBA", Name: "NBA Playback: Heat vs. Pistons",
+			Away: SportsTeam{Name: "Heat"}, Home: SportsTeam{Name: "Pistons"},
+		},
+		{
+			LeagueID: "sports", LeagueName: "Sports", Name: "NWSL Soccer: Teal Rising Cup: Kansas City Current vs. Palmeiras",
+			Away: SportsTeam{Name: "Kansas City Current"}, Home: SportsTeam{Name: "Palmeiras"},
+		},
+		{
+			LeagueID: "nfl", LeagueName: "NFL", Name: "Existing artwork",
+			LeagueLogoURL: "https://images.example/nfl.png",
+			Away:          SportsTeam{Name: "Cowboys", LogoURL: "https://images.example/cowboys.png"},
+			Home:          SportsTeam{Name: "Cardinals"},
+		},
+		{
+			LeagueID: "sports", LeagueName: "Sports", Name: "Unknown local competition",
+			Away: SportsTeam{Name: "Alpha"}, Home: SportsTeam{Name: "Beta"},
+		},
+		{
+			LeagueID: "bra.1", LeagueName: "Brazil Serie A", Name: "São Paulo vs. Grêmio",
+			Away: SportsTeam{Name: "São Paulo"}, Home: SportsTeam{Name: "Grêmio"},
+		},
+	})
+
+	if got := events[0].LeagueLogoURL; got != "https://game-thumbs.swvn.io/nba/leaguelogo.png" {
+		t.Fatalf("expected NBA league fallback, got %q", got)
+	}
+	if got := events[0].Away.LogoURL; got != "https://game-thumbs.swvn.io/nba/heat/teamlogo.png" {
+		t.Fatalf("expected Heat logo fallback, got %q", got)
+	}
+	if got := events[0].Home.LogoURL; got != "https://game-thumbs.swvn.io/nba/pistons/teamlogo.png" {
+		t.Fatalf("expected Pistons logo fallback, got %q", got)
+	}
+	if got := events[1].LeagueLogoURL; got != "https://game-thumbs.swvn.io/usa.nwsl/leaguelogo.png" {
+		t.Fatalf("expected NWSL league fallback, got %q", got)
+	}
+	if got := events[1].Away.LogoURL; got != "https://game-thumbs.swvn.io/usa.nwsl/kansas-city-current/teamlogo.png" {
+		t.Fatalf("expected Kansas City Current logo fallback, got %q", got)
+	}
+	if got := events[1].Home.LogoURL; got != "https://game-thumbs.swvn.io/bra.1/palmeiras/teamlogo.png" {
+		t.Fatalf("expected Palmeiras cross-league fallback, got %q", got)
+	}
+	if events[2].LeagueLogoURL != "https://images.example/nfl.png" || events[2].Away.LogoURL != "https://images.example/cowboys.png" {
+		t.Fatalf("expected upstream artwork to win, got %+v", events[2])
+	}
+	if events[3].LeagueLogoURL != "" || events[3].Away.LogoURL != "" || events[3].Home.LogoURL != "" {
+		t.Fatalf("expected unknown competition to retain honest empty artwork, got %+v", events[3])
+	}
+	if got := events[4].Away.LogoURL; got != "https://game-thumbs.swvn.io/bra.1/sao-paulo/teamlogo.png" {
+		t.Fatalf("expected diacritics removed from São Paulo fallback, got %q", got)
+	}
+	if got := events[4].Home.LogoURL; got != "https://game-thumbs.swvn.io/bra.1/gremio/teamlogo.png" {
+		t.Fatalf("expected diacritics removed from Grêmio fallback, got %q", got)
+	}
+}
+
 func TestSportsEventsFromGuideCapsFallbackSlate(t *testing.T) {
 	t.Parallel()
 
