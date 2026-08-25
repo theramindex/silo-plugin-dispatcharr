@@ -1971,7 +1971,7 @@ function renderHome() {
     + sectionHeader("Recently watched")
     + rowCards(watched)
     + (favorites.length ? sectionHeader("Favorites") + favoriteHomeCards(favorites) : "")
-    + sectionHeaderWithActions("TV Guide", "<button type=\"button\" class=\"section-action\" data-view=\"guide\">Open Guide</button>" + guideFreshnessHTML())
+    + sectionHeaderWithActions("TV Guide", "<button type=\"button\" class=\"section-action\" data-view=\"guide\">Open Full Guide</button>" + guideFreshnessHTML())
     + renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true })
     + (channelGroupsInSideMenu() ? "" : categoryGrid());
   const openGuide = root.querySelector("[data-view=\"guide\"]");
