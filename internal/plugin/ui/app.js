@@ -2939,10 +2939,11 @@ function renderSportsArtworkRace(event) {
 function renderSportsRaceThumbnail(event) {
   const series = sportsTeamName(event.away || {}) || event.leagueName || "Motorsport";
   const location = sportsTeamName(event.home || {}) || "Race";
+  const raceLabel = event.leagueName || event.sportName || "Motorsport";
   const logo = safeSportsMediaURL(event.leagueLogoUrl);
-  const mark = logo ? "<img src=\"" + escapeHTML(logo) + "\" alt=\"\">" : "<b>FE</b>";
+  const mark = logo ? "<img src=\"" + escapeHTML(logo) + "\" alt=\"\">" : "<b>RACE</b>";
   return "<span class=\"sports-matchup-thumb sports-race-thumb\" aria-hidden=\"true\">"
-    + "<span class=\"sports-race-series\"><span class=\"sports-race-mark\">" + mark + "</span><span><small>Electric racing</small><strong>" + escapeHTML(series) + "</strong></span></span>"
+    + "<span class=\"sports-race-series\"><span class=\"sports-race-mark\">" + mark + "</span><span><small>" + escapeHTML(raceLabel) + "</small><strong>" + escapeHTML(series) + "</strong></span></span>"
     + "<span class=\"sports-race-location\"><small>Race location</small><strong>" + escapeHTML(location) + "</strong></span>"
     + "</span>";
 }

@@ -34,6 +34,7 @@ const (
 
 var sportsMatchupSeparator = regexp.MustCompile(`(?i)\s+(?:vs\.?|v\.?|at|@)\s+`)
 var formulaERacePattern = regexp.MustCompile(`(?i)\bformul[ae]\s+e\b`)
+var nascarCupRacePattern = regexp.MustCompile(`(?i)\b(?:nascar\s+cup\s+series|ncs\s+race)\b`)
 var raceLocationPrefix = regexp.MustCompile(`(?i)^\s*(?:v(?:s\.)?|at|@|:|-)\s*`)
 var guideSportsTimestampSuffix = regexp.MustCompile(`(?i)\s*\(\d{4}-\d{2}-\d{2}(?:[ t]\d{1,2}:\d{2}(?::\d{2})?)?\)\s*$`)
 var guideSportsNextGameSuffix = regexp.MustCompile(`(?i)\s+on\s+\d{4}-\d{2}-\d{2}\s+at\s+\d{1,2}:\d{2}\s*(?:am|pm)?(?:\s+[a-z]{2,5})?\s*$`)
@@ -401,6 +402,7 @@ func guideSportsLeague(value string) (string, string, string, bool) {
 		{[]string{"boxing"}, "boxing", "Boxing", "Combat Sports"},
 		{[]string{"formula e", "formule e"}, "formula-e", "Formula E", "Motorsport"},
 		{[]string{"formula 1", "f1"}, "formula-1", "Formula 1", "Motorsport"},
+		{[]string{"nascar cup series", "ncs race"}, "nascar-cup-series", "NASCAR Cup Series", "Motorsport"},
 		{[]string{"tennis"}, "tennis", "Tennis", "Tennis"},
 		{[]string{"golf", "pga"}, "golf", "Golf", "Golf"},
 		{[]string{"cricket"}, "cricket", "Cricket", "Cricket"},
@@ -456,10 +458,24 @@ func cleanGuideSportsAnnotations(value string) string {
 func cleanGuideSportsTeamName(value string) string {
 	value = cleanGuideSportsAnnotations(value)
 	value = guideSportsTimestampSuffix.ReplaceAllString(value, "")
+	value = strings.TrimSpace(value)
+	if open := strings.LastIndex(value, " ("); open > 0 && strings.HasSuffix(value, ")") {
+		base := strings.TrimSpace(value[:open])
+		parenthetical := strings.TrimSpace(value[open+2 : len(value)-1])
+		if normalizeMatchText(base) == normalizeMatchText(parenthetical) {
+			return base
+		}
+	}
 	return strings.TrimSpace(value)
 }
 
 func guideSportsRace(title string) (string, string, bool) {
+	if nascarCupRacePattern.MatchString(title) {
+		series, location, race := guideSportsMatchup(title)
+		if race {
+			return series, location, true
+		}
+	}
 	location := formulaERacePattern.FindStringIndex(title)
 	if location == nil {
 		return "", "", false

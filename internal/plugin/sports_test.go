@@ -611,6 +611,31 @@ func TestSportsEventsFromGuideClassifiesRacesAndBroadcastState(t *testing.T) {
 	}
 }
 
+func TestSportsEventsFromGuideClassifiesNASCARCupHighlightsAsRaceAtLocation(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 25, 12, 0, 0, 0, time.UTC)
+	title := "NASCAR Cup Series Highlights (Erstausstrahlung) : NCS Race at New Hampshire (New Hampshire)"
+	events := sportsEventsFromGuide(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{{ID: "channel:sports", Name: "Motorvision TV", CategoryID: "sports", CategoryName: "Sports"}},
+		Programs: []model.Program{{ID: "program:nascar", ChannelID: "channel:sports", Title: title, StartUnix: now.Add(-time.Hour).Unix(), EndUnix: now.Add(time.Hour).Unix()}},
+		Content:  model.ContentState{LiveCategories: []model.Category{{ID: "sports", Name: "Sports", Kind: "live"}}},
+	}}, now)
+	if len(events) != 1 {
+		t.Fatalf("expected one NASCAR Cup highlights event, got %+v", events)
+	}
+	event := events[0]
+	if event.EventType != "race" || event.LeagueID != "nascar-cup-series" || event.LeagueName != "NASCAR Cup Series" || event.SportName != "Motorsport" {
+		t.Fatalf("expected NASCAR Cup motorsport identity, got %+v", event)
+	}
+	if event.Away.Name != "NCS Race" || event.Home.Name != "New Hampshire" {
+		t.Fatalf("expected NCS race and New Hampshire location without a versus matchup, got %+v", event)
+	}
+	if event.Status != "highlights" || event.StatusText != "Highlights" {
+		t.Fatalf("expected NASCAR highlights status, got %+v", event)
+	}
+}
+
 func TestMergeSportsGuideEventsMarksLaterCompletedMatchupAiringAsReplay(t *testing.T) {
 	t.Parallel()
 
