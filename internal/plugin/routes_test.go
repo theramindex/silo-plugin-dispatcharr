@@ -3455,8 +3455,19 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 			t.Fatalf("sports tile channel disclosure must include %q", want)
 		}
 	}
+	for _, want := range []string{`channels.length === 1`, `data-channel=`, `sportsEventChannelsExpanded`} {
+		if !strings.Contains(sportsTileAvailability, want) {
+			t.Fatalf("single-channel sports coverage must link directly while multi-channel coverage discloses via %q", want)
+		}
+	}
+	sportsChannelsExpanded := functionBody("sportsEventChannelsExpanded")
+	for _, want := range []string{`availableChannels.length > 1`, `state.sportsExpandedEvents[event.id]`} {
+		if !strings.Contains(sportsChannelsExpanded, want) {
+			t.Fatalf("sports channel disclosure state must stay centralized via %q", want)
+		}
+	}
 	toggleSportsChannels := functionBody("toggleSportsEventChannels")
-	for _, want := range []string{`classList.toggle`, `aria-hidden`, `removeAttribute("inert")`, `setAttribute("inert"`} {
+	for _, want := range []string{`classList.toggle`, `tile.classList.toggle("channels-expanded"`, `aria-hidden`, `removeAttribute("inert")`, `setAttribute("inert"`} {
 		if !strings.Contains(toggleSportsChannels, want) {
 			t.Fatalf("sports tile channel disclosure interaction must include %q", want)
 		}
@@ -3637,6 +3648,8 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.sports-artwork-copy {`,
 		`.sports-event-channel-reveal {`,
 		`.sports-event-channel-reveal.expanded {`,
+		`.sports-event-tile.channels-expanded {`,
+		`position: absolute;`,
 		`.sports-event-channel-list {`,
 		`.sports-matchup-thumb {`,
 		`.sports-matchup-thumb-team {`,
