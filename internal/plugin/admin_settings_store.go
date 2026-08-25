@@ -145,6 +145,10 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	if enabled, ok := payload["allowRecordingsByDefault"].(bool); ok {
 		allowRecordingsByDefault = enabled
 	}
+	onLaterEnabled := true
+	if enabled, ok := payload["onLaterEnabled"].(bool); ok {
+		onLaterEnabled = enabled
+	}
 	sportsFirstPlayerEnabled := false
 	if enabled, ok := payload["sportsFirstPlayerEnabled"].(bool); ok {
 		sportsFirstPlayerEnabled = enabled
@@ -207,11 +211,12 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 		"delimiter":                      delimiter,
 		"virtualGroupLabel":              virtualGroupLabel,
 		"appDisplayName":                 appDisplayName,
-		"sideMenuMode":                  sideMenuMode,
+		"sideMenuMode":                   sideMenuMode,
 		"virtualGroupSource":             virtualGroupSource,
 		"ecmEnabled":                     ecmEnabled,
 		"ecmURL":                         ecmURL,
 		"allowRecordingsByDefault":       allowRecordingsByDefault,
+		"onLaterEnabled":                 onLaterEnabled,
 		"sportsFirstPlayerEnabled":       sportsFirstPlayerEnabled,
 		"sportsEnabled":                  sportsEnabled,
 		"sportsLibraryIds":               sportsLibraryIDs,

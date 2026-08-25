@@ -123,6 +123,10 @@ const categorySettingsJSONSchema = `{
       "enum": ["guide", "channels"],
       "default": "guide"
     },
+    "onLaterEnabled": {
+      "type": "boolean",
+      "default": true
+    },
     "ecmEnabled": {
       "type": "boolean",
       "default": false

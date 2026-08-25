@@ -235,7 +235,7 @@ func TestUserConfigSchema_DeclaresAdminCategorySettingsShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected admin category settings schema properties, got %q", adminSettings.GetJsonSchema())
 	}
-	for _, key := range []string{"mode", "delimiter", "virtualGroupLabel", "appDisplayName", "virtualGroupSource", "ecmEnabled", "ecmURL", "allowRecordingsByDefault", "sportsFirstPlayerEnabled", "hlsBufferSeconds", "sportsEnabled", "sportsLibraryIds", "liveRewindEnabled", "liveRewindCacheGB", "liveRewindWindowMinutes", "liveRewindMinFreeGB", "liveRewindMaxChannels", "collapseDuplicateVirtualGroups", "flattenRedundantGroupWrappers", "inferChannelNameGroups", "categoryRenames", "categoryAliases", "featuredEventIds", "eventKeywords"} {
+	for _, key := range []string{"mode", "delimiter", "virtualGroupLabel", "appDisplayName", "virtualGroupSource", "ecmEnabled", "ecmURL", "allowRecordingsByDefault", "onLaterEnabled", "sportsFirstPlayerEnabled", "hlsBufferSeconds", "sportsEnabled", "sportsLibraryIds", "liveRewindEnabled", "liveRewindCacheGB", "liveRewindWindowMinutes", "liveRewindMinFreeGB", "liveRewindMaxChannels", "collapseDuplicateVirtualGroups", "flattenRedundantGroupWrappers", "inferChannelNameGroups", "categoryRenames", "categoryAliases", "featuredEventIds", "eventKeywords"} {
 		if _, ok := properties[key]; !ok {
 			t.Fatalf("expected admin category settings schema to declare %q", key)
 		}
@@ -246,6 +246,9 @@ func TestUserConfigSchema_DeclaresAdminCategorySettingsShape(t *testing.T) {
 	}
 	if property, ok := properties["sportsFirstPlayerEnabled"].(map[string]any); !ok || property["default"] != false {
 		t.Fatalf("expected sportsFirstPlayerEnabled schema default to be false, got %+v", properties["sportsFirstPlayerEnabled"])
+	}
+	if property, ok := properties["onLaterEnabled"].(map[string]any); !ok || property["default"] != true {
+		t.Fatalf("expected onLaterEnabled schema default to be true, got %+v", properties["onLaterEnabled"])
 	}
 	if property, ok := properties["hlsBufferSeconds"].(map[string]any); !ok || property["default"] != float64(12) || property["minimum"] != float64(5) || property["maximum"] != float64(60) {
 		t.Fatalf("expected hlsBufferSeconds schema bounds/default, got %+v", properties["hlsBufferSeconds"])
@@ -271,6 +274,7 @@ func TestGlobalConfigSchema_AcceptsCompleteAdminSettings(t *testing.T) {
 		"ecmEnabled":                     false,
 		"ecmURL":                         "",
 		"allowRecordingsByDefault":       true,
+		"onLaterEnabled":                 false,
 		"sportsFirstPlayerEnabled":       true,
 		"hlsBufferSeconds":               12,
 		"sportsEnabled":                  true,
