@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
@@ -12,7 +13,30 @@ import (
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/timeshift"
+	"google.golang.org/protobuf/types/known/structpb"
 )
+
+func TestTimeShiftMediaUsesManifestDeclaredRoutes(t *testing.T) {
+	t.Parallel()
+	server := NewHTTPRoutesServer(cache.NewStore())
+	server.timeShift = timeshift.NewManager(t.TempDir())
+
+	manifestQuery, _ := structpb.NewStruct(map[string]any{"buffer_id": "buffer", "lease": "lease"})
+	manifest, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Path: "/dispatcharr/timeshift/manifest", Method: http.MethodGet, Query: manifestQuery,
+	})
+	if err != nil || manifest.GetStatusCode() != http.StatusTooEarly {
+		t.Fatalf("expected declared manifest route to reach the buffer manager: status=%d err=%v", manifest.GetStatusCode(), err)
+	}
+
+	segmentQuery, _ := structpb.NewStruct(map[string]any{"buffer_id": "buffer", "lease": "lease", "sequence": "invalid"})
+	segment, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Path: "/dispatcharr/timeshift/segment", Method: http.MethodGet, Query: segmentQuery,
+	})
+	if err != nil || segment.GetStatusCode() != http.StatusBadRequest {
+		t.Fatalf("expected declared segment route to validate the sequence: status=%d err=%v", segment.GetStatusCode(), err)
+	}
+}
 
 func TestTimeShiftRoutesShareBuffersAndGateAdminOperations(t *testing.T) {
 	t.Parallel()
@@ -51,6 +75,10 @@ func TestTimeShiftRoutesShareBuffersAndGateAdminOperations(t *testing.T) {
 	second := start()
 	if first["bufferId"] != second["bufferId"] || first["leaseId"] == second["leaseId"] {
 		t.Fatalf("expected shared buffer and unique leases: first=%v second=%v", first, second)
+	}
+	manifestPath, _ := first["manifestPath"].(string)
+	if !strings.HasPrefix(manifestPath, "/dispatcharr/timeshift/manifest?buffer_id=") {
+		t.Fatalf("expected start response to use the declared manifest route, got %q", manifestPath)
 	}
 
 	unauthorized, _ := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Path: "/dispatcharr/api/timeshift/admin-status", Method: http.MethodGet})

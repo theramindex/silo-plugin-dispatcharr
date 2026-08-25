@@ -53,6 +53,10 @@ func TestManagerSharesOneChannelBufferAcrossLeases(t *testing.T) {
 	if !ok || !bytes.Contains(manifest, []byte("#EXT-X-MEDIA-SEQUENCE")) {
 		t.Fatalf("expected HLS manifest, ok=%v body=%q", ok, manifest)
 	}
+	expectedSegmentRoute := []byte("segment?buffer_id=" + first.BufferID + "&sequence=0&lease=" + first.ID)
+	if !bytes.Contains(manifest, expectedSegmentRoute) {
+		t.Fatalf("expected manifest to use the declared segment route %q, body=%q", expectedSegmentRoute, manifest)
+	}
 	stats := manager.Stats()
 	if stats.ActiveBuffers != 1 || stats.ActiveLeases != 2 {
 		t.Fatalf("expected one buffer and two leases, got %+v", stats)

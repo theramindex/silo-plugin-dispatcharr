@@ -254,6 +254,20 @@
       "navigable": false
     },
     {
+      "id": "dispatcharr-timeshift-manifest",
+      "method": "GET",
+      "path": "/dispatcharr/timeshift/manifest",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-timeshift-segment",
+      "method": "GET",
+      "path": "/dispatcharr/timeshift/segment",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
       "id": "dispatcharr-api-sports",
       "method": "GET",
       "path": "/dispatcharr/api/sports",

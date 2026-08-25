@@ -589,6 +589,8 @@ func TestManifestDeclaresPublicApplicationRoutesOnly(t *testing.T) {
 		"POST /dispatcharr/api/timeshift/stop",
 		"GET /dispatcharr/api/timeshift/admin-status",
 		"POST /dispatcharr/api/timeshift/clear",
+		"GET /dispatcharr/timeshift/manifest",
+		"GET /dispatcharr/timeshift/segment",
 		"GET /dispatcharr/assets/app.js",
 		"GET /dispatcharr/assets/lineup.js",
 		"GET /dispatcharr/assets/sports_replays.js",
