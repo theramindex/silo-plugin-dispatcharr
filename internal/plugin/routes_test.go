@@ -3407,9 +3407,21 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		}
 	}
 	sportsMatchupThumbnail := functionBody("renderSportsMatchupThumbnail")
-	for _, want := range []string{`sportsEventIsRace`, `renderSportsRaceThumbnail`, `primaryColor`, `leagueLogoUrl`, `renderSportsTeamLogo`, `sportsTeamName`, `sports-matchup-thumb`, `sportsEventIsLive`} {
+	for _, want := range []string{`sportsEventIsRace`, `renderSportsRaceThumbnail`, `sportsEventIsProgram`, `renderSportsProgramThumbnail`, `primaryColor`, `leagueLogoUrl`, `renderSportsTeamLogo`, `sportsTeamName`, `sports-matchup-thumb`, `sportsEventIsLive`} {
 		if !strings.Contains(sportsMatchupThumbnail, want) {
 			t.Fatalf("sports matchup thumbnail must include %q", want)
+		}
+	}
+	sportsProgramThumbnail := functionBody("renderSportsProgramThumbnail")
+	for _, want := range []string{`sportsEventTitle`, `event.leagueName`, `event.leagueLogoUrl`} {
+		if !strings.Contains(sportsProgramThumbnail, want) {
+			t.Fatalf("metadata-classified sports programs must include %q without a false versus matchup", want)
+		}
+	}
+	sportsDetailScore := functionBody("renderSportsDetailScore")
+	for _, want := range []string{`sportsEventIsProgram`, `sports-detail-program`, `sportsStatusLabel`} {
+		if !strings.Contains(sportsDetailScore, want) {
+			t.Fatalf("metadata-classified sports program details must include %q without fabricated teams", want)
 		}
 	}
 	sportsRaceThumbnail := functionBody("renderSportsRaceThumbnail")
@@ -3428,7 +3440,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		}
 	}
 	sportsArtworkThumbnail := functionBody("renderSportsArtworkThumbnail")
-	for _, want := range []string{`sports-artwork-thumb-bg`, `sports-artwork-status`, `renderSportsArtworkMatchup`, `renderSportsArtworkRace`, `sportsEventTitle`} {
+	for _, want := range []string{`sports-artwork-thumb-bg`, `sports-artwork-status`, `renderSportsArtworkMatchup`, `renderSportsArtworkRace`, `renderSportsArtworkProgram`, `sportsEventTitle`} {
 		if !strings.Contains(sportsArtworkThumbnail, want) {
 			t.Fatalf("art-backed sports thumbnail must include %q", want)
 		}

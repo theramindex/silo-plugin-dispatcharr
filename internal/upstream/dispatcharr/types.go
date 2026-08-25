@@ -65,13 +65,19 @@ type VersionInfo struct {
 }
 
 type Program struct {
-	ID          String `json:"id"`
-	Title       String `json:"title"`
-	SubTitle    String `json:"sub_title"`
-	Description String `json:"description"`
-	TVGID       String `json:"tvg_id"`
-	StartTime   String `json:"start_time"`
-	EndTime     String `json:"end_time"`
+	ID               String                  `json:"id"`
+	Title            String                  `json:"title"`
+	SubTitle         String                  `json:"sub_title"`
+	Description      String                  `json:"description"`
+	TVGID            String                  `json:"tvg_id"`
+	StartTime        String                  `json:"start_time"`
+	EndTime          String                  `json:"end_time"`
+	Categories       []string                `json:"categories"`
+	CustomProperties ProgramCustomProperties `json:"custom_properties"`
+}
+
+type ProgramCustomProperties struct {
+	Categories []string `json:"categories"`
 }
 
 type ProgramSearchResult struct {

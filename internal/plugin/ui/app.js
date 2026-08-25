@@ -2818,6 +2818,9 @@ function sportsEventIsOnNow(event) {
 function sportsEventIsRace(event) {
   return lower(event && event.eventType) === "race";
 }
+function sportsEventIsProgram(event) {
+  return lower(event && event.eventType) === "event";
+}
 function renderSportsFeature(event) {
   if (event && event.replayOnly) return renderStandaloneSportsReplayFeature(event);
   const channels = uniqueEventChannels(event.channels);
@@ -2846,6 +2849,7 @@ function renderStandaloneSportsReplayFeature(event) {
 }
 function renderSportsFeatureScore(event) {
   if (sportsEventIsRace(event)) return renderSportsRaceSummary(event, "sports-feature-race");
+  if (sportsEventIsProgram(event)) return "";
   const live = sportsEventIsLive(event);
   const showScore = !!(live || event.completed);
   return "<div class=\"sports-feature-score\">"
@@ -2892,6 +2896,7 @@ function safeSportsTeamColor(value, fallback) {
 }
 function renderSportsMatchupThumbnail(event) {
   if (sportsEventIsRace(event)) return renderSportsRaceThumbnail(event);
+  if (sportsEventIsProgram(event)) return renderSportsProgramThumbnail(event);
   const away = event.away || {};
   const home = event.home || {};
   const awayColor = safeSportsTeamColor(away.primaryColor || away.secondaryColor, "#262a32");
@@ -2905,16 +2910,30 @@ function renderSportsMatchupThumbnail(event) {
     + "<span class=\"sports-matchup-thumb-team home\">" + renderSportsTeamLogo(home, "sports-matchup-thumb-logo") + "<strong>" + escapeHTML(sportsTeamName(home)) + "</strong>" + (showScore ? "<em>" + escapeHTML(event.homeScore || "0") + "</em>" : "") + "</span>"
     + "</span>";
 }
+function renderSportsProgramThumbnail(event) {
+  const logo = safeSportsMediaURL(event.leagueLogoUrl);
+  const mark = logo ? "<img src=\"" + escapeHTML(logo) + "\" alt=\"\">" : icon("trophy");
+  return "<span class=\"sports-matchup-thumb sports-program-thumb\" aria-hidden=\"true\">"
+    + "<span class=\"sports-program-mark\">" + mark + "</span>"
+    + "<span class=\"sports-program-copy\"><small>" + escapeHTML(event.leagueName || event.sportName || "Sports") + "</small><strong>" + escapeHTML(sportsEventTitle(event)) + "</strong></span>"
+    + "</span>";
+}
 function renderSportsArtworkThumbnail(event, art) {
   const live = sportsEventIsLive(event);
   const status = sportsStatusLabel(event);
-  const identity = sportsEventIsRace(event) ? renderSportsArtworkRace(event) : renderSportsArtworkMatchup(event);
+  const identity = sportsEventIsRace(event) ? renderSportsArtworkRace(event) : (sportsEventIsProgram(event) ? renderSportsArtworkProgram(event) : renderSportsArtworkMatchup(event));
   return "<span class=\"sports-artwork-thumb\">"
     + "<img class=\"sports-artwork-thumb-bg\" src=\"" + escapeHTML(art) + "\" alt=\"\">"
     + "<span class=\"sports-artwork-status" + (live ? " live" : "") + "\">" + escapeHTML(status) + "</span>"
     + identity
     + "<span class=\"sports-artwork-copy\"><small>" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</small><strong>" + escapeHTML(sportsEventTitle(event)) + "</strong></span>"
     + "</span>";
+}
+function renderSportsArtworkProgram(event) {
+  const logo = safeSportsMediaURL(event.leagueLogoUrl);
+  return "<span class=\"sports-artwork-program\" aria-hidden=\"true\">"
+    + (logo ? "<img src=\"" + escapeHTML(logo) + "\" alt=\"\">" : icon("trophy"))
+    + "<strong>" + escapeHTML(event.leagueName || event.sportName || "Sports") + "</strong></span>";
 }
 function renderSportsArtworkMatchup(event) {
   const away = event.away || {};
@@ -3063,6 +3082,7 @@ function renderSportsDetailScore(event) {
   const live = sportsEventIsLive(event);
   const showScore = !!(live || event.completed);
   const phase = live ? "Live" : (event.completed ? "Final" : (event.startUnix ? sportsDateLabel(event.startUnix) : "Time TBD"));
+  if (sportsEventIsProgram(event)) return "<div class=\"sports-detail-program\"><strong>" + escapeHTML(sportsStatusLabel(event)) + "</strong><span>" + escapeHTML(phase) + "</span></div>";
   return "<div class=\"sports-detail-score\">" + renderSportsDetailTeam(event.away || {}, event.awayScore, showScore) + "<div class=\"sports-detail-status\"><strong>" + escapeHTML(sportsStatusLabel(event)) + "</strong><span>" + escapeHTML(phase) + "</span></div>" + renderSportsDetailTeam(event.home || {}, event.homeScore, showScore) + "</div>";
 }
 function renderSportsDetailTeam(team, score, showScore) {

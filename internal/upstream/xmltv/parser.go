@@ -14,11 +14,12 @@ type Channel struct {
 }
 
 type Programme struct {
-	Channel string `xml:"channel,attr"`
-	Start   string `xml:"start,attr"`
-	Stop    string `xml:"stop,attr"`
-	Title   string `xml:"title"`
-	Desc    string `xml:"desc"`
+	Channel    string   `xml:"channel,attr"`
+	Start      string   `xml:"start,attr"`
+	Stop       string   `xml:"stop,attr"`
+	Title      string   `xml:"title"`
+	Desc       string   `xml:"desc"`
+	Categories []string `xml:"category"`
 }
 
 func Parse(data []byte) (Document, error) {

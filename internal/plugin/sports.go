@@ -298,15 +298,23 @@ func sportsEventsFromGuideWithScoreHints(snapshot cache.Snapshot, now time.Time)
 		}
 		categoryName := firstNonEmpty(categoryNames[channel.CategoryID], channel.CategoryName)
 		displayTitle := cleanGuideSportsAnnotations(program.Title)
-		leagueID, leagueName, sportName, sportsContext := guideSportsLeague(strings.Join([]string{displayTitle, channel.Name, categoryName}, " "))
+		metadataSports, excludeProgram := guideSportsMetadata(program.Categories)
+		if excludeProgram {
+			continue
+		}
+		leagueID, leagueName, sportName, sportsContext := guideSportsLeague(strings.Join([]string{displayTitle, strings.Join(program.Categories, " "), channel.Name, categoryName}, " "))
+		sportsContext = sportsContext || metadataSports
 		awayName, homeName, matchup := guideSportsMatchup(displayTitle)
 		eventType := ""
 		if series, location, race := guideSportsRace(displayTitle); race {
 			awayName, homeName, matchup = series, location, true
 			eventType = "race"
 		}
-		if !sportsContext || !matchup {
+		if !sportsContext || (!matchup && !metadataSports) {
 			continue
+		}
+		if !matchup {
+			eventType = "event"
 		}
 		if program.StartUnix <= now.Unix() && program.EndUnix > now.Unix() && guideSportsTitleHasScoreLookupHint(program.Title) {
 			refreshScores = true
@@ -322,6 +330,9 @@ func sportsEventsFromGuideWithScoreHints(snapshot cache.Snapshot, now time.Time)
 			}
 			live, completed, status, statusText := guideSportsBroadcastStatus(program, endUnix, now)
 			shortName := strings.TrimSpace(awayName + " vs " + homeName)
+			if eventType == "event" {
+				shortName = displayTitle
+			}
 			if eventType == "race" {
 				shortName = strings.Trim(strings.Join([]string{awayName, homeName}, " · "), " ·")
 			}
@@ -380,6 +391,30 @@ func sportsEventsFromGuideWithScoreHints(snapshot cache.Snapshot, now time.Time)
 		events = events[:250]
 	}
 	return events, refreshScores
+}
+
+func guideSportsMetadata(categories []string) (bool, bool) {
+	sportsMetadata := false
+	sportsTalk := false
+	for _, category := range categories {
+		category = strings.TrimSpace(category)
+		if category == "" {
+			continue
+		}
+		text := normalizeMatchText(category)
+		if text == "sports talk" {
+			sportsTalk = true
+			continue
+		}
+		if text == "sports event" || text == "sporting event" {
+			sportsMetadata = true
+			continue
+		}
+		if _, _, _, sportsContext := guideSportsLeague(category); sportsContext {
+			sportsMetadata = true
+		}
+	}
+	return sportsMetadata, sportsTalk
 }
 
 func guideSportsLeague(value string) (string, string, string, bool) {
