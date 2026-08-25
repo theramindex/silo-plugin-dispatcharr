@@ -3359,8 +3359,10 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		}
 	}
 	sportsFeature := functionBody("renderSportsFeature")
-	if !strings.Contains(sportsFeature, `live && channels[0]`) {
-		t.Fatal("sports hero must only label a playable channel as live when the event is live")
+	for _, want := range []string{`sportsEventIsOnNow`, `onNow && channels[0]`, `Watch live`, `Watch now`} {
+		if !strings.Contains(sportsFeature, want) {
+			t.Fatalf("sports hero current-broadcast behavior must include %q", want)
+		}
 	}
 	sportsLeagueMark := functionBody("renderSportsLeagueMark")
 	for _, want := range []string{`safeSportsMediaURL`, `league.logoUrl`} {
@@ -3369,7 +3371,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		}
 	}
 	sportsMatchupThumbnail := functionBody("renderSportsMatchupThumbnail")
-	for _, want := range []string{`primaryColor`, `leagueLogoUrl`, `renderSportsTeamLogo`, `sports-matchup-thumb`, `sportsEventIsLive`} {
+	for _, want := range []string{`sportsEventIsRace`, `renderSportsRaceThumbnail`, `primaryColor`, `leagueLogoUrl`, `renderSportsTeamLogo`, `sports-matchup-thumb`, `sportsEventIsLive`} {
 		if !strings.Contains(sportsMatchupThumbnail, want) {
 			t.Fatalf("sports matchup thumbnail must include %q", want)
 		}
@@ -3384,9 +3386,15 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		t.Fatal("sports matchup colors must accept only six-digit hex colors")
 	}
 	sportsEventIsLive := functionBody("sportsEventIsLive")
-	for _, want := range []string{`event.completed`, `startUnix`, `3 * 3600`} {
+	for _, want := range []string{`event.completed`, `event.status`, `replay`, `highlights`, `airing`, `startUnix`, `3 * 3600`} {
 		if !strings.Contains(sportsEventIsLive, want) {
 			t.Fatalf("sports live-state guard must include %q", want)
+		}
+	}
+	sportsStatusLabel := functionBody("sportsStatusLabel")
+	for _, want := range []string{`event.status`, `airing`, `replay`, `highlights`, `event.statusText`} {
+		if !strings.Contains(sportsStatusLabel, want) {
+			t.Fatalf("sports broadcast-state label must include %q", want)
 		}
 	}
 	sportsLeagueDetail := functionBody("renderSportsLeagueDetail")

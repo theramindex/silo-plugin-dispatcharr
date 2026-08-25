@@ -328,6 +328,117 @@ func TestNormalizeSportsEventsAddsGameThumbsIdentityFallbacks(t *testing.T) {
 	}
 }
 
+func TestGuideSportsMatchupParsesQualifiedBroadcastTitles(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		title     string
+		wantAway  string
+		wantHome  string
+		wantMatch bool
+	}{
+		{
+			name:      "college bowl prefix containing at",
+			title:     "CFP Quarterfinal at the Capital One Orange Bowl : Oregon vs. Texas Tech",
+			wantAway:  "Oregon",
+			wantHome:  "Texas Tech",
+			wantMatch: true,
+		},
+		{
+			name:      "cricket suffix after matchup",
+			title:     "Cricket Highlights : Bangladesh vs Australia: 2nd ODI",
+			wantAway:  "Bangladesh",
+			wantHome:  "Australia",
+			wantMatch: true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			away, home, matched := guideSportsMatchup(test.title)
+			if matched != test.wantMatch || away != test.wantAway || home != test.wantHome {
+				t.Fatalf("guideSportsMatchup(%q) = %q, %q, %v; want %q, %q, %v", test.title, away, home, matched, test.wantAway, test.wantHome, test.wantMatch)
+			}
+		})
+	}
+}
+
+func TestSportsEventsFromGuideClassifiesRacesAndBroadcastState(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 25, 12, 0, 0, 0, time.UTC)
+	programs := []model.Program{
+		{
+			ID: "program:formula-e", ChannelID: "channel:sports",
+			Title: "Formule : Formule E v Miami", StartUnix: now.Add(-30 * time.Minute).Unix(), EndUnix: now.Add(90 * time.Minute).Unix(),
+		},
+		{
+			ID: "program:nfl-replay", ChannelID: "channel:sports",
+			Title: "NFL Football : San Francisco 49ers at Los Angeles Chargers", Summary: "A rebroadcast of the complete game.",
+			StartUnix: now.Add(-time.Hour).Unix(), EndUnix: now.Add(time.Hour).Unix(),
+		},
+		{
+			ID: "program:cricket-highlights", ChannelID: "channel:sports",
+			Title: "Cricket Highlights : Bangladesh vs Australia: 2nd ODI", StartUnix: now.Add(-time.Hour).Unix(), EndUnix: now.Add(time.Hour).Unix(),
+		},
+	}
+	events := sportsEventsFromGuide(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{{ID: "channel:sports", Name: "Sports Network", CategoryID: "sports", CategoryName: "Sports"}},
+		Programs: programs,
+		Content:  model.ContentState{LiveCategories: []model.Category{{ID: "sports", Name: "Sports", Kind: "live"}}},
+	}}, now)
+	byName := map[string]SportsEvent{}
+	for _, event := range events {
+		byName[event.Name] = event
+	}
+
+	race := byName[programs[0].Title]
+	if race.EventType != "race" || race.LeagueID != "formula-e" || race.Away.Name != "Formula E" || race.Home.Name != "Miami" {
+		t.Fatalf("expected Formula E race identity without a fake matchup, got %+v", race)
+	}
+	if !race.Live || race.Status != "airing" || race.StatusText != "On now" {
+		t.Fatalf("expected unverified EPG race to be airing rather than live, got %+v", race)
+	}
+
+	replay := byName[programs[1].Title]
+	if !replay.Live || replay.Status != "replay" || replay.StatusText != "Replay" {
+		t.Fatalf("expected explicit EPG rebroadcast classification, got %+v", replay)
+	}
+
+	highlights := byName[programs[2].Title]
+	if !highlights.Live || highlights.Status != "highlights" || highlights.StatusText != "Highlights" {
+		t.Fatalf("expected highlights classification, got %+v", highlights)
+	}
+}
+
+func TestMergeSportsGuideEventsMarksLaterCompletedMatchupAiringAsReplay(t *testing.T) {
+	t.Parallel()
+
+	providerStart := time.Date(2026, time.August, 23, 20, 0, 0, 0, time.UTC).Unix()
+	guideStart := time.Date(2026, time.August, 25, 12, 0, 0, 0, time.UTC).Unix()
+	provider := SportsEvent{
+		ID: "sportarr:nfl-game", LeagueID: "nfl", Name: "San Francisco 49ers at Los Angeles Chargers",
+		Away: SportsTeam{Name: "San Francisco 49ers"}, Home: SportsTeam{Name: "Los Angeles Chargers"},
+		StartUnix: providerStart, Completed: true, Status: "completed", StatusText: "Final",
+	}
+	guide := SportsEvent{
+		ID: "epg:nfl-rebroadcast", LeagueID: "nfl", Name: "NFL Football : San Francisco 49ers at Los Angeles Chargers",
+		Away: SportsTeam{Name: "San Francisco 49ers"}, Home: SportsTeam{Name: "Los Angeles Chargers"},
+		StartUnix: guideStart, Live: true, Status: "airing", StatusText: "On now",
+	}
+
+	merged := mergeSportsGuideEvents([]SportsEvent{provider}, []SportsEvent{guide})
+	if len(merged) != 2 {
+		t.Fatalf("expected completed event and later guide airing to remain separate, got %+v", merged)
+	}
+	if merged[1].Status != "replay" || merged[1].StatusText != "Replay" || !merged[1].Live {
+		t.Fatalf("expected later same-matchup airing to be identified as replay, got %+v", merged[1])
+	}
+}
+
 func TestSportsEventsFromGuideCapsFallbackSlate(t *testing.T) {
 	t.Parallel()
 
