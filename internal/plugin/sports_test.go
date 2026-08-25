@@ -430,6 +430,48 @@ func TestSportsEventsFromGuideCleansPromoMetadataAndRejectsNonSportsShows(t *tes
 	}
 }
 
+func TestSportsEventsFromGuidePrioritizesProgramCategories(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 25, 20, 30, 0, 0, time.UTC)
+	events := sportsEventsFromGuide(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{
+			{ID: "channel:general", Name: "Channel 7", CategoryID: "general", CategoryName: "General TV"},
+			{ID: "channel:sports", Name: "Sports Network", CategoryID: "sports", CategoryName: "Sports"},
+		},
+		Programs: []model.Program{
+			{ID: "program:metadata-sports", ChannelID: "channel:general", Title: "Olympic Gymnastics Qualifying", Categories: []string{"Sports event"}, StartUnix: now.Add(-time.Hour).Unix(), EndUnix: now.Add(time.Hour).Unix()},
+			{ID: "program:sporting-event", ChannelID: "channel:general", Title: "Local Derby: Alpha at Beta", Categories: []string{"Sporting event"}, StartUnix: now.Add(-time.Hour).Unix(), EndUnix: now.Add(time.Hour).Unix()},
+			{ID: "program:inconclusive-metadata", ChannelID: "channel:sports", Title: "College Football: Alabama at Indiana", Categories: []string{"HD"}, StartUnix: now.Add(-time.Hour).Unix(), EndUnix: now.Add(time.Hour).Unix()},
+			{ID: "program:sports-talk", ChannelID: "channel:sports", Title: "College Football: Georgia at Ole Miss", Categories: []string{"Sports talk", "Football"}, StartUnix: now.Add(-time.Hour).Unix(), EndUnix: now.Add(time.Hour).Unix()},
+			{ID: "program:fallback", ChannelID: "channel:sports", Title: "NFL Football: Jets at Giants", StartUnix: now.Add(-time.Hour).Unix(), EndUnix: now.Add(time.Hour).Unix()},
+		},
+		Content: model.ContentState{LiveCategories: []model.Category{
+			{ID: "general", Name: "General TV", Kind: "live"},
+			{ID: "sports", Name: "Sports", Kind: "live"},
+		}},
+	}}, now)
+	byName := map[string]SportsEvent{}
+	for _, event := range events {
+		byName[event.Name] = event
+	}
+	if event, ok := byName["Olympic Gymnastics Qualifying"]; !ok || event.EventType != "event" {
+		t.Fatalf("expected Sports event metadata to include non-matchup coverage outside a sports channel, got %+v", events)
+	}
+	if _, ok := byName["Local Derby: Alpha at Beta"]; !ok {
+		t.Fatalf("expected Sporting event metadata to be authoritative, got %+v", events)
+	}
+	if _, ok := byName["College Football: Alabama at Indiana"]; !ok {
+		t.Fatalf("expected inconclusive metadata to continue through title fallback, got %+v", events)
+	}
+	if _, ok := byName["College Football: Georgia at Ole Miss"]; ok {
+		t.Fatalf("expected Sports talk metadata to exclude the program even with a sport category, got %+v", events)
+	}
+	if _, ok := byName["NFL Football: Jets at Giants"]; !ok {
+		t.Fatalf("expected missing metadata to preserve the conservative title/channel fallback, got %+v", events)
+	}
+}
+
 func TestSportsPayloadRefreshesScoresForAnnotatedGuideEvents(t *testing.T) {
 	for _, annotation := range []string{"ᴸᶦᵛᵉ", "ᴺᵉʷ"} {
 		t.Run(annotation, func(t *testing.T) {

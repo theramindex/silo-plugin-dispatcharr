@@ -32,12 +32,13 @@ func MapXMLTVProgramme(channelID string, programme xmltv.Programme) model.Progra
 	startUnix := parseXMLTVTime(programme.Start)
 	endUnix := parseXMLTVTime(programme.Stop)
 	return model.Program{
-		ID:        model.StableProgramID(model.ProgramIdentity{ChannelID: channelID, Title: programme.Title, StartUnix: startUnix}),
-		ChannelID: channelID,
-		Title:     programme.Title,
-		Summary:   programme.Desc,
-		StartUnix: startUnix,
-		EndUnix:   endUnix,
+		ID:         model.StableProgramID(model.ProgramIdentity{ChannelID: channelID, Title: programme.Title, StartUnix: startUnix}),
+		ChannelID:  channelID,
+		Title:      programme.Title,
+		Summary:    programme.Desc,
+		Categories: append([]string(nil), programme.Categories...),
+		StartUnix:  startUnix,
+		EndUnix:    endUnix,
 	}
 }
 

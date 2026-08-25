@@ -583,6 +583,9 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-artwork-race strong, .sports-artwork-race small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sports-artwork-race strong { font-size: 1rem; }
 .sports-artwork-race small { color: rgba(255,255,255,0.72); font-size: 0.68rem; font-weight: 750; }
+.sports-artwork-program { align-self: center; justify-self: center; display: grid; justify-items: center; gap: 0.55rem; color: #fff; text-align: center; text-shadow: 0 0.1rem 0.35rem rgba(0,0,0,0.88); }
+.sports-artwork-program img, .sports-artwork-program > svg { width: clamp(4rem, 8vw, 5.5rem); height: clamp(4rem, 8vw, 5.5rem); object-fit: contain; filter: drop-shadow(0 0.35rem 0.55rem rgba(0,0,0,0.58)); }
+.sports-artwork-program strong { font-size: 0.82rem; }
 .sports-artwork-copy { align-self: end; min-width: 0; display: grid; gap: 0.18rem; padding: 0.7rem 0.85rem 0.8rem; text-shadow: 0 0.1rem 0.35rem rgba(0,0,0,0.88); }
 .sports-artwork-copy small, .sports-artwork-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sports-artwork-copy small { color: rgba(255,255,255,0.7); font-size: 0.62rem; font-weight: 850; letter-spacing: 0.07em; text-transform: uppercase; }
@@ -612,6 +615,12 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-race-series strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #f3f5f7; font-size: clamp(1.1rem, 2.2vw, 1.65rem); }
 .sports-race-location { position: relative; z-index: 1; max-width: 15rem; justify-items: end; text-align: right; }
 .sports-race-location strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #f3f5f7; font-size: clamp(1rem, 2vw, 1.35rem); }
+.sports-program-thumb { grid-template-columns: auto minmax(0, 1fr); gap: 1rem; padding: clamp(1rem, 3vw, 2rem); background: linear-gradient(135deg, #171b22, #202631); }
+.sports-program-mark { position: relative; z-index: 1; width: clamp(3.7rem, 8vw, 5.25rem); height: clamp(3.7rem, 8vw, 5.25rem); display: grid; place-items: center; border: 1px solid rgba(255,255,255,0.18); border-radius: 1rem; background: rgba(8,11,16,0.72); color: #dfe5ef; }
+.sports-program-mark img, .sports-program-mark svg { width: 72%; height: 72%; object-fit: contain; }
+.sports-program-copy { position: relative; z-index: 1; min-width: 0; display: grid; gap: 0.3rem; }
+.sports-program-copy small { color: rgba(255,255,255,0.58); font-size: 0.62rem; font-weight: 850; letter-spacing: 0.09em; text-transform: uppercase; }
+.sports-program-copy strong { overflow: hidden; color: #f3f5f7; font-size: clamp(1rem, 2.2vw, 1.5rem); line-height: 1.15; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .sports-replay-tile .sports-event-main { position: relative; min-height: 9rem; align-content: end; overflow: hidden; text-decoration: none; isolation: isolate; }
 .sports-replay-tile-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.34; z-index: -1; }
 .sports-replay-tile .sports-coverage-placeholder { z-index: -1; }
@@ -691,6 +700,9 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-detail-status { display: grid; justify-items: center; gap: 0.15rem; text-align: center; }
 .sports-detail-status strong { color: var(--text); font-size: 0.85rem; }
 .sports-detail-status span { color: var(--muted); font-size: 0.68rem; font-weight: 750; }
+.sports-detail-program { display: flex; align-items: center; gap: 0.55rem; }
+.sports-detail-program strong { color: var(--text); font-size: 0.85rem; }
+.sports-detail-program span { color: var(--muted); font-size: 0.72rem; font-weight: 750; }
 .sports-broadcast-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.55rem; }
 .sports-broadcast-card { min-width: 0; min-height: 4.5rem; display: grid; grid-template-columns: 2.4rem minmax(0, 1fr) 1.25rem; align-items: center; gap: 0.6rem; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--panel); color: var(--text); padding: 0.6rem; text-align: left; }
 .sports-broadcast-card:hover { background: var(--panel-2); }
