@@ -136,6 +136,10 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	} else if len([]rune(appDisplayName)) > maxAdminAppDisplayNameLength {
 		appDisplayName = string([]rune(appDisplayName)[:maxAdminAppDisplayNameLength])
 	}
+	sideMenuMode := strings.TrimSpace(asStringValue(payload["sideMenuMode"]))
+	if sideMenuMode != "channels" {
+		sideMenuMode = "guide"
+	}
 
 	allowRecordingsByDefault := true
 	if enabled, ok := payload["allowRecordingsByDefault"].(bool); ok {
@@ -203,6 +207,7 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 		"delimiter":                      delimiter,
 		"virtualGroupLabel":              virtualGroupLabel,
 		"appDisplayName":                 appDisplayName,
+		"sideMenuMode":                  sideMenuMode,
 		"virtualGroupSource":             virtualGroupSource,
 		"ecmEnabled":                     ecmEnabled,
 		"ecmURL":                         ecmURL,

@@ -195,7 +195,7 @@ function defaultEventKeywordRules() {
   ];
 }
 function defaultAdminCategorySettings() {
-  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", appDisplayName: "Live TV (Dispatcharr)", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, flattenRedundantGroupWrappers: true, allowRecordingsByDefault: true, sportsEnabled: true, sportsLibraryIds: [], sportsFirstPlayerEnabled: false, hlsBufferSeconds: 12, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], featuredEventIds: [], eventKeywords: defaultEventKeywordRules() };
+  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", appDisplayName: "Live TV (Dispatcharr)", sideMenuMode: "guide", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, flattenRedundantGroupWrappers: true, allowRecordingsByDefault: true, sportsEnabled: true, sportsLibraryIds: [], sportsFirstPlayerEnabled: false, hlsBufferSeconds: 12, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], featuredEventIds: [], eventKeywords: defaultEventKeywordRules() };
 }
 function cloneAdminCategorySettings(settings) {
   try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -247,6 +247,7 @@ function sportsFirstPlayerEnabled() {
   return sportsEnabled() && adminSettings().sportsFirstPlayerEnabled === true;
 }
 function sportsEnabled() { return adminSettings().sportsEnabled !== false; }
+function channelGroupsInSideMenu() { return adminSettings().sideMenuMode === "channels"; }
 function configuredSportsLibraryIDs() {
   const seen = {};
   return items(adminSettings().sportsLibraryIds).map(function(value) { return Number(value); }).filter(function(value) {
@@ -381,6 +382,7 @@ function normalizeAdminCategorySettings() {
   state.adminCategorySettings = Object.assign(defaultAdminCategorySettings(), state.adminCategorySettings || {});
   const appDisplayName = String(state.adminCategorySettings.appDisplayName || "").trim();
   state.adminCategorySettings.appDisplayName = Array.from(appDisplayName || "Live TV (Dispatcharr)").slice(0, 80).join("");
+  state.adminCategorySettings.sideMenuMode = state.adminCategorySettings.sideMenuMode === "channels" ? "channels" : "guide";
   if (state.adminCategorySettings.mode === "custom" || state.adminCategorySettings.mode === "admin_delimiter") state.adminCategorySettings.mode = "delimiter";
   if (["normal", "delimiter"].indexOf(state.adminCategorySettings.mode) === -1) state.adminCategorySettings.mode = "normal";
   if (!state.adminCategorySettings.delimiter) state.adminCategorySettings.delimiter = "pipe";
@@ -1577,6 +1579,7 @@ function setView(view, options) {
     state.category = "";
     loadEvents(false);
   }
+  if (view === "channels") state.category = "";
   render();
 }
 function setCategory(id, options) {
@@ -1591,7 +1594,7 @@ function setCategory(id, options) {
     state.savedLineupGroupCategoryID = "";
   }
   state.category = id || "";
-  state.view = id ? "live" : "home";
+  state.view = id ? "live" : (channelGroupsInSideMenu() ? "channels" : "home");
   render();
 }
 function openSavedLineup(id) {
@@ -1846,6 +1849,14 @@ async function refreshGuideBlockData() {
   }
 }
 function renderRail() {
+  const browseButton = byId("primary-browse-nav");
+  if (browseButton && browseButton.dataset) {
+    const showChannels = channelGroupsInSideMenu();
+    browseButton.dataset.view = showChannels ? "channels" : "guide";
+    browseButton.dataset.activeViews = showChannels ? "channels live" : "guide";
+    const label = browseButton.querySelector("span");
+    if (label) label.textContent = showChannels ? "Channels" : "Guide";
+  }
   document.querySelectorAll("[data-view]").forEach(function(button) {
     const unavailable = (button.dataset.view === "recordings" && !dvrEnabled()) || (button.dataset.view === "sports" && !sportsEnabled());
     const activeViews = String(button.dataset.activeViews || button.dataset.view || "").split(/\s+/).filter(Boolean);
@@ -1895,6 +1906,7 @@ function render() {
   renderRail();
   renderSportsTopbarTabs();
   if (state.view === "guide") renderGuidePage();
+  else if (state.view === "channels") renderChannelsPage();
   else if (state.view === "player") renderPlayerPage();
   else if (state.view === "multiview") renderMultiviewPage();
   else if (state.view === "live" || state.view === "favorites") renderLivePage();
@@ -1957,10 +1969,13 @@ function renderHome() {
     + (favorites.length ? sectionHeader("Favorites") + favoriteHomeCards(favorites) : "")
     + sectionHeaderWithActions("TV Guide", "<button type=\"button\" class=\"section-action\" data-view=\"guide\">Open Guide</button>" + guideFreshnessHTML())
     + renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true })
-    + categoryGrid();
+    + (channelGroupsInSideMenu() ? "" : categoryGrid());
   const openGuide = root.querySelector("[data-view=\"guide\"]");
   if (openGuide) openGuide.onclick = function() { setView("guide"); };
   attachHomeGuidePageScroll();
+}
+function renderChannelsPage() {
+  byId("view").innerHTML = categoryGrid();
 }
 function channelsForSavedLineup(lineup) {
   if (!lineup || !lineup.categoryId) return [];
@@ -5064,6 +5079,7 @@ function updateAdminRecordingField(field, target) {
 function updateAdminIdentityField(field, target) {
   const settings = state.adminCategorySettings || defaultAdminCategorySettings();
   if (field === "name") settings.appDisplayName = target.value;
+  if (field === "side-menu") settings.sideMenuMode = target.value;
   state.adminCategorySettings = settings;
   normalizeAdminCategorySettings();
   markAdminSettingsDraft();
@@ -5481,7 +5497,8 @@ function renderAdminIdentitySettings() {
   if (!root) return;
   const settings = adminSettings();
   root.innerHTML = adminSaveStatusHTML()
-    + "<label class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>App name</strong><small>Shown in the app header and browser title. The Silo sidebar uses the installed plugin label.</small></span><input type=\"text\" maxlength=\"80\" data-admin-identity-field=\"name\" value=\"" + escapeHTML(settings.appDisplayName) + "\"></label>";
+    + "<label class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>App name</strong><small>Shown in the app header and browser title. The Silo sidebar uses the installed plugin label.</small></span><input type=\"text\" maxlength=\"80\" data-admin-identity-field=\"name\" value=\"" + escapeHTML(settings.appDisplayName) + "\"></label>"
+    + "<label class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>User side menu</strong><small>Keep the TV Guide in the menu, or replace it with Channels and move the Home channel groups there.</small></span><select data-admin-identity-field=\"side-menu\"><option value=\"guide\"" + (settings.sideMenuMode === "guide" ? " selected" : "") + ">Guide</option><option value=\"channels\"" + (settings.sideMenuMode === "channels" ? " selected" : "") + ">Channels</option></select></label>";
 }
 function renderAdminRecordingSettings() {
   const root = byId("admin-recording-settings");

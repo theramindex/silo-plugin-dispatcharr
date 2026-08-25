@@ -232,6 +232,20 @@ func TestNormalizeAdminSettingsAppDisplayName(t *testing.T) {
 	}
 }
 
+func TestNormalizeAdminSettingsSideMenuMode(t *testing.T) {
+	t.Parallel()
+
+	if got := normalizeAdminSettingsPayload(map[string]any{})["sideMenuMode"]; got != "guide" {
+		t.Fatalf("expected Guide to remain the default side menu destination, got %v", got)
+	}
+	if got := normalizeAdminSettingsPayload(map[string]any{"sideMenuMode": "channels"})["sideMenuMode"]; got != "channels" {
+		t.Fatalf("expected Channels side menu mode to persist, got %v", got)
+	}
+	if got := normalizeAdminSettingsPayload(map[string]any{"sideMenuMode": "invalid"})["sideMenuMode"]; got != "guide" {
+		t.Fatalf("expected invalid side menu mode to fall back to Guide, got %v", got)
+	}
+}
+
 func TestNormalizeAdminSettingsFeaturedEventIDs(t *testing.T) {
 	t.Parallel()
 
