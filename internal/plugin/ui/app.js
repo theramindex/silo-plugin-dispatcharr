@@ -2857,12 +2857,29 @@ function renderSportsLeagueMark(league) {
 function renderSportsEventTile(event) {
   if (event && event.replayOnly) return renderStandaloneSportsReplayTile(event);
   const live = sportsEventIsLive(event);
-  const showScore = !!(live || event.completed);
   return "<article class=\"sports-event-tile" + (live ? " live" : "") + "\"><button type=\"button\" class=\"sports-event-main\" data-sports-open-event=\"" + escapeHTML(event.id || "") + "\">"
+    + renderSportsMatchupThumbnail(event)
     + "<span class=\"sports-event-meta\"><b>" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</b><small class=\"" + (live ? "live" : "") + "\">" + escapeHTML(sportsStatusLabel(event)) + "</small></span>"
-    + "<span class=\"sports-event-teams\">" + renderSportsTileTeam(event.away, event.awayScore, showScore) + "<em>vs</em>" + renderSportsTileTeam(event.home, event.homeScore, showScore) + "</span>"
     + "<span class=\"sports-event-title\">" + escapeHTML(sportsEventTitle(event)) + "</span></button>"
     + renderSportsTileAvailability(event) + "</article>";
+}
+function safeSportsTeamColor(value, fallback) {
+  const color = String(value || "").trim();
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
+}
+function renderSportsMatchupThumbnail(event) {
+  const away = event.away || {};
+  const home = event.home || {};
+  const awayColor = safeSportsTeamColor(away.primaryColor || away.secondaryColor, "#262a32");
+  const homeColor = safeSportsTeamColor(home.primaryColor || home.secondaryColor, "#30343c");
+  const leagueLogo = safeSportsMediaURL(event.leagueLogoUrl);
+  const showScore = !!(sportsEventIsLive(event) || event.completed);
+  const center = leagueLogo ? "<img src=\"" + escapeHTML(leagueLogo) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;\"><b hidden>VS</b>" : "<b>VS</b>";
+  return "<span class=\"sports-matchup-thumb\" aria-hidden=\"true\" style=\"--match-away:" + awayColor + ";--match-home:" + homeColor + "\">"
+    + "<span class=\"sports-matchup-thumb-team away\">" + renderSportsTeamLogo(away, "sports-matchup-thumb-logo") + "<strong>" + escapeHTML(sportsTeamAbbreviation(away)) + "</strong>" + (showScore ? "<em>" + escapeHTML(event.awayScore || "0") + "</em>" : "") + "</span>"
+    + "<span class=\"sports-matchup-thumb-center\">" + center + "<small>vs</small></span>"
+    + "<span class=\"sports-matchup-thumb-team home\">" + renderSportsTeamLogo(home, "sports-matchup-thumb-logo") + "<strong>" + escapeHTML(sportsTeamAbbreviation(home)) + "</strong>" + (showScore ? "<em>" + escapeHTML(event.homeScore || "0") + "</em>" : "") + "</span>"
+    + "</span>";
 }
 function standaloneSportsReplayEvent(item) {
   const contentID = String(item && item.content_id || "");
@@ -3091,7 +3108,8 @@ function sportsTeamAbbreviation(team) {
 function renderSportsTeamLogo(team, className) {
   const name = sportsTeamName(team);
   const label = sportsTeamAbbreviation(team).slice(0, 3);
-  if (team && team.logoUrl) return "<img class=\"" + className + "\" src=\"" + escapeHTML(team.logoUrl) + "\" alt=\"\" onerror=\"this.hidden = true; this.nextElementSibling.hidden = false;\"><span class=\"" + className + " logo-fallback\" hidden>" + escapeHTML(label) + "</span>";
+  const logo = safeSportsMediaURL(team && team.logoUrl);
+  if (logo) return "<img class=\"" + className + "\" src=\"" + escapeHTML(logo) + "\" alt=\"\" onerror=\"this.hidden = true; this.nextElementSibling.hidden = false;\"><span class=\"" + className + " logo-fallback\" hidden>" + escapeHTML(label) + "</span>";
   return "<span class=\"" + className + " logo-fallback\">" + escapeHTML(label) + "</span>";
 }
 function renderSportsMatchup(event, status) {
