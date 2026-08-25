@@ -191,11 +191,7 @@ function defaultEventKeywordRules() {
     { categoryId: "awards", categoryName: "Awards", keywords: ["Academy Awards", "The Oscars", "Oscars", "Tony Awards", "The Tonys", "Golden Globes", "Grammy Awards", "Grammys", "Emmy Awards", "Emmys", "CMA Awards", "ACM Awards", "Billboard Music Awards", "American Music Awards", "BET Awards", "MTV Video Music Awards", "Critics Choice Awards", "SAG Awards"] },
     { categoryId: "civic", categoryName: "Civic", keywords: ["State of the Union", "Presidential Address", "Joint Session", "Inauguration", "Election Night", "Presidential Debate"] },
     { categoryId: "parades", categoryName: "Parades", keywords: ["Thanksgiving Day Parade", "Macy's Thanksgiving Day Parade", "Rose Parade", "Christmas Parade"] },
-    { categoryId: "entertainment", categoryName: "Entertainment", keywords: ["Live Special", "Special Presentation", "Red Carpet", "Ceremony", "Tribute Concert", "Benefit Concert", "Festival"] },
-    { categoryId: "golf", categoryName: "Golf", keywords: ["PGA Tour", "LPGA Tour", "DP World Tour", "The Masters", "U.S. Open Golf", "The Open Championship", "Ryder Cup"], excludeKeywords: ["Golf Central", "highlights", "replay", "preview", "recap", "best of"], eventSeries: true, groupWindowMinutes: 60 },
-    { categoryId: "motor-racing", categoryName: "Motor Racing", keywords: ["Formula 1", "F1 Grand Prix", "Grand Prix"], excludeKeywords: ["highlights", "replay", "practice recap", "post race", "pre race"], eventSeries: true, groupWindowMinutes: 60 },
-    { categoryId: "combat-sports", categoryName: "Combat Sports", keywords: ["UFC", "Ultimate Fighting Championship", "MMA"], excludeKeywords: ["highlights", "replay", "countdown", "weigh-in", "preview", "recap"], eventSeries: true, groupWindowMinutes: 60 },
-    { categoryId: "tennis", categoryName: "Tennis", keywords: ["ATP Tour", "WTA Tour", "Wimbledon", "US Open Tennis", "French Open Tennis", "Australian Open Tennis"], excludeKeywords: ["highlights", "replay", "preview", "recap", "best of"], eventSeries: true, groupWindowMinutes: 60 }
+    { categoryId: "entertainment", categoryName: "Entertainment", keywords: ["Live Special", "Special Presentation", "Red Carpet", "Ceremony", "Tribute Concert", "Benefit Concert", "Festival"] }
   ];
 }
 function defaultAdminCategorySettings() {
@@ -496,7 +492,7 @@ function normalizeEventKeywordRows(value) {
     const eventSeries = row.eventSeries === true;
     const groupWindowMinutes = eventSeries ? Math.max(15, Math.min(360, Number(row.groupWindowMinutes) || 60)) : 0;
     return { categoryId: categoryId, categoryName: categoryName, keywords: keywords, excludeKeywords: excludeKeywords, eventSeries: eventSeries, groupWindowMinutes: groupWindowMinutes };
-  }).filter(function(row) { return row.categoryId && row.keywords.length; });
+  }).filter(function(row) { return row.categoryId && row.keywords.length && !isSportsEventCategoryId(row.categoryId); });
   const byID = {};
   defaults.concat(rows).forEach(function(row) {
     const id = normalizeEventCategoryId(row.categoryId || row.categoryName);
@@ -515,6 +511,9 @@ function normalizeEventKeywordRows(value) {
     if (!row.eventSeries) delete row.groupWindowMinutes;
     return row;
   });
+}
+function isSportsEventCategoryId(categoryId) {
+  return ["golf", "motor-racing", "combat-sports", "tennis"].indexOf(normalizeEventCategoryId(categoryId)) !== -1;
 }
 function normalizeKeywordList(value) {
   const rows = Array.isArray(value)
@@ -537,7 +536,7 @@ function normalizeEventCategoryId(value) {
   return value.replace(/\s+/g, "-");
 }
 function eventCategoryName(categoryId) {
-  return ({ awards: "Awards", civic: "Civic", parades: "Parades", entertainment: "Entertainment", golf: "Golf", "motor-racing": "Motor Racing", "combat-sports": "Combat Sports", tennis: "Tennis" })[categoryId] || String(categoryId || "Events");
+  return ({ awards: "Awards", civic: "Civic", parades: "Parades", entertainment: "Entertainment" })[categoryId] || String(categoryId || "Events");
 }
 function categoryAliases() {
   return normalizeCategoryAliases(adminSettings().categoryAliases);
@@ -870,6 +869,19 @@ function coreRequestOptions(options) {
   next.credentials = "include";
   next.headers = headers;
   return next;
+}
+function coreMediaRequestHeaders(url) {
+  try {
+    if (new URL(String(url || ""), window.location.href).origin !== window.location.origin) return {};
+  } catch (_) {
+    return {};
+  }
+  return Object.assign({}, coreRequestOptions({}).headers || {});
+}
+function applyCoreMediaRequest(xhr, url) {
+  const headers = coreMediaRequestHeaders(url);
+  Object.keys(headers).forEach(function(name) { xhr.setRequestHeader(name, headers[name]); });
+  if (Object.keys(headers).length) xhr.withCredentials = true;
 }
 async function refreshCoreSession() {
   const refreshToken = coreStoredValue("refresh_token");
@@ -4596,6 +4608,36 @@ function liveHLSOptions(value) {
     maxLiveSyncPlaybackRate: 1.15
   };
 }
+function playbackErrorStatus(error) {
+  const values = [
+    error && error.status,
+    error && error.code,
+    error && error.response && error.response.code,
+    error && error.info && error.info.code,
+    error && error.errorInfo && error.errorInfo.code
+  ];
+  for (let index = 0; index < values.length; index += 1) {
+    const status = Number(values[index]);
+    if (Number.isFinite(status) && status >= 100 && status <= 599) return status;
+  }
+  return 0;
+}
+function handlePlaybackFatalError(error) {
+  const status = playbackErrorStatus(error);
+  state.playerWaiting = false;
+  const video = byId("player");
+  if (video) video.pause();
+  updateCenterPlayButton();
+  if (status === 401 || status === 403) {
+    showPlayerToast("Playback authorization expired. Reopen the channel to retry.");
+    return;
+  }
+  if (status === 503) {
+    showPlayerToast("This channel is temporarily unavailable.");
+    return;
+  }
+  showPlayerToast("The stream could not be loaded.");
+}
 function attachVideoSource(video, url, options) {
   const rewindable = !!(options && options.rewindable);
   const managedTimeShift = !!(options && options.managedTimeShift);
@@ -4614,7 +4656,9 @@ function attachVideoSource(video, url, options) {
   };
   const isHLS = (options && options.format === "hls") || url.indexOf(".m3u8") !== -1;
   if (window.Hls && Hls.isSupported() && isHLS) {
-    attachment.hls = new Hls(managedTimeShift ? { liveSyncDurationCount: 1, liveMaxLatencyDurationCount: 5, maxBufferLength: 60 } : liveHLSOptions(options && options.hlsBufferSeconds));
+    const hlsOptions = managedTimeShift ? { liveSyncDurationCount: 1, liveMaxLatencyDurationCount: 5, maxBufferLength: 60 } : liveHLSOptions(options && options.hlsBufferSeconds);
+    hlsOptions.xhrSetup = applyCoreMediaRequest;
+    attachment.hls = new Hls(hlsOptions);
     let recoveryAttempts = 0;
     let fatalHandled = false;
     attachment.hls.on(Hls.Events.FRAG_LOADED, function() { recoveryAttempts = 0; });
@@ -4639,7 +4683,17 @@ function attachVideoSource(video, url, options) {
     attachment.hls.loadSource(url);
     attachment.hls.attachMedia(video);
   } else if (window.mpegts && mpegts.isSupported() && !isHLS) {
-    attachment.tsPlayer = mpegts.createPlayer({ type: "mpegts", isLive: !rewindable, url: url });
+    const mediaHeaders = coreMediaRequestHeaders(url);
+    const mediaSource = { type: "mpegts", isLive: !rewindable, url: url, headers: mediaHeaders, withCredentials: Object.keys(mediaHeaders).length > 0 };
+    attachment.tsPlayer = mpegts.createPlayer(mediaSource, { headers: mediaHeaders });
+    if (mpegts.Events && mpegts.Events.ERROR) {
+      let fatalHandled = false;
+      attachment.tsPlayer.on(mpegts.Events.ERROR, function(errorType, errorDetail, errorInfo) {
+        if (fatalHandled) return;
+        fatalHandled = true;
+        if (options && typeof options.onFatal === "function") options.onFatal({ type: errorType, detail: errorDetail, info: errorInfo });
+      });
+    }
     attachment.tsPlayer.attachMediaElement(video);
     attachment.tsPlayer.load();
   } else {
@@ -6239,7 +6293,7 @@ function setVideoSource(url, options) {
   }
   if (state.hls) { state.hls.destroy(); state.hls = null; }
   if (state.tsPlayer) { state.tsPlayer.destroy(); state.tsPlayer = null; }
-  const attachment = attachVideoSource(video, url, { rewindable: rewindable, managedTimeShift: !!(options && options.managedTimeShift), format: options && options.format, hlsBufferSeconds: options && options.hlsBufferSeconds, onFatal: options && options.onFatal });
+  const attachment = attachVideoSource(video, url, { rewindable: rewindable, managedTimeShift: !!(options && options.managedTimeShift), format: options && options.format, hlsBufferSeconds: options && options.hlsBufferSeconds, onFatal: options && options.onFatal ? options.onFatal : handlePlaybackFatalError });
   state.hls = attachment.hls;
   state.tsPlayer = attachment.tsPlayer;
   setTimeout(updateAudioMenu, 500);

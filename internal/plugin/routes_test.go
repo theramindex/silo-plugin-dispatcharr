@@ -3279,9 +3279,21 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		t.Fatal("Xtream output profiles must not be applied to Dispatcharr Direct streams")
 	}
 	attachVideoSource := functionBody("attachVideoSource")
-	for _, want := range []string{`liveHLSOptions`, `Hls.ErrorTypes.NETWORK_ERROR`, `startLoad()`, `Hls.ErrorTypes.MEDIA_ERROR`, `recoverMediaError()`, `managedTimeShift`} {
+	for _, want := range []string{`liveHLSOptions`, `Hls.ErrorTypes.NETWORK_ERROR`, `startLoad()`, `Hls.ErrorTypes.MEDIA_ERROR`, `recoverMediaError()`, `managedTimeShift`, `xhrSetup`, `coreMediaRequestHeaders`, `mpegts.Events.ERROR`} {
 		if !strings.Contains(attachVideoSource, want) {
 			t.Fatalf("HLS playback resilience must include %q", want)
+		}
+	}
+	coreMediaHeaders := functionBody("coreMediaRequestHeaders")
+	for _, want := range []string{`window.location.origin`, `coreRequestOptions`, `Authorization`} {
+		if !strings.Contains(coreMediaHeaders+functionBody("coreRequestOptions"), want) {
+			t.Fatalf("media playback requests must preserve same-origin Silo auth marker %q", want)
+		}
+	}
+	playbackFatalError := functionBody("handlePlaybackFatalError")
+	for _, want := range []string{`401`, `403`, `503`, `Playback authorization expired`, `temporarily unavailable`} {
+		if !strings.Contains(playbackFatalError, want) {
+			t.Fatalf("player failures must expose actionable status %q", want)
 		}
 	}
 	liveHLSOptions := functionBody("liveHLSOptions")

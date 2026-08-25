@@ -121,10 +121,15 @@ func defaultEventKeywordRules() []EventKeywordRule {
 		{CategoryID: "civic", CategoryName: "Civic", Keywords: []string{"State of the Union", "Presidential Address", "Joint Session", "Inauguration", "Election Night", "Presidential Debate"}},
 		{CategoryID: "parades", CategoryName: "Parades", Keywords: []string{"Thanksgiving Day Parade", "Macy's Thanksgiving Day Parade", "Rose Parade", "Christmas Parade"}},
 		{CategoryID: "entertainment", CategoryName: "Entertainment", Keywords: []string{"Live Special", "Special Presentation", "Red Carpet", "Ceremony", "Tribute Concert", "Benefit Concert", "Festival"}},
-		{CategoryID: "golf", CategoryName: "Golf", Keywords: []string{"PGA Tour", "LPGA Tour", "DP World Tour", "The Masters", "U.S. Open Golf", "The Open Championship", "Ryder Cup"}, ExcludeKeywords: []string{"Golf Central", "highlights", "replay", "preview", "recap", "best of"}, EventSeries: true, GroupWindowMinutes: 60},
-		{CategoryID: "motor-racing", CategoryName: "Motor Racing", Keywords: []string{"Formula 1", "F1 Grand Prix", "Grand Prix"}, ExcludeKeywords: []string{"highlights", "replay", "practice recap", "post race", "pre race"}, EventSeries: true, GroupWindowMinutes: 60},
-		{CategoryID: "combat-sports", CategoryName: "Combat Sports", Keywords: []string{"UFC", "Ultimate Fighting Championship", "MMA"}, ExcludeKeywords: []string{"highlights", "replay", "countdown", "weigh-in", "preview", "recap"}, EventSeries: true, GroupWindowMinutes: 60},
-		{CategoryID: "tennis", CategoryName: "Tennis", Keywords: []string{"ATP Tour", "WTA Tour", "Wimbledon", "US Open Tennis", "French Open Tennis", "Australian Open Tennis"}, ExcludeKeywords: []string{"highlights", "replay", "preview", "recap", "best of"}, EventSeries: true, GroupWindowMinutes: 60},
+	}
+}
+
+func isSportsEventCategoryID(categoryID string) bool {
+	switch normalizeEventCategoryID(categoryID, "") {
+	case "golf", "motor-racing", "combat-sports", "tennis":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -155,6 +160,9 @@ func normalizeEventKeywordRules(value any) []EventKeywordRule {
 			ExcludeKeywords:    excludeKeywords,
 			EventSeries:        eventSeries,
 			GroupWindowMinutes: groupWindowMinutes,
+		}
+		if isSportsEventCategoryID(rule.CategoryID) {
+			continue
 		}
 		if rule.CategoryName == "" {
 			rule.CategoryName = eventCategoryName(rule.CategoryID)
@@ -375,20 +383,12 @@ func matchEventKeyword(program model.Program, rules []EventKeywordRule) (EventKe
 }
 
 func eventChannelPlausible(categoryID string, channel model.Channel, categoryName string) bool {
-	switch categoryID {
-	case "golf", "motor-racing", "combat-sports", "tennis":
-	default:
-		return true
+	if isSportsEventCategoryID(categoryID) {
+		return false
 	}
 	text := normalizeMatchText(strings.Join([]string{channel.Name, channel.CategoryName, categoryName}, " "))
-	sportsSignals := []string{"sport", "sports", "espn", "golf", "tennis", "racing", "formula", "motor", "ufc", "fight", "boxing", "mma", "ppv", "event"}
+	sportsSignals := []string{"sport", "sports", "espn", "golf", "tennis", "racing", "formula", "motor", "ufc", "fight", "boxing", "mma", "nfl", "mlb", "nba", "nhl", "wnba", "mls", "soccer", "football", "basketball", "baseball", "hockey", "cricket", "rugby"}
 	for _, signal := range sportsSignals {
-		if strings.Contains(" "+text+" ", " "+signal+" ") {
-			return true
-		}
-	}
-	nonSportsSignals := []string{"music", "kids", "religion", "movie", "entertainment", "persian", "news"}
-	for _, signal := range nonSportsSignals {
 		if strings.Contains(" "+text+" ", " "+signal+" ") {
 			return false
 		}

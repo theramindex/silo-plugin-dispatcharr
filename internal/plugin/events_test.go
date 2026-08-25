@@ -84,7 +84,7 @@ func TestHTTPRoutesServerEventsUsesAdminKeywordRules(t *testing.T) {
 	assertBroadcastEventMatch(t, event.Channels, "ch:local")
 }
 
-func TestHTTPRoutesServerEventsExcludesEventSeriesStudioPrograms(t *testing.T) {
+func TestHTTPRoutesServerEventsExcludesSportsPrograms(t *testing.T) {
 	t.Parallel()
 
 	start := time.Now().Add(24 * time.Hour).Unix()
@@ -105,15 +105,9 @@ func TestHTTPRoutesServerEventsExcludesEventSeriesStudioPrograms(t *testing.T) {
 	}})
 
 	payload := fetchEventsPayload(t, NewHTTPRoutesServer(store))
-	if len(payload.Events) != 1 {
-		t.Fatalf("expected one tournament event after exclusions, got %+v", payload.Events)
+	if len(payload.Events) != 0 {
+		t.Fatalf("expected sports programs to stay out of Events, got %+v", payload.Events)
 	}
-	event := payload.Events[0]
-	if !event.EventSeries || event.CategoryID != "golf" {
-		t.Fatalf("expected golf event series, got %+v", event)
-	}
-	assertBroadcastEventMatch(t, event.Channels, "ch:golf")
-	assertNoBroadcastEventMatch(t, event.Channels, "ch:studio")
 }
 
 func TestHTTPRoutesServerEventsDoesNotMatchSummaryOnlyKeywords(t *testing.T) {
@@ -171,16 +165,17 @@ func TestHTTPRoutesServerEventsGroupsEventSeriesBroadcastWindows(t *testing.T) {
 	store := cache.NewStore()
 	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
 		Channels: []model.Channel{
-			{ID: "ch:one", Name: "Golf One", CategoryID: "golf", CategoryName: "Sports | Golf"},
-			{ID: "ch:two", Name: "Golf Two", CategoryID: "golf", CategoryName: "Sports | Golf"},
+			{ID: "ch:one", Name: "Awards One", CategoryID: "entertainment", CategoryName: "Entertainment"},
+			{ID: "ch:two", Name: "Awards Two", CategoryID: "entertainment", CategoryName: "Entertainment"},
 		},
 		Programs: []model.Program{
-			{ID: "p:late", ChannelID: "ch:one", Title: "PGA Tour Championship", StartUnix: start + 4*3600, EndUnix: start + 6*3600},
-			{ID: "p:early-two", ChannelID: "ch:two", Title: "PGA Tour Championship", StartUnix: start + 30*60, EndUnix: start + 2*3600},
-			{ID: "p:early-one", ChannelID: "ch:one", Title: "PGA Tour Championship", StartUnix: start, EndUnix: start + 2*3600},
+			{ID: "p:late", ChannelID: "ch:one", Title: "Grammy Awards", StartUnix: start + 4*3600, EndUnix: start + 6*3600},
+			{ID: "p:early-two", ChannelID: "ch:two", Title: "Grammy Awards", StartUnix: start + 30*60, EndUnix: start + 2*3600},
+			{ID: "p:early-one", ChannelID: "ch:one", Title: "Grammy Awards", StartUnix: start, EndUnix: start + 2*3600},
 		},
-		Content: model.ContentState{LiveCategories: []model.Category{{ID: "golf", Name: "Sports | Golf", Kind: "live"}}},
+		Content: model.ContentState{LiveCategories: []model.Category{{ID: "entertainment", Name: "Entertainment", Kind: "live"}}},
 	}})
+	store.SetAdminSettings(json.RawMessage(`{"eventKeywords":[{"categoryId":"awards","categoryName":"Awards","keywords":["Grammy Awards"],"eventSeries":true,"groupWindowMinutes":60}]}`))
 
 	payload := fetchEventsPayload(t, NewHTTPRoutesServer(store))
 	if len(payload.Events) != 1 {
@@ -207,13 +202,14 @@ func TestHTTPRoutesServerEventsKeepsDifferentSeriesTitlesSeparate(t *testing.T) 
 	start := time.Now().Add(72 * time.Hour).Unix()
 	store := cache.NewStore()
 	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
-		Channels: []model.Channel{{ID: "ch:tennis", Name: "Tennis", CategoryID: "tennis", CategoryName: "Sports | Tennis"}},
+		Channels: []model.Channel{{ID: "ch:arts", Name: "Arts Channel", CategoryID: "arts", CategoryName: "Arts"}},
 		Programs: []model.Program{
-			{ID: "p:one", ChannelID: "ch:tennis", Title: "Wimbledon: Centre Court", StartUnix: start, EndUnix: start + 3*3600},
-			{ID: "p:two", ChannelID: "ch:tennis", Title: "Wimbledon: Court One", StartUnix: start + 20*60, EndUnix: start + 3*3600},
+			{ID: "p:one", ChannelID: "ch:arts", Title: "Film Festival: Opening Night", StartUnix: start, EndUnix: start + 3*3600},
+			{ID: "p:two", ChannelID: "ch:arts", Title: "Film Festival: Director Showcase", StartUnix: start + 20*60, EndUnix: start + 3*3600},
 		},
-		Content: model.ContentState{LiveCategories: []model.Category{{ID: "tennis", Name: "Sports | Tennis", Kind: "live"}}},
+		Content: model.ContentState{LiveCategories: []model.Category{{ID: "arts", Name: "Arts", Kind: "live"}}},
 	}})
+	store.SetAdminSettings(json.RawMessage(`{"eventKeywords":[{"categoryId":"entertainment","categoryName":"Entertainment","keywords":["Film Festival"],"eventSeries":true,"groupWindowMinutes":60}]}`))
 
 	payload := fetchEventsPayload(t, NewHTTPRoutesServer(store))
 	if len(payload.Events) != 2 {
