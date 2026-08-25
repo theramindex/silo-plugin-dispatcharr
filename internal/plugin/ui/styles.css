@@ -302,8 +302,11 @@ button { cursor: pointer; touch-action: manipulation; }
 .saved-lineup-edit { width: 2.5rem; display: grid; place-items: center; color: var(--muted); }
 .saved-lineup-edit:hover { color: var(--text); }
 .saved-lineup-edit svg { width: 1rem; height: 1rem; }
-.tile { border: 1px solid var(--line); border-radius: 0.5rem; background: color-mix(in srgb, var(--panel) 72%, var(--bg)); color: var(--text); min-height: 5.25rem; text-align: left; padding: 0.85rem 0.9rem 0.85rem 1rem; font-weight: 700; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; transition: border-color 150ms ease, background-color 150ms ease, transform 150ms ease; }
+.tile { border: 1px solid var(--line); border-radius: 0.5rem; background: color-mix(in srgb, var(--panel) 72%, var(--bg)); color: var(--text); min-height: 5.25rem; text-align: left; padding: 0.85rem 0.9rem; font-weight: 700; display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; align-items: center; gap: 0.65rem; transition: border-color 150ms ease, background-color 150ms ease, transform 150ms ease; }
 .tile:hover, .tile.active { border-color: color-mix(in srgb, var(--text) 34%, var(--line)); background: var(--panel-2); transform: translateY(-1px); }
+.tile .tile-glyph { width: 2rem; height: 2rem; border: 1px solid var(--line); border-radius: 0.45rem; background: color-mix(in srgb, var(--text) 5%, transparent); color: color-mix(in srgb, var(--text) 78%, var(--muted)); display: grid; place-items: center; transition: background-color 150ms ease, color 150ms ease; }
+.tile .tile-glyph svg { width: 1.08rem; height: 1.08rem; stroke-width: 1.8; }
+.tile:hover .tile-glyph, .tile.active .tile-glyph { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text); }
 .tile-copy { min-width: 0; display: grid; gap: 0.28rem; }
 .tile .tile-copy strong { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--text); font-size: 0.95rem; line-height: 1.08; text-wrap: balance; }
 .tile .tile-copy > span { display: block; color: var(--muted); font-size: 0.74rem; font-weight: 760; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
