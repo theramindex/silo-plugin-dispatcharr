@@ -3392,7 +3392,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	}
 	sportsArtworkMatchup := functionBody("renderSportsArtworkMatchup")
 	if !strings.Contains(sportsArtworkMatchup, `sportsTeamName`) {
-		 t.Fatal("art-backed sports matchups must label logos with full team names")
+		t.Fatal("art-backed sports matchups must label logos with full team names")
 	}
 	sportsTileAvailability := functionBody("renderSportsTileAvailability")
 	for _, want := range []string{`data-sports-expand-event`, `aria-expanded`, `aria-controls`, `sports-event-channel-reveal`, `renderSportsChannelChip`, `inert`} {
@@ -3459,6 +3459,21 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	playerSportsActive := functionBody("sportsFirstPlayerActive")
 	if !strings.Contains(playerSportsActive, "state.playerSportsMode") {
 		t.Fatal("sports-first player must be scoped to a sports launch context")
+	}
+	playerPage := functionBody("renderPlayerPage")
+	for _, want := range []string{`icon("arrow-left")`, `const topActions`, `const bottomActions`, `data-player-action=\"add-multiview\"`} {
+		if !strings.Contains(playerPage, want) {
+			t.Fatalf("UHF-inspired player hierarchy must include %q", want)
+		}
+	}
+	playerMoreMenu := functionBody("renderPlayerMoreMenu")
+	for _, want := range []string{`data-player-action=\"pip\"`, `data-player-action=\"fullscreen\"`, `data-player-action=\"sports\"`} {
+		if !strings.Contains(playerMoreMenu, want) {
+			t.Fatalf("player overflow must preserve advanced control %q", want)
+		}
+	}
+	for _, want := range []string{`.playback-shell { position: relative; width: 100%; height: 100dvh;`, `.playback-video { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto; object-fit: contain;`, `.player-bottom-actions { align-self: end; gap: 0.22rem;`} {
+		requireStyle(want)
 	}
 	playChannel := functionBody("playChannel")
 	for _, want := range []string{`state.view === "sports"`, `state.playerSportsMode = useSportsPlayer`, `state.playerSportsOpen = useSportsPlayer`} {
