@@ -5,14 +5,14 @@ final result: blocked
 ## Scope
 
 - Reference: Apple TV live-sports cards supplied by the user and the Channels DVR Sports Section.
-- Build: Dispatcharr `v0.3.86`, using Sportarr event artwork with team/league marks, full team names centered beneath their logos, status pills, and a featured-event fallback built from the same matchup treatment as the event cards.
+- Build: Dispatcharr `v0.3.87`, using Sportarr event artwork with team/league marks, full team names centered beneath their logos, status pills, a consistent featured-event fallback, and animated inline channel disclosure on event cards.
 
 ## Automated verification
 
 - `node --check internal/plugin/ui/app.js`: passed
 - `go test ./...`: passed
-- release verification for `0.3.86`: passed
-- plugin release workflow: passed
+- release verification for `0.3.87`: passed
+- plugin release workflow: pending
 - Ramindex catalog validation: passed
 
 ## Blocking condition
@@ -21,4 +21,4 @@ Production activation has not been authorized. The live browser therefore remain
 
 ## Required next step
 
-Activate plugin installation `14` on `v0.3.86`, refresh the Sports page until Sportarr artwork enrichment is present, then capture desktop and narrow layouts and compare them with the supplied Apple TV reference before marking this QA passed.
+Activate plugin installation `14` on `v0.3.87`, refresh the Sports page until Sportarr artwork enrichment is present, exercise the animated channel tray at desktop and narrow layouts, and compare the cards with the supplied Apple TV reference before marking this QA passed.
