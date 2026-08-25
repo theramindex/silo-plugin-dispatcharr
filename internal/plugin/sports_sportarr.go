@@ -724,9 +724,9 @@ func (p *sportarrSportsProvider) applyCachedDetails(event SportsEvent) SportsEve
 	defer p.metadataMu.Unlock()
 	if league, ok := p.leagues[event.LeagueID]; ok {
 		event.LeagueName = firstNonEmpty(league.League.Name, event.LeagueName)
-		event.LeagueLogoURL = safeSportsImageURL(league.League.LogoURL)
-		event.LeagueDescription = strings.TrimSpace(league.League.Description)
-		event.SportName = strings.TrimSpace(league.League.SportName)
+		event.LeagueLogoURL = firstNonEmpty(safeSportsImageURL(league.League.LogoURL), event.LeagueLogoURL)
+		event.LeagueDescription = firstNonEmpty(strings.TrimSpace(league.League.Description), event.LeagueDescription)
+		event.SportName = firstNonEmpty(strings.TrimSpace(league.League.SportName), event.SportName)
 	}
 	if image, ok := p.images[event.ProviderID]; ok {
 		event.ImageURL = safeSportsImageURL(image.ImageURL)
@@ -739,8 +739,8 @@ func (p *sportarrSportsProvider) applyCachedDetails(event SportsEvent) SportsEve
 func applySportarrTeam(team SportsTeam, metadata sportarrTeam) SportsTeam {
 	team.Name = firstNonEmpty(metadata.Name, team.Name)
 	team.Abbreviation = firstNonEmpty(metadata.Abbreviation, team.Abbreviation)
-	team.LogoURL = safeSportsImageURL(metadata.LogoURL)
-	team.PrimaryColor = strings.TrimSpace(metadata.PrimaryColor)
-	team.SecondaryColor = strings.TrimSpace(metadata.SecondaryColor)
+	team.LogoURL = firstNonEmpty(safeSportsImageURL(metadata.LogoURL), team.LogoURL)
+	team.PrimaryColor = firstNonEmpty(strings.TrimSpace(metadata.PrimaryColor), team.PrimaryColor)
+	team.SecondaryColor = firstNonEmpty(strings.TrimSpace(metadata.SecondaryColor), team.SecondaryColor)
 	return team
 }

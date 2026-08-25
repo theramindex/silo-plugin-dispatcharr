@@ -907,6 +907,36 @@ func TestSportarrSportsProviderEnrichesMatchedEvents(t *testing.T) {
 	}
 }
 
+func TestSportarrEnrichmentPreservesExistingIdentityFallbacks(t *testing.T) {
+	t.Parallel()
+
+	provider := newSportarrSportsProvider(nil)
+	provider.leagues["nba"] = sportarrLeagueCacheEntry{League: sportarrLeague{ID: "nba", Name: "NBA"}}
+	provider.teams["heat"] = sportarrTeamCacheEntry{Team: sportarrTeam{ID: "heat", Name: "Miami Heat"}}
+	event := SportsEvent{
+		LeagueID:          "nba",
+		LeagueName:        "NBA",
+		LeagueLogoURL:     "https://game-thumbs.swvn.io/nba/leaguelogo.png",
+		LeagueDescription: "Existing description",
+		SportName:         "Basketball",
+		Away: SportsTeam{
+			ID:             "heat",
+			Name:           "Heat",
+			LogoURL:        "https://game-thumbs.swvn.io/nba/heat/teamlogo.png",
+			PrimaryColor:   "#aa0000",
+			SecondaryColor: "#000000",
+		},
+	}
+
+	got := provider.applyCachedDetails(event)
+	if got.LeagueLogoURL != event.LeagueLogoURL || got.LeagueDescription != event.LeagueDescription || got.SportName != event.SportName {
+		t.Fatalf("empty Sportarr league metadata replaced existing identity: %+v", got)
+	}
+	if got.Away.LogoURL != event.Away.LogoURL || got.Away.PrimaryColor != event.Away.PrimaryColor || got.Away.SecondaryColor != event.Away.SecondaryColor {
+		t.Fatalf("empty Sportarr team metadata replaced existing identity: %+v", got.Away)
+	}
+}
+
 func TestSportarrEnrichmentDoesNotBlockSportsResponse(t *testing.T) {
 	t.Parallel()
 
