@@ -2750,8 +2750,12 @@ func TestPlayerUIAdminCanDisableOnLater(t *testing.T) {
 
 	page := playerPageHTMLTemplate
 	script := playerAppJavaScript()
+	styles := playerStylesCSS()
 	if !strings.Contains(page, `data-view="onlater"`) {
 		t.Fatal("expected the On Later navigation item to use the shared view visibility contract")
+	}
+	if !strings.Contains(styles, `[hidden] { display: none !important; }`) {
+		t.Fatal("expected hidden navigation items to override component display styles")
 	}
 	for _, want := range []string{
 		`onLaterEnabled: true`,
