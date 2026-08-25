@@ -71,7 +71,7 @@ func (s *HTTPRoutesServer) handleTimeShiftStart(request *pluginv1.HandleHTTPRequ
 	return jsonHTTPResponse(http.StatusAccepted, map[string]any{
 		"leaseId":      lease.ID,
 		"bufferId":     lease.BufferID,
-		"manifestPath": "/dispatcharr/timeshift/" + lease.BufferID + "/index.m3u8?lease=" + lease.ID,
+		"manifestPath": "/dispatcharr/timeshift/manifest?buffer_id=" + lease.BufferID + "&lease=" + lease.ID,
 	})
 }
 
@@ -120,9 +120,33 @@ func (s *HTTPRoutesServer) handleTimeShiftClear(request *pluginv1.HandleHTTPRequ
 }
 
 func (s *HTTPRoutesServer) handleTimeShiftMedia(request *pluginv1.HandleHTTPRequest) *pluginv1.HandleHTTPResponse {
+	if request.GetMethod() != http.MethodGet {
+		return textResponse(http.StatusMethodNotAllowed, "method not allowed")
+	}
+	leaseID := queryValue(request, "lease")
+	if request.GetPath() == "/dispatcharr/timeshift/manifest" {
+		manifest, ok := s.timeShift.Manifest(queryValue(request, "buffer_id"), leaseID)
+		if !ok {
+			return textResponse(http.StatusTooEarly, "rewind buffer is not ready")
+		}
+		return mediaHTTPResponse(http.StatusOK, "application/vnd.apple.mpegurl", manifest, "no-store")
+	}
+	if request.GetPath() == "/dispatcharr/timeshift/segment" {
+		seq, err := strconv.ParseInt(queryValue(request, "sequence"), 10, 64)
+		if err != nil {
+			return textResponse(http.StatusBadRequest, "invalid rewind segment")
+		}
+		segment, ok := s.timeShift.Segment(queryValue(request, "buffer_id"), leaseID, seq)
+		if !ok {
+			return textResponse(http.StatusNotFound, "rewind segment not found")
+		}
+		return mediaHTTPResponse(http.StatusOK, "video/mp2t", segment, "public, max-age=300, immutable")
+	}
+
+	// Keep accepting the original dynamic paths for older clients. Silo only
+	// exposes manifest-declared routes, so new clients use the exact routes above.
 	relative := strings.TrimPrefix(request.GetPath(), "/dispatcharr/timeshift/")
 	parts := strings.Split(relative, "/")
-	leaseID := queryValue(request, "lease")
 	if len(parts) == 2 && parts[1] == "index.m3u8" {
 		manifest, ok := s.timeShift.Manifest(parts[0], leaseID)
 		if !ok {

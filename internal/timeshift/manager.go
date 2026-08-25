@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -259,7 +260,9 @@ func (m *Manager) Manifest(bufferID, leaseID string) ([]byte, bool) {
 	out.WriteString("#EXT-X-MEDIA-SEQUENCE:" + strconv.FormatInt(b.segments[0].Seq, 10) + "\n")
 	for _, segment := range b.segments {
 		out.WriteString(fmt.Sprintf("#EXTINF:%.3f,\n", segment.Duration.Seconds()))
-		out.WriteString("segment/" + strconv.FormatInt(segment.Seq, 10) + ".ts?lease=" + leaseID + "\n")
+		out.WriteString("segment?buffer_id=" + url.QueryEscape(bufferID) +
+			"&sequence=" + strconv.FormatInt(segment.Seq, 10) +
+			"&lease=" + url.QueryEscape(leaseID) + "\n")
 	}
 	return []byte(out.String()), true
 }
