@@ -3412,6 +3412,15 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 			t.Fatalf("sports matchup thumbnail must include %q", want)
 		}
 	}
+	sportsRaceThumbnail := functionBody("renderSportsRaceThumbnail")
+	if strings.Contains(sportsRaceThumbnail, `Electric racing`) {
+		t.Fatal("shared race thumbnails must not label every motorsport event as electric racing")
+	}
+	for _, want := range []string{`event.leagueName`, `Race location`} {
+		if !strings.Contains(sportsRaceThumbnail, want) {
+			t.Fatalf("shared race thumbnails must include %q", want)
+		}
+	}
 	sportsEventTile := functionBody("renderSportsEventTile")
 	for _, want := range []string{`sportsEventArtwork`, `renderSportsArtworkThumbnail`, `renderSportsMatchupThumbnail`, `has-art`, `no-art`} {
 		if !strings.Contains(sportsEventTile, want) {
