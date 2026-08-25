@@ -2884,9 +2884,10 @@ function renderSportsEventTile(event) {
   if (event && event.replayOnly) return renderStandaloneSportsReplayTile(event);
   const live = sportsEventIsLive(event);
   const art = sportsEventArtwork(event, "backdrop");
+  const channelsExpanded = sportsEventChannelsExpanded(event);
   const thumbnail = art ? renderSportsArtworkThumbnail(event, art) : renderSportsMatchupThumbnail(event);
   const fallbackCopy = art ? "" : "<span class=\"sports-event-meta\"><b>" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</b><small class=\"" + (live ? "live" : "") + "\">" + escapeHTML(sportsStatusLabel(event)) + "</small></span><span class=\"sports-event-title\">" + escapeHTML(sportsEventTitle(event)) + "</span>";
-  return "<article class=\"sports-event-tile" + (live ? " live" : "") + (art ? " has-art" : " no-art") + "\"><button type=\"button\" class=\"sports-event-main\" data-sports-open-event=\"" + escapeHTML(event.id || "") + "\">"
+  return "<article class=\"sports-event-tile" + (live ? " live" : "") + (art ? " has-art" : " no-art") + (channelsExpanded ? " channels-expanded" : "") + "\"><button type=\"button\" class=\"sports-event-main\" data-sports-open-event=\"" + escapeHTML(event.id || "") + "\">"
     + thumbnail + fallbackCopy + "</button>"
     + renderSportsTileAvailability(event) + "</article>";
 }
@@ -3005,17 +3006,26 @@ function renderStandaloneSportsReplayTile(event) {
 function renderSportsTileTeam(team, score, showScore) {
   return "<span class=\"sports-event-team\">" + renderSportsTeamLogo(team || {}, "sports-event-team-logo") + "<strong>" + escapeHTML(sportsTeamName(team)) + "</strong>" + (showScore ? "<b>" + escapeHTML(score || "0") + "</b>" : "") + "</span>";
 }
+function sportsEventChannelsExpanded(event, channels) {
+  const availableChannels = channels || uniqueEventChannels(event.channels);
+  return availableChannels.length > 1 && !!state.sportsExpandedEvents[event.id];
+}
 function renderSportsTileAvailability(event) {
   const channels = uniqueEventChannels(event.channels);
   const replays = sportsReplayMatchesForEvent(event);
+  const title = sportsEventTitle(event);
+  if (channels.length === 1) {
+    const channel = channels[0];
+    const channelName = channel.name || "Live channel";
+    return "<button type=\"button\" class=\"sports-event-availability sports-event-direct\" data-channel=\"" + escapeHTML(channel.id || "") + "\" aria-label=\"" + escapeHTML("Watch " + title + " on " + channelName) + "\"><span>Watch on " + escapeHTML(channelName) + "</span>" + icon("chevron-right") + "</button>";
+  }
   const parts = [];
   if (channels.length) parts.push(channels.length + (sportsEventIsLive(event) ? " live " + (channels.length === 1 ? "broadcast" : "broadcasts") : " matched " + (channels.length === 1 ? "channel" : "channels")));
   if (replays.length) parts.push(replays.length + " " + (replays.length === 1 ? "replay" : "replays"));
-  const expanded = !!state.sportsExpandedEvents[event.id];
+  const expanded = sportsEventChannelsExpanded(event, channels);
   const trayID = sportsEventChannelTrayID(event);
-  const title = sportsEventTitle(event);
-  const control = channels.length ? "<button type=\"button\" data-sports-expand-event=\"" + escapeHTML(event.id || "") + "\" aria-expanded=\"" + (expanded ? "true" : "false") + "\" aria-controls=\"" + escapeHTML(trayID) + "\" aria-label=\"" + escapeHTML((expanded ? "Hide" : "Show") + " channels for " + title) + "\">" + icon("chevron-right") + "</button>" : "<button type=\"button\" data-sports-open-event=\"" + escapeHTML(event.id || "") + "\" aria-label=\"Open " + escapeHTML(title) + "\">" + icon("chevron-right") + "</button>";
-  const tray = channels.length ? "<div class=\"sports-event-channel-reveal" + (expanded ? " expanded" : "") + "\" id=\"" + escapeHTML(trayID) + "\" aria-hidden=\"" + (expanded ? "false" : "true") + "\"" + (expanded ? "" : " inert") + "><div><div class=\"sports-event-channel-list\">" + channels.map(renderSportsChannelChip).join("") + "</div></div></div>" : "";
+  const control = channels.length > 1 ? "<button type=\"button\" data-sports-expand-event=\"" + escapeHTML(event.id || "") + "\" aria-expanded=\"" + (expanded ? "true" : "false") + "\" aria-controls=\"" + escapeHTML(trayID) + "\" aria-label=\"" + escapeHTML((expanded ? "Hide" : "Show") + " channels for " + title) + "\">" + icon("chevron-right") + "</button>" : "<button type=\"button\" data-sports-open-event=\"" + escapeHTML(event.id || "") + "\" aria-label=\"Open " + escapeHTML(title) + "\">" + icon("chevron-right") + "</button>";
+  const tray = channels.length > 1 ? "<div class=\"sports-event-channel-reveal" + (expanded ? " expanded" : "") + "\" id=\"" + escapeHTML(trayID) + "\" aria-hidden=\"" + (expanded ? "false" : "true") + "\"" + (expanded ? "" : " inert") + "><div><div class=\"sports-event-channel-list\">" + channels.map(renderSportsChannelChip).join("") + "</div></div></div>" : "";
   return "<div class=\"sports-event-availability" + (expanded ? " expanded" : "") + "\"><span>" + escapeHTML(parts.join(" · ") || "Coverage unavailable") + "</span>" + control + "</div>" + tray;
 }
 function sportsEventChannelTrayID(event) {
@@ -3433,6 +3443,7 @@ function toggleSportsEventChannels(eventID) {
   control.setAttribute("aria-expanded", expanded ? "true" : "false");
   control.setAttribute("aria-label", (expanded ? "Hide" : "Show") + control.getAttribute("aria-label").replace(/^(Show|Hide)/, ""));
   availability.classList.toggle("expanded", expanded);
+  tile.classList.toggle("channels-expanded", expanded);
   tray.classList.toggle("expanded", expanded);
   tray.setAttribute("aria-hidden", expanded ? "false" : "true");
   if (expanded) tray.removeAttribute("inert");
