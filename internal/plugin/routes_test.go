@@ -3362,6 +3362,22 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	if !strings.Contains(sportsFeature, `live && channels[0]`) {
 		t.Fatal("sports hero must only label a playable channel as live when the event is live")
 	}
+	sportsLeagueMark := functionBody("renderSportsLeagueMark")
+	if !strings.Contains(sportsLeagueMark, `gameThumbsLeagueLogoURL`) {
+		t.Fatal("sports league cards must fall back to Game Thumbs league marks")
+	}
+	gameThumbsLeagueLogoURL := functionBody("gameThumbsLeagueLogoURL")
+	for _, want := range []string{`https://game-thumbs.swvn.io/`, `/leaguelogo.png`} {
+		if !strings.Contains(gameThumbsLeagueLogoURL, want) {
+			t.Fatalf("Game Thumbs league logo fallback must include %q", want)
+		}
+	}
+	gameThumbsLeagueSlug := functionBody("gameThumbsLeagueSlug")
+	for _, want := range []string{`"nfl"`, `"nhl"`, `"wnba"`, `"epl"`, `"boxing"`} {
+		if !strings.Contains(gameThumbsLeagueSlug, want) {
+			t.Fatalf("Game Thumbs league matching must include %q", want)
+		}
+	}
 	sportsMatchupThumbnail := functionBody("renderSportsMatchupThumbnail")
 	for _, want := range []string{`primaryColor`, `leagueLogoUrl`, `renderSportsTeamLogo`, `sports-matchup-thumb`, `sportsEventIsLive`} {
 		if !strings.Contains(sportsMatchupThumbnail, want) {
