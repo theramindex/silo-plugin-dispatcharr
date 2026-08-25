@@ -555,7 +555,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-league-card strong { font-size: 0.85rem; }
 .sports-league-card small { color: var(--muted); font-size: 0.69rem; font-weight: 750; }
 .sports-league-card > svg { width: 1rem; height: 1rem; color: var(--muted); }
-.sports-event-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.65rem; }
+.sports-event-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 0.65rem; }
 .sports-event-tile { min-width: 0; display: grid; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--panel); overflow: hidden; }
 .sports-event-tile.live { border-color: color-mix(in srgb, var(--red) 48%, var(--line)); }
 .sports-event-main { min-width: 0; display: grid; gap: 0.65rem; border: 0; background: transparent; color: var(--text); padding: 0 0 0.8rem; text-align: left; }
