@@ -366,6 +366,56 @@ func TestGuideSportsMatchupParsesQualifiedBroadcastTitles(t *testing.T) {
 	}
 }
 
+func TestSportsEventsFromGuideCleansPromoMetadataAndRejectsNonSportsShows(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 25, 23, 0, 0, 0, time.UTC)
+	programs := []model.Program{
+		{ID: "program:hunt", ChannelID: "channel:sports", Title: "Bob Redfern's Outdoor Magazine : Pheasant Hunt at Heartland Lodge", StartUnix: now.Add(-30 * time.Minute).Unix(), EndUnix: now.Add(30 * time.Minute).Unix()},
+		{ID: "program:soccer", ChannelID: "channel:sports", Title: "Fútbol UEFA Champions League : Sabah FK vs. Hapoel Beer Sheva ᴸᶦᵛᵉ", StartUnix: now.Add(-30 * time.Minute).Unix(), EndUnix: now.Add(30 * time.Minute).Unix()},
+		{ID: "program:morning-show", ChannelID: "channel:sports", Title: "Good Morning Arizona at 9am ᴺᵉʷ", StartUnix: now.Add(-30 * time.Minute).Unix(), EndUnix: now.Add(30 * time.Minute).Unix()},
+		{ID: "program:next-game", ChannelID: "channel:sports", Title: "Next Game: Boston Red Sox @ Miami Marlins on 2026-08-25 at 06:40PM EDT", StartUnix: now.Add(-30 * time.Minute).Unix(), EndUnix: now.Add(30 * time.Minute).Unix()},
+		{ID: "program:dated-team", ChannelID: "channel:sports", Title: "(CA) (CBC 07) | CEBL: Calgary at Winnipeg (2026-07-12 15:30:00)", StartUnix: now.Add(-30 * time.Minute).Unix(), EndUnix: now.Add(30 * time.Minute).Unix()},
+		{ID: "program:cfp", ChannelID: "channel:sports", Title: "CFP Quarterfinal at the Rose Bowl : Alabama vs. Indiana", StartUnix: now.Add(-30 * time.Minute).Unix(), EndUnix: now.Add(30 * time.Minute).Unix()},
+	}
+	events := sportsEventsFromGuide(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{{ID: "channel:sports", Name: "Sports Network", CategoryID: "sports", CategoryName: "Sports"}},
+		Programs: programs,
+		Content:  model.ContentState{LiveCategories: []model.Category{{ID: "sports", Name: "Sports", Kind: "live"}}},
+	}}, now)
+	byName := map[string]SportsEvent{}
+	for _, event := range events {
+		byName[event.Name] = event
+	}
+
+	if _, found := byName[programs[0].Title]; found {
+		t.Fatalf("expected a hunt at a location to be excluded from sports matchups: %+v", byName[programs[0].Title])
+	}
+	if _, found := byName[programs[2].Title]; found {
+		t.Fatalf("expected a morning news show to be excluded from sports matchups: %+v", byName[programs[2].Title])
+	}
+
+	soccer, found := byName["Fútbol UEFA Champions League : Sabah FK vs. Hapoel Beer Sheva"]
+	if !found || soccer.Away.Name != "Sabah FK" || soccer.Home.Name != "Hapoel Beer Sheva" {
+		t.Fatalf("expected live annotation removed from the event and team names, got %+v", soccer)
+	}
+
+	nextGame := byName[programs[3].Title]
+	if nextGame.Away.Name != "Boston Red Sox" || nextGame.Home.Name != "Miami Marlins" || nextGame.Live || nextGame.Status != "scheduled" || nextGame.StatusText != "Upcoming" {
+		t.Fatalf("expected Next Game promo to parse as an upcoming matchup, got %+v", nextGame)
+	}
+
+	dated := byName[programs[4].Title]
+	if dated.Away.Name != "Calgary" || dated.Home.Name != "Winnipeg" {
+		t.Fatalf("expected trailing date metadata removed from team names, got %+v", dated)
+	}
+
+	cfp := byName[programs[5].Title]
+	if cfp.LeagueID != "college-football" || cfp.LeagueName != "College Football" || cfp.SportName != "Football" {
+		t.Fatalf("expected CFP event classified as college football, got %+v", cfp)
+	}
+}
+
 func TestSportsEventsFromGuideClassifiesRacesAndBroadcastState(t *testing.T) {
 	t.Parallel()
 
