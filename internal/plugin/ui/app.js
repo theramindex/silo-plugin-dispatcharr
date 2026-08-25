@@ -2822,9 +2822,10 @@ function renderSportsFeature(event) {
   const watch = onNow && channels[0] ? "<button type=\"button\" class=\"sports-primary-action\" data-channel=\"" + escapeHTML(channels[0].id) + "\">" + icon("play") + "<span>" + (live ? "Watch live" : "Watch now") + "</span></button>" : "";
   return "<section class=\"sports-feature" + (art ? " has-art" : " no-art") + "\">"
     + (art ? "<img class=\"sports-feature-art\" src=\"" + escapeHTML(art) + "\" alt=\"\">" : "")
+    + (art ? "" : "<div class=\"sports-feature-fallback\">" + renderSportsMatchupThumbnail(event) + "</div>")
     + "<div class=\"sports-feature-copy\"><span class=\"sports-eyebrow\">" + escapeHTML(live ? "Featured live event" : (onNow ? sportsStatusLabel(event) : "Next up")) + "</span>"
     + "<h1>" + escapeHTML(sportsEventTitle(event)) + "</h1>"
-    + renderSportsFeatureScore(event)
+    + (art ? renderSportsFeatureScore(event) : "")
     + "<div class=\"sports-feature-actions\">" + watch + "<button type=\"button\" class=\"sports-secondary-action\" data-sports-open-event=\"" + escapeHTML(event.id || "") + "\">Event details" + icon("chevron-right") + "</button></div>"
     + "</div></section>";
 }

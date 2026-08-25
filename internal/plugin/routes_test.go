@@ -3359,7 +3359,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		}
 	}
 	sportsFeature := functionBody("renderSportsFeature")
-	for _, want := range []string{`sportsEventIsOnNow`, `onNow && channels[0]`, `Watch live`, `Watch now`} {
+	for _, want := range []string{`sportsEventIsOnNow`, `onNow && channels[0]`, `Watch live`, `Watch now`, `sports-feature-fallback`, `renderSportsMatchupThumbnail`, `art ? renderSportsFeatureScore(event) : ""`} {
 		if !strings.Contains(sportsFeature, want) {
 			t.Fatalf("sports hero current-broadcast behavior must include %q", want)
 		}
@@ -3537,6 +3537,8 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.event-card { grid-template-areas: "header" "body" "channels";`,
 		`.event-card-head { grid-area: header;`,
 		`.sports-feature {`,
+		`.sports-feature.no-art {`,
+		`.sports-feature-fallback {`,
 		`.sports-league-grid {`,
 		`.sports-artwork-thumb {`,
 		`.sports-artwork-matchup {`,
