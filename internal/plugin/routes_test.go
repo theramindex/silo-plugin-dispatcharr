@@ -3358,6 +3358,16 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	if !strings.Contains(sportsFeature, `live && channels[0]`) {
 		t.Fatal("sports hero must only label a playable channel as live when the event is live")
 	}
+	sportsMatchupThumbnail := functionBody("renderSportsMatchupThumbnail")
+	for _, want := range []string{`primaryColor`, `leagueLogoUrl`, `renderSportsTeamLogo`, `sports-matchup-thumb`, `sportsEventIsLive`} {
+		if !strings.Contains(sportsMatchupThumbnail, want) {
+			t.Fatalf("sports matchup thumbnail must include %q", want)
+		}
+	}
+	safeSportsTeamColor := functionBody("safeSportsTeamColor")
+	if !strings.Contains(safeSportsTeamColor, `^#[0-9a-f]{6}$`) {
+		t.Fatal("sports matchup colors must accept only six-digit hex colors")
+	}
 	sportsEventIsLive := functionBody("sportsEventIsLive")
 	for _, want := range []string{`event.completed`, `startUnix`, `3 * 3600`} {
 		if !strings.Contains(sportsEventIsLive, want) {
@@ -3489,6 +3499,8 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.event-card-head { grid-area: header;`,
 		`.sports-feature {`,
 		`.sports-league-grid {`,
+		`.sports-matchup-thumb {`,
+		`.sports-matchup-thumb-team {`,
 		`.sports-event-hero {`,
 		`.sports-event-hero.no-art {`,
 		`.sports-coverage-grid {`,
