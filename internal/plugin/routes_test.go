@@ -490,7 +490,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if !strings.Contains(body, `const watched = recent.length ? recent : visibleChannels(false).slice(0, 5);`) ||
 		!strings.Contains(body, `root.innerHTML = renderSavedLineupsHome()`) ||
 		!strings.Contains(body, `+ (favorites.length ? sectionHeader("Favorites") + favoriteHomeCards(favorites) : "")`) ||
-		!strings.Contains(body, `+ sectionHeaderWithActions("TV Guide", "<button type=\"button\" class=\"section-action\" data-view=\"guide\">Open Guide</button>" + guideFreshnessHTML())`) ||
+		!strings.Contains(body, `+ sectionHeaderWithActions("TV Guide", "<button type=\"button\" class=\"section-action\" data-view=\"guide\">Open Full Guide</button>" + guideFreshnessHTML())`) ||
 		!strings.Contains(body, `+ renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true })`) ||
 		!strings.Contains(body, `+ (channelGroupsInSideMenu() ? "" : categoryGrid());`) {
 		t.Fatalf("expected home page order to be saved lineups, continue watching, favorites, guide grid, then optional group sections")
