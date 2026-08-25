@@ -118,6 +118,11 @@ const categorySettingsJSONSchema = `{
       "maxLength": 80,
       "default": "Live TV (Dispatcharr)"
     },
+    "sideMenuMode": {
+      "type": "string",
+      "enum": ["guide", "channels"],
+      "default": "guide"
+    },
     "ecmEnabled": {
       "type": "boolean",
       "default": false

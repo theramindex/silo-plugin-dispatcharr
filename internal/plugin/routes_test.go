@@ -492,8 +492,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		!strings.Contains(body, `+ (favorites.length ? sectionHeader("Favorites") + favoriteHomeCards(favorites) : "")`) ||
 		!strings.Contains(body, `+ sectionHeaderWithActions("TV Guide", "<button type=\"button\" class=\"section-action\" data-view=\"guide\">Open Guide</button>" + guideFreshnessHTML())`) ||
 		!strings.Contains(body, `+ renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true })`) ||
-		!strings.Contains(body, `+ categoryGrid();`) {
-		t.Fatalf("expected home page order to be saved lineups, continue watching, favorites, guide grid, then group sections")
+		!strings.Contains(body, `+ (channelGroupsInSideMenu() ? "" : categoryGrid());`) {
+		t.Fatalf("expected home page order to be saved lineups, continue watching, favorites, guide grid, then optional group sections")
 	}
 	virtualWorkspaceIndex := strings.Index(body, `const browseOnly = !useGroupSelector && children.length > 0;`)
 	virtualHeaderIndex := strings.Index(body, `const folderHeader = virtualFolderHeader(path, featured, !browseOnly)`)
@@ -2628,6 +2628,29 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	persistedAliases, ok := persisted["categoryAliases"].([]map[string]string)
 	if !ok || len(persistedAliases) != 2 {
 		t.Fatalf("expected category aliases to write through to host config: %+v", persisted)
+	}
+}
+
+func TestPlayerUISupportsMovingChannelGroupsFromHomeToChannelsMenu(t *testing.T) {
+	t.Parallel()
+
+	page := playerPageHTMLTemplate
+	script := playerAppJavaScript()
+	if !strings.Contains(page, `id="primary-browse-nav"`) {
+		t.Fatal("expected the Guide navigation item to expose a stable customization target")
+	}
+	for _, want := range []string{
+		`sideMenuMode: "guide"`,
+		`function channelGroupsInSideMenu()`,
+		`state.adminCategorySettings.sideMenuMode = state.adminCategorySettings.sideMenuMode === "channels" ? "channels" : "guide";`,
+		`+ (channelGroupsInSideMenu() ? "" : categoryGrid());`,
+		`function renderChannelsPage()`,
+		`else if (state.view === "channels") renderChannelsPage();`,
+		`data-admin-identity-field=\"side-menu\"`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("expected configurable Channels navigation behavior to include %q", want)
+		}
 	}
 }
 
