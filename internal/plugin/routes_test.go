@@ -3376,6 +3376,18 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 			t.Fatalf("sports matchup thumbnail must include %q", want)
 		}
 	}
+	sportsEventTile := functionBody("renderSportsEventTile")
+	for _, want := range []string{`sportsEventArtwork`, `renderSportsArtworkThumbnail`, `renderSportsMatchupThumbnail`, `has-art`, `no-art`} {
+		if !strings.Contains(sportsEventTile, want) {
+			t.Fatalf("sports event tiles must select real artwork with an honest fallback via %q", want)
+		}
+	}
+	sportsArtworkThumbnail := functionBody("renderSportsArtworkThumbnail")
+	for _, want := range []string{`sports-artwork-thumb-bg`, `sports-artwork-status`, `renderSportsArtworkMatchup`, `renderSportsArtworkRace`, `sportsEventTitle`} {
+		if !strings.Contains(sportsArtworkThumbnail, want) {
+			t.Fatalf("art-backed sports thumbnail must include %q", want)
+		}
+	}
 	for _, removed := range []string{`gameThumbsTeamLogoURL`, `gameThumbsLeagueSlug`} {
 		if strings.Contains(script, removed) {
 			t.Fatalf("sports identity fallback %q must remain server-side", removed)
@@ -3522,6 +3534,9 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.event-card-head { grid-area: header;`,
 		`.sports-feature {`,
 		`.sports-league-grid {`,
+		`.sports-artwork-thumb {`,
+		`.sports-artwork-matchup {`,
+		`.sports-artwork-copy {`,
 		`.sports-matchup-thumb {`,
 		`.sports-matchup-thumb-team {`,
 		`.sports-event-hero {`,
