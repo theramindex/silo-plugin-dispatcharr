@@ -3431,6 +3431,12 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 			t.Fatalf("sports league detail must include %q", want)
 		}
 	}
+	sportsTeamShelfCard := functionBody("renderSportsTeamShelfCard")
+	for _, want := range []string{`sports-team-shelf-mark`, `sports-team-shelf-copy`, `renderSportsTeamLogo`, `data-sports-favorite-team`} {
+		if !strings.Contains(sportsTeamShelfCard, want) {
+			t.Fatalf("sports team shelf cards must keep their mark, identity, and action in stable slots via %q", want)
+		}
+	}
 	openSportsLeague := functionBody("openSportsLeague")
 	if strings.Contains(openSportsLeague, `state.sportsTab`) {
 		t.Fatal("opening a sports league must preserve the active sports filter")
