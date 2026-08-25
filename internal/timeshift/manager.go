@@ -92,6 +92,7 @@ type buffer struct {
 	streamURL string
 	dir       string
 	cancel    context.CancelFunc
+	done      chan struct{}
 	mu        sync.RWMutex
 	state     string
 	err       string
@@ -170,7 +171,7 @@ func (m *Manager) Acquire(channelID, streamURL string, config Config) (Lease, er
 		ctx, cancel := context.WithCancel(context.Background())
 		b = &buffer{
 			manager: m, id: bufferID, channelID: channelID, streamURL: streamURL,
-			dir: filepath.Join(m.root, bufferID), cancel: cancel, state: "starting",
+			dir: filepath.Join(m.root, bufferID), cancel: cancel, done: make(chan struct{}), state: "starting",
 			leases: map[string]time.Time{}, lastLease: time.Now(), window: config.Window,
 		}
 		m.buffers[bufferID] = b
@@ -343,6 +344,7 @@ func (m *Manager) ensureRoot() error {
 }
 
 func (b *buffer) run(ctx context.Context) {
+	defer close(b.done)
 	if err := os.RemoveAll(b.dir); err != nil {
 		b.fail(err)
 		return
@@ -472,6 +474,7 @@ func (b *buffer) fail(err error) {
 
 func (b *buffer) stop(remove bool) {
 	b.cancel()
+	<-b.done
 	b.mu.Lock()
 	b.state = "stopped"
 	b.leases = map[string]time.Time{}
