@@ -12,7 +12,7 @@ final result: blocked
 - `node --check internal/plugin/ui/app.js`: passed
 - `go test ./...`: passed
 - release verification for `0.3.88`: passed
-- plugin release workflow: pending
+- plugin release workflow: passed
 - Ramindex catalog validation: passed
 
 ## Blocking condition
