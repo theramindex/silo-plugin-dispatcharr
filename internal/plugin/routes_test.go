@@ -3373,13 +3373,25 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		}
 	}
 	gameThumbsLeagueSlug := functionBody("gameThumbsLeagueSlug")
-	for _, want := range []string{`"nfl"`, `"nhl"`, `"wnba"`, `"epl"`, `"boxing"`} {
+	for _, want := range []string{`"nfl"`, `"nhl"`, `"wnba"`, `"epl"`, `"boxing"`, `"usa.nwsl"`} {
 		if !strings.Contains(gameThumbsLeagueSlug, want) {
 			t.Fatalf("Game Thumbs league matching must include %q", want)
 		}
 	}
+	gameThumbsTeamLogoURL := functionBody("gameThumbsTeamLogoURL")
+	for _, want := range []string{`gameThumbsTeamLeagueSlug`, `gameThumbsTeamKey`, `/teamlogo.png`} {
+		if !strings.Contains(gameThumbsTeamLogoURL, want) {
+			t.Fatalf("Game Thumbs team logo fallback must include %q", want)
+		}
+	}
+	gameThumbsTeamLeagueSlug := functionBody("gameThumbsTeamLeagueSlug")
+	for _, want := range []string{`palmeiras`, `"bra.1"`, `gameThumbsEventLeagueSlug`} {
+		if !strings.Contains(gameThumbsTeamLeagueSlug, want) {
+			t.Fatalf("cross-competition team logo matching must include %q", want)
+		}
+	}
 	sportsMatchupThumbnail := functionBody("renderSportsMatchupThumbnail")
-	for _, want := range []string{`primaryColor`, `leagueLogoUrl`, `renderSportsTeamLogo`, `sports-matchup-thumb`, `sportsEventIsLive`} {
+	for _, want := range []string{`primaryColor`, `leagueLogoUrl`, `renderSportsTeamLogo`, `gameThumbsTeamLogoURL`, `sports-matchup-thumb`, `sportsEventIsLive`} {
 		if !strings.Contains(sportsMatchupThumbnail, want) {
 			t.Fatalf("sports matchup thumbnail must include %q", want)
 		}

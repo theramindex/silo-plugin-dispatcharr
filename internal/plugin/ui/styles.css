@@ -516,8 +516,13 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-feature-copy { width: min(48rem, 100%); min-height: 19rem; display: grid; align-content: center; gap: 0.9rem; padding: 2.25rem; }
 .sports-feature h1, .sports-league-hero h1, .sports-event-hero h1 { margin: 0; color: var(--text); font-size: 2.35rem; line-height: 1.04; letter-spacing: 0; text-wrap: balance; }
 .sports-feature-score { width: min(42rem, 100%); display: grid; grid-template-columns: minmax(0, 1fr) minmax(7rem, auto) minmax(0, 1fr); align-items: center; gap: 0.9rem; }
-.sports-feature-score > span { min-width: 0; display: flex; align-items: baseline; gap: 0.45rem; }
-.sports-feature-score > span:last-child { justify-content: flex-end; text-align: right; }
+.sports-feature-score > span { min-width: 0; display: flex; align-items: center; gap: 0.65rem; }
+.sports-feature-score > span:last-child { flex-direction: row-reverse; justify-content: flex-start; text-align: right; }
+.sports-feature-team-logo { width: 3.25rem; height: 3.25rem; flex: 0 0 3.25rem; object-fit: contain; filter: drop-shadow(0 0.2rem 0.35rem rgba(0,0,0,0.28)); }
+.sports-feature-team-logo.logo-fallback { display: grid; place-items: center; color: var(--muted); font-size: 0.8rem; font-weight: 950; }
+.sports-feature-team-logo[hidden], .sports-feature-team-logo.logo-fallback[hidden] { display: none; }
+.sports-feature-team-copy { min-width: 0; display: flex; align-items: baseline; gap: 0.45rem; }
+.sports-feature-score > span:last-child .sports-feature-team-copy { flex-direction: row-reverse; }
 .sports-feature-score strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.95rem; }
 .sports-feature-score b { font-size: 1.55rem; }
 .sports-feature-score em { display: grid; justify-items: center; gap: 0.2rem; color: var(--muted); font-size: 0.7rem; font-style: normal; font-weight: 850; text-align: center; }
