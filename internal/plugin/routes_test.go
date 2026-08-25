@@ -3390,7 +3390,19 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	}
 	sportsArtworkMatchup := functionBody("renderSportsArtworkMatchup")
 	if !strings.Contains(sportsArtworkMatchup, `sportsTeamName`) {
-		t.Fatal("art-backed sports matchups must label logos with full team names")
+		 t.Fatal("art-backed sports matchups must label logos with full team names")
+	}
+	sportsTileAvailability := functionBody("renderSportsTileAvailability")
+	for _, want := range []string{`data-sports-expand-event`, `aria-expanded`, `aria-controls`, `sports-event-channel-reveal`, `renderSportsChannelChip`, `inert`} {
+		if !strings.Contains(sportsTileAvailability, want) {
+			t.Fatalf("sports tile channel disclosure must include %q", want)
+		}
+	}
+	toggleSportsChannels := functionBody("toggleSportsEventChannels")
+	for _, want := range []string{`classList.toggle`, `aria-hidden`, `removeAttribute("inert")`, `setAttribute("inert"`} {
+		if !strings.Contains(toggleSportsChannels, want) {
+			t.Fatalf("sports tile channel disclosure interaction must include %q", want)
+		}
 	}
 	for _, removed := range []string{`gameThumbsTeamLogoURL`, `gameThumbsLeagueSlug`} {
 		if strings.Contains(script, removed) {
@@ -3543,6 +3555,9 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.sports-artwork-thumb {`,
 		`.sports-artwork-matchup {`,
 		`.sports-artwork-copy {`,
+		`.sports-event-channel-reveal {`,
+		`.sports-event-channel-reveal.expanded {`,
+		`.sports-event-channel-list {`,
 		`.sports-matchup-thumb {`,
 		`.sports-matchup-thumb-team {`,
 		`.sports-event-hero {`,

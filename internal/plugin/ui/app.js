@@ -2986,7 +2986,16 @@ function renderSportsTileAvailability(event) {
   const parts = [];
   if (channels.length) parts.push(channels.length + (sportsEventIsLive(event) ? " live " + (channels.length === 1 ? "broadcast" : "broadcasts") : " matched " + (channels.length === 1 ? "channel" : "channels")));
   if (replays.length) parts.push(replays.length + " " + (replays.length === 1 ? "replay" : "replays"));
-  return "<div class=\"sports-event-availability\"><span>" + escapeHTML(parts.join(" · ") || "Coverage unavailable") + "</span><button type=\"button\" data-sports-open-event=\"" + escapeHTML(event.id || "") + "\" aria-label=\"Open " + escapeHTML(sportsEventTitle(event)) + "\">" + icon("chevron-right") + "</button></div>";
+  const expanded = !!state.sportsExpandedEvents[event.id];
+  const trayID = sportsEventChannelTrayID(event);
+  const title = sportsEventTitle(event);
+  const control = channels.length ? "<button type=\"button\" data-sports-expand-event=\"" + escapeHTML(event.id || "") + "\" aria-expanded=\"" + (expanded ? "true" : "false") + "\" aria-controls=\"" + escapeHTML(trayID) + "\" aria-label=\"" + escapeHTML((expanded ? "Hide" : "Show") + " channels for " + title) + "\">" + icon("chevron-right") + "</button>" : "<button type=\"button\" data-sports-open-event=\"" + escapeHTML(event.id || "") + "\" aria-label=\"Open " + escapeHTML(title) + "\">" + icon("chevron-right") + "</button>";
+  const tray = channels.length ? "<div class=\"sports-event-channel-reveal" + (expanded ? " expanded" : "") + "\" id=\"" + escapeHTML(trayID) + "\" aria-hidden=\"" + (expanded ? "false" : "true") + "\"" + (expanded ? "" : " inert") + "><div><div class=\"sports-event-channel-list\">" + channels.map(renderSportsChannelChip).join("") + "</div></div></div>" : "";
+  return "<div class=\"sports-event-availability" + (expanded ? " expanded" : "") + "\"><span>" + escapeHTML(parts.join(" · ") || "Coverage unavailable") + "</span>" + control + "</div>" + tray;
+}
+function sportsEventChannelTrayID(event) {
+  const eventID = String(event && event.id || "event").replace(/[^a-z0-9_-]+/gi, "-");
+  return "sports-event-channels-" + eventID;
 }
 function sportsLeagueEvents(payload, leagueID) {
   return items(payload && payload.events).filter(function(event) { return String(event.leagueId || "") === String(leagueID || ""); });
@@ -3383,9 +3392,25 @@ function backFromSportsDetail() {
 function toggleSportsEventChannels(eventID) {
   eventID = String(eventID || "");
   if (!eventID) return;
-  if (state.sportsExpandedEvents[eventID]) delete state.sportsExpandedEvents[eventID];
-  else state.sportsExpandedEvents[eventID] = true;
-  renderSportsPage();
+  const expanded = !state.sportsExpandedEvents[eventID];
+  if (expanded) state.sportsExpandedEvents[eventID] = true;
+  else delete state.sportsExpandedEvents[eventID];
+  const controls = Array.from(document.querySelectorAll("[data-sports-expand-event]"));
+  const control = controls.find(function(node) { return node.getAttribute("data-sports-expand-event") === eventID; });
+  const tile = control && control.closest(".sports-event-tile");
+  const availability = tile && tile.querySelector(".sports-event-availability");
+  const tray = tile && tile.querySelector(".sports-event-channel-reveal");
+  if (!control || !availability || !tray) {
+    renderSportsPage();
+    return;
+  }
+  control.setAttribute("aria-expanded", expanded ? "true" : "false");
+  control.setAttribute("aria-label", (expanded ? "Hide" : "Show") + control.getAttribute("aria-label").replace(/^(Show|Hide)/, ""));
+  availability.classList.toggle("expanded", expanded);
+  tray.classList.toggle("expanded", expanded);
+  tray.setAttribute("aria-hidden", expanded ? "false" : "true");
+  if (expanded) tray.removeAttribute("inert");
+  else tray.setAttribute("inert", "");
 }
 function toggleSportsTeamFavorite(teamID, enabled) {
   teamID = String(teamID || "");
