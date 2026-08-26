@@ -4229,7 +4229,7 @@ function renderLivePage() {
     return;
   }
   const filteredChannels = channels.filter(channelMatchesFolderQuery);
-  byId("view").innerHTML = categoryGrid() + sectionHeader(categoryName(state.category) || "Channels") + folderFilterHTML("Filter visible channels") + rowCards(filteredChannels.slice(0, 24));
+  byId("view").innerHTML = (state.category ? "" : categoryGrid()) + sectionHeader(categoryName(state.category) || "Channels") + folderFilterHTML("Filter visible channels") + rowCards(filteredChannels.slice(0, 24));
   if (state.category) maybeWarmGuideForChannels(filteredChannels, state.category);
 }
 function recordingCustom(recording) {
