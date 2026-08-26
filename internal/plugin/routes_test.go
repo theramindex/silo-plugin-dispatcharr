@@ -3612,9 +3612,14 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		t.Fatal("search must wait for a meaningful query before scanning the full lineup")
 	}
 	playerSports := functionBody("renderPlayerSportsDrawer")
-	for _, want := range []string{`player-sports-drawer`, `player-sports-status`, `Current event feeds`, `playerSportsCurrentEvent`, `rankedSportsBroadcasts`, `Live &amp; upcoming`, `Sports channels`} {
+	for _, want := range []string{`player-sports-drawer`, `player-sports-status`, `Current event feeds`, `playerSportsCurrentEvent`, `playerSportsRelatedEvents`, `rankedSportsBroadcasts`, `Related to this event`, `Related channels`, `More live sports`} {
 		if !strings.Contains(playerSports, want) {
 			t.Fatalf("sports-first player drawer must include %q", want)
+		}
+	}
+	for _, want := range []string{`primaryEvents = relatedEvents.length ? relatedEvents`, `playerSportsChannels(primaryEvents)`, `otherEvents = relatedEvents.length`} {
+		if !strings.Contains(playerSports, want) {
+			t.Fatalf("sports-first player must prioritize contextual events and channels via %q", want)
 		}
 	}
 	playerSportsEvents := functionBody("playerSportsEvents")
