@@ -2804,6 +2804,9 @@ func TestPlayerUIChannelGroupTilesIncludeSemanticGlyphs(t *testing.T) {
 			t.Fatalf("expected channel-group glyph styles to include %q", want)
 		}
 	}
+	if !strings.Contains(styles, `.tile .tile-glyph { width: 1.5rem; height: 2rem; border: 0; border-radius: 0; background: transparent;`) {
+		t.Fatal("channel-group glyphs must remain visually unboxed")
+	}
 }
 
 func TestHTTPRoutesServerAdminSettingsRouteReportsHostPersistFailure(t *testing.T) {
