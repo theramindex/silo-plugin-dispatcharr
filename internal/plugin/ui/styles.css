@@ -1115,8 +1115,8 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .player-sports-channel-rail { grid-auto-columns: minmax(13rem, 17rem); }
 .player-sports-channel { min-width: 0; min-height: 4rem; border: 1px solid rgba(255,255,255,0.12); border-radius: 0.5rem; background: rgba(255,255,255,0.065); color: white; padding: 0.48rem 0.55rem; display: grid; grid-template-columns: 3.6rem minmax(0, 1fr); align-items: center; gap: 0.65rem; text-align: left; }
 .player-sports-channel:hover, .player-sports-channel:focus-visible { background: rgba(255,255,255,0.13); }
-.player-sports-channel > span:first-child { width: 3.6rem; height: 2.5rem; display: grid; place-items: center; }
-.player-sports-channel .logo { width: 100%; height: 100%; object-fit: contain; object-position: center; }
+.player-sports-channel > span:first-child { width: 3.6rem; height: 2.5rem; display: grid; place-items: center; overflow: hidden; }
+.player-sports-channel .logo { display: block; width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; object-position: center; border-radius: 0; background: transparent; }
 .player-sports-channel strong, .player-sports-channel small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .player-sports-channel strong { font-size: 0.82rem; }
 .player-sports-channel small { margin-top: 0.15rem; color: rgba(255,255,255,0.58); font-size: 0.68rem; font-weight: 700; }
