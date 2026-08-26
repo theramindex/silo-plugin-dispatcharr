@@ -3410,7 +3410,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		}
 	}
 	sportsLeagueMark := functionBody("renderSportsLeagueMark")
-	for _, want := range []string{`safeSportsMediaURL`, `league.logoUrl`} {
+	for _, want := range []string{`safeSportsMediaURL`, `league.logoUrl`, `sportsLeagueFallbackMark`} {
 		if !strings.Contains(sportsLeagueMark, want) {
 			t.Fatalf("sports league cards must render normalized identity field %q", want)
 		}
@@ -3437,7 +3437,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	if strings.Contains(sportsRaceThumbnail, `Electric racing`) {
 		t.Fatal("shared race thumbnails must not label every motorsport event as electric racing")
 	}
-	for _, want := range []string{`event.leagueName`, `Race location`} {
+	for _, want := range []string{`event.leagueName`, `sportsLeagueFallbackMark`, `sports-race-copy`, `sports-race-location`, `>Race<`} {
 		if !strings.Contains(sportsRaceThumbnail, want) {
 			t.Fatalf("shared race thumbnails must include %q", want)
 		}

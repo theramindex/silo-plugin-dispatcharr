@@ -30,6 +30,7 @@ var gameThumbsLeagueRoutes = []sportsIdentityRoute{
 	{regexp.MustCompile(`(?i)\bserie a\b`), "seriea"},
 	{regexp.MustCompile(`(?i)\bligue 1\b`), "ligue1"},
 	{regexp.MustCompile(`(?i)\bbrazil(?:ian)? (?:serie a|série a)\b|\bbra\.1\b`), "bra.1"},
+	{regexp.MustCompile(`(?i)\bcollege football\b|\bncaa football\b|\bncaaf\b`), "ncaaf"},
 	{regexp.MustCompile(`(?i)\bnational football league\b|\bnfl\b`), "nfl"},
 	{regexp.MustCompile(`(?i)\bnational hockey league\b|\bnhl\b`), "nhl"},
 	{regexp.MustCompile(`(?i)\bwomen'?s national basketball association\b|\bwnba\b`), "wnba"},
@@ -42,6 +43,8 @@ var gameThumbsLeagueRoutes = []sportsIdentityRoute{
 }
 
 var gameThumbsTeamLeagueRoutes = []sportsIdentityRoute{
+	{regexp.MustCompile(`(?i)\b(?:atlanta hawks|boston celtics|brooklyn nets|charlotte hornets|chicago bulls|cleveland cavaliers|dallas mavericks|denver nuggets|detroit pistons|golden state warriors|houston rockets|indiana pacers|(?:la|los angeles) clippers|(?:la|los angeles) lakers|memphis grizzlies|miami heat|milwaukee bucks|minnesota timberwolves|new orleans pelicans|new york knicks|oklahoma city thunder|orlando magic|philadelphia 76ers|phoenix suns|portland trail blazers|sacramento kings|san antonio spurs|toronto raptors|utah jazz|washington wizards)\b`), "nba"},
+	{regexp.MustCompile(`(?i)\b(?:anaheim ducks|boston bruins|buffalo sabres|calgary flames|carolina hurricanes|chicago blackhawks|colorado avalanche|columbus blue jackets|dallas stars|detroit red wings|edmonton oilers|florida panthers|los angeles kings|minnesota wild|montreal canadiens|nashville predators|new jersey devils|new york islanders|new york rangers|ottawa senators|philadelphia flyers|pittsburgh penguins|san jose sharks|seattle kraken|st louis blues|st\. louis blues|tampa bay lightning|toronto maple leafs|utah mammoth|utah hockey club|vancouver canucks|vegas golden knights|washington capitals|winnipeg jets)\b`), "nhl"},
 	// Game Thumbs' epl namespace resolves the English pyramid through its configured feeder leagues.
 	{regexp.MustCompile(`(?i)\b(?:chelsea(?:\s+(?:u21|under[ -]?21s?))?|bristol rovers)\b`), "epl"},
 	{regexp.MustCompile(`(?i)\b(?:palmeiras|flamengo|fluminense|corinthians|santos|botafogo|vasco da gama|sao paulo|são paulo|gremio|grêmio|internacional|cruzeiro|atletico mineiro|atlético mineiro)\b`), "bra.1"},
@@ -51,6 +54,13 @@ var gameThumbsChelseaYouthSuffix = regexp.MustCompile(`(?i)\bchelsea\s+(?:u21|un
 
 func applySportsIdentityFallbacks(event SportsEvent) SportsEvent {
 	leagueSlug := gameThumbsLeagueSlugForEvent(event)
+	if leagueSlug == "" {
+		awayLeagueSlug := gameThumbsLeagueSlugForTeam(event.Away, "")
+		homeLeagueSlug := gameThumbsLeagueSlugForTeam(event.Home, "")
+		if awayLeagueSlug != "" && awayLeagueSlug == homeLeagueSlug {
+			leagueSlug = awayLeagueSlug
+		}
+	}
 	if event.LeagueLogoURL == "" && leagueSlug != "" {
 		event.LeagueLogoURL = gameThumbsLeagueLogoURL(leagueSlug)
 	}
