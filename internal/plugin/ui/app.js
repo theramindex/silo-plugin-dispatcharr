@@ -3686,7 +3686,7 @@ function renderEventsPage() {
     + recoveryPanelHTML(payload.error, "events")
     + (state.eventsLoading && !events.length ? "<div class=\"empty\">Loading events...</div>" : "")
     + "</div><div class=\"sports-score-scroll\">"
-    + (events.length ? "<div class=\"sports-board\">" + events.map(renderBroadcastEventCard).join("") + "</div>" : (!state.eventsLoading ? "<div class=\"empty\">No matching events.</div>" : ""))
+    + (events.length ? "<div class=\"sports-board events-board\">" + events.map(renderBroadcastEventCard).join("") + "</div>" : (!state.eventsLoading ? "<div class=\"empty\">No matching events.</div>" : ""))
     + "</div>"
     + "</div>";
 }
@@ -3728,7 +3728,6 @@ function renderBroadcastEventCard(event) {
   const status = eventStatusLabel(event);
   const title = event.shortName || event.name || "Event";
   const artwork = event.artworkUrl || event.imageUrl || event.posterUrl || event.thumbnailUrl || "";
-  const poster = artwork ? "<div class=\"event-poster\"><img src=\"" + escapeHTML(artwork) + "\" alt=\"\" onerror=\"this.closest('.event-poster').remove();\"></div>" : "";
   const cardClass = artwork ? 'class="event-card sports-card' : 'class="event-card no-art sports-card';
   const uniqueChannels = uniqueEventChannels(event.channels);
   const globallyFeatured = !!adminFeaturedEventMap()[event.id];
@@ -3738,8 +3737,10 @@ function renderBroadcastEventCard(event) {
   const featureControl = "<button type=\"button\" class=\"event-feature-button" + (featured ? " active" : "") + "\" data-event-feature=\"" + escapeHTML(event.id || "") + "\"" + (globallyFeatured ? " disabled" : "") + " aria-label=\"" + escapeHTML(featureLabel) + "\" aria-pressed=\"" + (featured ? "true" : "false") + "\">" + icon(featured ? "heart-solid" : "heart") + "</button>";
   const windows = items(event.windows);
   const meta = [event.keyword || "", windows.length > 1 ? windows.length + " coverage windows" : "", uniqueChannels.length ? uniqueChannels.length + " channel" + (uniqueChannels.length === 1 ? "" : "s") : ""].filter(Boolean).map(function(value, index) { return "<span" + (index === 0 && event.keyword ? " class=\"event-keyword\"" : "") + ">" + escapeHTML(value) + "</span>"; }).join("");
-  return "<article " + cardClass + (sportsEventIsLive(event) ? " live" : "") + (featured ? " featured" : "") + '"><header class="event-card-head"><span class="event-card-category">' + escapeHTML(event.categoryName || "Events") + "</span><span class=\"event-card-status\">" + escapeHTML(status) + "</span>" + featureControl + "<strong class=\"event-card-title\" data-overflow-tooltip=\"" + escapeHTML(event.name || title) + "\">" + escapeHTML(title) + "</strong></header>"
-    + "<div class=\"event-card-body" + (artwork ? "" : " no-art") + "\">" + poster + "<div class=\"event-details\"><p data-overflow-description=\"true\">" + escapeHTML(event.description || "No event details available.") + "</p><div class=\"event-meta\">" + meta + "</div>" + renderEventBroadcastWindows(event) + "</div></div>"
+  const fallbackMedia = uniqueChannels[0] ? logoHTML(uniqueChannels[0]) : icon("calendar");
+  const media = artwork ? "<span class=\"event-card-media has-art\"><img src=\"" + escapeHTML(artwork) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;this.parentElement.classList.remove('has-art');\"><span class=\"event-card-media-fallback\" hidden>" + fallbackMedia + "</span></span>" : "<span class=\"event-card-media\"><span class=\"event-card-media-fallback\">" + fallbackMedia + "</span></span>";
+  return "<article " + cardClass + (sportsEventIsLive(event) ? " live" : "") + (featured ? " featured" : "") + '"><div class="event-card-visual">' + media + '<header class="event-card-head"><span class="event-card-category">' + escapeHTML(event.categoryName || "Events") + "</span><span class=\"event-card-status\">" + escapeHTML(status) + "</span>" + featureControl + "<strong class=\"event-card-title\" data-overflow-tooltip=\"" + escapeHTML(event.name || title) + "\">" + escapeHTML(title) + "</strong></header></div>"
+    + "<div class=\"event-card-body" + (artwork ? "" : " no-art") + "\"><div class=\"event-details\"><p data-overflow-description=\"true\">" + escapeHTML(event.description || "No event details available.") + "</p><div class=\"event-meta\">" + meta + "</div>" + renderEventBroadcastWindows(event) + "</div></div>"
     + renderBroadcastEventChannels(event)
     + "</article>";
 }
