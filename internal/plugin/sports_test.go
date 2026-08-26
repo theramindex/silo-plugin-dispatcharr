@@ -324,6 +324,18 @@ func TestNormalizeSportsEventsAddsGameThumbsIdentityFallbacks(t *testing.T) {
 			LeagueID: "college-football", LeagueName: "College Football", Name: "CFP National Championship: Miami vs. Indiana",
 			Away: SportsTeam{Name: "Miami"}, Home: SportsTeam{Name: "Indiana"},
 		},
+		{
+			LeagueID: "nascar-cup-series", LeagueName: "NASCAR Cup Series", SportName: "Motorsport", Name: "NCS Race at New Hampshire",
+			Away: SportsTeam{Name: "NCS Race"}, Home: SportsTeam{Name: "New Hampshire"},
+		},
+		{
+			LeagueID: "cricket", LeagueName: "Cricket", SportName: "Cricket", Name: "New Zealand vs Victoria",
+			Away: SportsTeam{Name: "New Zealand"}, Home: SportsTeam{Name: "Victoria"},
+		},
+		{
+			LeagueID: "afl", LeagueName: "AFL", SportName: "Australian Football", Name: "Essendon vs Port Adelaide",
+			Away: SportsTeam{Name: "Essendon"}, Home: SportsTeam{Name: "Port Adelaide"},
+		},
 	})
 
 	if got := events[0].LeagueLogoURL; got != "https://game-thumbs.swvn.io/nba/leaguelogo.png" {
@@ -380,6 +392,24 @@ func TestNormalizeSportsEventsAddsGameThumbsIdentityFallbacks(t *testing.T) {
 	if got := events[8].Away.LogoURL; got != "https://game-thumbs.swvn.io/ncaaf/miami/teamlogo.png" {
 		t.Fatalf("expected College Football teams to use the NCAAF namespace, got %q", got)
 	}
+	if got := events[9].LeagueLogoURL; got != "https://game-thumbs.swvn.io/NASCAR/leaguelogo.png" {
+		t.Fatalf("expected NASCAR Cup Series to use the NASCAR league mark, got %q", got)
+	}
+	if got := events[10].Away.LogoURL; got != "https://game-thumbs.swvn.io/country/new-zealand/teamlogo.png" {
+		t.Fatalf("expected an international cricket side to use its country flag, got %q", got)
+	}
+	if got := events[10].Home.LogoURL; got != "" {
+		t.Fatalf("expected domestic Victoria to avoid a false country flag, got %q", got)
+	}
+	if got := events[11].LeagueLogoURL; got != "https://r2.thesportsdb.com/images/media/league/badge/wvx4721525519372.png" {
+		t.Fatalf("expected AFL league identity, got %q", got)
+	}
+	if got := events[11].Away.LogoURL; got != "https://squiggle.com.au/wp-content/themes/squiggle/assets/images/Essendon.png" {
+		t.Fatalf("expected Essendon crest from Squiggle, got %q", got)
+	}
+	if got := events[11].Home.LogoURL; got != "https://squiggle.com.au/wp-content/themes/squiggle/assets/images/PortAdelaide.png" {
+		t.Fatalf("expected Port Adelaide crest from Squiggle, got %q", got)
+	}
 }
 
 func TestGuideSportsMatchupParsesQualifiedBroadcastTitles(t *testing.T) {
@@ -404,6 +434,13 @@ func TestGuideSportsMatchupParsesQualifiedBroadcastTitles(t *testing.T) {
 			title:     "Cricket Highlights : Bangladesh vs Australia: 2nd ODI",
 			wantAway:  "Bangladesh",
 			wantHome:  "Australia",
+			wantMatch: true,
+		},
+		{
+			name:      "cricket match number is not part of team name",
+			title:     "Cricket Review : Top End T20 Series: New Zealand vs Victoria, Match 16",
+			wantAway:  "New Zealand",
+			wantHome:  "Victoria",
 			wantMatch: true,
 		},
 	}
