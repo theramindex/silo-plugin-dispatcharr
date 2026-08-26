@@ -11,12 +11,18 @@ import (
 
 const gameThumbsPublicBaseURL = "https://game-thumbs.swvn.io"
 
+const (
+	aflLeagueLogoURL = "https://r2.thesportsdb.com/images/media/league/badge/wvx4721525519372.png"
+	aflTeamLogoBase  = "https://squiggle.com.au/wp-content/themes/squiggle/assets/images/"
+)
+
 type sportsIdentityRoute struct {
 	pattern *regexp.Regexp
 	slug    string
 }
 
 var gameThumbsLeagueRoutes = []sportsIdentityRoute{
+	{regexp.MustCompile(`(?i)\bnascar\s+cup\s+series\b|\bncs\s+race\b`), "NASCAR"},
 	{regexp.MustCompile(`(?i)\bindian premier league\b|\bipl\b`), "ipl"},
 	{regexp.MustCompile(`(?i)\bbangladesh premier league\b|\bbpl\b`), "bpl"},
 	{regexp.MustCompile(`(?i)\bcaribbean premier league\b|\bcpl\b`), "cpl"},
@@ -42,6 +48,56 @@ var gameThumbsLeagueRoutes = []sportsIdentityRoute{
 	{regexp.MustCompile(`(?i)\bboxing\b`), "boxing"},
 }
 
+var sportsCountryNames = map[string]string{
+	"afghanistan":          "Afghanistan",
+	"australia":            "Australia",
+	"bangladesh":           "Bangladesh",
+	"canada":               "Canada",
+	"england":              "England",
+	"india":                "India",
+	"ireland":              "Ireland",
+	"namibia":              "Namibia",
+	"nepal":                "Nepal",
+	"netherlands":          "Netherlands",
+	"new zealand":          "New Zealand",
+	"pakistan":             "Pakistan",
+	"scotland":             "Scotland",
+	"south africa":         "South Africa",
+	"sri lanka":            "Sri Lanka",
+	"united arab emirates": "United Arab Emirates",
+	"united states":        "United States",
+	"usa":                  "USA",
+	"zimbabwe":             "Zimbabwe",
+}
+
+var aflTeamLogoFiles = map[string]string{
+	"adelaide":               "Adelaide.png",
+	"brisbane":               "Brisbane.png",
+	"brisbane lions":         "Brisbane.png",
+	"carlton":                "Carlton.png",
+	"collingwood":            "Collingwood.png",
+	"essendon":               "Essendon.png",
+	"fremantle":              "Fremantle.png",
+	"geelong":                "Geelong.png",
+	"geelong cats":           "Geelong.png",
+	"gold coast":             "GoldCoast.png",
+	"gold coast suns":        "GoldCoast.png",
+	"greater western sydney": "Giants.png",
+	"gws":                    "Giants.png",
+	"gws giants":             "Giants.png",
+	"hawthorn":               "Hawthorn.png",
+	"melbourne":              "Melbourne.png",
+	"north melbourne":        "NorthMelbourne.png",
+	"port adelaide":          "PortAdelaide.png",
+	"richmond":               "Richmond.png",
+	"st kilda":               "StKilda.png",
+	"sydney":                 "Sydney.png",
+	"sydney swans":           "Sydney.png",
+	"west coast":             "WestCoast.png",
+	"west coast eagles":      "WestCoast.png",
+	"western bulldogs":       "Bulldogs.png",
+}
+
 var gameThumbsTeamLeagueRoutes = []sportsIdentityRoute{
 	{regexp.MustCompile(`(?i)\b(?:atlanta hawks|boston celtics|brooklyn nets|charlotte hornets|chicago bulls|cleveland cavaliers|dallas mavericks|denver nuggets|detroit pistons|golden state warriors|houston rockets|indiana pacers|(?:la|los angeles) clippers|(?:la|los angeles) lakers|memphis grizzlies|miami heat|milwaukee bucks|minnesota timberwolves|new orleans pelicans|new york knicks|oklahoma city thunder|orlando magic|philadelphia 76ers|phoenix suns|portland trail blazers|sacramento kings|san antonio spurs|toronto raptors|utah jazz|washington wizards)\b`), "nba"},
 	{regexp.MustCompile(`(?i)\b(?:anaheim ducks|boston bruins|buffalo sabres|calgary flames|carolina hurricanes|chicago blackhawks|colorado avalanche|columbus blue jackets|dallas stars|detroit red wings|edmonton oilers|florida panthers|los angeles kings|minnesota wild|montreal canadiens|nashville predators|new jersey devils|new york islanders|new york rangers|ottawa senators|philadelphia flyers|pittsburgh penguins|san jose sharks|seattle kraken|st louis blues|st\. louis blues|tampa bay lightning|toronto maple leafs|utah mammoth|utah hockey club|vancouver canucks|vegas golden knights|washington capitals|winnipeg jets)\b`), "nhl"},
@@ -53,6 +109,7 @@ var gameThumbsTeamLeagueRoutes = []sportsIdentityRoute{
 var gameThumbsChelseaYouthSuffix = regexp.MustCompile(`(?i)\bchelsea\s+(?:u21|under[ -]?21s?)\b`)
 
 func applySportsIdentityFallbacks(event SportsEvent) SportsEvent {
+	event = applySpecialSportsIdentityFallbacks(event)
 	leagueSlug := gameThumbsLeagueSlugForEvent(event)
 	if leagueSlug == "" {
 		awayLeagueSlug := gameThumbsLeagueSlugForTeam(event.Away, "")
@@ -67,6 +124,46 @@ func applySportsIdentityFallbacks(event SportsEvent) SportsEvent {
 	event.Away = applySportsTeamIdentityFallback(event.Away, leagueSlug)
 	event.Home = applySportsTeamIdentityFallback(event.Home, leagueSlug)
 	return event
+}
+
+func applySpecialSportsIdentityFallbacks(event SportsEvent) SportsEvent {
+	identityText := normalizeSportsIdentityText(strings.Join([]string{event.LeagueID, event.LeagueName, event.SportName, event.Name}, " "))
+	if strings.Contains(identityText, "afl") || strings.Contains(identityText, "australian football") || strings.Contains(identityText, "afl premiership") {
+		if event.LeagueLogoURL == "" {
+			event.LeagueLogoURL = aflLeagueLogoURL
+		}
+		event.Away = applyAFLTeamIdentity(event.Away)
+		event.Home = applyAFLTeamIdentity(event.Home)
+	}
+	if strings.Contains(identityText, "cricket") {
+		event.Away = applyCountryTeamIdentity(event.Away)
+		event.Home = applyCountryTeamIdentity(event.Home)
+	}
+	return event
+}
+
+func applyAFLTeamIdentity(team SportsTeam) SportsTeam {
+	if team.LogoURL != "" {
+		return team
+	}
+	if filename := aflTeamLogoFiles[normalizeSportsIdentityText(team.Name)]; filename != "" {
+		team.LogoURL = aflTeamLogoBase + filename
+	}
+	return team
+}
+
+func applyCountryTeamIdentity(team SportsTeam) SportsTeam {
+	if team.LogoURL != "" {
+		return team
+	}
+	if country := sportsCountryNames[normalizeSportsIdentityText(team.Name)]; country != "" {
+		team.LogoURL = gameThumbsTeamLogoURL("country", country)
+	}
+	return team
+}
+
+func normalizeSportsIdentityText(value string) string {
+	return strings.Join(strings.Fields(strings.ToLower(strings.TrimSpace(value))), " ")
 }
 
 func applySportsTeamIdentityFallback(team SportsTeam, eventLeagueSlug string) SportsTeam {
