@@ -989,7 +989,9 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .playback-shell { position: relative; width: 100%; height: 100dvh; min-height: 100vh; overflow: hidden; background: #000; }
 .playback-stage { position: relative; width: 100%; height: 100%; max-height: none; overflow: hidden; background: #000; }
 .playback-video { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto; object-fit: contain; border: 0; border-radius: 0; background: #000; }
+.playback-shell.sports-open .playback-video { bottom: auto; height: calc(100% - var(--player-sports-drawer-height, 0px)); }
 .playback-scrim { pointer-events: none; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.84) 0%, rgba(0,0,0,0.28) 12%, transparent 30%, transparent 55%, rgba(0,0,0,0.22) 68%, rgba(0,0,0,0.92) 100%); transition: opacity 220ms ease; }
+.playback-shell.sports-open .playback-scrim { bottom: var(--player-sports-drawer-height, 0px); }
 .player-top { position: absolute; inset: 0.85rem 0.9rem auto; display: flex; align-items: center; justify-content: space-between; gap: 1rem; z-index: 2; }
 .player-top, .player-bottom { transition: opacity 220ms ease, transform 220ms ease; }
 .playback-shell.is-idle { cursor: none; }
@@ -1007,6 +1009,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .player-icon.active, .player-icon.favorite.active { color: white; background: rgba(255,47,116,0.9); border-color: rgba(255,255,255,0.28); }
 .player-exit { flex: 0 0 auto; background: rgba(30,30,31,0.72); color: white; }
 .player-center-button { position: absolute; left: 50%; top: 50%; z-index: 2; transform: translate(-50%, -50%) scale(1); width: 4.8rem; height: 4.8rem; border-radius: 999px; border: 1px solid rgba(255,255,255,0.2); background: rgba(245,245,245,0.94); color: #050505; display: inline-grid; place-items: center; box-shadow: 0 1rem 2.5rem rgba(0,0,0,0.34); transition: opacity 180ms ease, transform 180ms ease; }
+.playback-shell.sports-open .player-center-button { top: calc((100% - var(--player-sports-drawer-height, 0px)) / 2); }
 .player-center-button svg { width: 2rem; height: 2rem; display: block; }
 .player-center-button.hidden { opacity: 0; pointer-events: none; transform: translate(-50%, -50%) scale(0.94); }
 .player-center-button.loading svg { animation: spin 880ms linear infinite; }

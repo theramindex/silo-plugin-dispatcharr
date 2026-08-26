@@ -17,6 +17,7 @@ state.adminOrganizationTab = "profiles";
 state.adminOrganizationQuery = "";
 state.sportsReplayStandaloneEvents = [];
 let redundantProfileWrapperCache = { channels: null, profiles: null, signature: "", wrappers: {} };
+let playerSportsDrawerResizeObserver = null;
 
 state.sportsReplayPromise = null;
 state.sportsReplayGeneration = 0;
@@ -1489,6 +1490,7 @@ function stopPlayback() {
   state.playerSportsMode = false;
   state.playerSportsOpen = false;
   stopPlayerSportsRefresh();
+  resetPlayerSportsDrawerLayout();
   if (video) {
     video.pause();
     video.removeAttribute("src");
@@ -3612,6 +3614,36 @@ function renderPlayerSportsFeed(channel) {
   const badge = channel.sportsPreferred ? "Preferred" : (channel.sportsPreferredNetwork ? "Preferred network" : ((channel.sportsTraits || [])[0] || "Live"));
   return "<button class=\"player-sports-channel player-sports-feed" + (active ? " active" : "") + "\" type=\"button\" data-player-sports-channel=\"" + escapeHTML(channel.id) + "\" aria-pressed=\"" + (active ? "true" : "false") + "\"><span>" + logoHTML(appChannel) + "</span><span><strong>" + escapeHTML(appChannel.name || "Sports channel") + "</strong><small>" + escapeHTML(badge) + (current.title ? " · Now: " + escapeHTML(current.title) : "") + (next.title ? " · Next: " + escapeHTML(next.title) : "") + "</small></span>" + (active ? icon("check") : icon("play")) + "</button>";
 }
+function syncPlayerSportsDrawerLayout() {
+  const shell = document.querySelector(".playback-shell");
+  const drawer = byId("player-sports-drawer");
+  if (!shell || !drawer || !state.playerSportsOpen) {
+    if (shell && shell.style && typeof shell.style.setProperty === "function") shell.style.setProperty("--player-sports-drawer-height", "0px");
+    return;
+  }
+  const height = Math.ceil(drawer.getBoundingClientRect().height);
+  if (shell.style && typeof shell.style.setProperty === "function") shell.style.setProperty("--player-sports-drawer-height", Math.max(0, height) + "px");
+}
+function resetPlayerSportsDrawerLayout() {
+  if (playerSportsDrawerResizeObserver) playerSportsDrawerResizeObserver.disconnect();
+  playerSportsDrawerResizeObserver = null;
+  const shell = document.querySelector(".playback-shell");
+  if (shell && shell.style && typeof shell.style.setProperty === "function") shell.style.setProperty("--player-sports-drawer-height", "0px");
+}
+function observePlayerSportsDrawerLayout() {
+  if (playerSportsDrawerResizeObserver) playerSportsDrawerResizeObserver.disconnect();
+  playerSportsDrawerResizeObserver = null;
+  const drawer = byId("player-sports-drawer");
+  if (!drawer || !state.playerSportsOpen) {
+    syncPlayerSportsDrawerLayout();
+    return;
+  }
+  syncPlayerSportsDrawerLayout();
+  if (typeof ResizeObserver === "function") {
+    playerSportsDrawerResizeObserver = new ResizeObserver(syncPlayerSportsDrawerLayout);
+    playerSportsDrawerResizeObserver.observe(drawer);
+  }
+}
 function renderPlayerSportsDrawer() {
   const root = byId("player-sports-drawer");
   const shell = document.querySelector(".playback-shell");
@@ -3621,10 +3653,14 @@ function renderPlayerSportsDrawer() {
     button.classList.toggle("active", !!state.playerSportsOpen);
     button.setAttribute("aria-expanded", state.playerSportsOpen ? "true" : "false");
   }
-  if (!root) return;
+  if (!root) {
+    observePlayerSportsDrawerLayout();
+    return;
+  }
   root.classList.toggle("open", !!state.playerSportsOpen);
   if (!state.playerSportsOpen) {
     root.innerHTML = "";
+    observePlayerSportsDrawerLayout();
     return;
   }
   const events = playerSportsEvents();
@@ -3646,6 +3682,7 @@ function renderPlayerSportsDrawer() {
     + (primaryEvents.length ? "<div class=\"player-sports-section\"><div class=\"player-sports-section-title\">" + (currentEvent ? "Related to this event" : "Live &amp; upcoming") + "</div><div class=\"player-sports-rail\">" + primaryEvents.map(renderPlayerSportsEvent).join("") + "</div></div>" : "")
     + (channels.length ? "<div class=\"player-sports-section\"><div class=\"player-sports-section-title\">Related channels</div><div class=\"player-sports-channel-rail\">" + channels.map(renderPlayerSportsChannel).join("") + "</div></div>" : "")
     + (otherEvents.length ? "<details class=\"player-sports-more\"><summary>More live sports <span>" + escapeHTML(String(otherEvents.length)) + "</span>" + icon("chevron-down") + "</summary><div class=\"player-sports-rail\">" + otherEvents.map(renderPlayerSportsEvent).join("") + "</div></details>" : "");
+  observePlayerSportsDrawerLayout();
 }
 function stopPlayerSportsRefresh() {
   if (state.playerSportsTimer) clearInterval(state.playerSportsTimer);
@@ -8042,6 +8079,7 @@ window.addEventListener("popstate", function(event) {
 });
 window.addEventListener("resize", function() {
   if (state.view === "guide") scheduleGuideWindowRender();
+  if (state.view === "player" && state.playerSportsOpen) syncPlayerSportsDrawerLayout();
 });
 window.addEventListener("beforeunload", function() {
   if (state.currentSession) navigator.sendBeacon(route("/dispatcharr/api/watch/stop"), JSON.stringify({ sessionId: state.currentSession.id, reason: "page_unload" }));

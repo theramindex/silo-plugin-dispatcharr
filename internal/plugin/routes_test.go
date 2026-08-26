@@ -3633,6 +3633,18 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	for _, want := range []string{`.player-sports-channel > span:first-child { width: 3.6rem; height: 2.5rem; display: grid; place-items: center; overflow: hidden; }`, `.player-sports-channel .logo { display: block; width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; object-position: center; border-radius: 0; background: transparent; }`} {
 		requireStyle(want)
 	}
+	for _, want := range []string{`.playback-shell.sports-open .playback-video { bottom: auto; height: calc(100% - var(--player-sports-drawer-height, 0px)); }`, `.playback-shell.sports-open .player-center-button { top: calc((100% - var(--player-sports-drawer-height, 0px)) / 2); }`} {
+		requireStyle(want)
+	}
+	playerSportsLayout := functionBody("syncPlayerSportsDrawerLayout")
+	for _, want := range []string{`getBoundingClientRect().height`, `--player-sports-drawer-height`} {
+		if !strings.Contains(playerSportsLayout, want) {
+			t.Fatalf("open sports drawer must reserve measured player space via %q", want)
+		}
+	}
+	if !strings.Contains(functionBody("stopPlayback"), `resetPlayerSportsDrawerLayout()`) {
+		t.Fatal("leaving playback must disconnect the sports drawer layout observer")
+	}
 	playChannel := functionBody("playChannel")
 	for _, want := range []string{`state.view === "sports"`, `state.playerSportsMode = useSportsPlayer`, `state.playerSportsOpen = useSportsPlayer`} {
 		if !strings.Contains(playChannel, want) {
