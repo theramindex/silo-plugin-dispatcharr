@@ -110,6 +110,7 @@ var gameThumbsTeamLeagueRoutes = []sportsIdentityRoute{
 }
 
 var gameThumbsChelseaYouthSuffix = regexp.MustCompile(`(?i)\bchelsea\s+(?:u21|under[ -]?21s?)\b`)
+var compoundBoxingParticipant = regexp.MustCompile(`(?i)\s+(?:&|and)\s+`)
 
 func applySportsIdentityFallbacks(event SportsEvent) SportsEvent {
 	event = applySpecialSportsIdentityFallbacks(event)
@@ -171,6 +172,10 @@ func normalizeSportsIdentityText(value string) string {
 
 func applySportsTeamIdentityFallback(team SportsTeam, eventLeagueSlug string) SportsTeam {
 	if team.LogoURL != "" || !usableSportsIdentityName(team.Name) {
+		return team
+	}
+	if eventLeagueSlug == "boxing" && compoundBoxingParticipant.MatchString(team.Name) {
+		team.LogoURL = gameThumbsLeagueLogoURL(eventLeagueSlug)
 		return team
 	}
 	leagueSlug := gameThumbsLeagueSlugForTeam(team, eventLeagueSlug)

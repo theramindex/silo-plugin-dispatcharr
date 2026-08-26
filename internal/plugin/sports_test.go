@@ -350,6 +350,10 @@ func TestNormalizeSportsEventsAddsGameThumbsIdentityFallbacks(t *testing.T) {
 			LeagueID: "english-league-1", LeagueName: "English League 1", SportName: "Soccer", Name: "Cambridge United vs Huddersfield Town",
 			Away: SportsTeam{Name: "Huddersfield Town"}, Home: SportsTeam{Name: "Cambridge United"},
 		},
+		{
+			LeagueID: "boxing", LeagueName: "Boxing", SportName: "Combat Sports", Name: "Canelo Alvarez vs. Cotto & Cesar Chavez Jr",
+			Away: SportsTeam{Name: "Canelo Alvarez"}, Home: SportsTeam{Name: "Cotto & Cesar Chavez Jr"},
+		},
 	})
 
 	if got := events[0].LeagueLogoURL; got != "https://game-thumbs.swvn.io/nba/leaguelogo.png" {
@@ -433,6 +437,9 @@ func TestNormalizeSportsEventsAddsGameThumbsIdentityFallbacks(t *testing.T) {
 	if got := events[12].Home.LogoURL; got != "https://game-thumbs.swvn.io/league-one/cambridge-united/teamlogo.png" {
 		t.Fatalf("expected Cambridge United crest fallback, got %q", got)
 	}
+	if got := events[13].Home.LogoURL; got != "https://game-thumbs.swvn.io/boxing/leaguelogo.png" {
+		t.Fatalf("expected a compound boxing opponent to use an honest boxing mark, got %q", got)
+	}
 }
 
 func TestNormalizeSportsEventsCanonicalizesKnownLeagueIDs(t *testing.T) {
@@ -488,6 +495,20 @@ func TestGuideSportsMatchupParsesQualifiedBroadcastTitles(t *testing.T) {
 			wantHome:  "Victoria",
 			wantMatch: true,
 		},
+		{
+			name:      "cricket ordinal match suffix is event metadata",
+			title:     "Cricket Highlights : The Hundred 2026: Leeds vs Super Giants - 10th Match",
+			wantAway:  "Leeds",
+			wantHome:  "Super Giants",
+			wantMatch: true,
+		},
+		{
+			name:      "competition and round suffix is not part of the home team",
+			title:     "Bodo/Glimt (NOR) vs N.E.C. (NED) - UEFA Champions League 2026-2027 - Play-Off - 2nd leg",
+			wantAway:  "Bodo/Glimt (NOR)",
+			wantHome:  "N.E.C. (NED)",
+			wantMatch: true,
+		},
 	}
 
 	for _, test := range tests {
@@ -502,6 +523,15 @@ func TestGuideSportsMatchupParsesQualifiedBroadcastTitles(t *testing.T) {
 	}
 }
 
+func TestGuideSportsLeagueRecognizesUEFAChampionsLeague(t *testing.T) {
+	t.Parallel()
+
+	id, name, sport, matched := guideSportsLeague("Bodo/Glimt vs N.E.C. - UEFA Champions League 2026-2027 - Play-Off - 2nd leg")
+	if !matched || id != "uefa-champions-league" || name != "UEFA Champions League" || sport != "Soccer" {
+		t.Fatalf("unexpected Champions League identity: %q, %q, %q, %v", id, name, sport, matched)
+	}
+}
+
 func TestSportsEventsFromGuideCleansPromoMetadataAndRejectsNonSportsShows(t *testing.T) {
 	t.Parallel()
 
@@ -513,6 +543,8 @@ func TestSportsEventsFromGuideCleansPromoMetadataAndRejectsNonSportsShows(t *tes
 		{ID: "program:next-game", ChannelID: "channel:sports", Title: "Next Game: Boston Red Sox @ Miami Marlins on 2026-08-25 at 06:40PM EDT", StartUnix: now.Add(-30 * time.Minute).Unix(), EndUnix: now.Add(30 * time.Minute).Unix()},
 		{ID: "program:dated-team", ChannelID: "channel:sports", Title: "(CA) (CBC 07) | CEBL: Calgary at Winnipeg (2026-07-12 15:30:00)", StartUnix: now.Add(-30 * time.Minute).Unix(), EndUnix: now.Add(30 * time.Minute).Unix()},
 		{ID: "program:cfp", ChannelID: "channel:sports", Title: "CFP Quarterfinal at the Rose Bowl : Alabama vs. Indiana", StartUnix: now.Add(-30 * time.Minute).Unix(), EndUnix: now.Add(30 * time.Minute).Unix()},
+		{ID: "program:cricket-match-number", ChannelID: "channel:sports", Title: "Cricket Highlights : The Hundred 2026: Leeds vs Super Giants - 10th Match", StartUnix: now.Add(-30 * time.Minute).Unix(), EndUnix: now.Add(30 * time.Minute).Unix()},
+		{ID: "program:champions-league-round", ChannelID: "channel:sports", Title: "Bodo/Glimt (NOR) vs N.E.C. (NED) - UEFA Champions League 2026-2027 - Play-Off - 2nd leg", StartUnix: now.Add(-30 * time.Minute).Unix(), EndUnix: now.Add(30 * time.Minute).Unix()},
 	}
 	events := sportsEventsFromGuide(cache.Snapshot{Catalog: model.CatalogState{
 		Channels: []model.Channel{{ID: "channel:sports", Name: "Sports Network", CategoryID: "sports", CategoryName: "Sports"}},
@@ -549,6 +581,16 @@ func TestSportsEventsFromGuideCleansPromoMetadataAndRejectsNonSportsShows(t *tes
 	cfp := byName[programs[5].Title]
 	if cfp.LeagueID != "college-football" || cfp.LeagueName != "College Football" || cfp.SportName != "Football" {
 		t.Fatalf("expected CFP event classified as college football, got %+v", cfp)
+	}
+
+	cricket := byName[programs[6].Title]
+	if cricket.Away.Name != "Leeds" || cricket.Home.Name != "Super Giants" {
+		t.Fatalf("expected ordinal match metadata removed from cricket team names, got %+v", cricket)
+	}
+
+	championsLeague := byName[programs[7].Title]
+	if championsLeague.Away.Name != "Bodo/Glimt (NOR)" || championsLeague.Home.Name != "N.E.C. (NED)" || championsLeague.LeagueID != "uefa-champions-league" {
+		t.Fatalf("expected competition metadata removed and Champions League identity retained, got %+v", championsLeague)
 	}
 }
 
