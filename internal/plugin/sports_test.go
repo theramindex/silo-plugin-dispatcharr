@@ -308,6 +308,10 @@ func TestNormalizeSportsEventsAddsGameThumbsIdentityFallbacks(t *testing.T) {
 			LeagueID: "bra.1", LeagueName: "Brazil Serie A", Name: "São Paulo vs. Grêmio",
 			Away: SportsTeam{Name: "São Paulo"}, Home: SportsTeam{Name: "Grêmio"},
 		},
+		{
+			LeagueID: "efl-trophy", LeagueName: "EFL Trophy", Name: "Bristol Rovers vs Chelsea U21",
+			Away: SportsTeam{Name: "Chelsea U21"}, Home: SportsTeam{Name: "Bristol Rovers"},
+		},
 	})
 
 	if got := events[0].LeagueLogoURL; got != "https://game-thumbs.swvn.io/nba/leaguelogo.png" {
@@ -339,6 +343,12 @@ func TestNormalizeSportsEventsAddsGameThumbsIdentityFallbacks(t *testing.T) {
 	}
 	if got := events[4].Home.LogoURL; got != "https://game-thumbs.swvn.io/bra.1/gremio/teamlogo.png" {
 		t.Fatalf("expected diacritics removed from Grêmio fallback, got %q", got)
+	}
+	if got := events[5].Away.LogoURL; got != "https://game-thumbs.swvn.io/epl/chelsea/teamlogo.png" {
+		t.Fatalf("expected Chelsea U21 to use the senior club crest, got %q", got)
+	}
+	if got := events[5].Home.LogoURL; got != "https://game-thumbs.swvn.io/epl/bristol-rovers/teamlogo.png" {
+		t.Fatalf("expected Bristol Rovers to use the English pyramid crest, got %q", got)
 	}
 }
 
@@ -1072,6 +1082,9 @@ func TestSportarrSportsEventMapsCanonicalFields(t *testing.T) {
 		ScheduledEnd:      "2026-06-27T00:35:00Z",
 		BroadcastTimezone: "America/New_York",
 		Status:            "in_progress",
+		StatusText:        "Second half",
+		Period:            sportarrString("2"),
+		Clock:             sportarrString("67:14"),
 		HomeTeamID:        "panama-id",
 		HomeTeamName:      "Panama",
 		AwayTeamID:        "croatia-id",
@@ -1087,7 +1100,7 @@ func TestSportarrSportsEventMapsCanonicalFields(t *testing.T) {
 	if converted.ID != "sportarr:ev-401" || converted.ProviderID != "event-uuid" || converted.LeagueName != "World Cup" || converted.Home.Name != "Panama" || converted.Away.Name != "Croatia" {
 		t.Fatalf("unexpected Sportarr mapping: %+v", converted)
 	}
-	if !converted.Live || converted.Completed || converted.StatusText != "Live" || converted.HomeScore != "1" || converted.AwayScore != "2" {
+	if !converted.Live || converted.Completed || converted.StatusText != "Second half" || converted.Period != "2" || converted.Clock != "67:14" || converted.HomeScore != "1" || converted.AwayScore != "2" {
 		t.Fatalf("unexpected Sportarr live state: %+v", converted)
 	}
 	if converted.EventType != "group_stage" || converted.Round != "Group A" || converted.Venue != "MetLife Stadium" || converted.BroadcastTimezone != "America/New_York" {

@@ -1,6 +1,8 @@
 package config
 
 import (
+	"strings"
+
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -330,6 +332,9 @@ func UserConfigSchema() []*ConfigSchema {
 }
 
 func objectSchema(key, title, description, jsonSchema string, required bool, fields []*pluginv1.AdminFormField, submitLabel string) *ConfigSchema {
+	if key == "preferences" {
+		jsonSchema = strings.Replace(jsonSchema, `"sportsFavoriteTeams":{"type":"object","additionalProperties":{"type":"boolean"}}`, `"sportsFavoriteTeams":{"type":"object","additionalProperties":{"type":"boolean"}},"sportsFavoriteLeagues":{"type":"object","additionalProperties":{"type":"boolean"}},"sportsPreferredChannels":{"type":"object","additionalProperties":{"type":"string"}},"sportsPreferredNetworks":{"type":"object","additionalProperties":{"type":"string"}},"sportsSpoilersHidden":{"type":"boolean"},"sportsPlayerSpoilersHidden":{"type":"boolean"}`, 1)
+	}
 	return &pluginv1.ConfigSchema{
 		Key:         key,
 		Title:       title,

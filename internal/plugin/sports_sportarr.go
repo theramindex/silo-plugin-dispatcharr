@@ -101,6 +101,9 @@ type sportarrEvent struct {
 	ScheduledEnd        string         `json:"scheduledEnd"`
 	BroadcastTimezone   string         `json:"broadcastTimezone"`
 	Status              string         `json:"status"`
+	StatusText          string         `json:"statusText"`
+	Period              sportarrString `json:"period"`
+	Clock               sportarrString `json:"clock"`
 	HomeTeamID          string         `json:"homeTeamId"`
 	HomeTeamName        string         `json:"homeTeamName"`
 	AwayTeamID          string         `json:"awayTeamId"`
@@ -352,11 +355,11 @@ func (event sportarrEvent) sportsEvent() SportsEvent {
 	status := normalizeSportarrStatus(event.Status)
 	live := status == "live"
 	completed := status == "completed"
-	statusText := ""
+	statusText := strings.TrimSpace(event.StatusText)
 	if live {
-		statusText = "Live"
+		statusText = firstNonEmpty(statusText, "Live")
 	} else if completed {
-		statusText = "Final"
+		statusText = firstNonEmpty(statusText, "Final")
 	}
 	return SportsEvent{
 		ID:                id,
@@ -372,6 +375,8 @@ func (event sportarrEvent) sportsEvent() SportsEvent {
 		BroadcastTimezone: event.BroadcastTimezone,
 		Status:            status,
 		StatusText:        statusText,
+		Period:            strings.TrimSpace(string(event.Period)),
+		Clock:             strings.TrimSpace(string(event.Clock)),
 		StartUnix:         startUnix,
 		EndUnix:           endUnix,
 		Home: SportsTeam{

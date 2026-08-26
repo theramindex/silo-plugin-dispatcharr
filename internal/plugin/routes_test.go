@@ -3510,9 +3510,33 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		t.Fatal("opening a sports league must preserve the active sports filter")
 	}
 	sportsEventDetail := functionBody("renderSportsEventDetail")
-	for _, want := range []string{`Live coverage`, `Event coverage`, `renderSportsBroadcastCard`, `renderSportsCoverageCard`} {
+	for _, want := range []string{`Live coverage`, `Event coverage`, `renderSportsBroadcastGroups`, `renderSportsCoverageCard`, `rankedSportsBroadcasts`, `renderSportsEventNavigation`, `data-sports-spoilers`, `data-sports-favorite-league`} {
 		if !strings.Contains(sportsEventDetail, want) {
 			t.Fatalf("sports event detail must include %q", want)
+		}
+	}
+	rankedBroadcasts := functionBody("rankedSportsBroadcasts")
+	for _, want := range []string{`sportsPreferredChannelMap`, `sportsPreferredNetworkMap`, `sportsBroadcastNetworkKey`, `sportsBroadcastTraits`, `sportsRank`, `sportsPreferred`, `sportsPreferredNetwork`} {
+		if !strings.Contains(rankedBroadcasts, want) {
+			t.Fatalf("sports broadcasts must rank stable preferences and feed traits via %q", want)
+		}
+	}
+	broadcastCard := functionBody("renderSportsBroadcastCard")
+	for _, want := range []string{`currentProgram`, `nextProgram`, `Preferred`, `data-sports-preferred-channel`, `data-channel`} {
+		if !strings.Contains(broadcastCard, want) {
+			t.Fatalf("sports broadcast cards must expose guide context and playback controls via %q", want)
+		}
+	}
+	broadcastGroups := functionBody("renderSportsBroadcastGroups")
+	for _, want := range []string{`sportsBroadcastGroup`, `sports-broadcast-group`, `renderSportsBroadcastCard`, `groupOrder`} {
+		if !strings.Contains(broadcastGroups, want) {
+			t.Fatalf("sports event feeds must be grouped by stable role via %q", want)
+		}
+	}
+	sportsStatus := functionBody("sportsStatusLabel")
+	for _, want := range []string{`event.period`, `event.clock`} {
+		if !strings.Contains(sportsStatus, want) {
+			t.Fatalf("sports status must render provider-backed clock context via %q", want)
 		}
 	}
 	safeSportsMediaURL := functionBody("safeSportsMediaURL")
@@ -3588,7 +3612,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		t.Fatal("search must wait for a meaningful query before scanning the full lineup")
 	}
 	playerSports := functionBody("renderPlayerSportsDrawer")
-	for _, want := range []string{`player-sports-drawer`, `player-sports-status`, `Live &amp; upcoming`, `Sports channels`} {
+	for _, want := range []string{`player-sports-drawer`, `player-sports-status`, `Current event feeds`, `playerSportsCurrentEvent`, `rankedSportsBroadcasts`, `Live &amp; upcoming`, `Sports channels`} {
 		if !strings.Contains(playerSports, want) {
 			t.Fatalf("sports-first player drawer must include %q", want)
 		}
@@ -3596,6 +3620,22 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	playerSportsEvents := functionBody("playerSportsEvents")
 	if !strings.Contains(playerSportsEvents, `Number(channel.score || 0) >= 60`) {
 		t.Fatal("sports-first player must hide low-confidence channel matches")
+	}
+	preferredNetwork := functionBody("sportsBroadcastNetworkKey")
+	for _, want := range []string{`channel.name`, `uhd`, `4k`} {
+		if !strings.Contains(preferredNetwork, want) {
+			t.Fatalf("sports network preference normalization must include %q", want)
+		}
+	}
+	for functionName, want := range map[string]string{
+		"renderMultiviewPage":      `multiviewConnectionLimit`,
+		"addChannelToMultiview":    `multiviewConnectionLimit`,
+		"renderMultiviewEmpty":     `multiviewConnectionLimit`,
+		"multiviewConnectionLimit": `connection.saveData`,
+	} {
+		if !strings.Contains(functionBody(functionName), want) {
+			t.Fatalf("%s must honor connection-aware multiview capacity via %q", functionName, want)
+		}
 	}
 	startSportsRefresh := functionBody("startPlayerSportsRefresh")
 	if !strings.Contains(startSportsRefresh, `30000`) || !strings.Contains(startSportsRefresh, `state.playerSportsOpen`) {
