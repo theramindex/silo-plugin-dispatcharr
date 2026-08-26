@@ -43,6 +43,7 @@ var raceLocationPrefix = regexp.MustCompile(`(?i)^\s*(?:v(?:s\.)?|at|@|:|-)\s*`)
 var guideSportsTimestampSuffix = regexp.MustCompile(`(?i)\s*\(\d{4}-\d{2}-\d{2}(?:[ t]\d{1,2}:\d{2}(?::\d{2})?)?\)\s*$`)
 var guideSportsNextGameSuffix = regexp.MustCompile(`(?i)\s+on\s+\d{4}-\d{2}-\d{2}\s+at\s+\d{1,2}:\d{2}\s*(?:am|pm)?(?:\s+[a-z]{2,5})?\s*$`)
 var guideSportsMatchNumberSuffix = regexp.MustCompile(`(?i)\s*(?:,\s*match\s+\d+|[-,]?\s*\d+(?:st|nd|rd|th)\s+match)\s*$`)
+var guideSportsCompetitionSuffix = regexp.MustCompile(`(?i)\s+-\s+(?:uefa\s+(?:champions|europa|conference)\s+league)\b.*$`)
 var guideSportsClockName = regexp.MustCompile(`(?i)^\d{1,2}(?::\d{2})?\s*(?:am|pm)(?:\s+[a-z]{2,5})?$`)
 var guideSportsNonMatchTitle = regexp.MustCompile(`(?i)\b(?:good morning|outdoor magazine)\b`)
 
@@ -531,6 +532,7 @@ func guideSportsLeague(value string) (string, string, string, bool) {
 		{[]string{"mlb"}, "mlb", "MLB", "Baseball"},
 		{[]string{"nhl"}, "nhl", "NHL", "Hockey"},
 		{[]string{"mls"}, "mls", "MLS", "Soccer"},
+		{[]string{"uefa champions league", "champions league"}, "uefa-champions-league", "UEFA Champions League", "Soccer"},
 		{[]string{"premier league"}, "premier-league", "Premier League", "Soccer"},
 		{[]string{"world cup", "fifa"}, "world-cup", "World Cup", "Soccer"},
 		{[]string{"ufc", "mma"}, "mma", "MMA", "Combat Sports"},
@@ -595,6 +597,7 @@ func cleanGuideSportsTeamName(value string) string {
 	value = cleanGuideSportsAnnotations(value)
 	value = guideSportsTimestampSuffix.ReplaceAllString(value, "")
 	value = guideSportsMatchNumberSuffix.ReplaceAllString(value, "")
+	value = guideSportsCompetitionSuffix.ReplaceAllString(value, "")
 	value = strings.TrimSpace(value)
 	if open := strings.LastIndex(value, " ("); open > 0 && strings.HasSuffix(value, ")") {
 		base := strings.TrimSpace(value[:open])
