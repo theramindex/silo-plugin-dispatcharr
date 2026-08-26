@@ -3379,6 +3379,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`onLaterTime`,
 		`class="on-later-filter-group`,
 		`class="event-card no-art`,
+		`class="event-card-visual`,
 		`class="event-card-head`,
 		`class="event-card-category`,
 		`class=\"event-card-title`,
@@ -3661,6 +3662,12 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 			t.Fatalf("event cards must expose grouped coverage marker %q", want)
 		}
 	}
+	eventCard := functionBody("renderBroadcastEventCard")
+	for _, want := range []string{`event-card-visual`, `event-card-media`, `event.categoryName`, `eventStatusLabel`, `event.description`, `event.keyword`, `event.windows`, `uniqueEventChannels`, `data-event-feature`, `renderEventBroadcastWindows`, `renderBroadcastEventChannels`} {
+		if !strings.Contains(eventCard, want) {
+			t.Fatalf("media-first event cards must preserve available event data and interaction %q", want)
+		}
+	}
 	normalizeEventRules := functionBody("normalizeEventKeywordRows")
 	for _, want := range []string{`excludeKeywords`, `eventSeries`, `groupWindowMinutes`} {
 		if !strings.Contains(normalizeEventRules, want) {
@@ -3688,9 +3695,12 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.search-commandbar {`,
 		`.search-result-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));`,
 		`.organization-preview`,
+		`.events-board {`,
 		`.event-card-body.no-art`,
-		`.event-card { grid-template-areas: "header" "body" "channels";`,
-		`.event-card-head { grid-area: header;`,
+		`.event-card { grid-template-areas: "visual" "body" "channels";`,
+		`.event-card-visual { grid-area: visual;`,
+		`.event-card-media {`,
+		`.event-card-head {`,
 		`.sports-feature {`,
 		`.sports-feature.no-art {`,
 		`.sports-feature-fallback {`,
