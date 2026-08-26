@@ -786,6 +786,7 @@ func normalizeSportsEvents(events []SportsEvent) []SportsEvent {
 		event.StatusText = strings.TrimSpace(event.StatusText)
 		event.Period = strings.TrimSpace(event.Period)
 		event.Clock = strings.TrimSpace(event.Clock)
+		event = canonicalizeKnownSportsLeague(event)
 		event.Home = normalizeSportsTeam(event.Home)
 		event.Away = normalizeSportsTeam(event.Away)
 		event = applySportsIdentityFallbacks(event)
@@ -804,6 +805,25 @@ func normalizeSportsEvents(events []SportsEvent) []SportsEvent {
 		normalized = append(normalized, event)
 	}
 	return normalized
+}
+
+func canonicalizeKnownSportsLeague(event SportsEvent) SportsEvent {
+	leagueID, leagueName, sportName, matched := guideSportsLeague(strings.Join([]string{
+		event.LeagueID,
+		event.LeagueName,
+		event.SportName,
+		event.Name,
+		event.ShortName,
+	}, " "))
+	if !matched || leagueID == "" || leagueID == "sports" {
+		return event
+	}
+	event.LeagueID = leagueID
+	event.LeagueName = leagueName
+	if sportName != "" {
+		event.SportName = sportName
+	}
+	return event
 }
 
 func normalizeSportsTeam(team SportsTeam) SportsTeam {
