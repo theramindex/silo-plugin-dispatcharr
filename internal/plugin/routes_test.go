@@ -2745,6 +2745,15 @@ func TestPlayerUISupportsMovingChannelGroupsFromHomeToChannelsMenu(t *testing.T)
 	}
 }
 
+func TestPlayerUIHidesChannelGroupGridInsideSelectedCategory(t *testing.T) {
+	t.Parallel()
+
+	script := playerAppJavaScript()
+	if !strings.Contains(script, `(state.category ? "" : categoryGrid()) + sectionHeader(categoryName(state.category) || "Channels")`) {
+		t.Fatal("selected custom and source groups must not repeat the root Channel Groups grid")
+	}
+}
+
 func TestPlayerUIAdminCanDisableOnLater(t *testing.T) {
 	t.Parallel()
 
