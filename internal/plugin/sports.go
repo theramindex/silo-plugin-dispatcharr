@@ -26,6 +26,10 @@ type sportsEventEnricher interface {
 	EnrichEvents(context.Context, []SportsEvent, int) []SportsEvent
 }
 
+type sportsLeagueTeamProvider interface {
+	LeagueTeams(context.Context, string) ([]SportsTeam, error)
+}
+
 const (
 	sportsChannelMinimumScore  = 28
 	sportsProviderFetchTimeout = 24 * time.Second
@@ -69,6 +73,7 @@ type SportsPayload struct {
 
 type SportsLeague struct {
 	ID            string `json:"id"`
+	ProviderID    string `json:"providerId,omitempty"`
 	Name          string `json:"name"`
 	SportName     string `json:"sportName,omitempty"`
 	LogoURL       string `json:"logoUrl,omitempty"`
@@ -90,6 +95,7 @@ type SportsTeam struct {
 type SportsEvent struct {
 	ID                string               `json:"id"`
 	ProviderID        string               `json:"providerId,omitempty"`
+	ProviderLeagueID  string               `json:"providerLeagueId,omitempty"`
 	LeagueID          string               `json:"leagueId"`
 	LeagueName        string               `json:"leagueName"`
 	LeagueLogoURL     string               `json:"leagueLogoUrl,omitempty"`
@@ -134,6 +140,97 @@ func (s *HTTPRoutesServer) handleSports(ctx context.Context, request *pluginv1.H
 	}
 	payload := s.preparedSportsPayload(queryValue(request, "refresh") == "1")
 	return s.respondJSON(http.StatusOK, payload)
+}
+
+type SportsLeagueTeamsPayload struct {
+	Teams []SportsTeam `json:"teams"`
+}
+
+func (s *HTTPRoutesServer) handleSportsLeagueTeams(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if request.GetMethod() != "" && request.GetMethod() != http.MethodGet {
+		return textResponse(http.StatusMethodNotAllowed, "method not allowed"), nil
+	}
+	leagueID := strings.TrimSpace(queryValue(request, "league_id"))
+	if leagueID == "" {
+		return textResponse(http.StatusBadRequest, "league_id is required"), nil
+	}
+	payload := s.preparedSportsPayload(false)
+	providerID := ""
+	leagueName := leagueID
+	sportName := ""
+	for _, league := range payload.Leagues {
+		if league.ID != leagueID {
+			continue
+		}
+		providerID = league.ProviderID
+		leagueName = firstNonEmpty(league.Name, leagueID)
+		sportName = league.SportName
+		break
+	}
+	teams := sportsLeagueEventTeams(payload.Events, leagueID)
+	if provider, ok := s.sportsProvider.(sportsLeagueTeamProvider); ok && providerID != "" {
+		rosterCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		providerTeams, err := provider.LeagueTeams(rosterCtx, providerID)
+		cancel()
+		if err == nil {
+			teams = mergeSportsLeagueRosterTeams(leagueID, leagueName, sportName, teams, providerTeams)
+		}
+	}
+	return s.respondJSON(http.StatusOK, SportsLeagueTeamsPayload{Teams: teams})
+}
+
+func sportsLeagueEventTeams(events []SportsEvent, leagueID string) []SportsTeam {
+	teams := make([]SportsTeam, 0)
+	for _, event := range events {
+		if event.LeagueID != leagueID {
+			continue
+		}
+		teams = append(teams, event.Away, event.Home)
+	}
+	return mergeSportsLeagueRosterTeams(leagueID, leagueID, "", teams)
+}
+
+func mergeSportsLeagueRosterTeams(leagueID, leagueName, sportName string, groups ...[]SportsTeam) []SportsTeam {
+	byKey := map[string]SportsTeam{}
+	order := make([]string, 0)
+	for _, group := range groups {
+		for _, team := range group {
+			team = normalizeSportsTeam(team)
+			if strings.TrimSpace(team.Name) == "" {
+				continue
+			}
+			identity := applySportsIdentityFallbacks(SportsEvent{
+				LeagueID: leagueID, LeagueName: leagueName, SportName: sportName, Home: team,
+			}).Home
+			key := normalizeMatchText(identity.Name)
+			if key == "" {
+				key = identity.ID
+			}
+			if existing, ok := byKey[key]; ok {
+				identity = mergeSportsTeamIdentity(existing, identity)
+			} else {
+				order = append(order, key)
+			}
+			byKey[key] = identity
+		}
+	}
+	teams := make([]SportsTeam, 0, len(order))
+	for _, key := range order {
+		teams = append(teams, byKey[key])
+	}
+	sort.Slice(teams, func(i, j int) bool { return teams[i].Name < teams[j].Name })
+	return teams
+}
+
+func mergeSportsTeamIdentity(primary, supplemental SportsTeam) SportsTeam {
+	primary.ID = firstNonEmpty(primary.ID, supplemental.ID)
+	primary.Name = firstNonEmpty(primary.Name, supplemental.Name)
+	primary.Abbreviation = firstNonEmpty(primary.Abbreviation, supplemental.Abbreviation)
+	primary.LogoURL = firstNonEmpty(primary.LogoURL, supplemental.LogoURL)
+	primary.PrimaryColor = firstNonEmpty(primary.PrimaryColor, supplemental.PrimaryColor)
+	primary.SecondaryColor = firstNonEmpty(primary.SecondaryColor, supplemental.SecondaryColor)
+	primary.Favorite = primary.Favorite || supplemental.Favorite
+	return primary
 }
 
 func (s *HTTPRoutesServer) handleSportsFavorite(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
@@ -731,12 +828,16 @@ func sportsLeagues(events []SportsEvent) []SportsLeague {
 		if league == nil {
 			league = &SportsLeague{
 				ID:          id,
+				ProviderID:  event.ProviderLeagueID,
 				Name:        firstNonEmpty(event.LeagueName, id),
 				SportName:   event.SportName,
 				LogoURL:     event.LeagueLogoURL,
 				Description: event.LeagueDescription,
 			}
 			byID[id] = league
+		}
+		if league.ProviderID == "" {
+			league.ProviderID = event.ProviderLeagueID
 		}
 		if league.SportName == "" {
 			league.SportName = event.SportName
@@ -768,6 +869,7 @@ func normalizeSportsEvents(events []SportsEvent) []SportsEvent {
 	for _, event := range events {
 		event.ID = strings.TrimSpace(event.ID)
 		event.ProviderID = strings.TrimSpace(event.ProviderID)
+		event.ProviderLeagueID = strings.TrimSpace(event.ProviderLeagueID)
 		event.LeagueID = strings.TrimSpace(event.LeagueID)
 		event.LeagueName = strings.TrimSpace(event.LeagueName)
 		event.LeagueLogoURL = safeSportsImageURL(event.LeagueLogoURL)

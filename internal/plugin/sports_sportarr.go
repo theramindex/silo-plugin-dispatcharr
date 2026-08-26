@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -142,6 +143,20 @@ type sportarrTeam struct {
 	PrimaryColor   string   `json:"primaryColor"`
 	SecondaryColor string   `json:"secondaryColor"`
 	AlternateNames []string `json:"alternateNames"`
+}
+
+type sportarrLeagueTeamsResponse struct {
+	List []sportarrLeagueRosterTeam `json:"list"`
+}
+
+type sportarrLeagueRosterTeam struct {
+	ID             string `json:"idTeam"`
+	Name           string `json:"strTeam"`
+	Abbreviation   string `json:"strTeamShort"`
+	BadgeURL       string `json:"strTeamBadge"`
+	BadgeAliasURL  string `json:"strBadge"`
+	PrimaryColor   string `json:"strColour1"`
+	SecondaryColor string `json:"strColour2"`
 }
 
 type sportarrLeague struct {
@@ -364,6 +379,7 @@ func (event sportarrEvent) sportsEvent() SportsEvent {
 	return SportsEvent{
 		ID:                id,
 		ProviderID:        event.ID,
+		ProviderLeagueID:  event.LeagueID,
 		LeagueID:          event.LeagueID,
 		LeagueName:        event.LeagueName,
 		Name:              event.Name,
@@ -392,6 +408,35 @@ func (event sportarrEvent) sportsEvent() SportsEvent {
 		Live:      live,
 		Completed: completed,
 	}
+}
+
+func (p *sportarrSportsProvider) LeagueTeams(ctx context.Context, leagueID string) ([]SportsTeam, error) {
+	leagueID = strings.TrimSpace(leagueID)
+	if leagueID == "" {
+		return []SportsTeam{}, nil
+	}
+	endpoint := sportarrRootURL(p.baseURL) + "/api/v2/json/list/teams/" + url.PathEscape(leagueID)
+	var payload sportarrLeagueTeamsResponse
+	if err := p.getJSON(ctx, endpoint, &payload); err != nil {
+		return nil, fmt.Errorf("sportarr league roster: %w", err)
+	}
+	teams := make([]SportsTeam, 0, len(payload.List))
+	for _, team := range payload.List {
+		name := strings.TrimSpace(team.Name)
+		if name == "" {
+			continue
+		}
+		teams = append(teams, normalizeSportsTeam(SportsTeam{
+			ID:             strings.TrimSpace(team.ID),
+			Name:           name,
+			Abbreviation:   strings.TrimSpace(team.Abbreviation),
+			LogoURL:        safeSportsImageURL(firstNonEmpty(team.BadgeURL, team.BadgeAliasURL)),
+			PrimaryColor:   strings.TrimSpace(team.PrimaryColor),
+			SecondaryColor: strings.TrimSpace(team.SecondaryColor),
+		}))
+	}
+	sort.Slice(teams, func(i, j int) bool { return teams[i].Name < teams[j].Name })
+	return teams, nil
 }
 
 func parseSportarrTime(value string) int64 {

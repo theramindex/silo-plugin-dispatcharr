@@ -17,6 +17,7 @@ import (
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type staticSportsProvider struct {
@@ -39,6 +40,15 @@ type blockingSportsProvider struct {
 type countingSportsProvider struct {
 	events []SportsEvent
 	calls  atomic.Int32
+}
+
+type rosterSportsProvider struct {
+	staticSportsProvider
+	teams []SportsTeam
+}
+
+func (p rosterSportsProvider) LeagueTeams(context.Context, string) ([]SportsTeam, error) {
+	return append([]SportsTeam(nil), p.teams...), nil
 }
 
 func (p *countingSportsProvider) Events(context.Context, time.Time) ([]SportsEvent, error) {
@@ -1234,6 +1244,102 @@ func TestSportarrSportsProviderLoadsPaginatedPublicEvents(t *testing.T) {
 	}
 	if events[1].StartUnix != 0 {
 		t.Fatalf("unknown Sportarr start should stay 0, got %d", events[1].StartUnix)
+	}
+}
+
+func TestSportarrSportsProviderLoadsCompleteLeagueRoster(t *testing.T) {
+	t.Parallel()
+
+	testServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Content-Type", "application/json")
+		if request.URL.Path != "/api/v2/json/list/teams/lg-wnba" {
+			http.NotFound(response, request)
+			return
+		}
+		_, _ = response.Write([]byte(`{"list":[{"idTeam":"tm-dream","strTeam":"Atlanta Dream","strTeamShort":"ATL","strTeamBadge":"https://images.example/dream.png","strColour1":"#aa1122","strColour2":"#223344"},{"idTeam":"tm-storm","strTeam":"Seattle Storm","strTeamShort":"SEA","strBadge":"https://images.example/storm.png"}],"_meta":{}}`))
+	}))
+	defer testServer.Close()
+
+	provider := newSportarrSportsProvider(testServer.Client())
+	provider.baseURL = testServer.URL + "/api/public/v1"
+	teams, err := provider.LeagueTeams(context.Background(), "lg-wnba")
+	if err != nil {
+		t.Fatalf("Sportarr league teams: %v", err)
+	}
+	if len(teams) != 2 {
+		t.Fatalf("expected complete two-team roster, got %+v", teams)
+	}
+	if teams[0].ID != "tm-dream" || teams[0].Name != "Atlanta Dream" || teams[0].Abbreviation != "ATL" || teams[0].LogoURL != "https://images.example/dream.png" || teams[0].PrimaryColor != "#aa1122" || teams[0].SecondaryColor != "#223344" {
+		t.Fatalf("unexpected primary roster team: %+v", teams[0])
+	}
+	if teams[1].LogoURL != "https://images.example/storm.png" {
+		t.Fatalf("expected current strBadge alias to populate the logo, got %+v", teams[1])
+	}
+}
+
+func TestSportsLeaguesKeepProviderLeagueIdentityForRosterLookup(t *testing.T) {
+	t.Parallel()
+
+	leagues := sportsLeagues([]SportsEvent{{
+		LeagueID:         "wnba",
+		ProviderLeagueID: "lg-wnba",
+		LeagueName:       "WNBA",
+		SportName:        "Basketball",
+		Home:             SportsTeam{ID: "home", Name: "Atlanta Dream"},
+		Away:             SportsTeam{ID: "away", Name: "Seattle Storm"},
+	}})
+	if len(leagues) != 1 || leagues[0].ProviderID != "lg-wnba" {
+		t.Fatalf("expected canonical league to retain provider roster identity, got %+v", leagues)
+	}
+}
+
+func TestSportsLeagueTeamsRouteMergesFullRosterWithAiringTeams(t *testing.T) {
+	t.Parallel()
+
+	server := NewHTTPRoutesServer(cache.NewStore())
+	server.sportsProvider = rosterSportsProvider{
+		staticSportsProvider: staticSportsProvider{},
+		teams: []SportsTeam{
+			{ID: "tm-dream", Name: "Atlanta Dream", Abbreviation: "ATL"},
+			{ID: "tm-storm", Name: "Seattle Storm", Abbreviation: "SEA"},
+		},
+	}
+	server.sportsPrepared = sportsPreparedCache{
+		Ready:        true,
+		ExpiresAfter: time.Now().Add(time.Hour),
+		Payload: SportsPayload{
+			Leagues: []SportsLeague{{ID: "wnba", ProviderID: "lg-wnba", Name: "WNBA", SportName: "Basketball"}},
+			Events: []SportsEvent{{
+				LeagueID: "wnba",
+				Away:     SportsTeam{ID: "event-dream", Name: "Atlanta Dream", LogoURL: "https://images.example/live-dream.png"},
+				Home:     SportsTeam{ID: "event-sparks", Name: "Los Angeles Sparks"},
+			}},
+		},
+	}
+	query, err := structpb.NewStruct(map[string]any{"league_id": "wnba", "provider_id": "lg-wnba"})
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method: http.MethodGet,
+		Path:   "/dispatcharr/api/sports/league-teams",
+		Query:  query,
+	})
+	if err != nil {
+		t.Fatalf("league teams route: %v", err)
+	}
+	if response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", response.GetStatusCode(), response.GetBody())
+	}
+	var payload SportsLeagueTeamsPayload
+	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+		t.Fatalf("decode league teams: %v", err)
+	}
+	if len(payload.Teams) != 3 {
+		t.Fatalf("expected two roster teams plus the currently airing Sparks, got %+v", payload.Teams)
+	}
+	if payload.Teams[0].Name != "Atlanta Dream" || payload.Teams[0].ID != "event-dream" || payload.Teams[0].LogoURL != "https://images.example/live-dream.png" {
+		t.Fatalf("expected airing identity to win while roster metadata fills gaps, got %+v", payload.Teams[0])
 	}
 }
 

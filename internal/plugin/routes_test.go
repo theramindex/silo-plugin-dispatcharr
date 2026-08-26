@@ -3553,9 +3553,15 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		}
 	}
 	sportsLeagueDetail := functionBody("renderSportsLeagueDetail")
-	for _, want := range []string{`sportsLeagueTeams`, `sports-team-rail`, `data-sports-back`} {
+	for _, want := range []string{`sportsLeagueTeams`, `league.teams`, `sports-team-rail`, `data-sports-back`} {
 		if !strings.Contains(sportsLeagueDetail, want) {
 			t.Fatalf("sports league detail must include %q", want)
+		}
+	}
+	loadSportsLeagueTeams := functionBody("loadSportsLeagueTeams")
+	for _, want := range []string{`/dispatcharr/api/sports/league-teams`, `league_id`, `state.sportsLeagueTeams`, `renderSportsPage`} {
+		if !strings.Contains(loadSportsLeagueTeams, want) {
+			t.Fatalf("sports league roster loading must include %q", want)
 		}
 	}
 	sportsTeamShelfCard := functionBody("renderSportsTeamShelfCard")

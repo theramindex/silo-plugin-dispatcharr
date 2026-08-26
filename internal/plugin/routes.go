@@ -308,6 +308,8 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 	case "/dispatcharr/api/sports":
 		s.ensureCatalogHydratedAsync()
 		return s.handleSports(ctx, request)
+	case "/dispatcharr/api/sports/league-teams":
+		return s.handleSportsLeagueTeams(ctx, request)
 	case "/dispatcharr/api/sports/favorites":
 		return s.handleSportsFavorite(request)
 	case "/dispatcharr/api/events":
