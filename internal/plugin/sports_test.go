@@ -312,6 +312,18 @@ func TestNormalizeSportsEventsAddsGameThumbsIdentityFallbacks(t *testing.T) {
 			LeagueID: "efl-trophy", LeagueName: "EFL Trophy", Name: "Bristol Rovers vs Chelsea U21",
 			Away: SportsTeam{Name: "Chelsea U21"}, Home: SportsTeam{Name: "Bristol Rovers"},
 		},
+		{
+			LeagueID: "sports", LeagueName: "Sports", Name: "Best of Islanders: New York Islanders at Tampa Bay Lightning",
+			Away: SportsTeam{Name: "New York Islanders"}, Home: SportsTeam{Name: "Tampa Bay Lightning"},
+		},
+		{
+			LeagueID: "sports", LeagueName: "Sports", Name: "Best of the Knicks: Orlando Magic at New York Knicks",
+			Away: SportsTeam{Name: "Orlando Magic"}, Home: SportsTeam{Name: "New York Knicks"},
+		},
+		{
+			LeagueID: "college-football", LeagueName: "College Football", Name: "CFP National Championship: Miami vs. Indiana",
+			Away: SportsTeam{Name: "Miami"}, Home: SportsTeam{Name: "Indiana"},
+		},
 	})
 
 	if got := events[0].LeagueLogoURL; got != "https://game-thumbs.swvn.io/nba/leaguelogo.png" {
@@ -349,6 +361,24 @@ func TestNormalizeSportsEventsAddsGameThumbsIdentityFallbacks(t *testing.T) {
 	}
 	if got := events[5].Home.LogoURL; got != "https://game-thumbs.swvn.io/epl/bristol-rovers/teamlogo.png" {
 		t.Fatalf("expected Bristol Rovers to use the English pyramid crest, got %q", got)
+	}
+	if got := events[6].Away.LogoURL; got != "https://game-thumbs.swvn.io/nhl/new-york-islanders/teamlogo.png" {
+		t.Fatalf("expected generic sports Islanders event to recover the NHL namespace, got %q", got)
+	}
+	if got := events[6].Home.LogoURL; got != "https://game-thumbs.swvn.io/nhl/tampa-bay-lightning/teamlogo.png" {
+		t.Fatalf("expected generic sports Lightning event to recover the NHL namespace, got %q", got)
+	}
+	if got := events[7].Away.LogoURL; got != "https://game-thumbs.swvn.io/nba/orlando-magic/teamlogo.png" {
+		t.Fatalf("expected generic sports Magic event to recover the NBA namespace, got %q", got)
+	}
+	if got := events[7].Home.LogoURL; got != "https://game-thumbs.swvn.io/nba/new-york-knicks/teamlogo.png" {
+		t.Fatalf("expected generic sports Knicks event to recover the NBA namespace, got %q", got)
+	}
+	if got := events[8].LeagueLogoURL; got != "https://game-thumbs.swvn.io/ncaaf/leaguelogo.png" {
+		t.Fatalf("expected College Football to use the canonical NCAAF league mark, got %q", got)
+	}
+	if got := events[8].Away.LogoURL; got != "https://game-thumbs.swvn.io/ncaaf/miami/teamlogo.png" {
+		t.Fatalf("expected College Football teams to use the NCAAF namespace, got %q", got)
 	}
 }
 

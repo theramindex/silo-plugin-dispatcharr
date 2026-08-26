@@ -2897,8 +2897,18 @@ function renderSportsLeagueShelf(payload, events) {
 function renderSportsLeagueMark(league) {
   const name = league && (league.name || league.id) || "League";
   const logo = safeSportsMediaURL(league && league.logoUrl);
-  if (logo) return "<span class=\"sports-league-mark has-logo\"><img src=\"" + escapeHTML(logo) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;this.parentElement.classList.remove('has-logo');\"><span hidden>" + icon("trophy") + "</span></span>";
-  return "<span class=\"sports-league-mark\" aria-label=\"" + escapeHTML(name) + "\">" + icon("trophy") + "</span>";
+  const fallback = sportsLeagueFallbackMark(league);
+  if (logo) return "<span class=\"sports-league-mark has-logo\"><img src=\"" + escapeHTML(logo) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;this.parentElement.classList.remove('has-logo');\"><span hidden>" + escapeHTML(fallback) + "</span></span>";
+  return "<span class=\"sports-league-mark\" aria-label=\"" + escapeHTML(name) + "\"><span>" + escapeHTML(fallback) + "</span></span>";
+}
+function sportsLeagueFallbackMark(league) {
+  const id = lower(league && league.id);
+  const name = String(league && (league.name || league.id) || "Sports").trim();
+  const value = lower(name + " " + id);
+  if (value.indexOf("college football") !== -1 || id === "college-football") return "CFB";
+  if (value.indexOf("formula e") !== -1 || id === "formula-e") return "FE";
+  const initials = name.split(/[^A-Za-z0-9]+/).filter(Boolean).map(function(word) { return word.charAt(0); }).join("").slice(0, 3);
+  return (initials || name.slice(0, 3) || "SP").toUpperCase();
 }
 function renderSportsEventTile(event) {
   if (event && event.replayOnly) return renderStandaloneSportsReplayTile(event);
@@ -2979,12 +2989,12 @@ function renderSportsArtworkRace(event) {
 function renderSportsRaceThumbnail(event) {
   const series = sportsTeamName(event.away || {}) || event.leagueName || "Motorsport";
   const location = sportsTeamName(event.home || {}) || "Race";
-  const raceLabel = event.leagueName || event.sportName || "Motorsport";
+  const raceLabel = event.sportName || "Motorsport";
   const logo = safeSportsMediaURL(event.leagueLogoUrl);
-  const mark = logo ? "<img src=\"" + escapeHTML(logo) + "\" alt=\"\">" : "<b>RACE</b>";
+  const mark = logo ? "<img src=\"" + escapeHTML(logo) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;\"><b hidden>" + escapeHTML(sportsLeagueFallbackMark({ id: event.leagueId, name: event.leagueName })) + "</b>" : "<b>" + escapeHTML(sportsLeagueFallbackMark({ id: event.leagueId, name: event.leagueName })) + "</b>";
   return "<span class=\"sports-matchup-thumb sports-race-thumb\" aria-hidden=\"true\">"
-    + "<span class=\"sports-race-series\"><span class=\"sports-race-mark\">" + mark + "</span><span><small>" + escapeHTML(raceLabel) + "</small><strong>" + escapeHTML(series) + "</strong></span></span>"
-    + "<span class=\"sports-race-location\"><small>Race location</small><strong>" + escapeHTML(location) + "</strong></span>"
+    + "<span class=\"sports-race-mark\">" + mark + "</span>"
+    + "<span class=\"sports-race-copy\"><small>" + escapeHTML(raceLabel) + "</small><strong>" + escapeHTML(series) + "</strong><span class=\"sports-race-location\"><small>Race</small><b>" + escapeHTML(location) + "</b></span></span>"
     + "</span>";
 }
 function renderSportsRaceSummary(event, className) {
