@@ -3447,6 +3447,29 @@ function playerSportsCurrentEvent(events) {
   const channelID = state.currentChannel && state.currentChannel.id;
   return items(events).find(function(event) { return playerSportsChannelMatches(event, channelID); }) || null;
 }
+function playerSportsRelatedEvents(events, currentEvent) {
+  if (!currentEvent) return [];
+  const currentTeams = {};
+  [currentEvent.away, currentEvent.home].forEach(function(team) {
+    [team && team.id, team && team.name].forEach(function(value) {
+      const key = lower(value);
+      if (key) currentTeams[key] = true;
+    });
+  });
+  const leagueID = String(currentEvent.leagueId || "");
+  const sportName = lower(currentEvent.sportName);
+  return items(events).map(function(event) {
+    let relatedScore = event.id === currentEvent.id ? 1000 : 0;
+    if (leagueID && String(event.leagueId || "") === leagueID) relatedScore += 600;
+    if ([event.away, event.home].some(function(team) {
+      return [team && team.id, team && team.name].some(function(value) { return !!currentTeams[lower(value)]; });
+    })) relatedScore += 800;
+    if (sportName && sportName !== "sports" && lower(event.sportName) === sportName) relatedScore += 200;
+    return { event: event, relatedScore: relatedScore };
+  }).filter(function(item) { return item.relatedScore > 0; }).sort(function(left, right) {
+    return right.relatedScore - left.relatedScore || compareSportsEventsForTab(left.event, right.event);
+  }).slice(0, 8).map(function(item) { return item.event; });
+}
 function renderPlayerSportsFeed(channel) {
   const appChannel = channelByID(channel.id) || channel;
   const current = currentProgram(appChannel) || {};
@@ -3471,18 +3494,24 @@ function renderPlayerSportsDrawer() {
     return;
   }
   const events = playerSportsEvents();
-  const channels = playerSportsChannels(events);
   const currentEvent = playerSportsCurrentEvent(events);
+  const relatedEvents = playerSportsRelatedEvents(events, currentEvent);
+  const primaryEvents = relatedEvents.length ? relatedEvents : events.slice(0, 8);
+  const primaryIDs = {};
+  primaryEvents.forEach(function(event) { primaryIDs[event.id] = true; });
+  const otherEvents = relatedEvents.length ? events.filter(function(event) { return !primaryIDs[event.id]; }).slice(0, 8) : [];
+  const channels = playerSportsChannels(primaryEvents);
   const currentFeeds = currentEvent ? rankedSportsBroadcasts(currentEvent) : [];
   const loading = (state.sportsLoading && !state.sports) || !!(state.sports && state.sports.refreshing && !events.length);
   const status = byId("player-sports-status");
-  if (status) status.textContent = loading ? "Loading live sports." : (events.length ? events.length + " live or upcoming sports events available." : "No live or upcoming sports events available.");
-  root.innerHTML = "<div class=\"player-sports-head\"><div><strong>Live Sports</strong><span>Scores and matched channels</span></div><div class=\"player-sports-head-actions\"><button type=\"button\" data-sports-spoilers=\"player\" aria-label=\"" + (sportsScoresHidden(true) ? "Show scores" : "Hide scores") + "\" aria-pressed=\"" + (sportsScoresHidden(true) ? "true" : "false") + "\">" + icon(sportsScoresHidden(true) ? "eye-off" : "eye") + "</button><button type=\"button\" data-player-action=\"sports-close\" aria-label=\"Close live sports\">" + icon("x") + "</button></div></div>"
+  if (status) status.textContent = loading ? "Loading related sports." : (primaryEvents.length ? primaryEvents.length + " related or live sports events available." : "No related sports events available.");
+  root.innerHTML = "<div class=\"player-sports-head\"><div><strong>Related Sports</strong><span>Events and broadcasts for what you are watching</span></div><div class=\"player-sports-head-actions\"><button type=\"button\" data-sports-spoilers=\"player\" aria-label=\"" + (sportsScoresHidden(true) ? "Show scores" : "Hide scores") + "\" aria-pressed=\"" + (sportsScoresHidden(true) ? "true" : "false") + "\">" + icon(sportsScoresHidden(true) ? "eye-off" : "eye") + "</button><button type=\"button\" data-player-action=\"sports-close\" aria-label=\"Close related sports\">" + icon("x") + "</button></div></div>"
     + (loading ? "<div class=\"player-sports-loading\"><span></span><span></span><span></span></div>" : "")
     + (!loading && !events.length ? "<div class=\"player-sports-empty\">No live or upcoming events have a confident channel match.</div>" : "")
     + (currentFeeds.length ? "<div class=\"player-sports-section\"><div class=\"player-sports-section-title\">Current event feeds</div><div class=\"player-sports-channel-rail player-sports-feed-list\">" + currentFeeds.map(renderPlayerSportsFeed).join("") + "</div></div>" : "")
-    + (events.length ? "<div class=\"player-sports-section\"><div class=\"player-sports-section-title\">Live &amp; upcoming</div><div class=\"player-sports-rail\">" + events.map(renderPlayerSportsEvent).join("") + "</div></div>" : "")
-    + (channels.length ? "<div class=\"player-sports-section\"><div class=\"player-sports-section-title\">Sports channels</div><div class=\"player-sports-channel-rail\">" + channels.map(renderPlayerSportsChannel).join("") + "</div></div>" : "");
+    + (primaryEvents.length ? "<div class=\"player-sports-section\"><div class=\"player-sports-section-title\">" + (currentEvent ? "Related to this event" : "Live &amp; upcoming") + "</div><div class=\"player-sports-rail\">" + primaryEvents.map(renderPlayerSportsEvent).join("") + "</div></div>" : "")
+    + (channels.length ? "<div class=\"player-sports-section\"><div class=\"player-sports-section-title\">Related channels</div><div class=\"player-sports-channel-rail\">" + channels.map(renderPlayerSportsChannel).join("") + "</div></div>" : "")
+    + (otherEvents.length ? "<details class=\"player-sports-more\"><summary>More live sports <span>" + escapeHTML(String(otherEvents.length)) + "</span>" + icon("chevron-down") + "</summary><div class=\"player-sports-rail\">" + otherEvents.map(renderPlayerSportsEvent).join("") + "</div></details>" : "");
 }
 function stopPlayerSportsRefresh() {
   if (state.playerSportsTimer) clearInterval(state.playerSportsTimer);

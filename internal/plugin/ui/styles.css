@@ -1116,6 +1116,13 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .player-sports-feed { grid-template-columns: 3.6rem minmax(0, 1fr) 1.25rem; }
 .player-sports-feed.active { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.14); }
 .player-sports-feed > svg { width: 1rem; height: 1rem; opacity: 0.78; }
+.player-sports-more { margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 0.45rem; }
+.player-sports-more summary { min-height: 2.75rem; display: flex; align-items: center; gap: 0.55rem; color: rgba(255,255,255,0.72); cursor: pointer; font-size: 0.75rem; font-weight: 820; list-style: none; }
+.player-sports-more summary::-webkit-details-marker { display: none; }
+.player-sports-more summary span { min-width: 1.4rem; height: 1.4rem; padding-inline: 0.3rem; border-radius: 999px; background: rgba(255,255,255,0.1); display: grid; place-items: center; color: rgba(255,255,255,0.65); font-size: 0.68rem; }
+.player-sports-more summary svg { width: 0.9rem; height: 0.9rem; margin-left: auto; transition: transform 160ms ease-out; }
+.player-sports-more[open] summary svg { transform: rotate(180deg); }
+.player-sports-more > .player-sports-rail { margin-top: 0.35rem; }
 .player-sports-empty { padding: 1.1rem; border: 1px dashed rgba(255,255,255,0.14); border-radius: 0.5rem; color: rgba(255,255,255,0.62); text-align: center; font-size: 0.82rem; font-weight: 720; }
 .player-sports-loading { display: grid; grid-template-columns: repeat(3, minmax(10rem, 1fr)); gap: 0.55rem; }
 .player-sports-loading span { min-height: 7.25rem; border-radius: 0.5rem; background: rgba(255,255,255,0.08); animation: sports-skeleton 1.2s ease-in-out infinite alternate; }
