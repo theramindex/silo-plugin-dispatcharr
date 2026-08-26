@@ -346,6 +346,10 @@ func TestNormalizeSportsEventsAddsGameThumbsIdentityFallbacks(t *testing.T) {
 			LeagueID: "afl", LeagueName: "AFL", SportName: "Australian Football", Name: "Essendon vs Port Adelaide",
 			Away: SportsTeam{Name: "Essendon"}, Home: SportsTeam{Name: "Port Adelaide"},
 		},
+		{
+			LeagueID: "english-league-1", LeagueName: "English League 1", SportName: "Soccer", Name: "Cambridge United vs Huddersfield Town",
+			Away: SportsTeam{Name: "Huddersfield Town"}, Home: SportsTeam{Name: "Cambridge United"},
+		},
 	})
 
 	if got := events[0].LeagueLogoURL; got != "https://game-thumbs.swvn.io/nba/leaguelogo.png" {
@@ -419,6 +423,15 @@ func TestNormalizeSportsEventsAddsGameThumbsIdentityFallbacks(t *testing.T) {
 	}
 	if got := events[11].Home.LogoURL; got != "https://squiggle.com.au/wp-content/themes/squiggle/assets/images/PortAdelaide.png" {
 		t.Fatalf("expected Port Adelaide crest from Squiggle, got %q", got)
+	}
+	if got := events[12].LeagueLogoURL; got != "https://game-thumbs.swvn.io/league-one/leaguelogo.png" {
+		t.Fatalf("expected English League One to use the GameThumbs league namespace, got %q", got)
+	}
+	if got := events[12].Away.LogoURL; got != "https://game-thumbs.swvn.io/league-one/huddersfield-town/teamlogo.png" {
+		t.Fatalf("expected Huddersfield Town crest fallback, got %q", got)
+	}
+	if got := events[12].Home.LogoURL; got != "https://game-thumbs.swvn.io/league-one/cambridge-united/teamlogo.png" {
+		t.Fatalf("expected Cambridge United crest fallback, got %q", got)
 	}
 }
 
