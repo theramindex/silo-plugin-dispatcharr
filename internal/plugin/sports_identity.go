@@ -42,15 +42,16 @@ var gameThumbsLeagueRoutes = []sportsIdentityRoute{
 }
 
 var gameThumbsTeamLeagueRoutes = []sportsIdentityRoute{
+	// Game Thumbs' epl namespace resolves the English pyramid through its configured feeder leagues.
+	{regexp.MustCompile(`(?i)\b(?:chelsea(?:\s+(?:u21|under[ -]?21s?))?|bristol rovers)\b`), "epl"},
 	{regexp.MustCompile(`(?i)\b(?:palmeiras|flamengo|fluminense|corinthians|santos|botafogo|vasco da gama|sao paulo|são paulo|gremio|grêmio|internacional|cruzeiro|atletico mineiro|atlético mineiro)\b`), "bra.1"},
 }
 
+var gameThumbsChelseaYouthSuffix = regexp.MustCompile(`(?i)\bchelsea\s+(?:u21|under[ -]?21s?)\b`)
+
 func applySportsIdentityFallbacks(event SportsEvent) SportsEvent {
 	leagueSlug := gameThumbsLeagueSlugForEvent(event)
-	if leagueSlug == "" {
-		return event
-	}
-	if event.LeagueLogoURL == "" {
+	if event.LeagueLogoURL == "" && leagueSlug != "" {
 		event.LeagueLogoURL = gameThumbsLeagueLogoURL(leagueSlug)
 	}
 	event.Away = applySportsTeamIdentityFallback(event.Away, leagueSlug)
@@ -103,11 +104,19 @@ func gameThumbsLeagueLogoURL(leagueSlug string) string {
 }
 
 func gameThumbsTeamLogoURL(leagueSlug, teamName string) string {
-	teamKey := gameThumbsTeamKey(teamName)
+	teamKey := gameThumbsTeamKey(gameThumbsCanonicalTeamName(teamName))
 	if leagueSlug == "" || teamKey == "" {
 		return ""
 	}
 	return gameThumbsPublicBaseURL + "/" + url.PathEscape(leagueSlug) + "/" + url.PathEscape(teamKey) + "/teamlogo.png"
+}
+
+func gameThumbsCanonicalTeamName(value string) string {
+	value = strings.TrimSpace(value)
+	if gameThumbsChelseaYouthSuffix.MatchString(value) {
+		return "Chelsea"
+	}
+	return value
 }
 
 func gameThumbsTeamKey(value string) string {

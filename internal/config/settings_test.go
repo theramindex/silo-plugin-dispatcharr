@@ -179,7 +179,7 @@ func TestUserConfigSchema_DeclaresCurrentPreferenceShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected preferences schema properties, got %q", preferences.GetJsonSchema())
 	}
-	for _, key := range []string{"favorites", "autoFavorites", "hiddenCategories", "sportsFavoriteTeams", "featuredEvents", "keywordPasses", "recentSearches", "recentChannels", "continueWatching", "playback", "categoryParsing", "profileSelection", "customGroups", "customGroupMemberships", "savedLineups"} {
+	for _, key := range []string{"favorites", "autoFavorites", "hiddenCategories", "sportsFavoriteTeams", "sportsFavoriteLeagues", "sportsPreferredChannels", "sportsPreferredNetworks", "sportsSpoilersHidden", "sportsPlayerSpoilersHidden", "featuredEvents", "keywordPasses", "recentSearches", "recentChannels", "continueWatching", "playback", "categoryParsing", "profileSelection", "customGroups", "customGroupMemberships", "savedLineups"} {
 		if _, ok := properties[key]; !ok {
 			t.Fatalf("expected preferences schema to declare %q", key)
 		}

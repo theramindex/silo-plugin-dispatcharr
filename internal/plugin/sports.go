@@ -105,6 +105,8 @@ type SportsEvent struct {
 	Description       string               `json:"description,omitempty"`
 	Status            string               `json:"status"`
 	StatusText        string               `json:"statusText,omitempty"`
+	Period            string               `json:"period,omitempty"`
+	Clock             string               `json:"clock,omitempty"`
 	StartUnix         int64                `json:"startUnix"`
 	EndUnix           int64                `json:"endUnix,omitempty"`
 	Home              SportsTeam           `json:"home"`
@@ -779,6 +781,8 @@ func normalizeSportsEvents(events []SportsEvent) []SportsEvent {
 		event.Description = strings.TrimSpace(event.Description)
 		event.Status = strings.TrimSpace(event.Status)
 		event.StatusText = strings.TrimSpace(event.StatusText)
+		event.Period = strings.TrimSpace(event.Period)
+		event.Clock = strings.TrimSpace(event.Clock)
 		event.Home = normalizeSportsTeam(event.Home)
 		event.Away = normalizeSportsTeam(event.Away)
 		event = applySportsIdentityFallbacks(event)

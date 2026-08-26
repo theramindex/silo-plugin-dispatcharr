@@ -112,6 +112,8 @@ function icon(name) {
     "fullscreen-exit": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M4.5 9h4.25V4.75M15.25 4.75V9h4.25M19.5 15h-4.25v4.25M8.75 19.25V15H4.5M8.75 9 4.5 4.75M15.25 9l4.25-4.25M15.25 15l4.25 4.25M8.75 15 4.5 19.25'/></svg>",
     "heart": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M21 8.25c0 6.25-9 11.25-9 11.25s-9-5-9-11.25A4.75 4.75 0 0 1 11.25 5 4.75 4.75 0 0 1 21 8.25Z'/></svg>",
     "heart-solid": "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><path d='M12 21s-9-5.1-9-12.25A5.45 5.45 0 0 1 12 4.7a5.45 5.45 0 0 1 9 4.05C21 15.9 12 21 12 21Z'/></svg>",
+    "eye": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M2.75 12s3.25-6 9.25-6 9.25 6 9.25 6-3.25 6-9.25 6-9.25-6-9.25-6Z'/><circle cx='12' cy='12' r='2.75'/></svg>",
+    "eye-off": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m3 3 18 18M10.55 6.13A9.7 9.7 0 0 1 12 6c6 0 9.25 6 9.25 6a14.5 14.5 0 0 1-2.14 2.82M6.1 6.1C3.9 7.73 2.75 12 2.75 12s3.25 6 9.25 6a9.8 9.8 0 0 0 3.2-.53M9.8 9.8a3.1 3.1 0 0 0 4.4 4.4'/></svg>",
     "pip": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25H6.75a2.25 2.25 0 0 1-2.25-2.25V6.75Z'/><path stroke-linecap='round' stroke-linejoin='round' d='M13.25 13.25h4.25v3.25h-4.25z'/></svg>",
     "captions": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M4.5 7.5A2.5 2.5 0 0 1 7 5h10a2.5 2.5 0 0 1 2.5 2.5v9A2.5 2.5 0 0 1 17 19H7a2.5 2.5 0 0 1-2.5-2.5v-9Z'/><path stroke-linecap='round' stroke-linejoin='round' d='M8.25 10.5h3M8.25 14h2.25M13.5 14h2.25'/></svg>",
     "language": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z'/><path stroke-linecap='round' stroke-linejoin='round' d='M3.75 9h16.5M3.75 15h16.5M12 3c2.25 2.35 3.25 5.25 3.25 9S14.25 18.65 12 21c-2.25-2.35-3.25-5.25-3.25-9S9.75 5.35 12 3Z'/></svg>",
@@ -128,7 +130,7 @@ function icon(name) {
 }
 function menuIcon(name) { return "<span class=\"menu-icon\">" + icon(name) + "</span>"; }
 function defaultPrefs() {
-  return { favorites: {}, favoriteOrder: [], autoFavorites: {}, hiddenCategories: {}, sportsFavoriteTeams: {}, featuredEvents: {}, keywordPasses: [], recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, profileSelection: { mode: "all", profileIds: [] }, customGroups: [], customGroupMemberships: {}, savedLineups: [] };
+  return { favorites: {}, favoriteOrder: [], autoFavorites: {}, hiddenCategories: {}, sportsFavoriteTeams: {}, sportsFavoriteLeagues: {}, sportsPreferredChannels: {}, sportsPreferredNetworks: {}, sportsSpoilersHidden: false, sportsPlayerSpoilersHidden: false, featuredEvents: {}, keywordPasses: [], recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, profileSelection: { mode: "all", profileIds: [] }, customGroups: [], customGroupMemberships: {}, savedLineups: [] };
 }
 function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
 function availableChannelProfiles() {
@@ -289,6 +291,10 @@ function favoriteMap() { return prefs().favorites || {}; }
 function autoFavoriteMap() { return prefs().autoFavorites || {}; }
 function hiddenMap() { return prefs().hiddenCategories || {}; }
 function sportsFavoriteTeamMap() { return prefs().sportsFavoriteTeams || {}; }
+function sportsFavoriteLeagueMap() { return prefs().sportsFavoriteLeagues || {}; }
+function sportsPreferredChannelMap() { return prefs().sportsPreferredChannels || {}; }
+function sportsPreferredNetworkMap() { return prefs().sportsPreferredNetworks || {}; }
+function sportsScoresHidden(playerOnly) { return !!(prefs().sportsSpoilersHidden || (playerOnly && prefs().sportsPlayerSpoilersHidden)); }
 function featuredEventMap() { return prefs().featuredEvents || {}; }
 function adminFeaturedEventMap() {
   const featured = {};
@@ -343,6 +349,11 @@ function mergePrefs(remote) {
     autoFavorites: Object.assign({}, remote.autoFavorites),
     hiddenCategories: Object.assign({}, remote.hiddenCategories),
     sportsFavoriteTeams: Object.assign({}, remote.sportsFavoriteTeams),
+    sportsFavoriteLeagues: Object.assign({}, remote.sportsFavoriteLeagues),
+    sportsPreferredChannels: Object.assign({}, remote.sportsPreferredChannels),
+    sportsPreferredNetworks: Object.assign({}, remote.sportsPreferredNetworks),
+    sportsSpoilersHidden: remote.sportsSpoilersHidden === true,
+    sportsPlayerSpoilersHidden: remote.sportsPlayerSpoilersHidden === true,
     featuredEvents: Object.assign({}, remote.featuredEvents),
     keywordPasses: normalizeKeywordPasses(remote.keywordPasses),
     recentSearches: uniqueIDs(items(remote.recentSearches).map(function(value) { return String(value || "").trim(); }).filter(Boolean)).slice(0, 12),
@@ -362,6 +373,11 @@ function normalizePreferences() {
   state.app.preferences.categoryParsing = Object.assign(defaultPrefs().categoryParsing, state.app.preferences.categoryParsing || {});
   state.app.preferences.profileSelection = normalizeProfileSelection(state.app.preferences.profileSelection);
   state.app.preferences.sportsFavoriteTeams = state.app.preferences.sportsFavoriteTeams || {};
+  state.app.preferences.sportsFavoriteLeagues = state.app.preferences.sportsFavoriteLeagues || {};
+  state.app.preferences.sportsPreferredChannels = state.app.preferences.sportsPreferredChannels || {};
+  state.app.preferences.sportsPreferredNetworks = state.app.preferences.sportsPreferredNetworks || {};
+  state.app.preferences.sportsSpoilersHidden = state.app.preferences.sportsSpoilersHidden === true;
+  state.app.preferences.sportsPlayerSpoilersHidden = state.app.preferences.sportsPlayerSpoilersHidden === true;
   state.app.preferences.featuredEvents = state.app.preferences.featuredEvents || {};
   state.app.preferences.keywordPasses = normalizeKeywordPasses(state.app.preferences.keywordPasses);
   state.app.preferences.recentSearches = uniqueIDs(items(state.app.preferences.recentSearches).map(function(value) { return String(value || "").trim(); }).filter(Boolean)).slice(0, 12);
@@ -2859,12 +2875,16 @@ function renderSportsFeatureScore(event) {
     + "</div>";
 }
 function renderSportsFeatureTeam(team, score, showScore) {
-  return "<span class=\"sports-feature-team\">" + renderSportsTeamLogo(team, "sports-feature-team-logo") + "<span class=\"sports-feature-team-copy\"><strong>" + escapeHTML(sportsTeamName(team)) + "</strong>" + (showScore ? "<b>" + escapeHTML(score || "0") + "</b>" : "") + "</span></span>";
+  return "<span class=\"sports-feature-team\">" + renderSportsTeamLogo(team, "sports-feature-team-logo") + "<span class=\"sports-feature-team-copy\"><strong>" + escapeHTML(sportsTeamName(team)) + "</strong>" + (showScore ? "<b>" + escapeHTML(sportsScoresHidden(false) ? "–" : (score || "0")) + "</b>" : "") + "</span></span>";
 }
 function renderSportsLeagueShelf(payload, events) {
   const visibleLeagueIDs = {};
   items(events).forEach(function(event) { if (event.leagueId) visibleLeagueIDs[String(event.leagueId)] = true; });
-  const leagues = items(payload && payload.leagues).filter(function(league) { return visibleLeagueIDs[String(league.id || "")]; });
+  const favoriteLeagues = sportsFavoriteLeagueMap();
+  const leagues = items(payload && payload.leagues).filter(function(league) { return visibleLeagueIDs[String(league.id || "")]; }).sort(function(left, right) {
+    const favoriteOrder = Number(!!favoriteLeagues[right.id]) - Number(!!favoriteLeagues[left.id]);
+    return favoriteOrder || String(left.name || left.id || "").localeCompare(String(right.name || right.id || ""));
+  });
   if (!leagues.length) return "";
   const body = "<div class=\"sports-league-grid\">" + leagues.map(function(league) {
     const visibleEvents = items(events).filter(function(event) { return String(event.leagueId || "") === String(league.id || ""); });
@@ -2906,9 +2926,9 @@ function renderSportsMatchupThumbnail(event) {
   const showScore = !!(sportsEventIsLive(event) || event.completed);
   const center = leagueLogo ? "<img src=\"" + escapeHTML(leagueLogo) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;\"><b hidden>VS</b>" : "<b>VS</b>";
   return "<span class=\"sports-matchup-thumb\" aria-hidden=\"true\" style=\"--match-away:" + awayColor + ";--match-home:" + homeColor + "\">"
-    + "<span class=\"sports-matchup-thumb-team away\">" + renderSportsTeamLogo(away, "sports-matchup-thumb-logo") + "<strong>" + escapeHTML(sportsTeamName(away)) + "</strong>" + (showScore ? "<em>" + escapeHTML(event.awayScore || "0") + "</em>" : "") + "</span>"
+    + "<span class=\"sports-matchup-thumb-team away\">" + renderSportsTeamLogo(away, "sports-matchup-thumb-logo") + "<strong>" + escapeHTML(sportsTeamName(away)) + "</strong>" + (showScore ? "<em>" + escapeHTML(sportsScoresHidden(false) ? "–" : (event.awayScore || "0")) + "</em>" : "") + "</span>"
     + "<span class=\"sports-matchup-thumb-center\">" + center + "<small>vs</small></span>"
-    + "<span class=\"sports-matchup-thumb-team home\">" + renderSportsTeamLogo(home, "sports-matchup-thumb-logo") + "<strong>" + escapeHTML(sportsTeamName(home)) + "</strong>" + (showScore ? "<em>" + escapeHTML(event.homeScore || "0") + "</em>" : "") + "</span>"
+    + "<span class=\"sports-matchup-thumb-team home\">" + renderSportsTeamLogo(home, "sports-matchup-thumb-logo") + "<strong>" + escapeHTML(sportsTeamName(home)) + "</strong>" + (showScore ? "<em>" + escapeHTML(sportsScoresHidden(false) ? "–" : (event.homeScore || "0")) + "</em>" : "") + "</span>"
     + "</span>";
 }
 function renderSportsProgramThumbnail(event) {
@@ -2943,9 +2963,9 @@ function renderSportsArtworkMatchup(event) {
   const showScore = !!(sportsEventIsLive(event) || event.completed);
   const center = leagueLogo ? "<img src=\"" + escapeHTML(leagueLogo) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;\"><b hidden>VS</b>" : "<b>VS</b>";
   return "<span class=\"sports-artwork-matchup\" aria-hidden=\"true\">"
-    + "<span class=\"sports-artwork-team\">" + renderSportsTeamLogo(away, "sports-artwork-team-logo") + "<strong>" + escapeHTML(sportsTeamName(away)) + "</strong>" + (showScore ? "<em>" + escapeHTML(event.awayScore || "0") + "</em>" : "") + "</span>"
+    + "<span class=\"sports-artwork-team\">" + renderSportsTeamLogo(away, "sports-artwork-team-logo") + "<strong>" + escapeHTML(sportsTeamName(away)) + "</strong>" + (showScore ? "<em>" + escapeHTML(sportsScoresHidden(false) ? "–" : (event.awayScore || "0")) + "</em>" : "") + "</span>"
     + "<span class=\"sports-artwork-center\">" + center + "</span>"
-    + "<span class=\"sports-artwork-team\">" + renderSportsTeamLogo(home, "sports-artwork-team-logo") + "<strong>" + escapeHTML(sportsTeamName(home)) + "</strong>" + (showScore ? "<em>" + escapeHTML(event.homeScore || "0") + "</em>" : "") + "</span>"
+    + "<span class=\"sports-artwork-team\">" + renderSportsTeamLogo(home, "sports-artwork-team-logo") + "<strong>" + escapeHTML(sportsTeamName(home)) + "</strong>" + (showScore ? "<em>" + escapeHTML(sportsScoresHidden(false) ? "–" : (event.homeScore || "0")) + "</em>" : "") + "</span>"
     + "</span>";
 }
 function renderSportsArtworkRace(event) {
@@ -3004,7 +3024,7 @@ function renderStandaloneSportsReplayTile(event) {
     + "<div class=\"sports-event-availability\"><span>Replay available</span>" + icon("chevron-right") + "</div></article>";
 }
 function renderSportsTileTeam(team, score, showScore) {
-  return "<span class=\"sports-event-team\">" + renderSportsTeamLogo(team || {}, "sports-event-team-logo") + "<strong>" + escapeHTML(sportsTeamName(team)) + "</strong>" + (showScore ? "<b>" + escapeHTML(score || "0") + "</b>" : "") + "</span>";
+  return "<span class=\"sports-event-team\">" + renderSportsTeamLogo(team || {}, "sports-event-team-logo") + "<strong>" + escapeHTML(sportsTeamName(team)) + "</strong>" + (showScore ? "<b>" + escapeHTML(sportsScoresHidden(false) ? "–" : (score || "0")) + "</b>" : "") + "</span>";
 }
 function sportsEventChannelsExpanded(event, channels) {
   const availableChannels = channels || uniqueEventChannels(event.channels);
@@ -3066,7 +3086,7 @@ function renderSportsTeamShelfCard(team) {
   return "<article class=\"sports-team-shelf-card\"><span class=\"sports-team-shelf-mark\">" + renderSportsTeamLogo(team, "sports-team-shelf-logo") + "</span><span class=\"sports-team-shelf-copy\"><strong>" + escapeHTML(name) + "</strong><small>" + (favorite ? "Following" : "Team") + "</small></span>" + (team.id ? "<button type=\"button\" class=\"sports-team-favorite" + (favorite ? " active" : "") + "\" data-sports-favorite-team=\"" + escapeHTML(team.id) + "\" data-sports-favorite-enabled=\"" + (favorite ? "false" : "true") + "\" aria-label=\"" + escapeHTML(favorite ? "Unfollow " + name : "Follow " + name) + "\" aria-pressed=\"" + (favorite ? "true" : "false") + "\">" + icon(favorite ? "heart-solid" : "heart") + "</button>" : "") + "</article>";
 }
 function renderSportsEventDetail(payload, event) {
-  const channels = uniqueEventChannels(event.channels);
+  const channels = rankedSportsBroadcasts(event);
   const matches = sportsReplayMatchesForEvent(event);
   const art = sportsEventArtwork(event, "backdrop");
   const related = sportsLeagueEvents(payload, event.leagueId).filter(function(item) {
@@ -3074,13 +3094,15 @@ function renderSportsEventDetail(payload, event) {
   }).slice(0, 6);
   const live = sportsEventIsLive(event);
   const channelCountLabel = channels.length + " " + (live ? (channels.length === 1 ? "broadcast" : "broadcasts") : (channels.length === 1 ? "candidate" : "candidates"));
-  const watch = live && channels[0] ? "<button type=\"button\" class=\"sports-primary-action\" data-channel=\"" + escapeHTML(channels[0].id) + "\">" + icon("play") + "<span>Watch live</span></button>" : "";
-  const broadcasts = channels.length ? "<div class=\"sports-broadcast-grid\">" + channels.map(renderSportsBroadcastCard).join("") + "</div>" : "<div class=\"empty\">No matching live broadcasts.</div>";
+  const watch = live && channels[0] ? "<button type=\"button\" class=\"sports-primary-action\" data-channel=\"" + escapeHTML(channels[0].id) + "\">" + icon("play") + "<span>Watch live on " + escapeHTML(channels[0].name || "preferred feed") + "</span></button>" : "";
+  const broadcasts = channels.length ? renderSportsBroadcastGroups(channels, event) : "<div class=\"empty\">No matching live broadcasts.</div>";
   const coverage = matches.length ? "<div class=\"sports-coverage-grid\">" + matches.slice(0, 8).map(renderSportsCoverageCard).join("") + "</div>" : "";
   const relatedBody = related.length ? "<div class=\"sports-event-grid\">" + related.map(renderSportsEventTile).join("") + "</div>" : "";
   const metadata = [event.sportName, event.season, event.round, event.venue].filter(Boolean);
   const metadataHTML = metadata.length ? "<p class=\"sports-event-metadata\">" + metadata.map(escapeHTML).join(" · ") + "</p>" : "";
-  return "<div class=\"sports-pinned sports-detail-toolbar\"><button type=\"button\" class=\"sports-back\" data-sports-back=\"event\">" + icon("arrow-left") + "<span>" + escapeHTML(state.sportsLeague ? (sportsLeagueByID(payload, state.sportsLeague) || {}).name || "League" : "Sports") + "</span></button><button type=\"button\" class=\"sports-refresh\" data-sports-refresh=\"true\">" + icon("loader") + "<span>Refresh scores</span></button></div>"
+  const navigation = renderSportsEventNavigation(payload, event);
+  const leagueFavorite = !!sportsFavoriteLeagueMap()[event.leagueId];
+  return "<div class=\"sports-pinned sports-detail-toolbar\"><button type=\"button\" class=\"sports-back\" data-sports-back=\"event\">" + icon("arrow-left") + "<span>" + escapeHTML(state.sportsLeague ? (sportsLeagueByID(payload, state.sportsLeague) || {}).name || "League" : "Sports") + "</span></button>" + navigation + "<button type=\"button\" class=\"sports-detail-tool" + (sportsScoresHidden(false) ? " active" : "") + "\" data-sports-spoilers=\"global\" aria-pressed=\"" + (sportsScoresHidden(false) ? "true" : "false") + "\">" + icon(sportsScoresHidden(false) ? "eye-off" : "eye") + "<span>" + (sportsScoresHidden(false) ? "Show scores" : "Hide scores") + "</span></button><button type=\"button\" class=\"sports-detail-tool" + (leagueFavorite ? " active" : "") + "\" data-sports-favorite-league=\"" + escapeHTML(event.leagueId || "") + "\" data-sports-favorite-enabled=\"" + (leagueFavorite ? "false" : "true") + "\" aria-pressed=\"" + (leagueFavorite ? "true" : "false") + "\">" + icon(leagueFavorite ? "heart-solid" : "heart") + "<span>" + (leagueFavorite ? "Following league" : "Follow league") + "</span></button><button type=\"button\" class=\"sports-refresh\" data-sports-refresh=\"true\">" + icon("loader") + "<span>Refresh scores</span></button></div>"
     + "<div class=\"sports-score-scroll sports-event-detail\"><header class=\"sports-event-hero" + (art ? " has-art" : " no-art") + "\">" + (art ? "<img class=\"sports-event-hero-art\" src=\"" + escapeHTML(art) + "\" alt=\"\">" : "")
     + "<div class=\"sports-event-hero-copy\"><span class=\"sports-eyebrow\">" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</span><h1>" + escapeHTML(sportsEventTitle(event)) + "</h1>" + metadataHTML + renderSportsDetailScore(event) + "<div class=\"sports-feature-actions\">" + watch + (matches[0] ? "<a class=\"sports-secondary-action\" href=\"" + escapeHTML(sportsReplayHref(matches[0].item || {})) + "\">" + icon("play") + "<span>Watch replay</span></a>" : "") + "</div></div></header>"
     + sportsSectionHTML(live ? "Live coverage" : "Matched channels", "<span class=\"sports-section-count\">" + channelCountLabel + "</span>", broadcasts, "sports-broadcast-section")
@@ -3096,10 +3118,77 @@ function renderSportsDetailScore(event) {
   return "<div class=\"sports-detail-score\">" + renderSportsDetailTeam(event.away || {}, event.awayScore, showScore) + "<div class=\"sports-detail-status\"><strong>" + escapeHTML(sportsStatusLabel(event)) + "</strong><span>" + escapeHTML(phase) + "</span></div>" + renderSportsDetailTeam(event.home || {}, event.homeScore, showScore) + "</div>";
 }
 function renderSportsDetailTeam(team, score, showScore) {
-  return "<div class=\"sports-detail-team\">" + renderSportsTeamLogo(team, "sports-detail-team-logo") + "<span><strong>" + escapeHTML(sportsTeamName(team)) + "</strong>" + (showScore ? "<b>" + escapeHTML(score || "0") + "</b>" : "") + "</span></div>";
+  const accent = safeSportsTeamColor(team && team.primaryColor);
+  return "<div class=\"sports-detail-team\"" + (accent ? " style=\"--sports-team-accent:" + escapeHTML(accent) + "\"" : "") + ">" + renderSportsTeamLogo(team, "sports-detail-team-logo") + "<span><strong>" + escapeHTML(sportsTeamName(team)) + "</strong>" + (showScore ? "<b>" + escapeHTML(sportsScoresHidden(false) ? "–" : (score || "0")) + "</b>" : "") + "</span></div>";
 }
-function renderSportsBroadcastCard(channel) {
-  return "<button type=\"button\" class=\"sports-broadcast-card\" data-channel=\"" + escapeHTML(channel.id || "") + "\"><span class=\"sports-channel-logo\">" + logoHTML(channel) + "</span><span><strong>" + escapeHTML(channel.name || "Channel") + "</strong><small>" + escapeHTML(channel.categoryName || channel.reason || "Live TV") + "</small></span>" + icon("play") + "</button>";
+function renderSportsEventNavigation(payload, event) {
+  const events = sportsLeagueEvents(payload, event.leagueId).filter(sportsEventHasPlayableAccess).sort(function(left, right) { return sportsEventStartSort(left, 0) - sportsEventStartSort(right, 0); });
+  const index = events.findIndex(function(item) { return item.id === event.id; });
+  const previous = index > 0 ? events[index - 1] : null;
+  const next = index >= 0 && index < events.length - 1 ? events[index + 1] : null;
+  return "<nav class=\"sports-event-nav\" aria-label=\"Event navigation\">" + (previous ? "<button type=\"button\" data-sports-open-event=\"" + escapeHTML(previous.id) + "\" aria-label=\"Previous event: " + escapeHTML(sportsEventTitle(previous)) + "\">" + icon("arrow-left") + "<span>Previous</span></button>" : "") + (next ? "<button type=\"button\" data-sports-open-event=\"" + escapeHTML(next.id) + "\" aria-label=\"Next event: " + escapeHTML(sportsEventTitle(next)) + "\"><span>Next</span>" + icon("chevron-right") + "</button>" : "") + "</nav>";
+}
+function sportsBroadcastTraits(channel, event) {
+  const text = lower([channel.name, channel.categoryName, channel.reason].join(" "));
+  const away = lower(sportsTeamName(event.away));
+  const home = lower(sportsTeamName(event.home));
+  const traits = [];
+  if (away && text.indexOf(away) !== -1) traits.push("Likely away");
+  if (home && text.indexOf(home) !== -1) traits.push("Likely home");
+  if (/\b(local|regional)\b/.test(text)) traits.push("Likely local");
+  if (/\b(espn|fox|cbs|nbc|abc|tnt|national|league pass)\b/.test(text)) traits.push("Major network");
+  if (/\b(alt|alternate|extra|plus|multiview)\b/.test(text)) traits.push("Alternate");
+  if (/\b(spanish|español|latino|deportes)\b/.test(text)) traits.push("Spanish");
+  else if (/\b(french|français)\b/.test(text)) traits.push("French");
+  return traits.length ? traits : ["Live"];
+}
+function sportsBroadcastNetworkKey(channel) {
+  const name = lower(channel && channel.name).split(/[|·]/)[0]
+    .replace(/\([^)]*\)|\[[^\]]*\]/g, " ")
+    .replace(/\b(?:uhd|fhd|hd|4k|local|home|away|national|alternate|alt|spanish|espanol|french)\b/g, " ")
+    .replace(/\s+\d+\s*$/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  return name;
+}
+function rankedSportsBroadcasts(event) {
+  const preferredID = String(sportsPreferredChannelMap()[event.leagueId] || "");
+  const preferredNetwork = String(sportsPreferredNetworkMap()[event.leagueId] || "");
+  return uniqueEventChannels(event.channels).map(function(channel, index) {
+    const traits = sportsBroadcastTraits(channel, event);
+    const preferred = String(channel.id || "") === preferredID;
+    const preferredNetworkMatch = !!preferredNetwork && sportsBroadcastNetworkKey(channel) === preferredNetwork;
+    const rank = (preferred ? 1000 : (preferredNetworkMatch ? 900 : 0)) + (traits.indexOf("Likely home") >= 0 ? 90 : 0) + (traits.indexOf("Likely away") >= 0 ? 80 : 0) + (traits.indexOf("Likely local") >= 0 ? 70 : 0) + (traits.indexOf("Major network") >= 0 ? 60 : 0) - (traits.indexOf("Alternate") >= 0 ? 10 : 0);
+    return Object.assign({}, channel, { sportsPreferred: preferred, sportsPreferredNetwork: preferredNetworkMatch, sportsTraits: traits, sportsRank: rank, sportsOriginalIndex: index });
+  }).sort(function(left, right) { return right.sportsRank - left.sportsRank || left.sportsOriginalIndex - right.sportsOriginalIndex; });
+}
+function sportsBroadcastGroup(channel) {
+  if (channel.sportsPreferred || channel.sportsPreferredNetwork) return "Preferred";
+  const traits = channel.sportsTraits || [];
+  for (const label of ["Likely local", "Likely home", "Likely away", "Major network", "Alternate", "Spanish", "French"]) {
+    if (traits.indexOf(label) >= 0) return label;
+  }
+  return "Other feeds";
+}
+function renderSportsBroadcastGroups(channels, event) {
+  const groups = {};
+  channels.forEach(function(channel) {
+    const label = sportsBroadcastGroup(channel);
+    if (!groups[label]) groups[label] = [];
+    groups[label].push(channel);
+  });
+  const groupOrder = ["Preferred", "Likely local", "Likely home", "Likely away", "Major network", "Alternate", "Spanish", "French", "Other feeds"];
+  return "<div class=\"sports-broadcast-groups\">" + groupOrder.filter(function(label) { return groups[label] && groups[label].length; }).map(function(label) {
+    return "<section class=\"sports-broadcast-group\"><h3>" + escapeHTML(label) + "</h3><div class=\"sports-broadcast-grid\">" + groups[label].map(function(channel) { return renderSportsBroadcastCard(channel, event); }).join("") + "</div></section>";
+  }).join("") + "</div>";
+}
+function renderSportsBroadcastCard(channel, event) {
+  const appChannel = channelByID(channel.id) || channel;
+  const current = currentProgram(appChannel) || {};
+  const next = nextProgram(appChannel) || {};
+  const traits = (channel.sportsPreferred ? ["Preferred"] : (channel.sportsPreferredNetwork ? ["Preferred network"] : [])).concat(channel.sportsTraits || []);
+  const guide = [current.title ? "Now: " + current.title : "", next.title ? "Next: " + next.title : ""].filter(Boolean);
+  return "<article class=\"sports-broadcast-card" + (channel.sportsPreferred ? " preferred" : "") + "\"><button type=\"button\" class=\"sports-broadcast-play\" data-channel=\"" + escapeHTML(channel.id || "") + "\"><span class=\"sports-channel-logo\">" + logoHTML(channel) + "</span><span class=\"sports-broadcast-copy\"><span class=\"sports-broadcast-badges\">" + traits.map(function(trait) { return "<small>" + escapeHTML(trait) + "</small>"; }).join("") + "</span><strong>" + escapeHTML(channel.name || "Channel") + "</strong>" + guide.map(function(line) { return "<em>" + escapeHTML(line) + "</em>"; }).join("") + "</span>" + icon("play") + "</button><button type=\"button\" class=\"sports-broadcast-preference\" data-sports-preferred-channel=\"" + escapeHTML(channel.id || "") + "\" data-sports-preferred-league=\"" + escapeHTML(event.leagueId || "") + "\" aria-label=\"" + escapeHTML((channel.sportsPreferred ? "Remove preferred" : "Prefer") + " " + (channel.name || "channel")) + "\" aria-pressed=\"" + (channel.sportsPreferred ? "true" : "false") + "\">" + icon(channel.sportsPreferred ? "heart-solid" : "heart") + "</button></article>";
 }
 function sportsReplayItemTitle(item) {
   return item && (item.title || item.name || item.display_name) || "Sports replay";
@@ -3154,7 +3243,7 @@ function filteredSportsEvents(payload) {
     const startUnix = Number(event.startUnix || 0);
     if (state.sportsTab === "upcoming" && (!channelCount || event.completed || onNow || (startUnix > 0 && startUnix < now - 3600))) return false;
     if (state.sportsTab === "replays" && !replayCount) return false;
-    if (state.sportsTab === "favorites" && !sportsEventHasFavoriteTeam(event)) return false;
+    if (state.sportsTab === "favorites" && !sportsEventIsFollowed(event)) return false;
     return true;
   }).sort(compareSportsEventsForTab);
 }
@@ -3166,6 +3255,9 @@ function compareSportsEventsForTab(left, right) {
   const leftLive = sportsEventIsLive(left);
   const rightLive = sportsEventIsLive(right);
   if (leftLive !== rightLive) return leftLive ? -1 : 1;
+  const leftFollowed = sportsEventIsFollowed(left);
+  const rightFollowed = sportsEventIsFollowed(right);
+  if (leftFollowed !== rightFollowed) return leftFollowed ? -1 : 1;
   if (tab === "upcoming") {
     const leftStart = sportsEventStartSort(left, 1);
     const rightStart = sportsEventStartSort(right, 1);
@@ -3181,9 +3273,9 @@ function sportsEventStartSort(event, fallback) {
   const start = Number(event && event.startUnix || 0);
   return start > 0 ? start : fallback;
 }
-function sportsEventHasFavoriteTeam(event) {
+function sportsEventIsFollowed(event) {
   const favorites = sportsFavoriteTeamMap();
-  return !!(favorites[(event.home || {}).id] || favorites[(event.away || {}).id]);
+  return !!(favorites[(event.home || {}).id] || favorites[(event.away || {}).id] || sportsFavoriteLeagueMap()[event.leagueId]);
 }
 function sportsEventMatchesQuery(event) {
   const channels = items(event.channels).map(function(channel) { return [channel.name, channel.categoryName, channel.reason].join(" "); }).join(" ");
@@ -3200,7 +3292,13 @@ function renderSportsEventCard(event) {
     + "</article>";
 }
 function sportsStatusLabel(event) {
-  if (sportsEventIsLive(event)) return event.statusText || "Live";
+  if (sportsEventIsLive(event)) {
+    const liveParts = [];
+    if (event.statusText && lower(event.statusText) !== "live") liveParts.push(event.statusText);
+    if (event.period) liveParts.push(event.period);
+    if (event.clock) liveParts.push(event.clock);
+    return liveParts.join(" · ") || "Live";
+  }
   const status = lower(event && event.status);
   if (["airing", "replay", "highlights", "ended"].indexOf(status) !== -1) return event.statusText || ({ airing: "On now", replay: "Replay", highlights: "Highlights", ended: "Ended" })[status];
   if (event.completed) return event.statusText || "Final";
@@ -3238,7 +3336,7 @@ function renderSportsMatchTeam(team, score, showScore) {
   const favorite = !!sportsFavoriteTeamMap()[team.id];
   const logo = renderSportsTeamLogo(team, "sports-match-team-logo");
   const favoriteControl = team.id ? "<button class=\"sports-team-favorite" + (favorite ? " active" : "") + "\" type=\"button\" data-sports-favorite-team=\"" + escapeHTML(team.id || "") + "\" data-sports-favorite-enabled=\"" + (favorite ? "false" : "true") + "\" aria-label=\"" + escapeHTML(favorite ? "Unfollow " + name : "Follow " + name) + "\" aria-pressed=\"" + (favorite ? "true" : "false") + "\">" + icon(favorite ? "heart-solid" : "heart") + "<span>" + (favorite ? "Following" : "Follow") + "</span></button>" : "<span class=\"sports-team-favorite placeholder\" aria-hidden=\"true\"></span>";
-  const scoreHTML = showScore ? "<span class=\"sports-match-team-score\">" + escapeHTML(score || "0") + "</span>" : "";
+  const scoreHTML = showScore ? "<span class=\"sports-match-team-score\">" + escapeHTML(sportsScoresHidden(false) ? "–" : (score || "0")) + "</span>" : "";
   return "<div class=\"sports-match-team\">" + logo + "<strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(name) + "</strong>" + scoreHTML + favoriteControl + "</div>";
 }
 function renderSportsChannels(event) {
@@ -3304,8 +3402,8 @@ function playerSportsEvents() {
     const leftCurrent = playerSportsChannelMatches(left, currentID) ? 1 : 0;
     const rightCurrent = playerSportsChannelMatches(right, currentID) ? 1 : 0;
     if (leftCurrent !== rightCurrent) return rightCurrent - leftCurrent;
-    const leftFavorite = sportsEventHasFavoriteTeam(left) ? 1 : 0;
-    const rightFavorite = sportsEventHasFavoriteTeam(right) ? 1 : 0;
+    const leftFavorite = sportsEventIsFollowed(left) ? 1 : 0;
+    const rightFavorite = sportsEventIsFollowed(right) ? 1 : 0;
     if (leftFavorite !== rightFavorite) return rightFavorite - leftFavorite;
     const leftLive = sportsEventIsLive(left);
     const rightLive = sportsEventIsLive(right);
@@ -3315,7 +3413,7 @@ function playerSportsEvents() {
 }
 function playerSportsEventChannel(event) {
   const currentID = state.currentChannel && state.currentChannel.id;
-  const channels = uniqueEventChannels(event && event.channels).filter(function(channel) { return Number(channel.score || 0) >= 60; });
+  const channels = rankedSportsBroadcasts(event || {}).filter(function(channel) { return Number(channel.score || 0) >= 60; });
   return channels.find(function(channel) { return String(channel.id || "") === String(currentID || ""); }) || channels[0] || null;
 }
 function renderPlayerSportsEvent(event) {
@@ -3325,7 +3423,8 @@ function renderPlayerSportsEvent(event) {
   const live = sportsEventIsLive(event);
   const scored = live || event.completed;
   const current = playerSportsChannelMatches(event, state.currentChannel && state.currentChannel.id);
-  return "<button class=\"player-sports-event" + (live ? " live" : "") + (current ? " current" : "") + "\" type=\"button\" data-player-sports-channel=\"" + escapeHTML(channel && channel.id) + "\"><span class=\"player-sports-event-top\"><span class=\"player-sports-league\">" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</span><span class=\"player-sports-status\">" + escapeHTML(sportsStatusLabel(event)) + "</span></span><span class=\"player-sports-team\"><span>" + escapeHTML(sportsTeamAbbreviation(away)) + "</span><strong>" + (scored ? escapeHTML(event.awayScore || "0") : "") + "</strong></span><span class=\"player-sports-team\"><span>" + escapeHTML(sportsTeamAbbreviation(home)) + "</span><strong>" + (scored ? escapeHTML(event.homeScore || "0") : "") + "</strong></span><small>" + escapeHTML((channel && channel.name) || event.shortName || event.name || "Sports") + "</small></button>";
+  const hidden = sportsScoresHidden(true);
+  return "<button class=\"player-sports-event" + (live ? " live" : "") + (current ? " current" : "") + "\" type=\"button\" data-player-sports-channel=\"" + escapeHTML(channel && channel.id) + "\"><span class=\"player-sports-event-top\"><span class=\"player-sports-league\">" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</span><span class=\"player-sports-status\">" + escapeHTML(sportsStatusLabel(event)) + "</span></span><span class=\"player-sports-team\"><span>" + escapeHTML(sportsTeamAbbreviation(away)) + "</span><strong>" + (scored ? escapeHTML(hidden ? "–" : (event.awayScore || "0")) : "") + "</strong></span><span class=\"player-sports-team\"><span>" + escapeHTML(sportsTeamAbbreviation(home)) + "</span><strong>" + (scored ? escapeHTML(hidden ? "–" : (event.homeScore || "0")) : "") + "</strong></span><small>" + escapeHTML((channel && channel.name) || event.shortName || event.name || "Sports") + "</small></button>";
 }
 function playerSportsChannels(events) {
   const seen = {};
@@ -3344,6 +3443,18 @@ function renderPlayerSportsChannel(channel) {
   const program = currentProgram(channel) || {};
   return "<button class=\"player-sports-channel\" type=\"button\" data-player-sports-channel=\"" + escapeHTML(channel.id) + "\"><span>" + logoHTML(channel) + "</span><span><strong>" + escapeHTML(channel.name || "Sports channel") + "</strong><small>" + escapeHTML(program.title || channel.categoryName || "Live TV") + "</small></span></button>";
 }
+function playerSportsCurrentEvent(events) {
+  const channelID = state.currentChannel && state.currentChannel.id;
+  return items(events).find(function(event) { return playerSportsChannelMatches(event, channelID); }) || null;
+}
+function renderPlayerSportsFeed(channel) {
+  const appChannel = channelByID(channel.id) || channel;
+  const current = currentProgram(appChannel) || {};
+  const next = nextProgram(appChannel) || {};
+  const active = String(channel.id || "") === String(state.currentChannel && state.currentChannel.id || "");
+  const badge = channel.sportsPreferred ? "Preferred" : (channel.sportsPreferredNetwork ? "Preferred network" : ((channel.sportsTraits || [])[0] || "Live"));
+  return "<button class=\"player-sports-channel player-sports-feed" + (active ? " active" : "") + "\" type=\"button\" data-player-sports-channel=\"" + escapeHTML(channel.id) + "\" aria-pressed=\"" + (active ? "true" : "false") + "\"><span>" + logoHTML(appChannel) + "</span><span><strong>" + escapeHTML(appChannel.name || "Sports channel") + "</strong><small>" + escapeHTML(badge) + (current.title ? " · Now: " + escapeHTML(current.title) : "") + (next.title ? " · Next: " + escapeHTML(next.title) : "") + "</small></span>" + (active ? icon("check") : icon("play")) + "</button>";
+}
 function renderPlayerSportsDrawer() {
   const root = byId("player-sports-drawer");
   const shell = document.querySelector(".playback-shell");
@@ -3361,12 +3472,15 @@ function renderPlayerSportsDrawer() {
   }
   const events = playerSportsEvents();
   const channels = playerSportsChannels(events);
+  const currentEvent = playerSportsCurrentEvent(events);
+  const currentFeeds = currentEvent ? rankedSportsBroadcasts(currentEvent) : [];
   const loading = (state.sportsLoading && !state.sports) || !!(state.sports && state.sports.refreshing && !events.length);
   const status = byId("player-sports-status");
   if (status) status.textContent = loading ? "Loading live sports." : (events.length ? events.length + " live or upcoming sports events available." : "No live or upcoming sports events available.");
-  root.innerHTML = "<div class=\"player-sports-head\"><div><strong>Live Sports</strong><span>Scores and matched channels</span></div><button type=\"button\" data-player-action=\"sports-close\" aria-label=\"Close live sports\">" + icon("x") + "</button></div>"
+  root.innerHTML = "<div class=\"player-sports-head\"><div><strong>Live Sports</strong><span>Scores and matched channels</span></div><div class=\"player-sports-head-actions\"><button type=\"button\" data-sports-spoilers=\"player\" aria-label=\"" + (sportsScoresHidden(true) ? "Show scores" : "Hide scores") + "\" aria-pressed=\"" + (sportsScoresHidden(true) ? "true" : "false") + "\">" + icon(sportsScoresHidden(true) ? "eye-off" : "eye") + "</button><button type=\"button\" data-player-action=\"sports-close\" aria-label=\"Close live sports\">" + icon("x") + "</button></div></div>"
     + (loading ? "<div class=\"player-sports-loading\"><span></span><span></span><span></span></div>" : "")
     + (!loading && !events.length ? "<div class=\"player-sports-empty\">No live or upcoming events have a confident channel match.</div>" : "")
+    + (currentFeeds.length ? "<div class=\"player-sports-section\"><div class=\"player-sports-section-title\">Current event feeds</div><div class=\"player-sports-channel-rail player-sports-feed-list\">" + currentFeeds.map(renderPlayerSportsFeed).join("") + "</div></div>" : "")
     + (events.length ? "<div class=\"player-sports-section\"><div class=\"player-sports-section-title\">Live &amp; upcoming</div><div class=\"player-sports-rail\">" + events.map(renderPlayerSportsEvent).join("") + "</div></div>" : "")
     + (channels.length ? "<div class=\"player-sports-section\"><div class=\"player-sports-section-title\">Sports channels</div><div class=\"player-sports-channel-rail\">" + channels.map(renderPlayerSportsChannel).join("") + "</div></div>" : "");
 }
@@ -3457,6 +3571,42 @@ function toggleSportsTeamFavorite(teamID, enabled) {
   applySportsFavoritesToPayload();
   savePrefs();
   renderSportsPage();
+}
+function toggleSportsLeagueFavorite(leagueID, enabled) {
+  leagueID = String(leagueID || "");
+  if (!leagueID) return;
+  if (enabled) state.app.preferences.sportsFavoriteLeagues[leagueID] = true;
+  else delete state.app.preferences.sportsFavoriteLeagues[leagueID];
+  savePrefs();
+  renderSportsPage();
+}
+function setSportsPreferredChannel(leagueID, channelID) {
+  leagueID = String(leagueID || "");
+  channelID = String(channelID || "");
+  if (!leagueID || !channelID) return;
+  if (String(state.app.preferences.sportsPreferredChannels[leagueID] || "") === channelID) {
+    delete state.app.preferences.sportsPreferredChannels[leagueID];
+    delete state.app.preferences.sportsPreferredNetworks[leagueID];
+  } else {
+    state.app.preferences.sportsPreferredChannels[leagueID] = channelID;
+    const networkKey = sportsBroadcastNetworkKey(channelByID(channelID));
+    if (networkKey) state.app.preferences.sportsPreferredNetworks[leagueID] = networkKey;
+    else delete state.app.preferences.sportsPreferredNetworks[leagueID];
+  }
+  savePrefs({ quiet: true });
+  renderSportsPage();
+}
+function toggleSportsSpoilers(scope) {
+  if (scope === "player" && state.app.preferences.sportsSpoilersHidden) {
+    state.app.preferences.sportsSpoilersHidden = false;
+    state.app.preferences.sportsPlayerSpoilersHidden = false;
+  } else {
+    const key = scope === "player" ? "sportsPlayerSpoilersHidden" : "sportsSpoilersHidden";
+    state.app.preferences[key] = !state.app.preferences[key];
+  }
+  savePrefs({ quiet: true });
+  if (state.view === "player") renderPlayerSportsDrawer();
+  else renderSportsPage();
 }
 function loadEvents(force) {
   if (state.eventsLoading) return Promise.resolve(state.events || { events: [], categories: [] });
@@ -4520,18 +4670,19 @@ function renderPlayerPage() {
 }
 function renderMultiviewPage() {
   resetMultiviewMedia();
+  const connectionLimit = multiviewConnectionLimit();
   const tiles = items(state.multiviewTiles).filter(function(tile) {
     tile.channel = channelByID((tile.channel || {}).id || tile.channelID) || tile.channel;
     return tile.channel;
-  }).slice(0, 4);
+  }).slice(0, connectionLimit);
   state.multiviewTiles = tiles;
   if (!state.multiviewActiveTileID && tiles[0]) state.multiviewActiveTileID = tiles[0].id;
   if (state.multiviewActiveTileID && !tiles.some(function(tile) { return tile.id === state.multiviewActiveTileID; })) state.multiviewActiveTileID = tiles[0] ? tiles[0].id : "";
   const countClass = "count-" + Math.max(tiles.length, 1);
   const title = tiles.length ? tiles.length + " channel" + (tiles.length === 1 ? "" : "s") : "Choose channels";
-  byId("view").innerHTML = "<section class=\"multiview-page\"><div id=\"multiview-audio-status\" class=\"sr-only\" role=\"status\"></div><div class=\"multiview-toolbar\"><div><h2>Multiview</h2><p>" + escapeHTML(title) + " · focused tile owns audio</p></div><div class=\"multiview-actions\"><span class=\"multiview-count\">" + escapeHTML(String(tiles.length)) + "/4</span>" + (tiles.length ? "<button class=\"chip\" type=\"button\" data-multiview-action=\"clear\">Clear</button>" : "") + "</div></div>"
+  byId("view").innerHTML = "<section class=\"multiview-page\"><div id=\"multiview-audio-status\" class=\"sr-only\" role=\"status\"></div><div class=\"multiview-toolbar\"><div><h2>Multiview</h2><p>" + escapeHTML(title) + " · focused tile owns audio" + (connectionLimit < 4 ? " · limited for this connection" : "") + "</p></div><div class=\"multiview-actions\"><span class=\"multiview-count\">" + escapeHTML(String(tiles.length)) + "/" + escapeHTML(String(connectionLimit)) + "</span>" + (tiles.length ? "<button class=\"chip\" type=\"button\" data-multiview-action=\"clear\">Clear</button>" : "") + "</div></div>"
     + (tiles.length ? "<div class=\"multiview-grid " + countClass + "\">" + tiles.map(renderMultiviewTile).join("") + "</div>" : renderMultiviewEmpty())
-    + (tiles.length && tiles.length < 4 ? renderMultiviewPicker() : "")
+    + (tiles.length && tiles.length < connectionLimit ? renderMultiviewPicker() : "")
     + "</section>";
   attachMultiviewPlayers();
 }
@@ -4545,7 +4696,14 @@ function renderMultiviewTile(tile) {
   return "<article class=\"multiview-tile" + (active ? " active" : "") + "\" data-multiview-tile=\"" + escapeHTML(tile.id) + "\" data-multiview-focus=\"" + escapeHTML(tile.id) + "\"><video id=\"" + escapeHTML(tile.videoID) + "\" class=\"multiview-video\" autoplay playsinline" + (active ? "" : " muted") + "></video><div class=\"multiview-tile-controls\"><button type=\"button\" data-multiview-action=\"focus\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-label=\"" + (active ? "Audio is playing from this tile" : "Use audio from this tile") + "\" aria-pressed=\"" + (active ? "true" : "false") + "\">" + icon("speaker") + "</button><button type=\"button\" data-multiview-action=\"single\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-label=\"Open channel player\">" + icon("external") + "</button><button type=\"button\" data-multiview-action=\"remove\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-label=\"Remove from multiview\">" + icon("x") + "</button></div><div class=\"multiview-tile-meta\"><div><strong data-overflow-tooltip=\"" + escapeHTML(title) + "\">" + escapeHTML(title) + "</strong><small data-overflow-tooltip=\"" + escapeHTML(channel.name || subtitle) + "\">" + escapeHTML(channel.name || subtitle) + "</small></div><span class=\"multiview-audio-badge\">" + escapeHTML(muted) + "</span></div></article>";
 }
 function renderMultiviewEmpty() {
-  return "<div class=\"multiview-empty\"><div class=\"empty\">Add up to four live channels. The active tile is the only one with audio.</div>" + renderMultiviewPicker() + "</div>";
+  return "<div class=\"multiview-empty\"><div class=\"empty\">Add up to " + escapeHTML(String(multiviewConnectionLimit())) + " live channels. The active tile is the only one with audio.</div>" + renderMultiviewPicker() + "</div>";
+}
+function multiviewConnectionLimit() {
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  if (!connection) return 4;
+  if (connection.saveData || /(^|-)2g$/.test(String(connection.effectiveType || ""))) return 1;
+  if (String(connection.effectiveType || "") === "3g") return 2;
+  return 4;
 }
 function multiviewChannelMatchesQuery(channel, query) {
   if (!query) return true;
@@ -4616,8 +4774,9 @@ function addChannelToMultiview(channel) {
     render();
     return;
   }
-  if (state.multiviewTiles.length >= 4) {
-    showAppToast("Multiview supports up to four channels.");
+  const connectionLimit = multiviewConnectionLimit();
+  if (state.multiviewTiles.length >= connectionLimit) {
+    showAppToast(connectionLimit < 4 ? "This connection is limited to " + connectionLimit + " multiview channel" + (connectionLimit === 1 ? "." : "s.") : "Multiview supports up to four channels.");
     state.view = "multiview";
     render();
     return;
@@ -7098,6 +7257,25 @@ document.addEventListener("click", function(event) {
   if (sportsFavorite) {
     event.preventDefault();
     toggleSportsTeamFavorite(sportsFavorite.getAttribute("data-sports-favorite-team"), sportsFavorite.getAttribute("data-sports-favorite-enabled") === "true");
+    return;
+  }
+  const sportsFavoriteLeague = event.target.closest("[data-sports-favorite-league]");
+  if (sportsFavoriteLeague) {
+    event.preventDefault();
+    toggleSportsLeagueFavorite(sportsFavoriteLeague.getAttribute("data-sports-favorite-league"), sportsFavoriteLeague.getAttribute("data-sports-favorite-enabled") === "true");
+    return;
+  }
+  const sportsPreferredChannel = event.target.closest("[data-sports-preferred-channel]");
+  if (sportsPreferredChannel) {
+    event.preventDefault();
+    event.stopPropagation();
+    setSportsPreferredChannel(sportsPreferredChannel.getAttribute("data-sports-preferred-league"), sportsPreferredChannel.getAttribute("data-sports-preferred-channel"));
+    return;
+  }
+  const sportsSpoilers = event.target.closest("[data-sports-spoilers]");
+  if (sportsSpoilers) {
+    event.preventDefault();
+    toggleSportsSpoilers(sportsSpoilers.getAttribute("data-sports-spoilers"));
     return;
   }
   const eventTab = event.target.closest("[data-event-tab]");
