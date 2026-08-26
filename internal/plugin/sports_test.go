@@ -412,6 +412,28 @@ func TestNormalizeSportsEventsAddsGameThumbsIdentityFallbacks(t *testing.T) {
 	}
 }
 
+func TestNormalizeSportsEventsCanonicalizesKnownLeagueIDs(t *testing.T) {
+	t.Parallel()
+
+	events := normalizeSportsEvents([]SportsEvent{
+		{LeagueID: "provider:baseball", LeagueName: "MLB", SportName: "Baseball", Name: "Yankees at Red Sox", Live: true},
+		{LeagueID: "mlb", LeagueName: "MLB", SportName: "Baseball", Name: "Cubs at Cardinals"},
+		{LeagueID: "provider:wnba", LeagueName: "WNBA", SportName: "Basketball", Name: "Fever at Sky"},
+		{LeagueID: "wnba", LeagueName: "WNBA", SportName: "Basketball", Name: "Liberty at Storm"},
+	})
+
+	leagues := sportsLeagues(events)
+	if len(leagues) != 2 {
+		t.Fatalf("expected provider and EPG league aliases to collapse into two canonical leagues, got %+v", leagues)
+	}
+	if leagues[0].ID != "mlb" || leagues[0].Name != "MLB" || leagues[0].LiveCount != 1 || leagues[0].UpcomingCount != 1 {
+		t.Fatalf("expected one canonical MLB league with combined counts, got %+v", leagues[0])
+	}
+	if leagues[1].ID != "wnba" || leagues[1].Name != "WNBA" || leagues[1].UpcomingCount != 2 {
+		t.Fatalf("expected one canonical WNBA league with combined counts, got %+v", leagues[1])
+	}
+}
+
 func TestGuideSportsMatchupParsesQualifiedBroadcastTitles(t *testing.T) {
 	t.Parallel()
 
