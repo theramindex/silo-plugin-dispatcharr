@@ -9,6 +9,7 @@ const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-ve
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
 const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", folderGroupPickerOpen: false, searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "connection", adminConnectionStatus: "idle", adminConnectionMessage: "", adminConnectionLoading: false, adminConnectionLoadError: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+const appHistoryStateKey = "dispatcharrRoute";
 state.aspectMode = "fit";
 state.guideCategoryPickerOpen = false;
 state.guideCategoryQuery = "";
@@ -1579,6 +1580,95 @@ function stopAllMultiview(reason) {
     state.multiviewHeartbeat = null;
   }
 }
+function appRoutePart(value) {
+  return encodeURIComponent(String(value || ""));
+}
+function readAppRoutePart(value) {
+  try { return decodeURIComponent(String(value || "")); } catch (_) { return ""; }
+}
+function appRouteSnapshot() {
+  return {
+    view: isAdminRoute ? "admin" : state.view,
+    category: state.category || "",
+    sportsTab: state.sportsTab || "live",
+    sportsLeague: state.sportsLeague || "",
+    sportsEvent: state.sportsSelectedEventID || "",
+    eventsTab: state.eventsTab || "upcoming",
+    eventCategory: state.eventCategory || "",
+    adminTab: state.adminTab || "source",
+    channelID: state.view === "player" && state.currentChannel ? state.currentChannel.id : ""
+  };
+}
+function appRouteHash(snapshot) {
+  snapshot = snapshot || appRouteSnapshot();
+  if (snapshot.view === "admin") return "#/admin/" + appRoutePart(snapshot.adminTab || "source");
+  if (snapshot.view === "player" && snapshot.channelID) return "#/watch/" + appRoutePart(snapshot.channelID);
+  if (snapshot.view === "sports") {
+    let route = "#/sports/" + appRoutePart(snapshot.sportsTab || "live");
+    if (snapshot.sportsEvent) route += "/event/" + appRoutePart(snapshot.sportsEvent);
+    else if (snapshot.sportsLeague) route += "/league/" + appRoutePart(snapshot.sportsLeague);
+    return route;
+  }
+  if (snapshot.view === "events") {
+    let route = "#/events/" + appRoutePart(snapshot.eventsTab || "upcoming");
+    if (snapshot.eventCategory) route += "/category/" + appRoutePart(snapshot.eventCategory);
+    return route;
+  }
+  if (snapshot.view === "live" && snapshot.category) return "#/channels/" + appRoutePart(snapshot.category);
+  const view = ["home", "channels", "live", "favorites", "guide", "onlater", "search", "recordings", "settings", "multiview"].indexOf(snapshot.view) !== -1 ? snapshot.view : "home";
+  return "#/" + view;
+}
+function readAppRouteHash() {
+  const raw = String(window.location.hash || "").replace(/^#\/?/, "");
+  const parts = raw.split("/").filter(Boolean).map(readAppRoutePart);
+  if (isAdminRoute) return { view: "admin", adminTab: parts[0] === "admin" ? (parts[1] || "source") : "source" };
+  if (!parts.length) return { view: "home" };
+  if (parts[0] === "watch") return { view: "player", channelID: parts[1] || "" };
+  if (parts[0] === "channels" && parts[1]) return { view: "live", category: parts[1] };
+  if (parts[0] === "sports") {
+    const route = { view: "sports", sportsTab: parts[1] || "live" };
+    if (parts[2] === "event") route.sportsEvent = parts[3] || "";
+    if (parts[2] === "league") route.sportsLeague = parts[3] || "";
+    return route;
+  }
+  if (parts[0] === "events") return { view: "events", eventsTab: parts[1] || "upcoming", eventCategory: parts[2] === "category" ? (parts[3] || "") : "" };
+  const view = ["home", "channels", "live", "favorites", "guide", "onlater", "search", "recordings", "settings", "multiview"].indexOf(parts[0]) !== -1 ? parts[0] : "home";
+  return { view: view };
+}
+function commitAppRoute(mode) {
+  if (!window.history || typeof window.history.pushState !== "function" || typeof window.history.replaceState !== "function") return;
+  const snapshot = appRouteSnapshot();
+  const hash = appRouteHash(snapshot);
+  const historyState = Object.assign({}, window.history.state || {});
+  historyState[appHistoryStateKey] = snapshot;
+  const target = window.location.pathname + window.location.search + hash;
+  if (mode === "replace" || window.location.hash === hash) window.history.replaceState(historyState, "", target);
+  else window.history.pushState(historyState, "", target);
+}
+function applyAppRouteSnapshot(snapshot) {
+  snapshot = snapshot || {};
+  state.category = snapshot.category || "";
+  state.sportsTab = snapshot.sportsTab || "live";
+  state.sportsLeague = snapshot.sportsLeague || "";
+  state.sportsSelectedEventID = snapshot.sportsEvent || "";
+  state.eventsTab = snapshot.eventsTab || "upcoming";
+  state.eventCategory = snapshot.eventCategory || "";
+  if (snapshot.adminTab) state.adminTab = snapshot.adminTab;
+}
+function restoreAppRoute(snapshot) {
+  snapshot = snapshot || readAppRouteHash();
+  if (snapshot.view === "player" && snapshot.channelID) {
+    const channel = channelByID(snapshot.channelID);
+    if (channel) {
+      playChannel(channel, { historyMode: "none" });
+      return;
+    }
+    snapshot = { view: "home" };
+  }
+  applyAppRouteSnapshot(snapshot);
+  setView(snapshot.view || (isAdminRoute ? "admin" : "home"), { historyMode: "none", preserveBrowseState: true });
+  if (snapshot.view === "admin" && state.app) setAdminTab(snapshot.adminTab || "source", { historyMode: "none" });
+}
 function setView(view, options) {
   options = options || {};
   if (view === "onlater" && !onLaterEnabled()) view = "home";
@@ -1605,6 +1695,7 @@ function setView(view, options) {
   }
   if (view === "channels") state.category = "";
   render();
+  if (options.historyMode !== "none") commitAppRoute("push");
 }
 function setCategory(id, options) {
   options = options || {};
@@ -1620,6 +1711,7 @@ function setCategory(id, options) {
   state.category = id || "";
   state.view = id ? "live" : (channelGroupsInSideMenu() ? "channels" : "home");
   render();
+  if (options.historyMode !== "none") commitAppRoute("push");
 }
 function openSavedLineup(id) {
   const lineup = savedLineupByID(id);
@@ -3551,25 +3643,33 @@ function setSportsTab(tab) {
   state.sportsTab = tab || "live";
   state.sportsExpandedEvents = {};
   renderSportsPage();
+  commitAppRoute("push");
 }
 function setSportsLeague(leagueID) {
   state.sportsLeague = leagueID || "";
   state.sportsSelectedEventID = "";
   state.sportsExpandedEvents = {};
   renderSportsPage();
+  commitAppRoute("push");
 }
 function openSportsLeague(leagueID) {
   state.sportsLeague = String(leagueID || "");
   state.sportsSelectedEventID = "";
   state.sportsExpandedEvents = {};
   renderSportsPage();
+  commitAppRoute("push");
 }
 function openSportsEvent(eventID) {
   state.sportsSelectedEventID = String(eventID || "");
   state.sportsExpandedEvents = {};
   renderSportsPage();
+  commitAppRoute("push");
 }
 function backFromSportsDetail() {
+  if (window.history && window.history.state && window.history.state[appHistoryStateKey]) {
+    window.history.back();
+    return;
+  }
   if (state.sportsSelectedEventID) {
     state.sportsSelectedEventID = "";
   } else {
@@ -3790,11 +3890,13 @@ function setEventTab(tab) {
   state.eventsTab = tab || "live";
   state.expandedEvents = {};
   renderEventsPage();
+  commitAppRoute("push");
 }
 function setEventCategory(categoryID) {
   state.eventCategory = categoryID || "";
   state.expandedEvents = {};
   renderEventsPage();
+  commitAppRoute("push");
 }
 function toggleBroadcastEventChannels(eventID) {
   eventID = String(eventID || "");
@@ -5857,13 +5959,15 @@ function renderAdminTopbarActions() {
   root.setAttribute("aria-busy", saving ? "true" : "false");
   root.innerHTML = "<span class=\"admin-save-status\" role=\"status\" aria-live=\"polite\">" + escapeHTML(status) + "</span><button class=\"admin-save\" data-admin-settings-action=\"save\"" + ((!dirty || saving) ? " disabled" : "") + ">" + (saving ? "Saving" : "Save") + "</button><button class=\"admin-discard\" data-admin-settings-action=\"discard\"" + ((!dirty || saving) ? " disabled" : "") + ">Discard</button>";
 }
-function setAdminTab(tab) {
+function setAdminTab(tab, options) {
+  options = options || {};
   if (tab === "manager" && adminECMEnabled()) state.adminTab = "manager";
   else if (tab === "integrations") state.adminTab = "integrations";
   else if (tab === "source") state.adminTab = "source";
   else if (tab === "playback" || tab === "sports" || tab === "organization" || tab === "events") state.adminTab = tab;
   else state.adminTab = "general";
   renderAdminPage();
+  if (options.historyMode !== "none") commitAppRoute("push");
   if (state.adminTab === "organization") loadAdminSourceGroups(false);
   requestAnimationFrame(function() {
     const content = byId("view");
@@ -6720,7 +6824,8 @@ function setVideoSource(url, options) {
   applyAspectMode();
   video.play().then(updateCenterPlayButton).catch(function() { updateCenterPlayButton(); });
 }
-async function playChannel(channel) {
+async function playChannel(channel, options) {
+  options = options || {};
   const keepSportsPlayer = state.view === "player" && state.playerSportsMode;
   const useSportsPlayer = sportsFirstPlayerEnabled() && (state.view === "sports" || keepSportsPlayer);
   if (state.view !== "player") {
@@ -6744,6 +6849,7 @@ async function playChannel(channel) {
   state.playerSportsOpen = useSportsPlayer;
   state.view = "player";
   render();
+  if (options.historyMode !== "none") commitAppRoute("push");
   try {
     await ensurePlayerLibraries(liveRewindEnabled() && channel.streamFormat !== "hls" ? "" : channel.streamFormat);
   } catch (_) {
@@ -6922,6 +7028,10 @@ function handlePlayerAction(action, button) {
   }
 }
 function returnFromPlayer() {
+  if (window.history && window.history.state && window.history.state[appHistoryStateKey]) {
+    window.history.back();
+    return;
+  }
   const context = state.playerReturnContext;
   if (!context) {
     setView("live");
@@ -7890,6 +8000,12 @@ if (globalSearch) {
     setView("search");
   };
 }
+const initialAppRouteSnapshot = readAppRouteHash();
+if (initialAppRouteSnapshot.view !== "player") applyAppRouteSnapshot(initialAppRouteSnapshot);
+window.addEventListener("popstate", function(event) {
+  const snapshot = event.state && event.state[appHistoryStateKey] ? event.state[appHistoryStateKey] : readAppRouteHash();
+  restoreAppRoute(snapshot);
+});
 window.addEventListener("resize", function() {
   if (state.view === "guide") scheduleGuideWindowRender();
 });
@@ -7900,6 +8016,10 @@ window.addEventListener("beforeunload", function() {
   });
 });
 startGuideAutoRefresh();
-(isAdminRoute ? loadAdminApp() : loadApp()).catch(function() {
+const initialAppLoad = isAdminRoute ? loadAdminApp() : loadApp();
+initialAppLoad.then(function() {
+  if (initialAppRouteSnapshot.view === "player" && initialAppRouteSnapshot.channelID) restoreAppRoute(initialAppRouteSnapshot);
+  else commitAppRoute("replace");
+}).catch(function() {
   byId("view").innerHTML = emptyStateHTML(isAdminRoute ? "Unable to load Dispatcharr Admin." : "Unable to load Live TV.", isAdminRoute ? "Refresh this page or return to Silo Admin." : "Check your Dispatcharr connection in Dispatcharr Admin, then refresh this page.");
 });

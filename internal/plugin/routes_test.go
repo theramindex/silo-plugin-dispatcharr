@@ -2809,6 +2809,52 @@ func TestPlayerUIChannelGroupTilesIncludeSemanticGlyphs(t *testing.T) {
 	}
 }
 
+func TestPlayerAppUsesBrowserHistoryForNavigation(t *testing.T) {
+	t.Parallel()
+
+	script := playerAppJavaScript()
+	functionSource := func(name string) string {
+		start := strings.Index(script, "function "+name+"(")
+		if start < 0 {
+			return ""
+		}
+		rest := script[start+len("function "+name+"("):]
+		next := strings.Index(rest, "\nfunction ")
+		if next < 0 {
+			return script[start:]
+		}
+		return script[start : start+len("function "+name+"(")+next]
+	}
+	for _, want := range []string{
+		`function appRouteSnapshot()`,
+		`function appRouteHash(snapshot)`,
+		`function readAppRouteHash()`,
+		`function commitAppRoute(mode)`,
+		`function restoreAppRoute(snapshot)`,
+		`window.history.pushState`,
+		`window.history.replaceState`,
+		`window.addEventListener("popstate"`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("browser navigation history must include %q", want)
+		}
+	}
+	for functionName := range map[string]bool{
+		"setView":          true,
+		"setCategory":      true,
+		"setSportsTab":     true,
+		"setSportsLeague":  true,
+		"openSportsEvent":  true,
+		"setEventTab":      true,
+		"setEventCategory": true,
+		"setAdminTab":      true,
+	} {
+		if !strings.Contains(functionSource(functionName), `commitAppRoute("push")`) {
+			t.Fatalf("%s must create a browser history entry", functionName)
+		}
+	}
+}
+
 func TestHTTPRoutesServerAdminSettingsRouteReportsHostPersistFailure(t *testing.T) {
 	t.Parallel()
 
