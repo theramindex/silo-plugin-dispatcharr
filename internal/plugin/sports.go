@@ -192,28 +192,35 @@ func sportsLeagueEventTeams(events []SportsEvent, leagueID string) []SportsTeam 
 }
 
 func mergeSportsLeagueRosterTeams(leagueID, leagueName, sportName string, groups ...[]SportsTeam) []SportsTeam {
-	byKey := map[string]SportsTeam{}
-	order := make([]string, 0)
+	identities := make([]SportsTeam, 0)
 	for _, group := range groups {
 		for _, team := range group {
 			team = normalizeSportsTeam(team)
 			if strings.TrimSpace(team.Name) == "" {
 				continue
 			}
-			identity := applySportsIdentityFallbacks(SportsEvent{
+			identities = append(identities, applySportsIdentityFallbacks(SportsEvent{
 				LeagueID: leagueID, LeagueName: leagueName, SportName: sportName, Home: team,
-			}).Home
-			key := normalizeMatchText(identity.Name)
-			if key == "" {
-				key = identity.ID
-			}
-			if existing, ok := byKey[key]; ok {
-				identity = mergeSportsTeamIdentity(existing, identity)
-			} else {
-				order = append(order, key)
-			}
-			byKey[key] = identity
+			}).Home)
 		}
+	}
+	nicknameAliases := uniqueSportsTeamNicknameAliases(identities)
+	byKey := map[string]SportsTeam{}
+	order := make([]string, 0)
+	for _, identity := range identities {
+		key := normalizeMatchText(identity.Name)
+		if canonical := nicknameAliases[key]; canonical != "" {
+			key = canonical
+		}
+		if key == "" {
+			key = identity.ID
+		}
+		if existing, ok := byKey[key]; ok {
+			identity = mergeSportsTeamIdentity(existing, identity)
+		} else {
+			order = append(order, key)
+		}
+		byKey[key] = identity
 	}
 	teams := make([]SportsTeam, 0, len(order))
 	for _, key := range order {
@@ -223,11 +230,40 @@ func mergeSportsLeagueRosterTeams(leagueID, leagueName, sportName string, groups
 	return teams
 }
 
+func uniqueSportsTeamNicknameAliases(teams []SportsTeam) map[string]string {
+	candidates := map[string]map[string]bool{}
+	for _, team := range teams {
+		fullName := normalizeMatchText(team.Name)
+		parts := strings.Fields(fullName)
+		for start := 1; start < len(parts); start++ {
+			alias := strings.Join(parts[start:], " ")
+			if candidates[alias] == nil {
+				candidates[alias] = map[string]bool{}
+			}
+			candidates[alias][fullName] = true
+		}
+	}
+	aliases := map[string]string{}
+	for alias, fullNames := range candidates {
+		if len(fullNames) != 1 {
+			continue
+		}
+		for fullName := range fullNames {
+			aliases[alias] = fullName
+		}
+	}
+	return aliases
+}
+
 func mergeSportsTeamIdentity(primary, supplemental SportsTeam) SportsTeam {
 	primary.ID = firstNonEmpty(primary.ID, supplemental.ID)
-	primary.Name = firstNonEmpty(primary.Name, supplemental.Name)
+	if primary.Name == "" || len(normalizeMatchText(supplemental.Name)) > len(normalizeMatchText(primary.Name)) {
+		primary.Name = supplemental.Name
+	}
 	primary.Abbreviation = firstNonEmpty(primary.Abbreviation, supplemental.Abbreviation)
-	primary.LogoURL = firstNonEmpty(primary.LogoURL, supplemental.LogoURL)
+	if primary.LogoURL == "" || (strings.HasPrefix(primary.LogoURL, gameThumbsPublicBaseURL+"/") && supplemental.LogoURL != "" && !strings.HasPrefix(supplemental.LogoURL, gameThumbsPublicBaseURL+"/")) {
+		primary.LogoURL = supplemental.LogoURL
+	}
 	primary.PrimaryColor = firstNonEmpty(primary.PrimaryColor, supplemental.PrimaryColor)
 	primary.SecondaryColor = firstNonEmpty(primary.SecondaryColor, supplemental.SecondaryColor)
 	primary.Favorite = primary.Favorite || supplemental.Favorite

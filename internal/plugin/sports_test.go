@@ -1398,6 +1398,29 @@ func TestSportsLeagueTeamsRouteMergesFullRosterWithAiringTeams(t *testing.T) {
 	}
 }
 
+func TestMergeSportsLeagueRosterTeamsDeduplicatesUniqueTeamNicknameAliases(t *testing.T) {
+	t.Parallel()
+
+	teams := mergeSportsLeagueRosterTeams("nfl", "NFL", "Football",
+		[]SportsTeam{
+			{ID: "event-rams-full", Name: "Los Angeles Rams"},
+			{ID: "event-rams-short", Name: "Rams"},
+			{ID: "event-giants", Name: "New York Giants"},
+		},
+		[]SportsTeam{
+			{ID: "roster-rams", Name: "Los Angeles Rams", Abbreviation: "LAR", LogoURL: "https://images.example/rams.png"},
+			{ID: "roster-giants", Name: "New York Giants", Abbreviation: "NYG"},
+		},
+	)
+
+	if len(teams) != 2 {
+		t.Fatalf("expected one card per canonical team, got %+v", teams)
+	}
+	if teams[0].Name != "Los Angeles Rams" || teams[0].Abbreviation != "LAR" || teams[0].LogoURL != "https://images.example/rams.png" {
+		t.Fatalf("expected the Rams alias to merge into the canonical roster identity, got %+v", teams[0])
+	}
+}
+
 func TestSportarrSportsProviderCoalescesConcurrentTeamRequests(t *testing.T) {
 	t.Parallel()
 
