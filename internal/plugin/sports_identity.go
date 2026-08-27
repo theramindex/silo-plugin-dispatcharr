@@ -10,6 +10,7 @@ import (
 )
 
 const gameThumbsPublicBaseURL = "https://game-thumbs.swvn.io"
+const sportsLogosRawBaseURL = "https://raw.githubusercontent.com/alexanderthebadatcoding/Sports-Logos/main"
 
 const (
 	aflLeagueLogoURL = "https://r2.thesportsdb.com/images/media/league/badge/wvx4721525519372.png"
@@ -115,6 +116,11 @@ var aflTeamLogoFiles = map[string]string{
 	"western bulldogs":       "Bulldogs.png",
 }
 
+var referencedSportsTeamLogoPaths = map[string]string{
+	"austin fc": "/MLS/ATX.png",
+	"toluca":    "/MLS/TOL.png",
+}
+
 var gameThumbsTeamLeagueRoutes = []sportsIdentityRoute{
 	{regexp.MustCompile(`(?i)\b(?:atlanta hawks|boston celtics|brooklyn nets|charlotte hornets|chicago bulls|cleveland cavaliers|dallas mavericks|denver nuggets|detroit pistons|golden state warriors|houston rockets|indiana pacers|(?:la|los angeles) clippers|(?:la|los angeles) lakers|memphis grizzlies|miami heat|milwaukee bucks|minnesota timberwolves|new orleans pelicans|new york knicks|oklahoma city thunder|orlando magic|philadelphia 76ers|phoenix suns|portland trail blazers|sacramento kings|san antonio spurs|toronto raptors|utah jazz|washington wizards)\b`), "nba"},
 	{regexp.MustCompile(`(?i)\b(?:anaheim ducks|boston bruins|buffalo sabres|calgary flames|carolina hurricanes|chicago blackhawks|colorado avalanche|columbus blue jackets|dallas stars|detroit red wings|edmonton oilers|florida panthers|los angeles kings|minnesota wild|montreal canadiens|nashville predators|new jersey devils|new york islanders|new york rangers|ottawa senators|philadelphia flyers|pittsburgh penguins|san jose sharks|seattle kraken|st louis blues|st\. louis blues|tampa bay lightning|toronto maple leafs|utah mammoth|utah hockey club|vancouver canucks|vegas golden knights|washington capitals|winnipeg jets)\b`), "nhl"},
@@ -124,7 +130,6 @@ var gameThumbsTeamLeagueRoutes = []sportsIdentityRoute{
 }
 
 var gameThumbsChelseaYouthSuffix = regexp.MustCompile(`(?i)\bchelsea\s+(?:u21|under[ -]?21s?)\b`)
-var compoundBoxingParticipant = regexp.MustCompile(`(?i)\s+(?:&|and)\s+`)
 var collegeSportsIdentity = regexp.MustCompile(`(?i)\b(?:cfp|ncaa|ncaaf|college[- ]+(?:football|soccer|basketball|baseball|volleyball|softball|hockey))\b`)
 
 func applySportsIdentityFallbacks(event SportsEvent) SportsEvent {
@@ -153,6 +158,8 @@ func applySpecialSportsIdentityFallbacks(event SportsEvent) SportsEvent {
 	}
 	event.Away = applyCountryTeamIdentity(event.Away)
 	event.Home = applyCountryTeamIdentity(event.Home)
+	event.Away = applyReferencedSportsTeamIdentity(event.Away)
+	event.Home = applyReferencedSportsTeamIdentity(event.Home)
 	if strings.Contains(identityText, "afl") || strings.Contains(identityText, "australian football") || strings.Contains(identityText, "afl premiership") {
 		if event.LeagueLogoURL == "" {
 			event.LeagueLogoURL = aflLeagueLogoURL
@@ -161,6 +168,16 @@ func applySpecialSportsIdentityFallbacks(event SportsEvent) SportsEvent {
 		event.Home = applyAFLTeamIdentity(event.Home)
 	}
 	return event
+}
+
+func applyReferencedSportsTeamIdentity(team SportsTeam) SportsTeam {
+	if team.LogoURL != "" {
+		return team
+	}
+	if logoPath := referencedSportsTeamLogoPaths[normalizeSportsIdentityText(team.Name)]; logoPath != "" {
+		team.LogoURL = sportsLogosRawBaseURL + logoPath
+	}
+	return team
 }
 
 func applyNCAATeamIdentity(team SportsTeam) SportsTeam {
@@ -201,7 +218,7 @@ func applySportsTeamIdentityFallback(team SportsTeam, eventLeagueSlug string) Sp
 	if team.LogoURL != "" || !usableSportsIdentityName(team.Name) {
 		return team
 	}
-	if eventLeagueSlug == "boxing" && compoundBoxingParticipant.MatchString(team.Name) {
+	if eventLeagueSlug == "boxing" {
 		team.LogoURL = gameThumbsLeagueLogoURL(eventLeagueSlug)
 		return team
 	}
