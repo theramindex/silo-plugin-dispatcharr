@@ -20,6 +20,11 @@ type Programme struct {
 	Title      string   `xml:"title"`
 	Desc       string   `xml:"desc"`
 	Categories []string `xml:"category"`
+	Icon       Icon     `xml:"icon"`
+}
+
+type Icon struct {
+	Src string `xml:"src,attr"`
 }
 
 func Parse(data []byte) (Document, error) {

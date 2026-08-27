@@ -36,6 +36,7 @@ func MapXMLTVProgramme(channelID string, programme xmltv.Programme) model.Progra
 		ChannelID:  channelID,
 		Title:      programme.Title,
 		Summary:    programme.Desc,
+		ImageURL:   programme.Icon.Src,
 		Categories: append([]string(nil), programme.Categories...),
 		StartUnix:  startUnix,
 		EndUnix:    endUnix,

@@ -1232,6 +1232,15 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.PlayerReturnContextRestored {
 		t.Fatalf("expected player exit to restore browse and scroll context: %+v", result)
 	}
+	if !result.OnLaterDistinctAiringsPreserved || !result.OnLaterRepeatAiringsPreserved {
+		t.Fatalf("expected On Later to preserve distinct and grouped repeat airings: %+v", result)
+	}
+	if !result.OnLaterShelfIncremental || !result.OnLaterAllGuidePicksExhaustive {
+		t.Fatalf("expected On Later shelves to expose every guide entry incrementally: %+v", result)
+	}
+	if !result.OnLaterMalformedArtworkRejected {
+		t.Fatalf("expected On Later cards to reject unsafe artwork URLs: %+v", result)
+	}
 }
 
 func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
@@ -1362,6 +1371,11 @@ type virtualAliasResult struct {
 	RecordingDeniedHidden                bool   `json:"recordingDeniedHidden"`
 	RecordingAdminShown                  bool   `json:"recordingAdminShown"`
 	PlayerReturnContextRestored          bool   `json:"playerReturnContextRestored"`
+	OnLaterDistinctAiringsPreserved      bool   `json:"onLaterDistinctAiringsPreserved"`
+	OnLaterShelfIncremental              bool   `json:"onLaterShelfIncremental"`
+	OnLaterAllGuidePicksExhaustive       bool   `json:"onLaterAllGuidePicksExhaustive"`
+	OnLaterMalformedArtworkRejected      bool   `json:"onLaterMalformedArtworkRejected"`
+	OnLaterRepeatAiringsPreserved        bool   `json:"onLaterRepeatAiringsPreserved"`
 }
 
 func extractPlayerScript(t *testing.T) string {
@@ -1713,6 +1727,60 @@ JSON.stringify((function() {
 	const epgOverlapResolved = epgProgramCells.length >= 2 && epgProgramCells[1].left + 0.001 >= epgProgramCells[0].left + epgProgramCells[0].width;
 	const epgLiveTitleMarker = epgHTML.indexOf('class="epg-live-marker" aria-hidden="true"') !== -1 && epgHTML.indexOf('First overlapping program with a very long title Live"') !== -1;
 const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(Date.now() / 1000) / 1800) * 1800;
+	const sameTitlePrograms = [
+		{ id: "same-a", channelId: "channel:argentina-sports", title: "Local News", startUnix: epgWindow.start + 7200, endUnix: epgWindow.start + 10800 },
+		{ id: "same-b", channelId: "channel:argentina-sports", title: "Local News", startUnix: epgWindow.start + 10800, endUnix: epgWindow.start + 14400 }
+	];
+	const onLaterDistinctAiringsPreserved = distinctOnLaterPrograms(sameTitlePrograms).length === 2;
+	const shelfPrograms = Array.from({ length: 20 }, function(_, index) { return { id: "shelf-" + index, channelId: "channel:argentina-sports", title: "Program " + index, startUnix: epgWindow.start + 7200 + index * 1800, endUnix: epgWindow.start + 9000 + index * 1800 }; });
+	state.onLaterShelfLimits = {};
+	const limitedShelf = onLaterShelfHTML("Test Shelf", shelfPrograms);
+	state.onLaterShelfLimits[onLaterShelfKey("Test Shelf")] = 36;
+	const expandedShelf = onLaterShelfHTML("Test Shelf", shelfPrograms);
+	let restoredShelfFocus = false;
+	const restoredCard = { offsetLeft: 640, querySelector: function() { return { focus: function() { restoredShelfFocus = true; } }; } };
+	const restoredRail = { scrollLeft: 0, querySelectorAll: function() { return Array.from({ length: 19 }, function(_, index) { return index === 18 ? restoredCard : {}; }); } };
+	const restoredShelf = { querySelector: function() { return restoredRail; } };
+	const restoreView = document.getElementById("view");
+	const originalRestoreQuery = restoreView.querySelector;
+	restoreView.querySelector = function(selector) { return selector === '[data-onlater-shelf="test-shelf"]' ? restoredShelf : null; };
+	const shelfPositionRestored = restoreOnLaterShelfPosition("test-shelf", 18, 240);
+	restoreView.querySelector = originalRestoreQuery;
+	const onLaterShelfIncremental = limitedShelf.indexOf('data-onlater-more="test-shelf"') !== -1
+		&& expandedShelf.indexOf('data-onlater-more="test-shelf"') === -1
+		&& shelfPositionRestored && restoredShelfFocus && restoredRail.scrollLeft === 624;
+	const farFuture = Math.floor(Date.now() / 1000) + 12 * 86400;
+	const farProgram = { id: "far-guide", channelId: "channel:argentina-sports", title: "Far Future Drama", startUnix: farFuture, endUnix: farFuture + 3600 };
+	const defaultShelves = onLaterShelves([farProgram], "all", "all");
+	const allGuideShelf = defaultShelves.find(function(shelf) { return shelf.title === "All Guide Picks"; });
+	const onLaterAllGuidePicksExhaustive = !!allGuideShelf && allGuideShelf.programs.some(function(program) { return program.id === "far-guide"; });
+	const malformedArtworkCard = renderProgramDiscoveryCard({ id: "unsafe-art", channelId: "channel:argentina-sports", title: "Unsafe Art", imageUrl: "javascript:alert(1)", startUnix: farFuture, endUnix: farFuture + 3600 });
+	const onLaterMalformedArtworkRejected = malformedArtworkCard.indexOf('javascript:alert') === -1 && malformedArtworkCard.indexOf('on-later-card-fallback') !== -1;
+	const repeatAiringCard = renderOnLaterAiringCard({ key: "Local News", title: "Local News", programs: sameTitlePrograms });
+	const singleAiringCard = renderOnLaterAiringCard({ key: "Local News", title: "Local News", programs: [sameTitlePrograms[0]] });
+	const sameTitleDifferentChannel = Object.assign({}, sameTitlePrograms[0], { id: "same-other-channel", channelId: "channel:argentina-city" });
+	const otherChannelAiringCard = renderOnLaterAiringCard({ key: "Local News", title: "Local News", programs: [sameTitleDifferentChannel] });
+	const groupedSameChannel = groupedUpcomingAirings(sameTitlePrograms, "");
+	const groupedDifferentChannels = groupedUpcomingAirings([sameTitlePrograms[0], sameTitleDifferentChannel], "");
+	const originalOnLaterPrograms = state.app.programs;
+	state.app.programs = originalOnLaterPrograms.concat(sameTitlePrograms, [sameTitleDifferentChannel]);
+	rebuildProgramIndex();
+	state.searchType = "programs";
+	state.searchAiringChannel = "channel:argentina-city";
+	const scopedSearchSections = searchResultSections("local news");
+	const scopedGuidePrograms = scopedSearchSections.find(function(section) { return section.id === "programs"; });
+	const scopedAiringResults = !!scopedGuidePrograms && scopedGuidePrograms.rows.length === 1
+		&& scopedGuidePrograms.rows[0].attrs.indexOf('data-search-program-channel="channel:argentina-city"') !== -1;
+	state.app.programs = originalOnLaterPrograms;
+	rebuildProgramIndex();
+	state.searchAiringChannel = "";
+	const onLaterRepeatAiringsPreserved = repeatAiringCard.indexOf('data-search-airing="Local News"') !== -1
+		&& repeatAiringCard.indexOf('data-search-airing-channel="channel:argentina-sports"') !== -1
+		&& repeatAiringCard.indexOf('2 airings') !== -1
+		&& singleAiringCard.indexOf('data-search-airing="Local News"') !== -1
+		&& singleAiringCard.indexOf('1 airing') !== -1
+		&& otherChannelAiringCard.indexOf('data-search-airing-channel="channel:argentina-city"') !== -1
+		&& groupedSameChannel.length === 1 && groupedDifferentChannels.length === 2 && scopedAiringResults;
 	state.view = "home";
 	state.category = "";
 	state.query = "Second overlapping";
@@ -1880,7 +1948,12 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 		detailsLiveTag: detailsLiveTag,
 		recordingDeniedHidden: recordingDeniedControlsHidden,
 		recordingAdminShown: recordingAdminControlsShown,
-		playerReturnContextRestored: playerReturnContextRestored
+		playerReturnContextRestored: playerReturnContextRestored,
+		onLaterDistinctAiringsPreserved: onLaterDistinctAiringsPreserved,
+		onLaterShelfIncremental: onLaterShelfIncremental,
+		onLaterAllGuidePicksExhaustive: onLaterAllGuidePicksExhaustive,
+		onLaterMalformedArtworkRejected: onLaterMalformedArtworkRejected,
+		onLaterRepeatAiringsPreserved: onLaterRepeatAiringsPreserved
 	};
 })())
 `+"`"+`, sandbox);
@@ -3432,6 +3505,11 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`class="event-card-head`,
 		`class="event-card-category`,
 		`class=\"event-card-title`,
+		`function onLaterShelves(programs, time, type)`,
+		`class=\"on-later-shelf-rail`,
+		`function broadcastEventShelves(events)`,
+		`class=\"event-shelf-rail`,
+		`safeSportsMediaURL(program && program.imageUrl)`,
 		`class="recovery-panel`,
 		`>Retry<`,
 		`>Reload<`,
@@ -3766,6 +3844,10 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.search-result-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));`,
 		`.organization-preview`,
 		`.events-board {`,
+		`.on-later-shelf-rail, .event-shelf-rail {`,
+		`.on-later-program-card {`,
+		`.on-later-card-media {`,
+		`.event-shelf-rail > .event-card {`,
 		`.event-card-body.no-art`,
 		`.event-card { grid-template-areas: "visual" "body" "channels";`,
 		`.event-card-visual { grid-area: visual;`,

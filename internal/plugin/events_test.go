@@ -25,7 +25,7 @@ func TestHTTPRoutesServerEventsDetectsGuidePrograms(t *testing.T) {
 				{ID: "ch:news", Name: "News Now", CategoryID: "news", CategoryName: "News"},
 			},
 			Programs: []model.Program{
-				{ID: "p:oscars", ChannelID: "ch:abc", Title: "The Oscars", Summary: "Academy Awards ceremony", StartUnix: start, EndUnix: start + 3*3600},
+				{ID: "p:oscars", ChannelID: "ch:abc", Title: "The Oscars", Summary: "Academy Awards ceremony", ImageURL: "https://images.example/oscars.jpg", StartUnix: start, EndUnix: start + 3*3600},
 				{ID: "p:news", ChannelID: "ch:news", Title: "Evening News", StartUnix: start, EndUnix: start + 3600},
 			},
 			Content: model.ContentState{
@@ -45,6 +45,9 @@ func TestHTTPRoutesServerEventsDetectsGuidePrograms(t *testing.T) {
 	event := payload.Events[0]
 	if event.CategoryID != "awards" || event.Keyword == "" {
 		t.Fatalf("expected awards event with matched keyword, got %+v", event)
+	}
+	if event.ImageURL != "https://images.example/oscars.jpg" {
+		t.Fatalf("expected guide artwork on the event, got %+v", event)
 	}
 	assertBroadcastEventMatch(t, event.Channels, "ch:abc")
 	assertNoBroadcastEventMatch(t, event.Channels, "ch:news")

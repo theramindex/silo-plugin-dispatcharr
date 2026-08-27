@@ -1,0 +1,15 @@
+{
+  "id": "epg-2",
+  "title": "Festival Special",
+  "description": "Live festival coverage.",
+  "start_time": "2026-08-25T20:00:00Z",
+  "end_time": "2026-08-25T22:00:00Z",
+  "custom_properties": {
+    "icon": "https://images.example/icon.jpg",
+    "images": [
+      { "url": "https://images.example/poster.jpg", "type": "poster" },
+      { "url": "https://images.example/backdrop.jpg", "type": "backdrop" }
+    ]
+  },
+  "channels": [{ "id": "17" }]
+}

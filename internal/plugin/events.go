@@ -35,6 +35,7 @@ type BroadcastEvent struct {
 	Name         string                 `json:"name"`
 	ShortName    string                 `json:"shortName,omitempty"`
 	Description  string                 `json:"description,omitempty"`
+	ImageURL     string                 `json:"imageUrl,omitempty"`
 	Keyword      string                 `json:"keyword,omitempty"`
 	StartUnix    int64                  `json:"startUnix"`
 	EndUnix      int64                  `json:"endUnix,omitempty"`
@@ -336,6 +337,7 @@ func detectGuideBroadcastEvents(snapshot cache.Snapshot, now time.Time, rules []
 				Name:         program.Title,
 				ShortName:    program.Title,
 				Description:  program.Summary,
+				ImageURL:     program.ImageURL,
 				Keyword:      keyword,
 				StartUnix:    program.StartUnix,
 				EndUnix:      program.EndUnix,
@@ -345,6 +347,9 @@ func detectGuideBroadcastEvents(snapshot cache.Snapshot, now time.Time, rules []
 		}
 		if event.Description == "" {
 			event.Description = program.Summary
+		}
+		if event.ImageURL == "" {
+			event.ImageURL = program.ImageURL
 		}
 		match := SportsChannelMatch{
 			ID:           channel.ID,

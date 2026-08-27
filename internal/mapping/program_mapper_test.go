@@ -2,6 +2,7 @@ package mapping
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/dispatcharr"
@@ -37,6 +38,51 @@ func TestMapDispatcharrProgramPreservesRichSearchCategories(t *testing.T) {
 	}
 }
 
+func TestMapDispatcharrProgramPreservesProgramArtwork(t *testing.T) {
+	t.Parallel()
+
+	// Fixture mirrors Dispatcharr's ProgramSearchResultSerializer contract and
+	// XMLTV custom_properties extraction (icon plus images[{url,type}]).
+	payload, err := os.ReadFile("testdata/dispatcharr-program-search-artwork.json")
+	if err != nil {
+		t.Fatalf("read Dispatcharr program search fixture: %v", err)
+	}
+	var result dispatcharr.ProgramSearchResult
+	if err := json.Unmarshal(payload, &result); err != nil {
+		t.Fatalf("decode Dispatcharr artwork program: %v", err)
+	}
+	program := MapDispatcharrProgram("dispatcharr:music", result.Program)
+	if program.ImageURL != "https://images.example/backdrop.jpg" {
+		t.Fatalf("expected the landscape program image to survive mapping, got %q", program.ImageURL)
+	}
+}
+
+func TestDispatcharrProgramArtworkURLPriority(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		properties dispatcharr.ProgramCustomProperties
+		want       string
+	}{
+		{name: "icon only", properties: dispatcharr.ProgramCustomProperties{Icon: "icon"}, want: "icon"},
+		{name: "poster over icon", properties: dispatcharr.ProgramCustomProperties{Icon: "icon", Images: []dispatcharr.ProgramImage{{URL: "poster", Type: "poster"}}}, want: "poster"},
+		{name: "backdrop over poster", properties: dispatcharr.ProgramCustomProperties{Images: []dispatcharr.ProgramImage{{URL: "poster", Type: "poster"}, {URL: "backdrop", Type: "backdrop"}}}, want: "backdrop"},
+		{name: "landscape alias", properties: dispatcharr.ProgramCustomProperties{Images: []dispatcharr.ProgramImage{{URL: "wide", Type: "landscape"}}}, want: "wide"},
+		{name: "blank ignored", properties: dispatcharr.ProgramCustomProperties{Icon: "icon", Images: []dispatcharr.ProgramImage{{URL: "", Type: "backdrop"}}}, want: "icon"},
+		{name: "unknown fallback", properties: dispatcharr.ProgramCustomProperties{Images: []dispatcharr.ProgramImage{{URL: "generic", Type: "banner"}}}, want: "generic"},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if got := dispatcharrProgramArtworkURL(test.properties); got != test.want {
+				t.Fatalf("dispatcharrProgramArtworkURL() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
 func TestMapXMLTVProgrammePreservesSportsCategories(t *testing.T) {
 	t.Parallel()
 
@@ -47,5 +93,18 @@ func TestMapXMLTVProgrammePreservesSportsCategories(t *testing.T) {
 	program := MapXMLTVProgramme("m3u:espn", doc.Programmes[0])
 	if len(program.Categories) != 2 || program.Categories[0] != "Sports event" || program.Categories[1] != "Football" {
 		t.Fatalf("expected XMLTV sports categories to survive mapping, got %+v", program.Categories)
+	}
+}
+
+func TestMapXMLTVProgrammePreservesProgramIcon(t *testing.T) {
+	t.Parallel()
+
+	doc, err := xmltv.Parse([]byte(`<tv><programme channel="music.us" start="20260825200000 +0000" stop="20260825230000 +0000"><title>Festival Special</title><icon src="https://images.example/festival.jpg" /></programme></tv>`))
+	if err != nil || len(doc.Programmes) != 1 {
+		t.Fatalf("expected one parsed XMLTV programme, got %+v, %v", doc.Programmes, err)
+	}
+	program := MapXMLTVProgramme("m3u:music", doc.Programmes[0])
+	if program.ImageURL != "https://images.example/festival.jpg" {
+		t.Fatalf("expected XMLTV programme artwork to survive mapping, got %q", program.ImageURL)
 	}
 }
