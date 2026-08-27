@@ -13,9 +13,10 @@ const gameThumbsPublicBaseURL = "https://game-thumbs.swvn.io"
 const sportsLogosRawBaseURL = "https://raw.githubusercontent.com/alexanderthebadatcoding/Sports-Logos/main"
 
 const (
-	aflLeagueLogoURL = "https://r2.thesportsdb.com/images/media/league/badge/wvx4721525519372.png"
-	aflTeamLogoBase  = "https://squiggle.com.au/wp-content/themes/squiggle/assets/images/"
-	ncaaTeamLogoBase = "https://a.espncdn.com/i/teamlogos/ncaa/500/"
+	aflLeagueLogoURL      = "https://r2.thesportsdb.com/images/media/league/badge/wvx4721525519372.png"
+	aflTeamLogoBase       = "https://squiggle.com.au/wp-content/themes/squiggle/assets/images/"
+	formulaELeagueLogoURL = "https://upload.wikimedia.org/wikipedia/commons/8/8c/Formula-e-logo-championship_2023.svg"
+	ncaaTeamLogoBase      = "https://a.espncdn.com/i/teamlogos/ncaa/500/"
 )
 
 type sportsIdentityRoute struct {
@@ -152,6 +153,9 @@ func applySportsIdentityFallbacks(event SportsEvent) SportsEvent {
 
 func applySpecialSportsIdentityFallbacks(event SportsEvent) SportsEvent {
 	identityText := normalizeSportsIdentityText(strings.Join([]string{event.LeagueID, event.LeagueName, event.SportName, event.Name}, " "))
+	if event.LeagueLogoURL == "" && formulaERacePattern.MatchString(identityText) {
+		event.LeagueLogoURL = formulaELeagueLogoURL
+	}
 	if collegeSportsIdentity.MatchString(identityText) {
 		event.Away = applyNCAATeamIdentity(event.Away)
 		event.Home = applyNCAATeamIdentity(event.Home)

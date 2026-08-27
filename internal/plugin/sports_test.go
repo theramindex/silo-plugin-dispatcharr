@@ -479,6 +479,22 @@ func TestNormalizeSportsEventsAddsGameThumbsIdentityFallbacks(t *testing.T) {
 	}
 }
 
+func TestSportsIdentityFallbacksAddFormulaELeagueLogo(t *testing.T) {
+	t.Parallel()
+
+	event := applySportsIdentityFallbacks(SportsEvent{
+		LeagueID:   "formula-e",
+		LeagueName: "Formula E",
+		SportName:  "Motorsport",
+		Name:       "Formule : Formule E v Šanghaji",
+	})
+
+	const want = "https://upload.wikimedia.org/wikipedia/commons/8/8c/Formula-e-logo-championship_2023.svg"
+	if event.LeagueLogoURL != want {
+		t.Fatalf("expected Formula E series logo %q, got %q", want, event.LeagueLogoURL)
+	}
+}
+
 func TestNormalizeSportsEventsCanonicalizesKnownLeagueIDs(t *testing.T) {
 	t.Parallel()
 
