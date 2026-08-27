@@ -3937,7 +3937,8 @@ function renderEventsPage() {
 }
 function renderBroadcastEventShelf(title, events) {
   if (!events.length) return "";
-  return "<section class=\"event-shelf\"><header><h3>" + escapeHTML(title) + "</h3><span>" + escapeHTML(String(events.length)) + "</span></header><div class=\"event-shelf-rail\">" + events.map(renderBroadcastEventCard).join("") + "</div></section>";
+  const countLabel = events.length + " event" + (events.length === 1 ? "" : "s");
+  return "<section class=\"event-shelf\"><header><h3>" + escapeHTML(title) + "</h3><span>" + escapeHTML(countLabel) + "</span></header><div class=\"event-shelf-rail\">" + events.map(renderBroadcastEventCard).join("") + "</div></section>";
 }
 function broadcastEventShelves(events) {
   if (state.eventCategory) return [{ title: eventCategoryName(state.eventCategory) || "Events", events: events }];

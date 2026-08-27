@@ -3821,6 +3821,12 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 			t.Fatalf("media-first event cards must preserve available event data and interaction %q", want)
 		}
 	}
+	eventShelf := functionBody("renderBroadcastEventShelf")
+	for _, want := range []string{`countLabel`, `events.length === 1`, `event-shelf-rail`} {
+		if !strings.Contains(eventShelf, want) {
+			t.Fatalf("event shelves must provide a readable count and responsive card collection via %q", want)
+		}
+	}
 	normalizeEventRules := functionBody("normalizeEventKeywordRows")
 	for _, want := range []string{`excludeKeywords`, `eventSeries`, `groupWindowMinutes`} {
 		if !strings.Contains(normalizeEventRules, want) {
@@ -3853,10 +3859,11 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.on-later-program-card {`,
 		`.on-later-card-media {`,
 		`.event-shelf-rail > .event-card {`,
+		`.event-shelf-rail { grid-auto-flow: row; grid-template-columns: repeat(auto-fill, minmax(min(18rem, 100%), 22rem));`,
 		`.event-card-body.no-art`,
 		`.event-card { grid-template-areas: "visual" "body" "channels";`,
 		`.event-card-visual { grid-area: visual;`,
-		`.event-card-media {`,
+		`.event-card-media { aspect-ratio: 16 / 9;`,
 		`.event-card-head {`,
 		`.sports-feature {`,
 		`.sports-feature.no-art {`,
