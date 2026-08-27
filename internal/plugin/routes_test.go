@@ -3827,6 +3827,18 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 			t.Fatalf("event shelves must provide a readable count and responsive card collection via %q", want)
 		}
 	}
+	eventChannels := functionBody("renderBroadcastEventChannels")
+	for _, want := range []string{`event-card-channels`, `event-footer`} {
+		if !strings.Contains(eventChannels, want) {
+			t.Fatalf("event channels must render as a flat card footer via %q", want)
+		}
+	}
+	channelChip := functionBody("renderSportsChannelChip")
+	for _, want := range []string{`event-channel-link`, `event-channel-prefix`, `event-channel-chevron`, `Watch on`} {
+		if !strings.Contains(channelChip, want) {
+			t.Fatalf("event channel footers must preserve channel identity and playback affordance via %q", want)
+		}
+	}
 	normalizeEventRules := functionBody("normalizeEventKeywordRows")
 	for _, want := range []string{`excludeKeywords`, `eventSeries`, `groupWindowMinutes`} {
 		if !strings.Contains(normalizeEventRules, want) {
@@ -3865,6 +3877,9 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.event-card-visual { grid-area: visual;`,
 		`.event-card-media { aspect-ratio: 16 / 9;`,
 		`.event-card-head {`,
+		`.event-card-channels { display: grid; gap: 0; }`,
+		`.event-card-channels .event-channel-link {`,
+		`.event-channel-prefix {`,
 		`.sports-feature {`,
 		`.sports-feature.no-art {`,
 		`.sports-feature-fallback {`,

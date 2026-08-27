@@ -491,8 +491,17 @@ button { cursor: pointer; touch-action: manipulation; }
 .event-meta { display: flex; flex-wrap: wrap; gap: 0.35rem; min-width: 0; }
 .event-meta span { border: 1px solid var(--line); border-radius: 999px; background: var(--rail-2); color: var(--muted); padding: 0.16rem 0.44rem; font-size: 0.68rem; font-weight: 850; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .event-meta .event-keyword { color: var(--text); }
-.event-card > .sports-channels { justify-content: stretch; padding: 0.65rem 0.85rem 0.8rem; border-top: 1px solid color-mix(in srgb, var(--line) 72%, transparent); }
+.event-card > .sports-channels { justify-content: stretch; padding: 0; border-top: 1px solid color-mix(in srgb, var(--line) 72%, transparent); }
 .event-card > .sports-channels .sports-channel-wrap { justify-self: stretch; width: 100%; max-width: none; min-width: 0; }
+.event-card-channels { display: grid; gap: 0; }
+.event-card-channels .sports-channel-wrap + .sports-channel-wrap { border-top: 1px solid color-mix(in srgb, var(--line) 58%, transparent); }
+.event-card-channels .event-channel-link { min-height: 3.5rem; grid-template-columns: 1.75rem minmax(0, 1fr) 1rem; column-gap: 0.55rem; border: 0; border-radius: 0; background: transparent; padding: 0.55rem 0.85rem; }
+.event-card-channels .event-channel-link:hover, .event-card-channels .event-channel-link:focus-visible { background: color-mix(in srgb, var(--panel-2) 72%, transparent); }
+.event-card-channels .event-channel-link .sports-channel-logo { width: 1.75rem; height: 1.75rem; min-width: 1.75rem; }
+.event-card-channels .event-channel-link .sports-channel-logo img.logo, .event-card-channels .event-channel-link .sports-channel-logo .logo-fallback { width: 1.5rem; height: 1.5rem; }
+.event-channel-prefix { color: var(--muted); font-weight: 760; }
+.event-channel-chevron { display: grid; place-items: center; color: var(--muted); }
+.event-channel-chevron svg { width: 0.9rem; height: 0.9rem; }
 .event-broadcast-windows { display: grid; gap: 0.28rem; margin-top: 0.6rem; padding-top: 0.55rem; border-top: 1px solid var(--line); }
 .event-broadcast-window { display: flex; align-items: baseline; justify-content: space-between; gap: 0.7rem; min-width: 0; }
 .event-broadcast-window strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: 0.73rem; }
