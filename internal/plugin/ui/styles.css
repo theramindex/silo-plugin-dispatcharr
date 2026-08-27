@@ -472,6 +472,8 @@ button { cursor: pointer; touch-action: manipulation; }
 .event-card-media-fallback .logo-fallback { display: grid; place-items: center; color: rgba(255,255,255,0.76); font-size: 1.05rem; font-weight: 900; }
 .event-card-media-fallback .logo-fallback[hidden] { display: none; }
 .event-card-media-fallback > svg { width: 2.4rem; height: 2.4rem; opacity: 0.72; }
+.event-card.no-art .event-card-visual { background: var(--rail-2); }
+.event-card.no-art .event-card-head { padding-top: 0.85rem; }
 .event-card-head { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "category status feature" "title title title"; align-content: start; align-items: center; column-gap: 0.55rem; row-gap: 0.42rem; padding: 0.75rem 0.85rem 0.85rem; }
 .event-card-category { grid-area: category; width: max-content; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 0.68rem; font-weight: 850; text-transform: uppercase; }
 .event-card-status { grid-area: status; color: var(--muted); font-size: 0.72rem; font-weight: 760; white-space: nowrap; }
