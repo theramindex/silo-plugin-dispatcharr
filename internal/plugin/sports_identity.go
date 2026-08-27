@@ -14,6 +14,7 @@ const gameThumbsPublicBaseURL = "https://game-thumbs.swvn.io"
 const (
 	aflLeagueLogoURL = "https://r2.thesportsdb.com/images/media/league/badge/wvx4721525519372.png"
 	aflTeamLogoBase  = "https://squiggle.com.au/wp-content/themes/squiggle/assets/images/"
+	ncaaTeamLogoBase = "https://a.espncdn.com/i/teamlogos/ncaa/500/"
 )
 
 type sportsIdentityRoute struct {
@@ -56,6 +57,7 @@ var sportsCountryNames = map[string]string{
 	"australia":            "Australia",
 	"bangladesh":           "Bangladesh",
 	"canada":               "Canada",
+	"dominican republic":   "Dominican Republic",
 	"england":              "England",
 	"india":                "India",
 	"ireland":              "Ireland",
@@ -71,6 +73,18 @@ var sportsCountryNames = map[string]string{
 	"united states":        "United States",
 	"usa":                  "USA",
 	"zimbabwe":             "Zimbabwe",
+}
+
+var ncaaTeamLogoIDs = map[string]string{
+	"florida":                 "57",
+	"florida gators":          "57",
+	"florida state":           "52",
+	"florida state seminoles": "52",
+	"fsu":                     "52",
+	"indiana":                 "84",
+	"indiana hoosiers":        "84",
+	"oregon":                  "2483",
+	"oregon ducks":            "2483",
 }
 
 var aflTeamLogoFiles = map[string]string{
@@ -111,6 +125,7 @@ var gameThumbsTeamLeagueRoutes = []sportsIdentityRoute{
 
 var gameThumbsChelseaYouthSuffix = regexp.MustCompile(`(?i)\bchelsea\s+(?:u21|under[ -]?21s?)\b`)
 var compoundBoxingParticipant = regexp.MustCompile(`(?i)\s+(?:&|and)\s+`)
+var collegeSportsIdentity = regexp.MustCompile(`(?i)\b(?:cfp|ncaa|ncaaf|college[- ]+(?:football|soccer|basketball|baseball|volleyball|softball|hockey))\b`)
 
 func applySportsIdentityFallbacks(event SportsEvent) SportsEvent {
 	event = applySpecialSportsIdentityFallbacks(event)
@@ -132,6 +147,12 @@ func applySportsIdentityFallbacks(event SportsEvent) SportsEvent {
 
 func applySpecialSportsIdentityFallbacks(event SportsEvent) SportsEvent {
 	identityText := normalizeSportsIdentityText(strings.Join([]string{event.LeagueID, event.LeagueName, event.SportName, event.Name}, " "))
+	if collegeSportsIdentity.MatchString(identityText) {
+		event.Away = applyNCAATeamIdentity(event.Away)
+		event.Home = applyNCAATeamIdentity(event.Home)
+	}
+	event.Away = applyCountryTeamIdentity(event.Away)
+	event.Home = applyCountryTeamIdentity(event.Home)
 	if strings.Contains(identityText, "afl") || strings.Contains(identityText, "australian football") || strings.Contains(identityText, "afl premiership") {
 		if event.LeagueLogoURL == "" {
 			event.LeagueLogoURL = aflLeagueLogoURL
@@ -139,11 +160,17 @@ func applySpecialSportsIdentityFallbacks(event SportsEvent) SportsEvent {
 		event.Away = applyAFLTeamIdentity(event.Away)
 		event.Home = applyAFLTeamIdentity(event.Home)
 	}
-	if strings.Contains(identityText, "cricket") {
-		event.Away = applyCountryTeamIdentity(event.Away)
-		event.Home = applyCountryTeamIdentity(event.Home)
-	}
 	return event
+}
+
+func applyNCAATeamIdentity(team SportsTeam) SportsTeam {
+	if team.LogoURL != "" {
+		return team
+	}
+	if teamID := ncaaTeamLogoIDs[normalizeSportsIdentityText(team.Name)]; teamID != "" {
+		team.LogoURL = ncaaTeamLogoBase + teamID + ".png"
+	}
+	return team
 }
 
 func applyAFLTeamIdentity(team SportsTeam) SportsTeam {
