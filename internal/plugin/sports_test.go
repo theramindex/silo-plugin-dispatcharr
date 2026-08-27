@@ -540,6 +540,18 @@ func TestGuideSportsMatchupParsesQualifiedBroadcastTitles(t *testing.T) {
 			wantMatch: true,
 		},
 		{
+			name:      "cricket qualifier is event metadata",
+			title:     "Cricket Highlights : MLC 2026: Unicorns vs Knight Riders - Qualifier",
+			wantAway:  "Unicorns",
+			wantHome:  "Knight Riders",
+			wantMatch: true,
+		},
+		{
+			name:      "editorial verdict is not a matchup",
+			title:     "Brady vs. Belichick: The Verdict: The Case for Bill Belichick",
+			wantMatch: false,
+		},
+		{
 			name:      "competition and round suffix is not part of the home team",
 			title:     "Bodo/Glimt (NOR) vs N.E.C. (NED) - UEFA Champions League 2026-2027 - Play-Off - 2nd leg",
 			wantAway:  "Bodo/Glimt (NOR)",
@@ -567,6 +579,35 @@ func TestGuideSportsMatchupParsesQualifiedBroadcastTitles(t *testing.T) {
 	}
 	if got := guideSportsVenue("(CA) (CBC 01) | 2026 Women's Volleyball Nations League: Canada vs Dominican Republic _ Hong Kong (2026-07-12 04:15:00)"); got != "Hong Kong" {
 		t.Fatalf("expected volleyball location to be preserved as venue metadata, got %q", got)
+	}
+}
+
+func TestSportsIdentityFallbacksUseReferencedSoccerMarks(t *testing.T) {
+	t.Parallel()
+
+	event := applySportsIdentityFallbacks(SportsEvent{
+		LeagueID: "leagues-cup", LeagueName: "Leagues Cup", SportName: "Soccer", Name: "Toluca vs Austin FC",
+		Away: SportsTeam{Name: "Austin FC"}, Home: SportsTeam{Name: "Toluca"},
+	})
+
+	if got := event.Away.LogoURL; got != sportsLogosRawBaseURL+"/MLS/ATX.png" {
+		t.Fatalf("expected Austin FC to use the referenced crest, got %q", got)
+	}
+	if got := event.Home.LogoURL; got != sportsLogosRawBaseURL+"/MLS/TOL.png" {
+		t.Fatalf("expected Toluca to use the referenced crest, got %q", got)
+	}
+}
+
+func TestSportsIdentityFallbacksUseHonestBoxingMarkForUnknownFighters(t *testing.T) {
+	t.Parallel()
+
+	event := applySportsIdentityFallbacks(SportsEvent{
+		LeagueID: "boxing", LeagueName: "Boxing", SportName: "Combat Sports", Name: "Diego Pacheco vs Steve Nelson",
+		Away: SportsTeam{Name: "Diego Pacheco"}, Home: SportsTeam{Name: "Steve Nelson"},
+	})
+	want := "https://game-thumbs.swvn.io/boxing/leaguelogo.png"
+	if event.Away.LogoURL != want || event.Home.LogoURL != want {
+		t.Fatalf("expected unavailable fighter portraits to use the honest boxing mark, got away=%q home=%q", event.Away.LogoURL, event.Home.LogoURL)
 	}
 }
 

@@ -44,9 +44,10 @@ var guideSportsTimestampSuffix = regexp.MustCompile(`(?i)\s*\(\d{4}-\d{2}-\d{2}(
 var guideSportsVenueSuffix = regexp.MustCompile(`\s+_\s+([^_]+?)\s*$`)
 var guideSportsNextGameSuffix = regexp.MustCompile(`(?i)\s+on\s+\d{4}-\d{2}-\d{2}\s+at\s+\d{1,2}:\d{2}\s*(?:am|pm)?(?:\s+[a-z]{2,5})?\s*$`)
 var guideSportsMatchNumberSuffix = regexp.MustCompile(`(?i)\s*(?:,\s*match\s+\d+|[-,]?\s*\d+(?:st|nd|rd|th)\s+match)\s*$`)
+var guideSportsStageSuffix = regexp.MustCompile(`(?i)\s+-\s+(?:qualifier|eliminator|semi[- ]?final|final)\s*$`)
 var guideSportsCompetitionSuffix = regexp.MustCompile(`(?i)\s+-\s+(?:uefa\s+(?:champions|europa|conference)\s+league)\b.*$`)
 var guideSportsClockName = regexp.MustCompile(`(?i)^\d{1,2}(?::\d{2})?\s*(?:am|pm)(?:\s+[a-z]{2,5})?$`)
-var guideSportsNonMatchTitle = regexp.MustCompile(`(?i)\b(?:good morning|outdoor magazine)\b`)
+var guideSportsNonMatchTitle = regexp.MustCompile(`(?i)\b(?:good morning|outdoor magazine|the verdict|the case for)\b`)
 
 type sportsEventCache struct {
 	Events       []SportsEvent
@@ -636,6 +637,7 @@ func cleanGuideSportsTeamName(value string) string {
 	value = guideSportsTimestampSuffix.ReplaceAllString(value, "")
 	value = guideSportsVenueSuffix.ReplaceAllString(value, "")
 	value = guideSportsMatchNumberSuffix.ReplaceAllString(value, "")
+	value = guideSportsStageSuffix.ReplaceAllString(value, "")
 	value = guideSportsCompetitionSuffix.ReplaceAllString(value, "")
 	value = strings.TrimSpace(value)
 	if open := strings.LastIndex(value, " ("); open > 0 && strings.HasSuffix(value, ")") {

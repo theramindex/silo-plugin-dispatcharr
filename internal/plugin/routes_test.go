@@ -3619,6 +3619,18 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 			t.Fatalf("sports identity fallback %q must remain server-side", removed)
 		}
 	}
+	sportsTeamLogo := functionBody("renderSportsTeamLogo")
+	for _, want := range []string{`sportsMediaFailed`, `markSportsMediaFailed(this)`} {
+		if !strings.Contains(sportsTeamLogo, want) {
+			t.Fatalf("sports team logos must avoid retrying failed media via %q", want)
+		}
+	}
+	markSportsMediaFailed := functionBody("markSportsMediaFailed")
+	for _, want := range []string{`state.sportsFailedMedia`, `nextElementSibling.hidden = false`} {
+		if !strings.Contains(markSportsMediaFailed, want) {
+			t.Fatalf("failed sports media must switch to a stable fallback via %q", want)
+		}
+	}
 	safeSportsTeamColor := functionBody("safeSportsTeamColor")
 	if !strings.Contains(safeSportsTeamColor, `^#[0-9a-f]{6}$`) {
 		t.Fatal("sports matchup colors must accept only six-digit hex colors")
