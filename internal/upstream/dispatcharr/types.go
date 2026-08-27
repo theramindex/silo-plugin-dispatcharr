@@ -77,7 +77,14 @@ type Program struct {
 }
 
 type ProgramCustomProperties struct {
-	Categories []string `json:"categories"`
+	Categories []string       `json:"categories"`
+	Icon       String         `json:"icon"`
+	Images     []ProgramImage `json:"images"`
+}
+
+type ProgramImage struct {
+	URL  String `json:"url"`
+	Type String `json:"type"`
 }
 
 type ProgramSearchResult struct {

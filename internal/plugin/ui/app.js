@@ -8,8 +8,9 @@ const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuff
 const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", folderGroupPickerOpen: false, searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLeagueTeams: {}, sportsLeagueTeamsLoading: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "connection", adminConnectionStatus: "idle", adminConnectionMessage: "", adminConnectionLoading: false, adminConnectionLoadError: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", folderGroupPickerOpen: false, searchQuery: "", searchType: "all", searchAiringChannel: "", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLeagueTeams: {}, sportsLeagueTeamsLoading: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "connection", adminConnectionStatus: "idle", adminConnectionMessage: "", adminConnectionLoading: false, adminConnectionLoadError: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 const appHistoryStateKey = "dispatcharrRoute";
+state.onLaterShelfLimits = {};
 state.aspectMode = "fit";
 state.guideCategoryPickerOpen = false;
 state.guideCategoryQuery = "";
@@ -2239,10 +2240,14 @@ function groupedUpcomingAirings(programs, query) {
   const groups = {};
   items(programs).filter(programIsUpcoming).forEach(function(program) {
     if (programIsGuidePlaceholder(program)) return;
-    const key = normalizeProgramTitle(program.title);
-    if (!key || (query && key.indexOf(query) === -1 && lower(programSearchText(program)).indexOf(query) === -1)) return;
-    groups[key] = groups[key] || { key: key, title: program.title || "Untitled", programs: [] };
-    groups[key].programs.push(program);
+    const searchKey = normalizeProgramTitle(program.title);
+    if (!searchKey || (query && searchKey.indexOf(query) === -1 && lower(programSearchText(program)).indexOf(query) === -1)) return;
+    // The guide payload has airing IDs, not a trustworthy series ID. Keep
+    // same-title programs on different channels/categories separate instead
+    // of pretending they are one authoritative series.
+    const groupID = [searchKey, String(program.channelId || ""), items(program.categories).map(lower).sort().join("|")].join("|");
+    groups[groupID] = groups[groupID] || { id: groupID, key: searchKey, title: program.title || "Untitled", programs: [] };
+    groups[groupID].programs.push(program);
   });
   return Object.keys(groups).map(function(key) {
     const group = groups[key];
@@ -2334,7 +2339,7 @@ function searchResultSections(query) {
   }
   if (include("programs")) {
     const matchingPrograms = rankedSearchMatches(programs().filter(function(program) {
-      return !programIsGuidePlaceholder(program);
+      return !programIsGuidePlaceholder(program) && (!state.searchAiringChannel || String(program.channelId || "") === state.searchAiringChannel);
     }), function(program) {
       const channel = channelByID(program.channelId) || {};
       return searchMatchScore(program.title, [program.summary, program.description, channel.name, channel.categoryName].join(" "), query);
@@ -2359,7 +2364,7 @@ function searchResultSections(query) {
       const first = group.programs[0] || {};
       const channel = channelByID(first.channelId) || {};
       return {
-        attrs: "data-search-airing=\"" + escapeHTML(group.key) + "\"",
+        attrs: "data-search-airing=\"" + escapeHTML(group.key) + "\" data-search-airing-channel=\"" + escapeHTML(first.channelId || "") + "\"",
         art: logoHTML(channel),
         title: group.title,
         meta: [group.programs.length + " airings", dateTimeLabel(first.startUnix), channel.name || ""].filter(Boolean).join(" - "),
@@ -2592,16 +2597,91 @@ function renderProgramDiscoveryRow(program) {
 }
 function renderProgramDiscoveryCard(program) {
   const channel = channelByID(program.channelId) || {};
-  return renderSearchResultCard({
-    attrs: "data-search-program-channel=\"" + escapeHTML(program.channelId || "") + "\" data-search-program=\"" + escapeHTML(program.id || "") + "\"",
-    art: logoHTML(channel),
-    title: program.title || "Untitled program",
-    meta: [(programIsLive(program) ? "Live now" : dateTimeLabel(program.startUnix)), channel.name || ""].filter(Boolean).join(" - "),
-    action: "Details",
-    recordable: recordingSchedulingEnabled() && programIsUpcoming(program),
-    channelId: program.channelId,
-    programId: program.id || ""
+  const artwork = safeSportsMediaURL(program && program.imageUrl);
+  const fallback = logoHTML(channel);
+  const media = artwork ? "<span class=\"on-later-card-media has-art\"><img src=\"" + escapeHTML(artwork) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;this.parentElement.classList.remove('has-art');\"><span class=\"on-later-card-fallback\" hidden>" + fallback + "</span></span>" : "<span class=\"on-later-card-media\"><span class=\"on-later-card-fallback\">" + fallback + "</span></span>";
+  const label = programIsLive(program) ? "Live now" : dateTimeLabel(program.startUnix);
+  const categories = items(program && program.categories);
+  const kind = programLooksSports(program) ? "Sports" : (programLooksMovie(program) ? "Movie" : (programLooksEvent(program) ? "Event" : (categories[0] || "TV")));
+  const record = recordingSchedulingEnabled() && programIsUpcoming(program) ? "<button class=\"on-later-card-record\" type=\"button\" data-schedule-channel=\"" + escapeHTML(program.channelId || "") + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\">" + icon("record") + "<span>Record</span></button>" : "";
+  return "<article class=\"on-later-program-card" + (artwork ? " has-art" : " no-art") + "\"><button class=\"on-later-program-open\" type=\"button\" data-search-program-channel=\"" + escapeHTML(program.channelId || "") + "\" data-search-program=\"" + escapeHTML(program.id || "") + "\">" + media
+    + "<span class=\"on-later-card-copy\"><span class=\"on-later-card-kicker\">" + escapeHTML(kind) + "</span><strong>" + escapeHTML(program.title || "Untitled program") + "</strong><small>" + escapeHTML([label, channel.name || ""].filter(Boolean).join(" · ")) + "</small></span></button>"
+    + "<footer><button type=\"button\" data-search-program-channel=\"" + escapeHTML(program.channelId || "") + "\" data-search-program=\"" + escapeHTML(program.id || "") + "\">Details</button>" + record + "</footer></article>";
+}
+function onLaterProgramIdentity(program) {
+  return String(program && program.id || "") || [program && program.title, program && program.channelId, program && program.startUnix, program && program.endUnix].join("|");
+}
+function distinctOnLaterPrograms(programs) {
+  const seen = {};
+  return items(programs).filter(function(program) {
+    const key = onLaterProgramIdentity(program);
+    if (!key || seen[key]) return false;
+    seen[key] = true;
+    return true;
   });
+}
+function onLaterShelfKey(title) {
+  return lower(title).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "guide";
+}
+function onLaterShelfHTML(title, programs, renderer) {
+  const all = distinctOnLaterPrograms(programs);
+  if (!all.length) return "";
+  const key = onLaterShelfKey(title);
+  const limit = Math.max(18, Number(state.onLaterShelfLimits[key] || 18));
+  const visible = all.slice(0, limit);
+  const remaining = all.length - visible.length;
+  const more = remaining > 0 ? "<button class=\"on-later-more\" type=\"button\" data-onlater-more=\"" + escapeHTML(key) + "\"><strong>Show more</strong><span>" + escapeHTML(String(Math.min(18, remaining))) + " of " + escapeHTML(String(remaining)) + " remaining</span></button>" : "";
+  const renderCard = renderer || renderProgramDiscoveryCard;
+  return "<section class=\"on-later-shelf\" data-onlater-shelf=\"" + escapeHTML(key) + "\"><header><h3>" + escapeHTML(title) + "</h3><span>" + escapeHTML(String(all.length)) + "</span></header><div class=\"on-later-shelf-rail\">" + visible.map(renderCard).join("") + more + "</div></section>";
+}
+function restoreOnLaterShelfPosition(key, previousLimit, previousScrollLeft) {
+  const root = byId("view");
+  if (!root || typeof root.querySelector !== "function") return false;
+  const shelf = root.querySelector('[data-onlater-shelf="' + String(key || "guide").replace(/[^a-z0-9-]/gi, "") + '"]');
+  const rail = shelf && shelf.querySelector(".on-later-shelf-rail");
+  if (!rail) return false;
+  const cards = typeof rail.querySelectorAll === "function" ? rail.querySelectorAll(".on-later-program-card") : [];
+  const firstNewCard = cards && cards[previousLimit];
+  rail.scrollLeft = Math.max(Number(previousScrollLeft || 0), firstNewCard ? Math.max(0, Number(firstNewCard.offsetLeft || 0) - 16) : 0);
+  const focusTarget = firstNewCard && typeof firstNewCard.querySelector === "function" ? firstNewCard.querySelector("button") : null;
+  if (focusTarget && typeof focusTarget.focus === "function") {
+    try { focusTarget.focus({ preventScroll: true }); } catch (_) { focusTarget.focus(); }
+  }
+  return !!firstNewCard;
+}
+function renderOnLaterAiringCard(group) {
+  const first = items(group && group.programs)[0] || {};
+  const channel = channelByID(first.channelId) || {};
+  const artwork = safeSportsMediaURL(first.imageUrl);
+  const fallback = logoHTML(channel);
+  const media = artwork ? "<span class=\"on-later-card-media has-art\"><img src=\"" + escapeHTML(artwork) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;this.parentElement.classList.remove('has-art');\"><span class=\"on-later-card-fallback\" hidden>" + fallback + "</span></span>" : "<span class=\"on-later-card-media\"><span class=\"on-later-card-fallback\">" + fallback + "</span></span>";
+  return "<article class=\"on-later-program-card" + (artwork ? " has-art" : " no-art") + "\"><button class=\"on-later-program-open\" type=\"button\" data-search-airing=\"" + escapeHTML(group.key || group.title || "") + "\" data-search-airing-channel=\"" + escapeHTML(first.channelId || "") + "\">" + media
+    + "<span class=\"on-later-card-copy\"><span class=\"on-later-card-kicker\">" + (items(group.programs).length > 1 ? "More Airings" : "Upcoming Airing") + "</span><strong>" + escapeHTML(group.title || first.title || "Untitled program") + "</strong><small>" + escapeHTML([items(group.programs).length + (items(group.programs).length === 1 ? " airing" : " airings"), dateTimeLabel(first.startUnix), channel.name || ""].filter(Boolean).join(" · ")) + "</small></span></button>"
+    + "<footer><button type=\"button\" data-search-airing=\"" + escapeHTML(group.key || group.title || "") + "\" data-search-airing-channel=\"" + escapeHTML(first.channelId || "") + "\">Show airings</button></footer></article>";
+}
+function onLaterShelves(programs, time, type) {
+  const now = new Date();
+  const nowUnix = Math.floor(now.getTime() / 1000);
+  const todayEndDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const tomorrowEndDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2);
+  const weekEndDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 8);
+  const todayEnd = Math.floor(todayEndDate.getTime() / 1000);
+  const tomorrowEnd = Math.floor(tomorrowEndDate.getTime() / 1000);
+  const weekEnd = Math.floor(weekEndDate.getTime() / 1000);
+  if (time !== "all" || type !== "all") {
+    const filter = onLaterFilters().find(function(item) { return item.id === (type !== "all" ? type : time); });
+    return [{ title: filter ? filter.label : "Guide Picks", programs: programs }];
+  }
+  return [
+    { title: "Live Now", programs: programs.filter(programIsLive) },
+    { title: "On Today", programs: programs.filter(function(program) { return !programIsLive(program) && Number(program.startUnix || 0) >= nowUnix && Number(program.startUnix || 0) < todayEnd; }) },
+    { title: "On Tomorrow", programs: programs.filter(function(program) { const start = Number(program.startUnix || 0); return start >= todayEnd && start < tomorrowEnd; }) },
+    { title: "On This Week", programs: programs.filter(function(program) { const start = Number(program.startUnix || 0); return start >= tomorrowEnd && start < weekEnd; }) },
+    { title: "Upcoming Movies", programs: programs.filter(programLooksMovie) },
+    { title: "Sports", programs: programs.filter(programLooksSports) },
+    { title: "Events & Specials", programs: programs.filter(programLooksEvent) },
+    { title: "All Guide Picks", programs: programs }
+  ];
 }
 function renderOnLaterPage() {
   const root = byId("view");
@@ -2614,20 +2694,14 @@ function renderOnLaterPage() {
   const byID = function(id) { return onLaterFilters().find(function(item) { return item.id === id; }); };
   const filters = '<div class="filter-sections"><div class="on-later-filter-group filter-section" data-on-later-filter-group="time"><span class="filter-section-label">Time</span><div class="search-chip-row">' + ["all", "live", "today"].map(function(id) { return filterButton(byID(id), "time"); }).join("") + '</div></div><div class="on-later-filter-group filter-section" data-on-later-filter-group="type"><span class="filter-section-label">Type</span><div class="search-chip-row">' + ["all", "sports", "events", "movies", "passes"].map(function(id) { return filterButton(byID(id), "type", id === "all" ? "All Types" : ""); }).join("") + "</div></div></div>";
   const programs = onLaterPrograms();
-  const airings = groupedUpcomingAirings(programs, "").slice(0, 16);
+  const repeatAirings = groupedUpcomingAirings(programs, "");
   const passes = keywordPasses();
   const passHTML = passes.length ? sectionHeader("Keyword Passes") + "<div class=\"keyword-pass-list\">" + passes.map(function(pass) {
     return "<div class=\"keyword-pass\"><button type=\"button\" data-search-recent=\"" + escapeHTML(pass.keyword) + "\"><strong>" + escapeHTML(pass.keyword) + "</strong><small>" + escapeHTML(String(onLaterPrograms().filter(function(program) { return lower(programSearchText(program)).indexOf(lower(pass.keyword)) !== -1; }).length)) + " matches</small></button><button type=\"button\" data-keyword-pass-remove=\"" + escapeHTML(pass.id) + "\">Remove</button></div>";
   }).join("") + "</div>" : "";
   root.innerHTML = "<div class=\"search-page on-later-page\"><div class=\"search-hero\"><h2>On Later</h2><p>Upcoming guide content organized for watching and recording.</p></div>" + filters
     + (passHTML && (type === "all" || type === "passes") ? passHTML : "")
-    + (airings.length && time !== "live" ? sectionHeader("Upcoming Airings") + "<div class=\"on-later-card-grid\">" + airings.map(function(group) {
-      const first = group.programs[0] || {};
-      const channel = channelByID(first.channelId) || {};
-      return renderSearchResultCard({ attrs: "data-search-airing=\"" + escapeHTML(group.key) + "\"", art: logoHTML(channel), title: group.title, meta: [group.programs.length + " airings", dateTimeLabel(first.startUnix), channel.name || ""].filter(Boolean).join(" - "), action: "Show" });
-    }).join("") + "</div>" : "")
-    + sectionHeader(type !== "all" ? byID(type).label : (time !== "all" ? byID(time).label : "Guide Picks"))
-    + (programs.length ? "<div class=\"on-later-card-grid\">" + programs.slice(0, 60).map(renderProgramDiscoveryCard).join("") + "</div>" : "<div class=\"empty\">No matching guide entries.</div>")
+    + (programs.length ? "<div class=\"on-later-shelves\">" + (repeatAirings.length && time !== "live" ? onLaterShelfHTML("Upcoming Airings", repeatAirings, renderOnLaterAiringCard) : "") + onLaterShelves(programs, time, type).map(function(shelf) { return onLaterShelfHTML(shelf.title, shelf.programs); }).join("") + "</div>" : "<div class=\"empty\">No matching guide entries.</div>")
     + "</div>";
 }
 function loadSportsLibraries(force) {
@@ -3857,9 +3931,33 @@ function renderEventsPage() {
     + recoveryPanelHTML(payload.error, "events")
     + (state.eventsLoading && !events.length ? "<div class=\"empty\">Loading events...</div>" : "")
     + "</div><div class=\"sports-score-scroll\">"
-    + (events.length ? "<div class=\"sports-board events-board\">" + events.map(renderBroadcastEventCard).join("") + "</div>" : (!state.eventsLoading ? "<div class=\"empty\">No matching events.</div>" : ""))
+    + (events.length ? "<div class=\"event-shelves\">" + broadcastEventShelves(events).map(function(shelf) { return renderBroadcastEventShelf(shelf.title, shelf.events); }).join("") + "</div>" : (!state.eventsLoading ? "<div class=\"empty\">No matching events.</div>" : ""))
     + "</div>"
     + "</div>";
+}
+function renderBroadcastEventShelf(title, events) {
+  if (!events.length) return "";
+  return "<section class=\"event-shelf\"><header><h3>" + escapeHTML(title) + "</h3><span>" + escapeHTML(String(events.length)) + "</span></header><div class=\"event-shelf-rail\">" + events.map(renderBroadcastEventCard).join("") + "</div></section>";
+}
+function broadcastEventShelves(events) {
+  if (state.eventCategory) return [{ title: eventCategoryName(state.eventCategory) || "Events", events: events }];
+  if (state.eventsTab === "featured") return [{ title: "Featured", events: events }];
+  if (state.eventsTab === "live") return [{ title: "Live Now", events: events }];
+  const now = new Date();
+  const todayEnd = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() / 1000);
+  const tomorrowEnd = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2).getTime() / 1000);
+  if (state.eventsTab === "upcoming") {
+    return [
+      { title: "On Today", events: events.filter(function(event) { return Number(event.startUnix || 0) < todayEnd; }) },
+      { title: "On Tomorrow", events: events.filter(function(event) { const start = Number(event.startUnix || 0); return start >= todayEnd && start < tomorrowEnd; }) },
+      { title: "Coming Up", events: events.filter(function(event) { return Number(event.startUnix || 0) >= tomorrowEnd; }) }
+    ];
+  }
+  return [
+    { title: "Live Now", events: events.filter(sportsEventIsLive) },
+    { title: "Coming Up", events: events.filter(function(event) { return !sportsEventIsLive(event) && !event.completed; }) },
+    { title: "Recently Ended", events: events.filter(function(event) { return !!event.completed; }) }
+  ];
 }
 function renderEventCategoryFilters(payload) {
   const categories = items(payload && payload.categories);
@@ -3898,7 +3996,7 @@ function broadcastEventMatchesQuery(event) {
 function renderBroadcastEventCard(event) {
   const status = eventStatusLabel(event);
   const title = event.shortName || event.name || "Event";
-  const artwork = event.artworkUrl || event.imageUrl || event.posterUrl || event.thumbnailUrl || "";
+  const artwork = safeSportsMediaURL(event.artworkUrl || event.imageUrl || event.posterUrl || event.thumbnailUrl || "");
   const cardClass = artwork ? 'class="event-card sports-card' : 'class="event-card no-art sports-card';
   const uniqueChannels = uniqueEventChannels(event.channels);
   const globallyFeatured = !!adminFeaturedEventMap()[event.id];
@@ -7332,6 +7430,7 @@ document.addEventListener("click", function(event) {
   if (searchQueryClear) {
     event.preventDefault();
     state.searchQuery = "";
+    state.searchAiringChannel = "";
     renderSearchPage();
     return;
   }
@@ -7346,6 +7445,7 @@ document.addEventListener("click", function(event) {
   if (searchRecent) {
     event.preventDefault();
     state.searchQuery = searchRecent.getAttribute("data-search-recent") || "";
+    state.searchAiringChannel = "";
     rememberSearch(state.searchQuery);
     renderSearchPage();
     return;
@@ -7354,6 +7454,7 @@ document.addEventListener("click", function(event) {
   if (searchType) {
     event.preventDefault();
     state.searchType = searchType.getAttribute("data-search-type") || "all";
+    state.searchAiringChannel = "";
     renderSearchPage();
     return;
   }
@@ -7387,6 +7488,7 @@ document.addEventListener("click", function(event) {
     rememberSearch(state.searchQuery);
     closeProgramDetails();
     state.searchQuery = searchAiring.getAttribute("data-search-airing") || state.searchQuery;
+    state.searchAiringChannel = searchAiring.getAttribute("data-search-airing-channel") || "";
     state.searchType = "programs";
     setView("search");
     return;
@@ -7401,6 +7503,18 @@ document.addEventListener("click", function(event) {
   if (keywordPassRemove) {
     event.preventDefault();
     removeKeywordPass(keywordPassRemove.getAttribute("data-keyword-pass-remove"));
+    return;
+  }
+  const onLaterMore = event.target.closest("[data-onlater-more]");
+  if (onLaterMore) {
+    event.preventDefault();
+    const key = onLaterMore.getAttribute("data-onlater-more") || "guide";
+    const previousLimit = Math.max(18, Number(state.onLaterShelfLimits[key] || 18));
+    const previousRail = onLaterMore.closest(".on-later-shelf-rail");
+    const previousScrollLeft = previousRail ? Number(previousRail.scrollLeft || 0) : 0;
+    state.onLaterShelfLimits[key] = previousLimit + 18;
+    renderOnLaterPage();
+    restoreOnLaterShelfPosition(key, previousLimit, previousScrollLeft);
     return;
   }
   const onLaterType = event.target.closest("[data-onlater-type]");
@@ -7972,6 +8086,7 @@ document.addEventListener("input", function(event) {
   }
   if (event.target && event.target.id === "search-page-input") {
     state.searchQuery = event.target.value || "";
+    state.searchAiringChannel = "";
     scheduleSearchResultsUpdate();
     return;
   }
@@ -8067,6 +8182,7 @@ if (globalSearch) {
   globalSearch.onkeydown = function(event) {
     if (event.key !== "Enter") return;
     state.searchQuery = event.target.value || "";
+    state.searchAiringChannel = "";
     rememberSearch(state.searchQuery);
     setView("search");
   };

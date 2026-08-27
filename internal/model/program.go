@@ -14,6 +14,7 @@ type Program struct {
 	ChannelID  string   `json:"channelId"`
 	Title      string   `json:"title"`
 	Summary    string   `json:"summary,omitempty"`
+	ImageURL   string   `json:"imageUrl,omitempty"`
 	Categories []string `json:"categories,omitempty"`
 	StartUnix  int64    `json:"startUnix"`
 	EndUnix    int64    `json:"endUnix"`
