@@ -41,6 +41,7 @@ var formulaERacePattern = regexp.MustCompile(`(?i)\bformul[ae]\s+e\b`)
 var nascarCupRacePattern = regexp.MustCompile(`(?i)\b(?:nascar\s+cup\s+series|ncs\s+race)\b`)
 var raceLocationPrefix = regexp.MustCompile(`(?i)^\s*(?:v(?:s\.)?|at|@|:|-)\s*`)
 var guideSportsTimestampSuffix = regexp.MustCompile(`(?i)\s*\(\d{4}-\d{2}-\d{2}(?:[ t]\d{1,2}:\d{2}(?::\d{2})?)?\)\s*$`)
+var guideSportsVenueSuffix = regexp.MustCompile(`\s+_\s+([^_]+?)\s*$`)
 var guideSportsNextGameSuffix = regexp.MustCompile(`(?i)\s+on\s+\d{4}-\d{2}-\d{2}\s+at\s+\d{1,2}:\d{2}\s*(?:am|pm)?(?:\s+[a-z]{2,5})?\s*$`)
 var guideSportsMatchNumberSuffix = regexp.MustCompile(`(?i)\s*(?:,\s*match\s+\d+|[-,]?\s*\d+(?:st|nd|rd|th)\s+match)\s*$`)
 var guideSportsCompetitionSuffix = regexp.MustCompile(`(?i)\s+-\s+(?:uefa\s+(?:champions|europa|conference)\s+league)\b.*$`)
@@ -481,6 +482,7 @@ func sportsEventsFromGuideWithScoreHints(snapshot cache.Snapshot, now time.Time)
 				Name:       displayTitle,
 				ShortName:  shortName,
 				EventType:  eventType,
+				Venue:      guideSportsVenue(displayTitle),
 				StartUnix:  program.StartUnix,
 				EndUnix:    endUnix,
 				Live:       live,
@@ -632,6 +634,7 @@ func cleanGuideSportsAnnotations(value string) string {
 func cleanGuideSportsTeamName(value string) string {
 	value = cleanGuideSportsAnnotations(value)
 	value = guideSportsTimestampSuffix.ReplaceAllString(value, "")
+	value = guideSportsVenueSuffix.ReplaceAllString(value, "")
 	value = guideSportsMatchNumberSuffix.ReplaceAllString(value, "")
 	value = guideSportsCompetitionSuffix.ReplaceAllString(value, "")
 	value = strings.TrimSpace(value)
@@ -643,6 +646,16 @@ func cleanGuideSportsTeamName(value string) string {
 		}
 	}
 	return strings.TrimSpace(value)
+}
+
+func guideSportsVenue(title string) string {
+	title = cleanGuideSportsAnnotations(title)
+	title = guideSportsTimestampSuffix.ReplaceAllString(title, "")
+	match := guideSportsVenueSuffix.FindStringSubmatch(title)
+	if len(match) != 2 {
+		return ""
+	}
+	return strings.Trim(strings.TrimSpace(match[1]), " -:|,.")
 }
 
 func guideSportsRace(title string) (string, string, bool) {

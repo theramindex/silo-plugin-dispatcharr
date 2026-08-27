@@ -354,6 +354,22 @@ func TestNormalizeSportsEventsAddsGameThumbsIdentityFallbacks(t *testing.T) {
 			LeagueID: "boxing", LeagueName: "Boxing", SportName: "Combat Sports", Name: "Canelo Alvarez vs. Cotto & Cesar Chavez Jr",
 			Away: SportsTeam{Name: "Canelo Alvarez"}, Home: SportsTeam{Name: "Cotto & Cesar Chavez Jr"},
 		},
+		{
+			LeagueID: "college-football", LeagueName: "College Football", SportName: "Football", Name: "Oregon vs Indiana",
+			Away: SportsTeam{Name: "Oregon"}, Home: SportsTeam{Name: "Indiana"},
+		},
+		{
+			LeagueID: "sports", LeagueName: "Sports", SportName: "Volleyball", Name: "Canada vs Dominican Republic",
+			Away: SportsTeam{Name: "Canada"}, Home: SportsTeam{Name: "Dominican Republic"},
+		},
+		{
+			LeagueID: "sports", LeagueName: "Sports", SportName: "Soccer", Name: "Women's College Soccer: Florida State vs Florida",
+			Away: SportsTeam{Name: "Florida State"}, Home: SportsTeam{Name: "Florida"},
+		},
+		{
+			LeagueID: "sports", LeagueName: "Sports", SportName: "Sports", Name: "Florida vs Oregon at College Park",
+			Away: SportsTeam{Name: "Florida"}, Home: SportsTeam{Name: "Oregon"},
+		},
 	})
 
 	if got := events[0].LeagueLogoURL; got != "https://game-thumbs.swvn.io/nba/leaguelogo.png" {
@@ -440,6 +456,27 @@ func TestNormalizeSportsEventsAddsGameThumbsIdentityFallbacks(t *testing.T) {
 	if got := events[13].Home.LogoURL; got != "https://game-thumbs.swvn.io/boxing/leaguelogo.png" {
 		t.Fatalf("expected a compound boxing opponent to use an honest boxing mark, got %q", got)
 	}
+	if got := events[14].Away.LogoURL; got != "https://a.espncdn.com/i/teamlogos/ncaa/500/2483.png" {
+		t.Fatalf("expected Oregon to use its NCAA mark, got %q", got)
+	}
+	if got := events[14].Home.LogoURL; got != "https://a.espncdn.com/i/teamlogos/ncaa/500/84.png" {
+		t.Fatalf("expected Indiana to use its NCAA mark, got %q", got)
+	}
+	if got := events[15].Away.LogoURL; got != "https://game-thumbs.swvn.io/country/canada/teamlogo.png" {
+		t.Fatalf("expected Canada to use its country flag, got %q", got)
+	}
+	if got := events[15].Home.LogoURL; got != "https://game-thumbs.swvn.io/country/dominican-republic/teamlogo.png" {
+		t.Fatalf("expected Dominican Republic to use its country flag, got %q", got)
+	}
+	if got := events[16].Away.LogoURL; got != "https://a.espncdn.com/i/teamlogos/ncaa/500/52.png" {
+		t.Fatalf("expected Florida State to use its NCAA mark, got %q", got)
+	}
+	if got := events[16].Home.LogoURL; got != "https://a.espncdn.com/i/teamlogos/ncaa/500/57.png" {
+		t.Fatalf("expected Florida to use its NCAA mark, got %q", got)
+	}
+	if events[17].Away.LogoURL != "" || events[17].Home.LogoURL != "" {
+		t.Fatalf("expected a generic College Park event to avoid NCAA identity, got %+v", events[17])
+	}
 }
 
 func TestNormalizeSportsEventsCanonicalizesKnownLeagueIDs(t *testing.T) {
@@ -509,6 +546,13 @@ func TestGuideSportsMatchupParsesQualifiedBroadcastTitles(t *testing.T) {
 			wantHome:  "N.E.C. (NED)",
 			wantMatch: true,
 		},
+		{
+			name:      "venue suffix is not part of the home country",
+			title:     "(CA) (CBC 01) | 2026 Women's Volleyball Nations League: Canada vs Dominican Republic _ Hong Kong (2026-07-12 04:15:00)",
+			wantAway:  "Canada",
+			wantHome:  "Dominican Republic",
+			wantMatch: true,
+		},
 	}
 
 	for _, test := range tests {
@@ -520,6 +564,9 @@ func TestGuideSportsMatchupParsesQualifiedBroadcastTitles(t *testing.T) {
 				t.Fatalf("guideSportsMatchup(%q) = %q, %q, %v; want %q, %q, %v", test.title, away, home, matched, test.wantAway, test.wantHome, test.wantMatch)
 			}
 		})
+	}
+	if got := guideSportsVenue("(CA) (CBC 01) | 2026 Women's Volleyball Nations League: Canada vs Dominican Republic _ Hong Kong (2026-07-12 04:15:00)"); got != "Hong Kong" {
+		t.Fatalf("expected volleyball location to be preserved as venue metadata, got %q", got)
 	}
 }
 
