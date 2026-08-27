@@ -1761,6 +1761,10 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 	const sameTitleDifferentChannel = Object.assign({}, sameTitlePrograms[0], { id: "same-other-channel", channelId: "channel:argentina-city" });
 	const otherChannelAiringCard = renderOnLaterAiringCard({ key: "Local News", title: "Local News", programs: [sameTitleDifferentChannel] });
 	const groupedSameChannel = groupedUpcomingAirings(sameTitlePrograms, "");
+	const groupedSameChannelDifferentCategories = groupedUpcomingAirings([
+		Object.assign({}, sameTitlePrograms[0], { categories: ["News"] }),
+		Object.assign({}, sameTitlePrograms[1], { categories: ["Special"] }),
+	], "");
 	const groupedDifferentChannels = groupedUpcomingAirings([sameTitlePrograms[0], sameTitleDifferentChannel], "");
 	const originalOnLaterPrograms = state.app.programs;
 	state.app.programs = originalOnLaterPrograms.concat(sameTitlePrograms, [sameTitleDifferentChannel]);
@@ -1780,7 +1784,8 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 		&& singleAiringCard.indexOf('data-search-airing="Local News"') !== -1
 		&& singleAiringCard.indexOf('1 airing') !== -1
 		&& otherChannelAiringCard.indexOf('data-search-airing-channel="channel:argentina-city"') !== -1
-		&& groupedSameChannel.length === 1 && groupedDifferentChannels.length === 2 && scopedAiringResults;
+		&& groupedSameChannel.length === 1 && groupedSameChannelDifferentCategories.length === 1
+		&& groupedDifferentChannels.length === 2 && scopedAiringResults;
 	state.view = "home";
 	state.category = "";
 	state.query = "Second overlapping";
