@@ -3558,10 +3558,13 @@ function renderSportsChannels(event) {
   const more = hiddenCount > 0 ? "<button class=\"sports-channel-more\" type=\"button\" data-sports-expand-event=\"" + escapeHTML(event.id || "") + "\">+" + hiddenCount + " more</button>" : (expanded && channels.length > 3 ? "<button class=\"sports-channel-more\" type=\"button\" data-sports-expand-event=\"" + escapeHTML(event.id || "") + "\">Show less</button>" : "");
   return "<div class=\"sports-channels\">" + visible.map(renderSportsChannelChip).join("") + more + "</div>";
 }
-function renderSportsChannelChip(channel) {
+function renderSportsChannelChip(channel, context) {
   const meta = channel.categoryName || channel.reason || "Live TV";
   const name = channel.name || "Channel";
-  return "<div class=\"sports-channel-wrap\"><button class=\"sports-channel\" type=\"button\" data-channel=\"" + escapeHTML(channel.id) + "\" title=\"" + escapeHTML(channel.reason || meta) + "\"><span class=\"sports-channel-logo\">" + logoHTML(channel) + "</span><span class=\"sports-channel-copy\"><strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(name) + "</strong><small>" + escapeHTML(meta) + "</small></span></button></div>";
+  const isEventFooter = context === "event-footer";
+  const className = "sports-channel" + (isEventFooter ? " event-channel-link" : "");
+  const label = isEventFooter ? "<span class=\"event-channel-prefix\">Watch on </span>" + escapeHTML(name) : escapeHTML(name);
+  return "<div class=\"sports-channel-wrap\"><button class=\"" + className + "\" type=\"button\" data-channel=\"" + escapeHTML(channel.id) + "\" title=\"" + escapeHTML(channel.reason || meta) + "\"><span class=\"sports-channel-logo\">" + logoHTML(channel) + "</span><span class=\"sports-channel-copy\"><strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + label + "</strong><small>" + escapeHTML(meta) + "</small></span>" + (isEventFooter ? "<span class=\"event-channel-chevron\" aria-hidden=\"true\">" + icon("chevron-right") + "</span>" : "") + "</button></div>";
 }
 function sportsReplayMatchesForEvent(event) {
   return items(state.sportsReplayMatches && state.sportsReplayMatches[event && event.id]).filter(function(match) {
@@ -4054,7 +4057,7 @@ function renderBroadcastEventChannels(event) {
   const visible = expanded ? channels : channels.slice(0, 3);
   const hiddenCount = channels.length - visible.length;
   const more = hiddenCount > 0 ? "<button class=\"sports-channel-more\" type=\"button\" data-event-expand=\"" + escapeHTML(event.id || "") + "\">+" + hiddenCount + " more</button>" : (expanded && channels.length > 3 ? "<button class=\"sports-channel-more\" type=\"button\" data-event-expand=\"" + escapeHTML(event.id || "") + "\">Show less</button>" : "");
-  return "<div class=\"sports-channels\">" + visible.map(renderSportsChannelChip).join("") + more + "</div>";
+  return "<div class=\"sports-channels event-card-channels\">" + visible.map(function(channel) { return renderSportsChannelChip(channel, "event-footer"); }).join("") + more + "</div>";
 }
 function setEventTab(tab) {
   state.eventsTab = tab || "live";
