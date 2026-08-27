@@ -2243,9 +2243,9 @@ function groupedUpcomingAirings(programs, query) {
     const searchKey = normalizeProgramTitle(program.title);
     if (!searchKey || (query && searchKey.indexOf(query) === -1 && lower(programSearchText(program)).indexOf(query) === -1)) return;
     // The guide payload has airing IDs, not a trustworthy series ID. Keep
-    // same-title programs on different channels/categories separate instead
+    // same-title programs on different channels separate instead
     // of pretending they are one authoritative series.
-    const groupID = [searchKey, String(program.channelId || ""), items(program.categories).map(lower).sort().join("|")].join("|");
+    const groupID = [searchKey, String(program.channelId || "")].join("|");
     groups[groupID] = groups[groupID] || { id: groupID, key: searchKey, title: program.title || "Untitled", programs: [] };
     groups[groupID].programs.push(program);
   });
