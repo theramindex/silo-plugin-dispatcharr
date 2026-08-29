@@ -95,9 +95,24 @@ type SportsTeam struct {
 	Favorite       bool   `json:"favorite,omitempty"`
 }
 
+type SportsImage struct {
+	URL    string `json:"url"`
+	Width  int    `json:"width,omitempty"`
+	Height int    `json:"height,omitempty"`
+}
+
+type SportsArtwork struct {
+	Poster    *SportsImage `json:"poster,omitempty"`
+	Backdrop  *SportsImage `json:"backdrop,omitempty"`
+	Logo      *SportsImage `json:"logo,omitempty"`
+	Banner    *SportsImage `json:"banner,omitempty"`
+	Thumbnail *SportsImage `json:"thumbnail,omitempty"`
+}
+
 type SportsEvent struct {
 	ID                string               `json:"id"`
 	ProviderID        string               `json:"providerId,omitempty"`
+	ProviderShortID   string               `json:"providerShortId,omitempty"`
 	ProviderLeagueID  string               `json:"providerLeagueId,omitempty"`
 	LeagueID          string               `json:"leagueId"`
 	LeagueName        string               `json:"leagueName"`
@@ -112,6 +127,7 @@ type SportsEvent struct {
 	Venue             string               `json:"venue,omitempty"`
 	BroadcastTimezone string               `json:"broadcastTimezone,omitempty"`
 	ImageURL          string               `json:"imageUrl,omitempty"`
+	Artwork           *SportsArtwork       `json:"artwork,omitempty"`
 	Description       string               `json:"description,omitempty"`
 	Status            string               `json:"status"`
 	StatusText        string               `json:"statusText,omitempty"`

@@ -1355,7 +1355,7 @@ func TestSportarrSportsEventMapsCanonicalFields(t *testing.T) {
 	if converted.StartUnix != expected {
 		t.Fatalf("expected parsed start %d, got %d", expected, converted.StartUnix)
 	}
-	if converted.ID != "sportarr:ev-401" || converted.ProviderID != "event-uuid" || converted.LeagueName != "World Cup" || converted.Home.Name != "Panama" || converted.Away.Name != "Croatia" {
+	if converted.ID != "sportarr:ev-401" || converted.ProviderID != "event-uuid" || converted.ProviderShortID != "ev-401" || converted.LeagueName != "World Cup" || converted.Home.Name != "Panama" || converted.Away.Name != "Croatia" {
 		t.Fatalf("unexpected Sportarr mapping: %+v", converted)
 	}
 	if !converted.Live || converted.Completed || converted.StatusText != "Second half" || converted.Period != "2" || converted.Clock != "67:14" || converted.HomeScore != "1" || converted.AwayScore != "2" {
@@ -1640,7 +1640,7 @@ func TestSportarrSportsProviderEnrichesMatchedEvents(t *testing.T) {
 			if request.URL.Query().Get("completed_only") != "true" {
 				t.Errorf("expected completed_only=true, got %q", request.URL.Query().Get("completed_only"))
 			}
-			_, _ = response.Write([]byte(`{"images":[{"image_type":"poster","url":"https://images.example/poster.jpg","is_primary":true,"priority":1},{"image_type":"backdrop","url":"https://images.example/backdrop.jpg","is_primary":true,"priority":2}]}`))
+			_, _ = response.Write([]byte(`{"images":[{"image_type":"poster","url":"https://images.example/poster.jpg","width":680,"height":1000,"is_primary":true,"priority":1},{"image_type":"backdrop","url":"https://images.example/backdrop.jpg","width":1920,"height":1080,"is_primary":true,"priority":2}]}`))
 		default:
 			http.NotFound(response, request)
 		}
@@ -1669,6 +1669,12 @@ func TestSportarrSportsProviderEnrichesMatchedEvents(t *testing.T) {
 	}
 	if enriched[0].ImageURL != "https://images.example/backdrop.jpg" {
 		t.Fatalf("expected canonical Sportarr event artwork, got %+v", enriched[0])
+	}
+	if enriched[0].Artwork == nil || enriched[0].Artwork.Backdrop == nil || enriched[0].Artwork.Backdrop.Width != 1920 || enriched[0].Artwork.Backdrop.Height != 1080 {
+		t.Fatalf("expected typed backdrop dimensions, got %+v", enriched[0].Artwork)
+	}
+	if enriched[0].Artwork.Poster == nil || enriched[0].Artwork.Poster.URL != "https://images.example/poster.jpg" {
+		t.Fatalf("expected typed poster artwork, got %+v", enriched[0].Artwork)
 	}
 }
 
@@ -1804,8 +1810,32 @@ func TestPickSportarrEventImagePrefersBackdropAndPriority(t *testing.T) {
 		{ImageType: "backdrop", URL: "https://images.example/best.jpg", IsPrimary: true, Priority: 2},
 		{ImageType: "backdrop", URL: "javascript:alert(1)", IsPrimary: true, Priority: 999},
 	}
-	if got := pickSportarrEventImage(images); got != "https://images.example/best.jpg" {
+	if got := preferredSportsArtworkURL(pickSportarrEventArtwork(images)); got != "https://images.example/best.jpg" {
 		t.Fatalf("expected preferred backdrop, got %q", got)
+	}
+}
+
+func TestPickSportarrEventArtworkPreservesTypedSlotsAndDimensions(t *testing.T) {
+	t.Parallel()
+
+	images := []sportarrEntityImage{
+		{ImageType: "poster", URL: "https://images.example/poster-low.jpg", Width: 340, Height: 500, Priority: 1},
+		{ImageType: "poster", URL: "https://images.example/poster.jpg", Width: 680, Height: 1000, IsPrimary: true, Priority: 2},
+		{ImageType: "backdrop", URL: "https://images.example/backdrop.jpg", Width: 1920, Height: 1080, IsPrimary: true},
+		{ImageType: "thumbnail", URL: "https://images.example/thumb.jpg", Width: 640, Height: 360, Priority: 4},
+		{ImageType: "logo", URL: "https://images.example/logo.png", Width: 800, Height: 300, IsPrimary: true},
+		{ImageType: "banner", URL: "javascript:alert(1)", IsPrimary: true, Priority: 999},
+	}
+
+	artwork := pickSportarrEventArtwork(images)
+	if artwork == nil || artwork.Poster == nil || artwork.Backdrop == nil || artwork.Thumbnail == nil || artwork.Logo == nil {
+		t.Fatalf("expected all safe typed artwork slots, got %+v", artwork)
+	}
+	if artwork.Poster.URL != "https://images.example/poster.jpg" || artwork.Poster.Width != 680 || artwork.Poster.Height != 1000 {
+		t.Fatalf("expected primary poster with dimensions, got %+v", artwork.Poster)
+	}
+	if artwork.Banner != nil {
+		t.Fatalf("expected unsafe banner to be rejected, got %+v", artwork.Banner)
 	}
 }
 

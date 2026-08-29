@@ -3034,11 +3034,12 @@ function renderSportsFeature(event) {
   if (event && event.replayOnly) return renderStandaloneSportsReplayFeature(event);
   const channels = uniqueEventChannels(event.channels);
   const art = sportsEventArtwork(event, "backdrop");
+  const artDimensions = sportsArtworkDimensions(event, "backdrop", art);
   const live = sportsEventIsLive(event);
   const onNow = sportsEventIsOnNow(event);
   const watch = onNow && channels[0] ? "<button type=\"button\" class=\"sports-primary-action\" data-channel=\"" + escapeHTML(channels[0].id) + "\">" + icon("play") + "<span>" + (live ? "Watch live" : "Watch now") + "</span></button>" : "";
   return "<section class=\"sports-feature" + (art ? " has-art" : " no-art") + "\">"
-    + (art ? "<img class=\"sports-feature-art\" src=\"" + escapeHTML(art) + "\" alt=\"\">" : "")
+    + (art ? "<img class=\"sports-feature-art\" src=\"" + escapeHTML(art) + "\" alt=\"\"" + artDimensions + ">" : "")
     + (art ? "" : "<div class=\"sports-feature-fallback\">" + renderSportsMatchupThumbnail(event) + "</div>")
     + "<div class=\"sports-feature-copy\"><span class=\"sports-eyebrow\">" + escapeHTML(live ? "Featured live event" : (onNow ? sportsStatusLabel(event) : "Next up")) + "</span>"
     + "<h1>" + escapeHTML(sportsEventTitle(event)) + "</h1>"
@@ -3146,8 +3147,9 @@ function renderSportsArtworkThumbnail(event, art) {
   const live = sportsEventIsLive(event);
   const status = sportsStatusLabel(event);
   const identity = sportsEventIsRace(event) ? renderSportsArtworkRace(event) : (sportsEventIsProgram(event) ? renderSportsArtworkProgram(event) : renderSportsArtworkMatchup(event));
+  const dimensions = sportsArtworkDimensions(event, "backdrop", art);
   return "<span class=\"sports-artwork-thumb\">"
-    + "<img class=\"sports-artwork-thumb-bg\" src=\"" + escapeHTML(art) + "\" alt=\"\">"
+    + "<img class=\"sports-artwork-thumb-bg\" src=\"" + escapeHTML(art) + "\" alt=\"\"" + dimensions + ">"
     + "<span class=\"sports-artwork-status" + (live ? " live" : "") + "\">" + escapeHTML(status) + "</span>"
     + identity
     + "<span class=\"sports-artwork-copy\"><small>" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</small><strong>" + escapeHTML(sportsEventTitle(event)) + "</strong></span>"
@@ -3299,6 +3301,7 @@ function renderSportsEventDetail(payload, event) {
   const channels = rankedSportsBroadcasts(event);
   const matches = sportsReplayMatchesForEvent(event);
   const art = sportsEventArtwork(event, "backdrop");
+  const artDimensions = sportsArtworkDimensions(event, "backdrop", art);
   const related = sportsLeagueEvents(payload, event.leagueId).filter(function(item) {
     return item.id !== event.id && sportsEventHasPlayableAccess(item);
   }).slice(0, 6);
@@ -3313,7 +3316,7 @@ function renderSportsEventDetail(payload, event) {
   const navigation = renderSportsEventNavigation(payload, event);
   const leagueFavorite = !!sportsFavoriteLeagueMap()[event.leagueId];
   return "<div class=\"sports-pinned sports-detail-toolbar\"><button type=\"button\" class=\"sports-back\" data-sports-back=\"event\">" + icon("arrow-left") + "<span>" + escapeHTML(state.sportsLeague ? (sportsLeagueByID(payload, state.sportsLeague) || {}).name || "League" : "Sports") + "</span></button>" + navigation + "<button type=\"button\" class=\"sports-detail-tool" + (sportsScoresHidden(false) ? " active" : "") + "\" data-sports-spoilers=\"global\" aria-pressed=\"" + (sportsScoresHidden(false) ? "true" : "false") + "\">" + icon(sportsScoresHidden(false) ? "eye-off" : "eye") + "<span>" + (sportsScoresHidden(false) ? "Show scores" : "Hide scores") + "</span></button><button type=\"button\" class=\"sports-detail-tool" + (leagueFavorite ? " active" : "") + "\" data-sports-favorite-league=\"" + escapeHTML(event.leagueId || "") + "\" data-sports-favorite-enabled=\"" + (leagueFavorite ? "false" : "true") + "\" aria-pressed=\"" + (leagueFavorite ? "true" : "false") + "\">" + icon(leagueFavorite ? "heart-solid" : "heart") + "<span>" + (leagueFavorite ? "Following league" : "Follow league") + "</span></button><button type=\"button\" class=\"sports-refresh\" data-sports-refresh=\"true\">" + icon("loader") + "<span>Refresh scores</span></button></div>"
-    + "<div class=\"sports-score-scroll sports-event-detail\"><header class=\"sports-event-hero" + (art ? " has-art" : " no-art") + "\">" + (art ? "<img class=\"sports-event-hero-art\" src=\"" + escapeHTML(art) + "\" alt=\"\">" : "")
+    + "<div class=\"sports-score-scroll sports-event-detail\"><header class=\"sports-event-hero" + (art ? " has-art" : " no-art") + "\">" + (art ? "<img class=\"sports-event-hero-art\" src=\"" + escapeHTML(art) + "\" alt=\"\"" + artDimensions + ">" : "")
     + "<div class=\"sports-event-hero-copy\"><span class=\"sports-eyebrow\">" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</span><h1>" + escapeHTML(sportsEventTitle(event)) + "</h1>" + metadataHTML + renderSportsDetailScore(event) + "<div class=\"sports-feature-actions\">" + watch + (matches[0] ? "<a class=\"sports-secondary-action\" href=\"" + escapeHTML(sportsReplayHref(matches[0].item || {})) + "\">" + icon("play") + "<span>Watch replay</span></a>" : "") + "</div></div></header>"
     + sportsSectionHTML(live ? "Live coverage" : "Matched channels", "<span class=\"sports-section-count\">" + channelCountLabel + "</span>", broadcasts, "sports-broadcast-section")
     + sportsSectionHTML("Event coverage", "<span class=\"sports-section-count\">Matched from Silo</span>", coverage, "sports-coverage-section")
@@ -3420,7 +3423,27 @@ function sportsReplayArtwork(item, kind) {
   }
   return "";
 }
+function sportsTypedArtwork(event, kind) {
+  const typed = event && event.artwork || {};
+  const ordered = kind === "poster"
+    ? [typed.poster, typed.thumbnail, typed.backdrop, typed.banner]
+    : [typed.backdrop, typed.thumbnail, typed.banner, typed.poster];
+  for (let index = 0; index < ordered.length; index += 1) {
+    const value = ordered[index];
+    const url = safeSportsMediaURL(value && typeof value === "object" ? value.url : value);
+    if (url) return { url: url, width: Number(value && value.width) || 0, height: Number(value && value.height) || 0 };
+  }
+  return null;
+}
+function sportsArtworkDimensions(event, kind, url) {
+  const typed = sportsTypedArtwork(event, kind);
+  return typed && typed.url === url && typed.width > 0 && typed.height > 0
+    ? " width=\"" + escapeHTML(typed.width) + "\" height=\"" + escapeHTML(typed.height) + "\""
+    : "";
+}
 function sportsEventArtwork(event, kind) {
+  const typed = sportsTypedArtwork(event, kind);
+  if (typed) return typed.url;
   const direct = safeSportsMediaURL(event && event.imageUrl);
   if (direct) return direct;
   const match = sportsReplayMatchesForEvent(event).find(function(candidate) { return sportsReplayArtwork(candidate.item, kind); });
