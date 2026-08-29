@@ -54,6 +54,32 @@ test("rejects undated candidates even when both teams and league match", () => {
   assert.deepEqual(matches[event().id], []);
 });
 
+test("matches by canonical Sportarr event ID before title, team, or date heuristics", () => {
+  const race = event({
+    id: "sportarr:formula-e-shanghai",
+    providerId: "9A39E629-0CC9-45A7-BBB0-EA38931B6A17",
+    providerShortId: "formula-e-shanghai",
+    leagueId: "formula-e",
+    leagueName: "Formula E",
+    name: "Shanghai E-Prix",
+    shortName: "Shanghai",
+    home: {},
+    away: {}
+  });
+  const catalog = [{
+    id: "vod:formula-e-shanghai",
+    content_id: "formula-e-shanghai-replay",
+    name: "Round 12 Replay",
+    provider_ids: { sportarr: "sportarr:formula-e-shanghai" }
+  }];
+
+  const matches = SportsReplayMatcher.matchEvents([race], catalog);
+  assert.equal(matches[race.id].length, 1);
+  assert.equal(matches[race.id][0].item.id, "vod:formula-e-shanghai");
+  assert.equal(matches[race.id][0].score, 1000);
+  assert.deepEqual(matches[race.id][0].reasons, ["Sportarr event ID matches"]);
+});
+
 test("does not treat EDM music or Big Ten as team abbreviations", () => {
   const matches = SportsReplayMatcher.matchEvents([
     event({

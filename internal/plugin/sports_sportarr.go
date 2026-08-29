@@ -70,6 +70,7 @@ type sportarrLeagueCacheEntry struct {
 
 type sportarrImageCacheEntry struct {
 	ImageURL  string
+	Artwork   *SportsArtwork
 	ExpiresAt time.Time
 }
 
@@ -178,6 +179,8 @@ type sportarrEntityImageResponse struct {
 type sportarrEntityImage struct {
 	ImageType string `json:"image_type"`
 	URL       string `json:"url"`
+	Width     int    `json:"width"`
+	Height    int    `json:"height"`
 	IsPrimary bool   `json:"is_primary"`
 	Priority  int    `json:"priority"`
 }
@@ -379,6 +382,7 @@ func (event sportarrEvent) sportsEvent() SportsEvent {
 	return SportsEvent{
 		ID:                id,
 		ProviderID:        event.ID,
+		ProviderShortID:   event.ShortID,
 		ProviderLeagueID:  event.LeagueID,
 		LeagueID:          event.LeagueID,
 		LeagueName:        event.LeagueName,
@@ -591,14 +595,15 @@ func (p *sportarrSportsProvider) eventImage(ctx context.Context, id string) (str
 	endpoint := sportarrRootURL(p.baseURL) + "/api/v1/images/entity/event/" + url.PathEscape(id) + "?completed_only=true"
 	var payload sportarrEntityImageResponse
 	err := p.getJSON(ctx, endpoint, &payload)
-	imageURL := pickSportarrEventImage(payload.Images)
+	artwork := pickSportarrEventArtwork(payload.Images)
+	imageURL := preferredSportsArtworkURL(artwork)
 	p.metadataMu.Lock()
 	if err == nil {
 		ttl := 24 * time.Hour
 		if imageURL == "" {
 			ttl = 15 * time.Minute
 		}
-		p.storeImageLocked(id, sportarrImageCacheEntry{ImageURL: imageURL, ExpiresAt: now.Add(ttl)})
+		p.storeImageLocked(id, sportarrImageCacheEntry{ImageURL: imageURL, Artwork: artwork, ExpiresAt: now.Add(ttl)})
 	}
 	flight.image = imageURL
 	flight.err = err
@@ -612,35 +617,48 @@ func sportarrRootURL(baseURL string) string {
 	return strings.TrimSuffix(strings.TrimRight(baseURL, "/"), "/api/public/v1")
 }
 
-func pickSportarrEventImage(images []sportarrEntityImage) string {
-	bestURL := ""
-	bestTypeRank := -1
-	bestPrimary := false
-	bestPriority := 0
+func pickSportarrEventArtwork(images []sportarrEntityImage) *SportsArtwork {
+	selected := map[string]sportarrEntityImage{}
 	for _, image := range images {
-		typeRank := map[string]int{"backdrop": 3, "thumbnail": 2, "banner": 2, "poster": 1}[strings.ToLower(strings.TrimSpace(image.ImageType))]
-		if typeRank == 0 {
+		kind := strings.ToLower(strings.TrimSpace(image.ImageType))
+		if kind != "poster" && kind != "backdrop" && kind != "logo" && kind != "banner" && kind != "thumbnail" {
 			continue
 		}
-		imageURL := safeSportsImageURL(image.URL)
-		if imageURL == "" {
+		image.URL = safeSportsImageURL(image.URL)
+		if image.URL == "" {
 			continue
 		}
-		better := typeRank > bestTypeRank
-		if typeRank == bestTypeRank {
-			better = image.IsPrimary && !bestPrimary
-			if image.IsPrimary == bestPrimary {
-				better = image.Priority > bestPriority
-			}
-		}
-		if better {
-			bestURL = imageURL
-			bestTypeRank = typeRank
-			bestPrimary = image.IsPrimary
-			bestPriority = image.Priority
+		current, ok := selected[kind]
+		if !ok || (image.IsPrimary && !current.IsPrimary) || (image.IsPrimary == current.IsPrimary && image.Priority > current.Priority) {
+			selected[kind] = image
 		}
 	}
-	return bestURL
+	if len(selected) == 0 {
+		return nil
+	}
+	toImage := func(kind string) *SportsImage {
+		image, ok := selected[kind]
+		if !ok {
+			return nil
+		}
+		return &SportsImage{URL: image.URL, Width: image.Width, Height: image.Height}
+	}
+	return &SportsArtwork{
+		Poster: toImage("poster"), Backdrop: toImage("backdrop"), Logo: toImage("logo"),
+		Banner: toImage("banner"), Thumbnail: toImage("thumbnail"),
+	}
+}
+
+func preferredSportsArtworkURL(artwork *SportsArtwork) string {
+	if artwork == nil {
+		return ""
+	}
+	for _, image := range []*SportsImage{artwork.Backdrop, artwork.Thumbnail, artwork.Banner, artwork.Poster} {
+		if image != nil && image.URL != "" {
+			return image.URL
+		}
+	}
+	return ""
 }
 
 func (p *sportarrSportsProvider) team(ctx context.Context, id string) (sportarrTeam, error) {
@@ -779,7 +797,10 @@ func (p *sportarrSportsProvider) applyCachedDetails(event SportsEvent) SportsEve
 		event.SportName = firstNonEmpty(strings.TrimSpace(league.League.SportName), event.SportName)
 	}
 	if image, ok := p.images[event.ProviderID]; ok {
-		event.ImageURL = safeSportsImageURL(image.ImageURL)
+		event.ImageURL = firstNonEmpty(safeSportsImageURL(image.ImageURL), event.ImageURL)
+		if image.Artwork != nil {
+			event.Artwork = image.Artwork
+		}
 	}
 	event.Home = applySportarrTeam(event.Home, p.teams[event.Home.ID].Team)
 	event.Away = applySportarrTeam(event.Away, p.teams[event.Away.ID].Team)

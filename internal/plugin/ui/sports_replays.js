@@ -99,6 +99,42 @@
     return firstValue(event && event.leagueName, event && event.league, event && event.leagueId);
   }
 
+  function canonicalProviderID(value) {
+    return asText(value).trim().toLowerCase().replace(/^sportarr:/, "");
+  }
+
+  function eventSportarrIDs(event) {
+    event = event || {};
+    var values = [event.providerShortId, event.provider_short_id, event.providerId, event.provider_id];
+    var id = firstValue(event.id, event.eventId);
+    if (/^sportarr:/i.test(asText(id).trim())) values.push(id);
+    return unique(values.map(canonicalProviderID));
+  }
+
+  function itemSportarrIDs(item) {
+    item = item || {};
+    var values = [];
+    var containers = [item.provider_ids, item.providerIds, item.external_ids, item.externalIds];
+    if (item.metadata) containers.push(item.metadata.provider_ids, item.metadata.providerIds, item.metadata.external_ids, item.metadata.externalIds);
+    containers.forEach(function (container) {
+      if (!container) return;
+      if (Array.isArray(container)) {
+        container.forEach(function (entry) {
+          if (!entry || typeof entry !== "object") return;
+          var provider = normalized(firstValue(entry.provider, entry.source, entry.name, entry.type));
+          if (provider === "sportarr") values.push(firstValue(entry.id, entry.value, entry.provider_id, entry.providerId));
+        });
+        return;
+      }
+      if (typeof container === "object") {
+        Object.keys(container).forEach(function (key) {
+          if (normalized(key) === "sportarr") values.push(container[key]);
+        });
+      }
+    });
+    return unique(values.map(canonicalProviderID));
+  }
+
   function leagueAliases(value) {
     var key = normalized(value);
     var aliases = {
@@ -253,6 +289,11 @@
   }
 
   function scoreCandidate(event, item, options) {
+    var eventIDs = eventSportarrIDs(event);
+    var itemIDs = itemSportarrIDs(item);
+    if (eventIDs.some(function (id) { return itemIDs.indexOf(id) !== -1; })) {
+      return { item: item, score: 1000, confidence: "high", reasons: ["Sportarr event ID matches"] };
+    }
     var pair = pairMatch(event, item);
     if (!pair.matched) return null;
     var dates = catalogDates(item);
