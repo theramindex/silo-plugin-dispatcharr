@@ -291,6 +291,7 @@ async function loadRecordingCapability() {
   return state.recordingCapability;
 }
 function favoriteMap() { return prefs().favorites || {}; }
+function autoFavoriteMap() { return prefs().autoFavorites || {}; }
 function hiddenMap() { return prefs().hiddenCategories || {}; }
 function sportsFavoriteTeamMap() { return prefs().sportsFavoriteTeams || {}; }
 function sportsFavoriteLeagueMap() { return prefs().sportsFavoriteLeagues || {}; }
@@ -348,7 +349,7 @@ function mergePrefs(remote) {
   return {
     favorites: Object.assign({}, remote.favorites),
     favoriteOrder: uniqueIDs(items(remote.favoriteOrder)),
-    autoFavorites: {},
+    autoFavorites: Object.assign({}, remote.autoFavorites),
     hiddenCategories: Object.assign({}, remote.hiddenCategories),
     sportsFavoriteTeams: Object.assign({}, remote.sportsFavoriteTeams),
     sportsFavoriteLeagues: Object.assign({}, remote.sportsFavoriteLeagues),
@@ -372,7 +373,6 @@ function mergePrefs(remote) {
 function normalizePreferences() {
   if (!state.app || !state.app.preferences) return;
   state.app.preferences = Object.assign(defaultPrefs(), state.app.preferences || {});
-  state.app.preferences.autoFavorites = {};
   state.app.preferences.categoryParsing = Object.assign(defaultPrefs().categoryParsing, state.app.preferences.categoryParsing || {});
   state.app.preferences.profileSelection = normalizeProfileSelection(state.app.preferences.profileSelection);
   state.app.preferences.sportsFavoriteTeams = state.app.preferences.sportsFavoriteTeams || {};
@@ -600,6 +600,7 @@ function recordWatchPreference(channel) {
     playedAt: now,
     plays: plays
   };
+  if (plays >= 3 && !favoriteMap()[id]) state.app.preferences.autoFavorites[id] = true;
   normalizePreferences();
   savePrefs();
 }
@@ -1349,7 +1350,7 @@ function visibleChannels(ignoreQuery) {
     if (channel.categoryId && hidden[channel.categoryId]) return false;
     if (state.view !== "favorites" && state.category && !channelInSelectedCategory(channel, state.category)) return false;
     if (!ignoreQuery && state.query && !guideChannelMatchesQuery(channel)) return false;
-    if (state.view === "favorites" && !favoriteMap()[channel.id]) return false;
+    if (state.view === "favorites" && !favoriteMap()[channel.id] && !autoFavoriteMap()[channel.id]) return false;
     return true;
   }));
   return state.view === "favorites" ? orderedFavoriteChannels(channels) : channels;
@@ -1359,7 +1360,7 @@ function orderedFavoriteChannels(channels) {
   items(channels || effectiveChannels(false)).forEach(function(channel) { byID[channel.id] = channel; });
   const ordered = uniqueIDs(items(prefs().favoriteOrder)).map(function(id) { return byID[id]; }).filter(Boolean);
   const missing = items(channels || effectiveChannels(false)).filter(function(channel) {
-    return favoriteMap()[channel.id] && ordered.indexOf(channel) === -1;
+    return (favoriteMap()[channel.id] || autoFavoriteMap()[channel.id]) && ordered.indexOf(channel) === -1;
   });
   return ordered.concat(missing);
 }
@@ -1986,7 +1987,7 @@ function renderRail() {
     else button.removeAttribute("aria-current");
   });
   const favoriteCount = byId("favorite-count");
-  if (favoriteCount) favoriteCount.textContent = Object.keys(favoriteMap()).length;
+  if (favoriteCount) favoriteCount.textContent = Object.keys(favoriteMap()).length + Object.keys(autoFavoriteMap()).length;
 }
 function channelLogoFallback(channel) {
   const name = String((channel && channel.name) || "TV").trim();
@@ -2158,7 +2159,7 @@ function rowCards(channels) {
 }
 function homeFavoriteChannels() {
   return orderedFavoriteChannels(visibleChannels(true)).filter(function(channel) {
-    return !!favoriteMap()[channel.id];
+    return !!(favoriteMap()[channel.id] || autoFavoriteMap()[channel.id]);
   }).slice(0, 10);
 }
 function favoriteHomeCards(channels) {
