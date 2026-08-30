@@ -4981,7 +4981,7 @@ function renderPlayerPage() {
   const start = timeLabel(program.startUnix) || "LIVE";
   const end = timeLabel(program.endUnix) || "Now";
   const playbackShellClass = (replayMode ? "playback-shell is-replay" : "playback-shell") + (sportsFirstPlayerActive() ? " sports-enabled" : "");
-  const videoAttributes = replayMode ? " autoplay playsinline controls" : " autoplay playsinline";
+  const videoAttributes = " autoplay playsinline";
   const modeTag = replayMode ? "Replay" : "AV";
   const liveProgramWindow = !replayMode ? "<div class=\"player-live-window\"><span>Started " + escapeHTML(start) + "</span><strong><span class=\"live-dot\"></span>Live</strong><span>Ends " + escapeHTML(end) + "</span></div>" : "";
   const timeShiftControls = "<div id=\"player-timeshift-controls\" class=\"player-timeshift-controls hidden\"><button class=\"player-icon\" data-player-action=\"rewind-30\" aria-label=\"Rewind 30 seconds\">" + icon("rewind") + "</button><button class=\"player-icon\" data-player-action=\"play-toggle\" aria-label=\"Play or pause\">" + icon("play") + "</button><button class=\"player-icon\" data-player-action=\"forward-30\" aria-label=\"Forward 30 seconds\">" + icon("forward") + "</button><input id=\"player-timeshift-range\" type=\"range\" min=\"0\" max=\"1\" step=\"0.25\" value=\"1\" aria-label=\"Live Rewind position\"><button class=\"player-live-button\" data-player-action=\"go-live\"><span class=\"live-dot\"></span><span id=\"player-timeshift-label\">LIVE</span></button></div>";
@@ -6988,7 +6988,7 @@ function setVideoSource(url, options) {
   const video = byId("player");
   if (!video) return;
   const rewindable = !!(options && options.rewindable);
-  video.controls = rewindable;
+  video.controls = false;
   applyVolumeToVideo();
   state.selectedAudioTrack = 0;
   state.selectedTextTrack = -1;

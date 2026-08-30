@@ -381,7 +381,10 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`data-virtual-category-view=\"list\"`,
 		`No channels in this virtual group yet.`,
 		`function isRewindableChannel(channel)`,
-		`video.controls = rewindable`,
+		`id=\"player-timeshift-controls\"`,
+		`data-player-action=\"rewind-30\"`,
+		`data-player-action=\"go-live\"`,
+		`video.controls = false`,
 		`isLive: !rewindable`,
 		`data-silo-theme="midnight-cinema"`,
 		`function applySiloTheme()`,
@@ -455,6 +458,9 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	}
 	if strings.Contains(body, `<span>Multiview</span>`) || strings.Contains(body, `sports-channel-multiview`) {
 		t.Fatalf("expected multiview controls to be hidden from navigation and sports cards")
+	}
+	if strings.Contains(body, `autoplay playsinline controls`) || strings.Contains(body, `video.controls = rewindable`) {
+		t.Fatalf("expected replay and Live Rewind playback to use only the custom player controls")
 	}
 	if strings.Contains(body, `postJSON("/dispatcharr/api/sports/favorites"`) {
 		t.Fatalf("expected sports favorite teams to save through user profile preferences")
@@ -1202,8 +1208,8 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.ReplayRewindable || result.NormalRewindable {
 		t.Fatalf("expected only World Cup Replays channels to be rewindable: %+v", result)
 	}
-	if !result.ReplayPlayerClass || !result.ReplayPlayerControls || !result.ReplayPlayerTag {
-		t.Fatalf("expected World Cup Replays player to expose replay controls: %+v", result)
+	if !result.ReplayPlayerClass || !result.ReplayPlayerNativeControlsAbsent || !result.ReplayPlayerTag {
+		t.Fatalf("expected World Cup Replays player to use custom replay controls only: %+v", result)
 	}
 	if !result.EPGOverlapResolved {
 		t.Fatalf("expected overlapping EPG programs to render without overlapping cells: %+v", result)
@@ -1359,7 +1365,7 @@ type virtualAliasResult struct {
 	ReplayRewindable                     bool   `json:"replayRewindable"`
 	NormalRewindable                     bool   `json:"normalRewindable"`
 	ReplayPlayerClass                    bool   `json:"replayPlayerClass"`
-	ReplayPlayerControls                 bool   `json:"replayPlayerControls"`
+	ReplayPlayerNativeControlsAbsent     bool   `json:"replayPlayerNativeControlsAbsent"`
 	ReplayPlayerTag                      bool   `json:"replayPlayerTag"`
 	EPGOverlapResolved                   bool   `json:"epgOverlapResolved"`
 	EPGLiveTitleMarker                   bool   `json:"epgLiveTitleMarker"`
@@ -1942,7 +1948,7 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     replayRewindable: isRewindableChannel(replayChannel),
     normalRewindable: isRewindableChannel(channel),
 		replayPlayerClass: replayPlayerView.indexOf('class="playback-shell is-replay"') !== -1,
-		replayPlayerControls: replayPlayerView.indexOf('controls></video>') !== -1,
+		replayPlayerNativeControlsAbsent: replayPlayerView.indexOf('controls></video>') === -1,
 		replayPlayerTag: replayPlayerView.indexOf(">Replay</span>") !== -1,
 		epgOverlapResolved: epgOverlapResolved,
 		epgLiveTitleMarker: epgLiveTitleMarker,
