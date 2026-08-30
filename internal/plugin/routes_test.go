@@ -3737,7 +3737,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	for _, want := range []string{`.playback-shell.sports-open .playback-video { bottom: auto; height: calc(100% - var(--player-sports-drawer-height, 0px)); }`, `.playback-shell.sports-open .player-center-button { top: calc((100% - var(--player-sports-drawer-height, 0px)) / 2); }`} {
 		requireStyle(want)
 	}
-	for _, want := range []string{`.playback-shell.sports-open .player-bottom { bottom: var(--player-sports-drawer-height, 0px); z-index: 5; }`, `.playback-shell.sports-open .playback-stage:hover .player-top, .playback-shell.sports-open .playback-stage:hover .player-bottom { opacity: 1; pointer-events: auto; transform: translateY(0); }`, `display: grid; grid-template-rows: auto minmax(0, 1fr); max-height: min(40dvh, 26rem);`, `.player-sports-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding:`} {
+	for _, want := range []string{`.playback-shell.sports-open .player-bottom { bottom: var(--player-sports-drawer-height, 0px); z-index: 5; }`, `.playback-shell.sports-open .playback-stage:hover .player-top, .playback-shell.sports-open .playback-stage:hover .player-bottom { opacity: 1; pointer-events: auto; transform: translateY(0); }`, `display: grid; grid-template-rows: auto minmax(0, 1fr); max-height: min(40dvh, 26rem);`, `.player-sports-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scroll-padding-block: 0.65rem 0.85rem; scrollbar-gutter: stable; padding:`} {
 		requireStyle(want)
 	}
 	playerSportsLayout := functionBody("syncPlayerSportsDrawerLayout")
@@ -3801,14 +3801,34 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 			t.Fatalf("sports-first player drawer must include %q", want)
 		}
 	}
-	for _, want := range []string{`primaryEvents = relatedEvents.filter`, `browseEvents.slice(0, 8)`, `playerSportsChannels(primaryEvents)`, `otherEvents = relatedEvents.length`} {
+	for _, want := range []string{`primaryEvents = relatedEvents.filter`, `browseEvents.slice(0, 8)`, `playerSportsChannels(primaryEvents)`, `otherEvents = browseEvents.filter`} {
 		if !strings.Contains(playerSports, want) {
 			t.Fatalf("sports-first player must prioritize contextual events and channels via %q", want)
 		}
 	}
 	playerSportsEvents := functionBody("playerSportsEvents")
-	if !strings.Contains(playerSportsEvents, `Number(channel.score || 0) >= 60`) {
-		t.Fatal("sports-first player must hide low-confidence channel matches")
+	for _, want := range []string{`Number(channel.score || 0) >= 60`, `playerSportsEventIsLive(event)`} {
+		if !strings.Contains(playerSportsEvents, want) {
+			t.Fatalf("sports-first player must only show confident, currently live event matches via %q", want)
+		}
+	}
+	playerSportsLive := functionBody("playerSportsEventIsLive")
+	for _, want := range []string{`sportsEventIsLive(event)`, `startUnix <= now + 5 * 60`} {
+		if !strings.Contains(playerSportsLive, want) {
+			t.Fatalf("sports-first player live filtering must include %q", want)
+		}
+	}
+	keepDisclosureVisible := functionBody("keepPlayerSportsDisclosureVisible")
+	for _, want := range []string{`.closest(".player-sports-body")`, `scrollTo`, `syncPlayerSportsDrawerLayout`} {
+		if !strings.Contains(keepDisclosureVisible, want) {
+			t.Fatalf("expanded player sports content must stay inside its scrollport via %q", want)
+		}
+	}
+	if !strings.Contains(playerSports, `data-player-sports-more`) || !strings.Contains(playerSports, `state.playerSportsMoreOpen ? " open" : ""`) {
+		t.Fatal("more-live-sports disclosure must preserve its expanded state across sports refreshes")
+	}
+	if !strings.Contains(functionBody("stopPlayback"), `state.playerSportsMoreOpen = false`) || !strings.Contains(playChannel, `state.playerSportsMoreOpen = false`) {
+		t.Fatal("more-live-sports disclosure state must reset between playback sessions")
 	}
 	preferredNetwork := functionBody("sportsBroadcastNetworkKey")
 	for _, want := range []string{`channel.name`, `uhd`, `4k`} {

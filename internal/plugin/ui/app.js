@@ -8,7 +8,7 @@ const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuff
 const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", folderGroupPickerOpen: false, searchQuery: "", searchType: "all", searchAiringChannel: "", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsFailedMedia: {}, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLeagueTeams: {}, sportsLeagueTeamsLoading: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "connection", adminConnectionStatus: "idle", adminConnectionMessage: "", adminConnectionLoading: false, adminConnectionLoadError: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", folderGroupPickerOpen: false, searchQuery: "", searchType: "all", searchAiringChannel: "", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsMoreOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsFailedMedia: {}, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLeagueTeams: {}, sportsLeagueTeamsLoading: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "connection", adminConnectionStatus: "idle", adminConnectionMessage: "", adminConnectionLoading: false, adminConnectionLoadError: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 const appHistoryStateKey = "dispatcharrRoute";
 state.onLaterShelfLimits = {};
 state.aspectMode = "fit";
@@ -1490,6 +1490,7 @@ function stopPlayback() {
   state.playerChromeIdle = false;
   state.playerSportsMode = false;
   state.playerSportsOpen = false;
+  state.playerSportsMoreOpen = false;
   stopPlayerSportsRefresh();
   resetPlayerSportsDrawerLayout();
   if (video) {
@@ -3639,12 +3640,10 @@ function playerSportsChannelMatches(event, channelID) {
   });
 }
 function playerSportsEvents() {
-  const now = Math.floor(Date.now() / 1000);
   const currentID = state.currentChannel && state.currentChannel.id;
   return items(state.sports && state.sports.events).filter(function(event) {
     const channels = uniqueEventChannels(event.channels).filter(function(channel) { return Number(channel.score || 0) >= 60; });
-    const startsSoon = Number(event.startUnix || 0) <= now + 12 * 3600;
-    return channels.length && !event.completed && (sportsEventIsLive(event) || startsSoon || playerSportsChannelMatches(event, currentID));
+    return channels.length && playerSportsEventIsLive(event);
   }).sort(function(left, right) {
     const leftCurrent = playerSportsChannelMatches(left, currentID) ? 1 : 0;
     const rightCurrent = playerSportsChannelMatches(right, currentID) ? 1 : 0;
@@ -3652,11 +3651,15 @@ function playerSportsEvents() {
     const leftFavorite = sportsEventIsFollowed(left) ? 1 : 0;
     const rightFavorite = sportsEventIsFollowed(right) ? 1 : 0;
     if (leftFavorite !== rightFavorite) return rightFavorite - leftFavorite;
-    const leftLive = sportsEventIsLive(left);
-    const rightLive = sportsEventIsLive(right);
-    if (leftLive !== rightLive) return leftLive ? -1 : 1;
     return sportsEventStartSort(left, Number.MAX_SAFE_INTEGER) - sportsEventStartSort(right, Number.MAX_SAFE_INTEGER);
   }).slice(0, 12);
+}
+function playerSportsEventIsLive(event) {
+  if (!sportsEventIsLive(event)) return false;
+  const startUnix = Number(event && event.startUnix || 0);
+  if (!startUnix) return true;
+  const now = Math.floor(Date.now() / 1000);
+  return startUnix <= now + 5 * 60;
 }
 function playerSportsEventChannel(event) {
   const currentID = state.currentChannel && state.currentChannel.id;
@@ -3725,6 +3728,19 @@ function renderPlayerSportsFeed(channel) {
   const badge = channel.sportsPreferred ? "Preferred" : (channel.sportsPreferredNetwork ? "Preferred network" : ((channel.sportsTraits || [])[0] || "Live"));
   return "<button class=\"player-sports-channel player-sports-feed" + (active ? " active" : "") + "\" type=\"button\" data-player-sports-channel=\"" + escapeHTML(channel.id) + "\" aria-pressed=\"" + (active ? "true" : "false") + "\"><span>" + logoHTML(appChannel) + "</span><span><strong>" + escapeHTML(appChannel.name || "Sports channel") + "</strong><small>" + escapeHTML(badge) + (current.title ? " · Now: " + escapeHTML(current.title) : "") + (next.title ? " · Next: " + escapeHTML(next.title) : "") + "</small></span>" + (active ? icon("check") : icon("play")) + "</button>";
 }
+function keepPlayerSportsDisclosureVisible(details) {
+  requestAnimationFrame(function() {
+    const body = details && details.closest(".player-sports-body");
+    if (!body || !details.open) {
+      syncPlayerSportsDrawerLayout();
+      return;
+    }
+    const bodyBottom = body.getBoundingClientRect().bottom - 12;
+    const contentBottom = details.getBoundingClientRect().bottom;
+    if (contentBottom > bodyBottom) body.scrollTo({ top: body.scrollTop + contentBottom - bodyBottom, behavior: "smooth" });
+    syncPlayerSportsDrawerLayout();
+  });
+}
 function syncPlayerSportsDrawerLayout() {
   const shell = document.querySelector(".playback-shell");
   const drawer = byId("player-sports-drawer");
@@ -3782,7 +3798,7 @@ function renderPlayerSportsDrawer() {
   if (!primaryEvents.length) browseEvents.slice(0, 8).forEach(function(event) { primaryEvents.push(event); });
   const primaryIDs = {};
   primaryEvents.forEach(function(event) { primaryIDs[event.id] = true; });
-  const otherEvents = relatedEvents.length ? browseEvents.filter(function(event) { return !primaryIDs[event.id]; }).slice(0, 8) : [];
+  const otherEvents = browseEvents.filter(function(event) { return !primaryIDs[event.id]; }).slice(0, 8);
   const currentFeeds = currentEvent ? rankedSportsBroadcasts(currentEvent) : [];
   const currentFeedIDs = {};
   currentFeeds.forEach(function(channel) { currentFeedIDs[channel.id] = true; });
@@ -3792,11 +3808,11 @@ function renderPlayerSportsDrawer() {
   if (status) status.textContent = loading ? "Loading related sports." : (primaryEvents.length ? primaryEvents.length + " related or live sports events available." : "No related sports events available.");
   root.innerHTML = "<div class=\"player-sports-head\"><div><strong>Related sports</strong><span>Switch feeds or browse related coverage</span></div><div class=\"player-sports-head-actions\"><button type=\"button\" data-sports-spoilers=\"player\" aria-label=\"" + (sportsScoresHidden(true) ? "Show scores" : "Hide scores") + "\" aria-pressed=\"" + (sportsScoresHidden(true) ? "true" : "false") + "\">" + icon(sportsScoresHidden(true) ? "eye-off" : "eye") + "</button><button type=\"button\" data-player-action=\"sports-close\" aria-label=\"Close related sports\">" + icon("x") + "</button></div></div><div class=\"player-sports-body\">"
     + (loading ? "<div class=\"player-sports-loading\"><span></span><span></span><span></span></div>" : "")
-    + (!loading && !events.length ? "<div class=\"player-sports-empty\">No live or upcoming events have a confident channel match.</div>" : "")
+    + (!loading && !events.length ? "<div class=\"player-sports-empty\">No live events have a confident channel match.</div>" : "")
     + (currentFeeds.length ? "<div class=\"player-sports-section\"><div class=\"player-sports-section-title\">Current event feeds</div><div class=\"player-sports-channel-rail player-sports-feed-list\">" + currentFeeds.map(renderPlayerSportsFeed).join("") + "</div></div>" : "")
-    + (primaryEvents.length ? "<div class=\"player-sports-section\"><div class=\"player-sports-section-title\">" + (currentEvent ? "Related to this event" : "Live &amp; upcoming") + "</div><div class=\"player-sports-rail\">" + primaryEvents.map(renderPlayerSportsEvent).join("") + "</div></div>" : "")
+    + (primaryEvents.length ? "<div class=\"player-sports-section\"><div class=\"player-sports-section-title\">" + (currentEvent ? "Related to this event" : "Live now") + "</div><div class=\"player-sports-rail\">" + primaryEvents.map(renderPlayerSportsEvent).join("") + "</div></div>" : "")
     + (channels.length ? "<div class=\"player-sports-section\"><div class=\"player-sports-section-title\">Related channels</div><div class=\"player-sports-channel-rail\">" + channels.map(renderPlayerSportsChannel).join("") + "</div></div>" : "")
-    + (otherEvents.length ? "<details class=\"player-sports-more\"><summary>More live sports <span>" + escapeHTML(String(otherEvents.length)) + "</span>" + icon("chevron-down") + "</summary><div class=\"player-sports-rail\">" + otherEvents.map(renderPlayerSportsEvent).join("") + "</div></details>" : "") + "</div>";
+    + (otherEvents.length ? "<details class=\"player-sports-more\" data-player-sports-more" + (state.playerSportsMoreOpen ? " open" : "") + "><summary>More live sports <span>" + escapeHTML(String(otherEvents.length)) + "</span>" + icon("chevron-down") + "</summary><div class=\"player-sports-rail\">" + otherEvents.map(renderPlayerSportsEvent).join("") + "</div></details>" : "") + "</div>";
   observePlayerSportsDrawerLayout();
 }
 function stopPlayerSportsRefresh() {
@@ -3821,7 +3837,10 @@ function togglePlayerSports(open) {
   if (state.playerSportsOpen) {
     loadSports(false).then(renderPlayerSportsDrawer);
     startPlayerSportsRefresh();
-  } else stopPlayerSportsRefresh();
+  } else {
+    state.playerSportsMoreOpen = false;
+    stopPlayerSportsRefresh();
+  }
 }
 function setSportsTab(tab) {
   state.sportsTab = tab || "live";
@@ -7058,6 +7077,7 @@ async function playChannel(channel, options) {
   state.currentChannel = channel;
   state.playerSportsMode = useSportsPlayer;
   state.playerSportsOpen = useSportsPlayer;
+  state.playerSportsMoreOpen = false;
   state.view = "player";
   render();
   if (options.historyMode !== "none") commitAppRoute("push");
@@ -7383,6 +7403,15 @@ document.addEventListener("click", function(event) {
       stopPlayerSportsRefresh();
       playChannel(channel);
     }
+    return;
+  }
+  const playerSportsMore = event.target.closest("[data-player-sports-more] > summary");
+  if (playerSportsMore) {
+    const details = playerSportsMore.closest("[data-player-sports-more]");
+    requestAnimationFrame(function() {
+      state.playerSportsMoreOpen = !!(details && details.open);
+      keepPlayerSportsDisclosureVisible(details);
+    });
     return;
   }
   const playerTarget = event.target.closest("[data-player-action]");
