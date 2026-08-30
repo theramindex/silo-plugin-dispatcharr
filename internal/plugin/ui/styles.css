@@ -1131,11 +1131,13 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .player-guide-button.active { background: rgba(255,255,255,0.18); }
 .player-guide-panel { position: absolute; top: 5rem; right: 1.25rem; bottom: 8.5rem; z-index: 3; display: none; width: min(30rem, calc(100vw - 3rem)); overflow: hidden; border: 1px solid rgba(255,255,255,0.13); border-radius: 0.5rem; background: rgba(17,17,18,0.88); box-shadow: 0 1.2rem 2.4rem rgba(0,0,0,0.42); backdrop-filter: blur(22px); }
 .player-guide-panel.open { display: grid; grid-template-rows: auto minmax(0, 1fr); }
-.player-sports-drawer { position: absolute; inset: auto 0 0; z-index: 4; max-height: min(62vh, 35rem); overflow: auto; padding: 1rem 1.25rem 1.25rem; border-top: 1px solid rgba(255,255,255,0.14); background: rgba(10,10,11,0.92); color: white; box-shadow: 0 -1.25rem 3rem rgba(0,0,0,0.42); backdrop-filter: blur(22px); opacity: 0; pointer-events: none; transform: translateY(1rem); transition: opacity 180ms ease-out, transform 180ms ease-out; }
+.player-sports-drawer { position: absolute; inset: auto 0 0; z-index: 4; display: grid; grid-template-rows: auto minmax(0, 1fr); max-height: min(40dvh, 26rem); overflow: hidden; border-top: 1px solid rgba(255,255,255,0.14); background: rgba(10,10,11,0.94); color: white; box-shadow: 0 -1rem 2.5rem rgba(0,0,0,0.38); backdrop-filter: blur(22px); opacity: 0; pointer-events: none; transform: translateY(1rem); transition: opacity 180ms ease-out, transform 180ms ease-out; }
 .player-sports-drawer.open { opacity: 1; pointer-events: auto; transform: translateY(0); }
-.playback-shell.sports-open .player-bottom { opacity: 0; pointer-events: none; transform: translateY(0.75rem); }
+.playback-shell.sports-open .player-bottom { bottom: var(--player-sports-drawer-height, 0px); z-index: 5; }
+.playback-shell.sports-open.is-replay .player-bottom { bottom: calc(var(--player-sports-drawer-height, 0px) + 3rem); }
+.playback-shell.sports-open .playback-stage:hover .player-top, .playback-shell.sports-open .playback-stage:hover .player-bottom { opacity: 1; pointer-events: auto; transform: translateY(0); }
 .playback-shell.sports-open .playback-scrim { opacity: 0.48; }
-.player-sports-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.9rem; }
+.player-sports-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.7rem 1rem 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.08); }
 .player-sports-head > div { min-width: 0; }
 .player-sports-head .player-sports-head-actions { display: flex; align-items: center; gap: 0.4rem; }
 .player-sports-head strong, .player-sports-head span { display: block; }
@@ -1144,10 +1146,11 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .player-sports-head button { width: 2.75rem; height: 2.75rem; border: 1px solid rgba(255,255,255,0.14); border-radius: 999px; background: rgba(255,255,255,0.08); color: white; display: grid; place-items: center; }
 .player-sports-head button:hover { background: rgba(255,255,255,0.16); }
 .player-sports-head svg { width: 1rem; height: 1rem; }
-.player-sports-section + .player-sports-section { margin-top: 1rem; }
+.player-sports-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 0.65rem 1rem 0.85rem; }
+.player-sports-section + .player-sports-section { margin-top: 0.75rem; }
 .player-sports-section-title { margin-bottom: 0.48rem; color: rgba(255,255,255,0.72); font-size: 0.72rem; font-weight: 850; text-transform: uppercase; }
 .player-sports-rail, .player-sports-channel-rail { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(12rem, 15rem); gap: 0.55rem; overflow-x: auto; overscroll-behavior-inline: contain; padding-bottom: 0.2rem; }
-.player-sports-event { min-height: 7.25rem; border: 1px solid rgba(255,255,255,0.13); border-radius: 0.5rem; background: rgba(255,255,255,0.075); color: white; padding: 0.65rem 0.72rem; display: grid; gap: 0.35rem; text-align: left; }
+.player-sports-event { min-height: 6rem; border: 1px solid rgba(255,255,255,0.13); border-radius: 0.5rem; background: rgba(255,255,255,0.075); color: white; padding: 0.55rem 0.65rem; display: grid; gap: 0.25rem; text-align: left; }
 .player-sports-event:hover, .player-sports-event:focus-visible { background: rgba(255,255,255,0.13); border-color: rgba(255,255,255,0.25); }
 .player-sports-event.current { border-color: rgba(255,255,255,0.34); background: rgba(255,255,255,0.12); }
 .player-sports-event.live { border-left: 0.22rem solid #ef3340; }
@@ -1158,18 +1161,18 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .player-sports-team strong { font-size: 1rem; }
 .player-sports-event > small { margin-top: 0.05rem; color: rgba(255,255,255,0.58); font-size: 0.68rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .player-sports-channel-rail { grid-auto-columns: minmax(13rem, 17rem); }
-.player-sports-channel { min-width: 0; min-height: 4rem; border: 1px solid rgba(255,255,255,0.12); border-radius: 0.5rem; background: rgba(255,255,255,0.065); color: white; padding: 0.48rem 0.55rem; display: grid; grid-template-columns: 3.6rem minmax(0, 1fr); align-items: center; gap: 0.65rem; text-align: left; }
+.player-sports-channel { min-width: 0; min-height: 3.5rem; border: 1px solid rgba(255,255,255,0.12); border-radius: 0.5rem; background: rgba(255,255,255,0.065); color: white; padding: 0.4rem 0.5rem; display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); align-items: center; gap: 0.6rem; text-align: left; }
 .player-sports-channel:hover, .player-sports-channel:focus-visible { background: rgba(255,255,255,0.13); }
-.player-sports-channel > span:first-child { width: 3.6rem; height: 2.5rem; display: grid; place-items: center; overflow: hidden; }
+.player-sports-channel > span:first-child { width: 3.2rem; height: 2.25rem; display: grid; place-items: center; overflow: hidden; }
 .player-sports-channel .logo { display: block; width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; object-position: center; border-radius: 0; background: transparent; }
 .player-sports-channel strong, .player-sports-channel small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .player-sports-channel strong { font-size: 0.82rem; }
 .player-sports-channel small { margin-top: 0.15rem; color: rgba(255,255,255,0.58); font-size: 0.68rem; font-weight: 700; }
 .player-sports-feed-list { grid-auto-columns: minmax(18rem, 24rem); }
-.player-sports-feed { grid-template-columns: 3.6rem minmax(0, 1fr) 1.25rem; }
+.player-sports-feed { grid-template-columns: 3.2rem minmax(0, 1fr) 1.25rem; }
 .player-sports-feed.active { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.14); }
 .player-sports-feed > svg { width: 1rem; height: 1rem; opacity: 0.78; }
-.player-sports-more { margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 0.45rem; }
+.player-sports-more { margin-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 0.3rem; }
 .player-sports-more summary { min-height: 2.75rem; display: flex; align-items: center; gap: 0.55rem; color: rgba(255,255,255,0.72); cursor: pointer; font-size: 0.75rem; font-weight: 820; list-style: none; }
 .player-sports-more summary::-webkit-details-marker { display: none; }
 .player-sports-more summary span { min-width: 1.4rem; height: 1.4rem; padding-inline: 0.3rem; border-radius: 999px; background: rgba(255,255,255,0.1); display: grid; place-items: center; color: rgba(255,255,255,0.65); font-size: 0.68rem; }
@@ -1181,7 +1184,10 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .player-sports-loading span { min-height: 7.25rem; border-radius: 0.5rem; background: rgba(255,255,255,0.08); animation: sports-skeleton 1.2s ease-in-out infinite alternate; }
 @keyframes sports-skeleton { to { background: rgba(255,255,255,0.14); } }
 @media (max-width: 720px) {
-  .player-sports-drawer { max-height: 70vh; padding: 0.85rem 0.8rem 1rem; }
+  .player-sports-drawer { max-height: min(52dvh, 28rem); }
+  .player-sports-head { padding-inline: 0.8rem; }
+  .player-sports-head span { display: none; }
+  .player-sports-body { padding: 0.6rem 0.8rem 0.8rem; }
   .player-sports-rail { grid-auto-columns: minmax(11.25rem, 72vw); }
   .player-sports-channel-rail { grid-auto-columns: minmax(13rem, 82vw); }
   .player-sports-loading { grid-template-columns: 1fr 1fr; }
