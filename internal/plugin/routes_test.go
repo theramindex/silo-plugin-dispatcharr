@@ -3731,10 +3731,13 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	for _, want := range []string{`.playback-shell { position: relative; width: 100%; height: 100dvh;`, `.playback-video { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto; object-fit: contain;`, `.player-bottom-actions { align-self: end; gap: 0.22rem;`} {
 		requireStyle(want)
 	}
-	for _, want := range []string{`.player-sports-channel > span:first-child { width: 3.6rem; height: 2.5rem; display: grid; place-items: center; overflow: hidden; }`, `.player-sports-channel .logo { display: block; width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; object-position: center; border-radius: 0; background: transparent; }`} {
+	for _, want := range []string{`.player-sports-channel > span:first-child { width: 3.2rem; height: 2.25rem; display: grid; place-items: center; overflow: hidden; }`, `.player-sports-channel .logo { display: block; width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; object-position: center; border-radius: 0; background: transparent; }`} {
 		requireStyle(want)
 	}
 	for _, want := range []string{`.playback-shell.sports-open .playback-video { bottom: auto; height: calc(100% - var(--player-sports-drawer-height, 0px)); }`, `.playback-shell.sports-open .player-center-button { top: calc((100% - var(--player-sports-drawer-height, 0px)) / 2); }`} {
+		requireStyle(want)
+	}
+	for _, want := range []string{`.playback-shell.sports-open .player-bottom { bottom: var(--player-sports-drawer-height, 0px); z-index: 5; }`, `.playback-shell.sports-open .playback-stage:hover .player-top, .playback-shell.sports-open .playback-stage:hover .player-bottom { opacity: 1; pointer-events: auto; transform: translateY(0); }`, `display: grid; grid-template-rows: auto minmax(0, 1fr); max-height: min(40dvh, 26rem);`, `.player-sports-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding:`} {
 		requireStyle(want)
 	}
 	playerSportsLayout := functionBody("syncPlayerSportsDrawerLayout")
@@ -3793,12 +3796,12 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		t.Fatal("search must wait for a meaningful query before scanning the full lineup")
 	}
 	playerSports := functionBody("renderPlayerSportsDrawer")
-	for _, want := range []string{`player-sports-drawer`, `player-sports-status`, `Current event feeds`, `playerSportsCurrentEvent`, `playerSportsRelatedEvents`, `rankedSportsBroadcasts`, `Related to this event`, `Related channels`, `More live sports`} {
+	for _, want := range []string{`player-sports-drawer`, `player-sports-body`, `player-sports-status`, `Current event feeds`, `playerSportsCurrentEvent`, `playerSportsRelatedEvents`, `rankedSportsBroadcasts`, `Related to this event`, `Related channels`, `More live sports`, `event.id !== currentEvent.id`, `!currentFeedIDs[channel.id]`} {
 		if !strings.Contains(playerSports, want) {
 			t.Fatalf("sports-first player drawer must include %q", want)
 		}
 	}
-	for _, want := range []string{`primaryEvents = relatedEvents.length ? relatedEvents`, `playerSportsChannels(primaryEvents)`, `otherEvents = relatedEvents.length`} {
+	for _, want := range []string{`primaryEvents = relatedEvents.filter`, `browseEvents.slice(0, 8)`, `playerSportsChannels(primaryEvents)`, `otherEvents = relatedEvents.length`} {
 		if !strings.Contains(playerSports, want) {
 			t.Fatalf("sports-first player must prioritize contextual events and channels via %q", want)
 		}
