@@ -1146,7 +1146,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .player-sports-head button { width: 2.75rem; height: 2.75rem; border: 1px solid rgba(255,255,255,0.14); border-radius: 999px; background: rgba(255,255,255,0.08); color: white; display: grid; place-items: center; }
 .player-sports-head button:hover { background: rgba(255,255,255,0.16); }
 .player-sports-head svg { width: 1rem; height: 1rem; }
-.player-sports-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 0.65rem 1rem 0.85rem; }
+.player-sports-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scroll-padding-block: 0.65rem 0.85rem; scrollbar-gutter: stable; padding: 0.65rem 1rem 0.85rem; }
 .player-sports-section + .player-sports-section { margin-top: 0.75rem; }
 .player-sports-section-title { margin-bottom: 0.48rem; color: rgba(255,255,255,0.72); font-size: 0.72rem; font-weight: 850; text-transform: uppercase; }
 .player-sports-rail, .player-sports-channel-rail { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(12rem, 15rem); gap: 0.55rem; overflow-x: auto; overscroll-behavior-inline: contain; padding-bottom: 0.2rem; }
@@ -1178,6 +1178,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .player-sports-more summary span { min-width: 1.4rem; height: 1.4rem; padding-inline: 0.3rem; border-radius: 999px; background: rgba(255,255,255,0.1); display: grid; place-items: center; color: rgba(255,255,255,0.65); font-size: 0.68rem; }
 .player-sports-more summary svg { width: 0.9rem; height: 0.9rem; margin-left: auto; transition: transform 160ms ease-out; }
 .player-sports-more[open] summary svg { transform: rotate(180deg); }
+.player-sports-more[open] { padding-bottom: 0.55rem; }
 .player-sports-more > .player-sports-rail { margin-top: 0.35rem; }
 .player-sports-empty { padding: 1.1rem; border: 1px dashed rgba(255,255,255,0.14); border-radius: 0.5rem; color: rgba(255,255,255,0.62); text-align: center; font-size: 0.82rem; font-weight: 720; }
 .player-sports-loading { display: grid; grid-template-columns: repeat(3, minmax(10rem, 1fr)); gap: 0.55rem; }
