@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,6 +44,8 @@ var raceLocationPrefix = regexp.MustCompile(`(?i)^\s*(?:v(?:s\.)?|at|@|:|-)\s*`)
 var guideSportsTimestampSuffix = regexp.MustCompile(`(?i)\s*\(\d{4}-\d{2}-\d{2}(?:[ t]\d{1,2}:\d{2}(?::\d{2})?)?\)\s*$`)
 var guideSportsVenueSuffix = regexp.MustCompile(`\s+_\s+([^_]+?)\s*$`)
 var guideSportsNextGameSuffix = regexp.MustCompile(`(?i)\s+on\s+\d{4}-\d{2}-\d{2}\s+at\s+\d{1,2}:\d{2}\s*(?:am|pm)?(?:\s+[a-z]{2,5})?\s*$`)
+var sportsISODatePattern = regexp.MustCompile(`\b(20\d{2})[-_/](\d{1,2})[-_/](\d{1,2})\b`)
+var sportsUSDatePattern = regexp.MustCompile(`\b(\d{1,2})[-_/](\d{1,2})[-_/](20\d{2})\b`)
 var guideSportsMatchNumberSuffix = regexp.MustCompile(`(?i)\s*(?:,\s*match\s+\d+|[-,]?\s*\d+(?:st|nd|rd|th)\s+match)\s*$`)
 var guideSportsStageSuffix = regexp.MustCompile(`(?i)\s+-\s+(?:qualifier|eliminator|semi[- ]?final|final)\s*$`)
 var guideSportsCompetitionSuffix = regexp.MustCompile(`(?i)\s+-\s+(?:uefa\s+(?:champions|europa|conference)\s+league)\b.*$`)
@@ -110,38 +113,45 @@ type SportsArtwork struct {
 }
 
 type SportsEvent struct {
-	ID                string               `json:"id"`
-	ProviderID        string               `json:"providerId,omitempty"`
-	ProviderShortID   string               `json:"providerShortId,omitempty"`
-	ProviderLeagueID  string               `json:"providerLeagueId,omitempty"`
-	LeagueID          string               `json:"leagueId"`
-	LeagueName        string               `json:"leagueName"`
-	LeagueLogoURL     string               `json:"leagueLogoUrl,omitempty"`
-	LeagueDescription string               `json:"leagueDescription,omitempty"`
-	SportName         string               `json:"sportName,omitempty"`
-	Name              string               `json:"name"`
-	ShortName         string               `json:"shortName,omitempty"`
-	EventType         string               `json:"eventType,omitempty"`
-	Season            string               `json:"season,omitempty"`
-	Round             string               `json:"round,omitempty"`
-	Venue             string               `json:"venue,omitempty"`
-	BroadcastTimezone string               `json:"broadcastTimezone,omitempty"`
-	ImageURL          string               `json:"imageUrl,omitempty"`
-	Artwork           *SportsArtwork       `json:"artwork,omitempty"`
-	Description       string               `json:"description,omitempty"`
-	Status            string               `json:"status"`
-	StatusText        string               `json:"statusText,omitempty"`
-	Period            string               `json:"period,omitempty"`
-	Clock             string               `json:"clock,omitempty"`
-	StartUnix         int64                `json:"startUnix"`
-	EndUnix           int64                `json:"endUnix,omitempty"`
-	Home              SportsTeam           `json:"home"`
-	Away              SportsTeam           `json:"away"`
-	HomeScore         string               `json:"homeScore,omitempty"`
-	AwayScore         string               `json:"awayScore,omitempty"`
-	Live              bool                 `json:"live"`
-	Completed         bool                 `json:"completed"`
-	Channels          []SportsChannelMatch `json:"channels"`
+	ID                string                  `json:"id"`
+	StableID          string                  `json:"stableId"`
+	ProviderSource    string                  `json:"providerSource,omitempty"`
+	ProviderID        string                  `json:"providerId,omitempty"`
+	ProviderShortID   string                  `json:"providerShortId,omitempty"`
+	ProviderLeagueID  string                  `json:"providerLeagueId,omitempty"`
+	LeagueID          string                  `json:"leagueId"`
+	LeagueName        string                  `json:"leagueName"`
+	LeagueLogoURL     string                  `json:"leagueLogoUrl,omitempty"`
+	LeagueDescription string                  `json:"leagueDescription,omitempty"`
+	SportName         string                  `json:"sportName,omitempty"`
+	Name              string                  `json:"name"`
+	ShortName         string                  `json:"shortName,omitempty"`
+	EventType         string                  `json:"eventType,omitempty"`
+	Season            string                  `json:"season,omitempty"`
+	Round             string                  `json:"round,omitempty"`
+	Venue             string                  `json:"venue,omitempty"`
+	BroadcastTimezone string                  `json:"broadcastTimezone,omitempty"`
+	ImageURL          string                  `json:"imageUrl,omitempty"`
+	Artwork           *SportsArtwork          `json:"artwork,omitempty"`
+	Description       string                  `json:"description,omitempty"`
+	Status            string                  `json:"status"`
+	StatusText        string                  `json:"statusText,omitempty"`
+	Period            string                  `json:"period,omitempty"`
+	Clock             string                  `json:"clock,omitempty"`
+	StartUnix         int64                   `json:"startUnix"`
+	EndUnix           int64                   `json:"endUnix,omitempty"`
+	Home              SportsTeam              `json:"home"`
+	Away              SportsTeam              `json:"away"`
+	HomeScore         string                  `json:"homeScore,omitempty"`
+	AwayScore         string                  `json:"awayScore,omitempty"`
+	HomeRank          int                     `json:"homeRank,omitempty"`
+	AwayRank          int                     `json:"awayRank,omitempty"`
+	Spread            *float64                `json:"spread,omitempty"`
+	Live              bool                    `json:"live"`
+	Completed         bool                    `json:"completed"`
+	Channels          []SportsChannelMatch    `json:"channels"`
+	Ranking           SportsEventRanking      `json:"ranking"`
+	MatchDiagnostics  []SportsMatchDiagnostic `json:"matchDiagnostics,omitempty"`
 }
 
 type SportsChannelMatch struct {
@@ -150,7 +160,33 @@ type SportsChannelMatch struct {
 	CategoryName string `json:"categoryName,omitempty"`
 	LogoURL      string `json:"logoUrl,omitempty"`
 	Reason       string `json:"reason,omitempty"`
+	Evidence     string `json:"evidence,omitempty"`
+	Confidence   string `json:"confidence,omitempty"`
 	Score        int    `json:"score"`
+}
+
+type SportsEventRanking struct {
+	Score   float64               `json:"score"`
+	Raw     float64               `json:"raw"`
+	Knee    float64               `json:"knee"`
+	Signals []SportsRankingSignal `json:"signals"`
+}
+
+type SportsRankingSignal struct {
+	Key    string  `json:"key"`
+	Label  string  `json:"label"`
+	Detail string  `json:"detail,omitempty"`
+	Points float64 `json:"points"`
+}
+
+type SportsMatchDiagnostic struct {
+	ChannelID   string `json:"channelId,omitempty"`
+	ChannelName string `json:"channelName,omitempty"`
+	Accepted    bool   `json:"accepted"`
+	Evidence    string `json:"evidence,omitempty"`
+	Confidence  string `json:"confidence,omitempty"`
+	Reason      string `json:"reason,omitempty"`
+	Score       int    `json:"score,omitempty"`
 }
 
 func (s *HTTPRoutesServer) handleSports(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
@@ -322,9 +358,18 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 		events[index].Away.Favorite = false
 		if strings.HasPrefix(events[index].ID, "epg:") && len(events[index].Channels) > 0 {
 			events[index].Channels = mergeSportsChannelMatches(events[index].Channels)
+			events[index].MatchDiagnostics = make([]SportsMatchDiagnostic, 0, len(events[index].Channels))
+			for _, match := range events[index].Channels {
+				events[index].MatchDiagnostics = append(events[index].MatchDiagnostics, SportsMatchDiagnostic{
+					ChannelID: match.ID, ChannelName: match.Name, Accepted: true,
+					Evidence: "epg", Confidence: "high", Reason: firstNonEmpty(match.Reason, "EPG-derived event feed"), Score: match.Score,
+				})
+			}
 			continue
 		}
-		events[index].Channels = mergeSportsChannelMatches(events[index].Channels, channelIndex.Match(events[index]))
+		matches, diagnostics := channelIndex.MatchDetailed(events[index])
+		events[index].Channels = mergeSportsChannelMatches(events[index].Channels, matches)
+		events[index].MatchDiagnostics = diagnostics
 	}
 	sort.Slice(events, func(i, j int) bool {
 		if events[i].Live != events[j].Live {
@@ -340,6 +385,8 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 	if enricher, ok := s.sportsProvider.(sportsEventEnricher); ok {
 		events = enricher.EnrichEvents(ctx, events, 8)
 	}
+	events = rankSportsEvents(events, now)
+	events = s.proxySportsEventImages(events)
 	payload := SportsPayload{
 		UpdatedAtUnix: updatedUnix,
 		Source:        source,
@@ -867,6 +914,9 @@ func (s *HTTPRoutesServer) cachedSportsEvents(ctx context.Context, now time.Time
 		}
 		return []SportsEvent{}, now.Unix(), source, err
 	}
+	for index := range events {
+		events[index].ProviderSource = strings.TrimSpace(source)
+	}
 	events = normalizeSportsEvents(events)
 	updatedUnix := now.Unix()
 	s.sportsCache = sportsEventCache{
@@ -938,6 +988,7 @@ func normalizeSportsEvents(events []SportsEvent) []SportsEvent {
 	normalized := make([]SportsEvent, 0, len(events))
 	for _, event := range events {
 		event.ID = strings.TrimSpace(event.ID)
+		event.ProviderSource = strings.TrimSpace(event.ProviderSource)
 		event.ProviderID = strings.TrimSpace(event.ProviderID)
 		event.ProviderLeagueID = strings.TrimSpace(event.ProviderLeagueID)
 		event.LeagueID = strings.TrimSpace(event.LeagueID)
@@ -964,6 +1015,9 @@ func normalizeSportsEvents(events []SportsEvent) []SportsEvent {
 		event = applySportsIdentityFallbacks(event)
 		if event.ID == "" {
 			event.ID = stableSportsID(event)
+		}
+		if event.StableID == "" {
+			event.StableID = stableSportsEventIdentity(event)
 		}
 		if event.Name == "" {
 			event.Name = strings.TrimSpace(event.Away.Name + " at " + event.Home.Name)
@@ -1016,6 +1070,27 @@ func stableSportsID(event SportsEvent) string {
 	return "sports:" + sportsHash(strings.Join(parts, "|"))
 }
 
+func stableSportsEventIdentity(event SportsEvent) string {
+	if providerID := strings.TrimSpace(event.ProviderID); providerID != "" {
+		return "sports-event:" + sportsHash(strings.Join([]string{
+			"provider",
+			firstNonEmpty(strings.TrimSpace(event.ProviderSource), "unknown"),
+			strings.TrimSpace(event.ProviderLeagueID),
+			providerID,
+		}, "|"))
+	}
+	parts := []string{
+		strings.ToLower(strings.TrimSpace(event.LeagueID)),
+		strings.ToLower(strings.TrimSpace(event.Season)),
+		strings.ToLower(strings.TrimSpace(event.Round)),
+		strings.ToLower(strings.TrimSpace(event.EventType)),
+		strings.ToLower(strings.TrimSpace(event.Away.ID)),
+		strings.ToLower(strings.TrimSpace(event.Home.ID)),
+		strings.ToLower(strings.TrimSpace(event.Name)),
+	}
+	return "sports-event:" + sportsHash(strings.Join(parts, "|"))
+}
+
 func stableSportsTeamID(team SportsTeam) string {
 	return "sports-team:" + sportsHash(strings.ToLower(strings.TrimSpace(team.Name+"|"+team.Abbreviation)))
 }
@@ -1028,10 +1103,37 @@ func sportsHash(value string) string {
 func cloneSportsEvents(events []SportsEvent) []SportsEvent {
 	clone := make([]SportsEvent, len(events))
 	for index, event := range events {
+		if event.Spread != nil {
+			spread := *event.Spread
+			event.Spread = &spread
+		}
 		event.Channels = append([]SportsChannelMatch(nil), event.Channels...)
+		event.Ranking.Signals = append([]SportsRankingSignal(nil), event.Ranking.Signals...)
+		event.MatchDiagnostics = append([]SportsMatchDiagnostic(nil), event.MatchDiagnostics...)
+		event.Artwork = cloneSportsArtwork(event.Artwork)
 		clone[index] = event
 	}
 	return clone
+}
+
+func cloneSportsArtwork(artwork *SportsArtwork) *SportsArtwork {
+	if artwork == nil {
+		return nil
+	}
+	clone := *artwork
+	cloneImage := func(image *SportsImage) *SportsImage {
+		if image == nil {
+			return nil
+		}
+		copy := *image
+		return &copy
+	}
+	clone.Poster = cloneImage(artwork.Poster)
+	clone.Backdrop = cloneImage(artwork.Backdrop)
+	clone.Logo = cloneImage(artwork.Logo)
+	clone.Banner = cloneImage(artwork.Banner)
+	clone.Thumbnail = cloneImage(artwork.Thumbnail)
+	return &clone
 }
 
 func sortedBoolKeys(values map[string]bool) []string {
@@ -1051,6 +1153,7 @@ type sportsTerm struct {
 	Weight       int
 	TeamName     bool
 	Abbreviation bool
+	Weak         bool
 }
 
 type sportsIndexedChannel struct {
@@ -1058,12 +1161,15 @@ type sportsIndexedChannel struct {
 	CategoryName string
 	ChannelText  string
 	CategoryText string
+	RawText      string
+	Segments     []string
 	Programs     []sportsIndexedProgram
 }
 
 type sportsIndexedProgram struct {
-	Program model.Program
-	Text    string
+	Program  model.Program
+	Text     string
+	Segments []string
 }
 
 type sportsChannelIndex struct {
@@ -1078,8 +1184,9 @@ func newSportsChannelIndex(snapshot cache.Snapshot) sportsChannelIndex {
 	programsByChannel := map[string][]sportsIndexedProgram{}
 	for _, program := range snapshot.Catalog.Programs {
 		programsByChannel[program.ChannelID] = append(programsByChannel[program.ChannelID], sportsIndexedProgram{
-			Program: program,
-			Text:    normalizeMatchText(strings.Join([]string{program.Title, program.Summary}, " ")),
+			Program:  program,
+			Text:     normalizeMatchText(strings.Join([]string{program.Title, program.Summary}, " ")),
+			Segments: sportsMatchSegments(program.Title, program.Summary),
 		})
 	}
 	channels := make([]sportsIndexedChannel, 0, len(snapshot.Catalog.Channels))
@@ -1095,6 +1202,8 @@ func newSportsChannelIndex(snapshot cache.Snapshot) sportsChannelIndex {
 			CategoryName: categoryName,
 			ChannelText:  normalizeMatchText(strings.Join([]string{channel.Name, channel.Number}, " ")),
 			CategoryText: normalizeMatchText(strings.Join([]string{categoryName, channel.CategoryName}, " ")),
+			RawText:      strings.Join([]string{channel.Name, channel.Number, categoryName, channel.CategoryName}, " "),
+			Segments:     sportsMatchSegments(channel.Name, categoryName, channel.CategoryName),
 			Programs:     programsByChannel[channel.ID],
 		})
 	}
@@ -1106,14 +1215,24 @@ func matchSportsChannels(event SportsEvent, snapshot cache.Snapshot) []SportsCha
 }
 
 func (index sportsChannelIndex) Match(event SportsEvent) []SportsChannelMatch {
+	matches, _ := index.MatchDetailed(event)
+	return matches
+}
+
+func (index sportsChannelIndex) MatchDetailed(event SportsEvent) ([]SportsChannelMatch, []SportsMatchDiagnostic) {
 	terms := sportsMatchTerms(event)
 	if len(terms) == 0 {
-		return []SportsChannelMatch{}
+		return []SportsChannelMatch{}, []SportsMatchDiagnostic{}
 	}
 	matches := make([]SportsChannelMatch, 0)
+	diagnostics := make([]SportsMatchDiagnostic, 0)
 	for _, indexed := range index.Channels {
-		score, reason := scoreIndexedSportsChannel(indexed, event, terms)
+		result := scoreIndexedSportsChannelResult(indexed, event, terms)
+		score, reason := result.Score, result.Reason
 		if score < sportsChannelMinimumScore {
+			if result.RejectedReason != "" {
+				diagnostics = append(diagnostics, SportsMatchDiagnostic{ChannelID: indexed.Channel.ID, ChannelName: indexed.Channel.Name, Reason: result.RejectedReason})
+			}
 			continue
 		}
 		matches = append(matches, SportsChannelMatch{
@@ -1122,8 +1241,11 @@ func (index sportsChannelIndex) Match(event SportsEvent) []SportsChannelMatch {
 			CategoryName: indexed.CategoryName,
 			LogoURL:      indexed.Channel.LogoURL,
 			Reason:       reason,
+			Evidence:     result.Evidence,
+			Confidence:   result.Confidence,
 			Score:        score,
 		})
+		diagnostics = append(diagnostics, SportsMatchDiagnostic{ChannelID: indexed.Channel.ID, ChannelName: indexed.Channel.Name, Accepted: true, Evidence: result.Evidence, Confidence: result.Confidence, Reason: result.Reason, Score: result.Score})
 	}
 	sort.Slice(matches, func(i, j int) bool {
 		if matches[i].Score != matches[j].Score {
@@ -1134,12 +1256,24 @@ func (index sportsChannelIndex) Match(event SportsEvent) []SportsChannelMatch {
 	if len(matches) > 6 {
 		matches = matches[:6]
 	}
-	return matches
+	sort.SliceStable(diagnostics, func(i, j int) bool {
+		if diagnostics[i].Accepted != diagnostics[j].Accepted {
+			return diagnostics[i].Accepted
+		}
+		if diagnostics[i].Score != diagnostics[j].Score {
+			return diagnostics[i].Score > diagnostics[j].Score
+		}
+		return diagnostics[i].ChannelName < diagnostics[j].ChannelName
+	})
+	if len(diagnostics) > 12 {
+		diagnostics = diagnostics[:12]
+	}
+	return matches, diagnostics
 }
 
 func sportsMatchTerms(event SportsEvent) []sportsTerm {
 	var terms []sportsTerm
-	add := func(text, reason string, weight int, teamName, abbreviation bool) {
+	add := func(text, reason string, weight int, teamName, abbreviation, weak bool) {
 		text = strings.TrimSpace(text)
 		if text == "" || len([]rune(text)) < 3 {
 			return
@@ -1150,15 +1284,17 @@ func sportsMatchTerms(event SportsEvent) []sportsTerm {
 				return
 			}
 		}
-		terms = append(terms, sportsTerm{Text: text, Reason: reason, Weight: weight, TeamName: teamName, Abbreviation: abbreviation})
+		terms = append(terms, sportsTerm{Text: text, Reason: reason, Weight: weight, TeamName: teamName, Abbreviation: abbreviation, Weak: weak})
 	}
-	add(event.Home.Name, event.Home.Name, 60, true, false)
-	add(event.Away.Name, event.Away.Name, 60, true, false)
-	add(event.Home.Abbreviation, event.Home.Abbreviation, 28, false, true)
-	add(event.Away.Abbreviation, event.Away.Abbreviation, 28, false, true)
+	add(event.Home.Name, event.Home.Name, 60, true, false, false)
+	add(event.Away.Name, event.Away.Name, 60, true, false, false)
+	add(event.Home.Abbreviation, event.Home.Abbreviation, 28, false, true, false)
+	add(event.Away.Abbreviation, event.Away.Abbreviation, 28, false, true, false)
+	add(sportsWeakTeamAlias(event.Home.Name), event.Home.Name+" alias", 18, false, false, true)
+	add(sportsWeakTeamAlias(event.Away.Name), event.Away.Name+" alias", 18, false, false, true)
 	// League names are too broad for channel matching; "NFL" or "MLB" would pull in every team group.
-	add(event.Name, "event title", 22, false, false)
-	add(event.ShortName, "event title", 22, false, false)
+	add(event.Name, "event title", 22, false, false, false)
+	add(event.ShortName, "event title", 22, false, false, false)
 	return terms
 }
 
@@ -1166,8 +1302,9 @@ func scoreSportsChannel(channel model.Channel, categoryName string, programs []m
 	indexedPrograms := make([]sportsIndexedProgram, 0, len(programs))
 	for _, program := range programs {
 		indexedPrograms = append(indexedPrograms, sportsIndexedProgram{
-			Program: program,
-			Text:    normalizeMatchText(strings.Join([]string{program.Title, program.Summary}, " ")),
+			Program:  program,
+			Text:     normalizeMatchText(strings.Join([]string{program.Title, program.Summary}, " ")),
+			Segments: sportsMatchSegments(program.Title, program.Summary),
 		})
 	}
 	return scoreIndexedSportsChannel(sportsIndexedChannel{
@@ -1175,11 +1312,29 @@ func scoreSportsChannel(channel model.Channel, categoryName string, programs []m
 		CategoryName: firstNonEmpty(categoryName, channel.CategoryName),
 		ChannelText:  normalizeMatchText(strings.Join([]string{channel.Name, channel.Number}, " ")),
 		CategoryText: normalizeMatchText(strings.Join([]string{categoryName, channel.CategoryName}, " ")),
+		RawText:      strings.Join([]string{channel.Name, channel.Number, categoryName, channel.CategoryName}, " "),
+		Segments:     sportsMatchSegments(channel.Name, categoryName, channel.CategoryName),
 		Programs:     indexedPrograms,
 	}, event, terms)
 }
 
 func scoreIndexedSportsChannel(channel sportsIndexedChannel, event SportsEvent, terms []sportsTerm) (int, string) {
+	result := scoreIndexedSportsChannelResult(channel, event, terms)
+	return result.Score, result.Reason
+}
+
+type sportsChannelScore struct {
+	Score          int
+	Reason         string
+	Evidence       string
+	Confidence     string
+	RejectedReason string
+}
+
+func scoreIndexedSportsChannelResult(channel sportsIndexedChannel, event SportsEvent, terms []sportsTerm) sportsChannelScore {
+	if sportsTextDatedBeforeEvent(channel.RawText, event) {
+		return sportsChannelScore{RejectedReason: "Feed is dated before this fixture"}
+	}
 	score := 0
 	structuralMatch := false
 	strongGuideMatch := false
@@ -1187,8 +1342,12 @@ func scoreIndexedSportsChannel(channel sportsIndexedChannel, event SportsEvent, 
 	channelText := channel.ChannelText
 	categoryText := channel.CategoryText
 	hasAbbreviationContext := sportsChannelAbbreviationContext(channelText, categoryText, event)
+	channelBothSides := sportsSegmentsContainBothSides(channel.Segments, event)
+	if !channelBothSides && sportsSegmentsContainSide(channel.Segments, event.Home) && sportsSegmentsContainSide(channel.Segments, event.Away) {
+		return sportsChannelScore{RejectedReason: "Teams appear in separate provider-label segments"}
+	}
 	for _, term := range terms {
-		if term.Abbreviation && !hasAbbreviationContext {
+		if (term.Abbreviation || term.Weak) && !hasAbbreviationContext {
 			continue
 		}
 		if containsSportsStructuralTerm(channelText, term) {
@@ -1207,7 +1366,8 @@ func scoreIndexedSportsChannel(channel sportsIndexedChannel, event SportsEvent, 
 			continue
 		}
 		programText := program.Text
-		if strongSportsGuideMatch(programText, event) {
+		programBothSides := sportsSegmentsContainBothSides(program.Segments, event)
+		if strongSportsGuideMatch(programText, event) && programBothSides {
 			strongGuideMatch = true
 		}
 		for _, term := range terms {
@@ -1218,12 +1378,131 @@ func scoreIndexedSportsChannel(channel sportsIndexedChannel, event SportsEvent, 
 		}
 	}
 	if score == 0 {
-		return 0, ""
+		return sportsChannelScore{}
 	}
 	if !structuralMatch && !strongGuideMatch {
-		return 0, ""
+		return sportsChannelScore{RejectedReason: "Candidate lacks strong structural or EPG evidence"}
 	}
-	return score, joinMatchReasons(reasons)
+	ancillary := sportsAncillaryBroadcast(channel.RawText)
+	if ancillary {
+		score -= 45
+		reasons["ancillary feed"] = true
+	}
+	if score < sportsChannelMinimumScore {
+		return sportsChannelScore{RejectedReason: "Ancillary or low-confidence feed was demoted"}
+	}
+	evidence := "channel"
+	confidence := "medium"
+	if strongGuideMatch {
+		evidence = "epg"
+		confidence = "high"
+	} else if channelBothSides {
+		evidence = "channel"
+		confidence = "high"
+	} else if ancillary {
+		confidence = "low"
+	}
+	return sportsChannelScore{Score: score, Reason: joinMatchReasons(reasons), Evidence: evidence, Confidence: confidence}
+}
+
+func sportsMatchSegments(values ...string) []string {
+	segments := make([]string, 0, len(values)*2)
+	for _, value := range values {
+		for _, segment := range strings.FieldsFunc(value, func(r rune) bool { return r == ':' || r == '|' }) {
+			normalized := normalizeMatchText(segment)
+			if normalized != "" {
+				segments = append(segments, normalized)
+			}
+		}
+	}
+	return segments
+}
+
+func sportsSegmentsContainBothSides(segments []string, event SportsEvent) bool {
+	home := []string{event.Home.Name, event.Home.Abbreviation}
+	away := []string{event.Away.Name, event.Away.Abbreviation}
+	for _, segment := range segments {
+		homeMatch := false
+		awayMatch := false
+		for _, term := range home {
+			homeMatch = homeMatch || containsMatchTerm(segment, term)
+		}
+		for _, term := range away {
+			awayMatch = awayMatch || containsMatchTerm(segment, term)
+		}
+		if homeMatch && awayMatch {
+			return true
+		}
+	}
+	return false
+}
+
+func sportsSegmentsContainSide(segments []string, team SportsTeam) bool {
+	for _, segment := range segments {
+		if containsMatchTerm(segment, team.Name) || containsMatchTerm(segment, team.Abbreviation) {
+			return true
+		}
+	}
+	return false
+}
+
+func sportsWeakTeamAlias(name string) string {
+	words := strings.Fields(normalizeMatchText(name))
+	if len(words) < 2 {
+		return ""
+	}
+	alias := words[len(words)-1]
+	if len(alias) < 5 {
+		return ""
+	}
+	for _, generic := range []string{"united", "city", "county", "state", "football", "basketball", "women", "men", "team", "club"} {
+		if alias == generic {
+			return ""
+		}
+	}
+	if _, err := strconv.Atoi(alias); err == nil {
+		return ""
+	}
+	return alias
+}
+
+func sportsAncillaryBroadcast(value string) bool {
+	value = strings.ToLower(value)
+	for _, term := range []string{"pregame", "pre-game", "preview", "press conference", "prelims", "preliminary", "multiview", "multi-view", "countdown", "studio show"} {
+		if strings.Contains(value, term) {
+			return true
+		}
+	}
+	return false
+}
+
+func sportsTextDatedBeforeEvent(value string, event SportsEvent) bool {
+	if event.StartUnix <= 0 {
+		return false
+	}
+	eventDay := time.Unix(event.StartUnix, 0).UTC().Truncate(24 * time.Hour)
+	for _, match := range sportsISODatePattern.FindAllStringSubmatch(value, -1) {
+		if len(match) == 4 && sportsParsedDateBefore(match[1], match[2], match[3], eventDay) {
+			return true
+		}
+	}
+	for _, match := range sportsUSDatePattern.FindAllStringSubmatch(value, -1) {
+		if len(match) == 4 && sportsParsedDateBefore(match[3], match[1], match[2], eventDay) {
+			return true
+		}
+	}
+	return false
+}
+
+func sportsParsedDateBefore(yearText, monthText, dayText string, eventDay time.Time) bool {
+	year, yearErr := strconv.Atoi(yearText)
+	month, monthErr := strconv.Atoi(monthText)
+	day, dayErr := strconv.Atoi(dayText)
+	if yearErr != nil || monthErr != nil || dayErr != nil || month < 1 || month > 12 || day < 1 || day > 31 {
+		return false
+	}
+	parsed := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
+	return parsed.Before(eventDay)
 }
 
 // Abbreviations such as TEN and EDM are too ambiguous on their own. A channel

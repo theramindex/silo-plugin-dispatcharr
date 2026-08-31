@@ -3537,9 +3537,27 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		t.Fatal("sports card must keep its game status in the central scoreboard, not duplicate it in a header")
 	}
 	sportsBrowse := functionBody("renderSportsBrowse")
-	for _, want := range []string{`sportsFeaturedEvent`, `renderSportsFeature`, `renderSportsLeagueShelf`, `sports-event-grid`} {
+	for _, want := range []string{`sportsFeaturedEvent`, `renderSportsFeature`, `sportsTopMatchups`, `renderSportsTopMatchups`, `renderSportsLeagueShelf`, `sports-event-grid`} {
 		if !strings.Contains(sportsBrowse, want) {
 			t.Fatalf("sports browse must include %q", want)
+		}
+	}
+	sportsEffectiveRanking := functionBody("sportsEffectiveRanking")
+	for _, want := range []string{`event.ranking`, `sportsEventIsFollowed`, `favorite`, `Math.tanh`, `ranking.knee`, `signals`} {
+		if !strings.Contains(sportsEffectiveRanking, want) {
+			t.Fatalf("sports ranking must remain explainable and favorite-aware via %q", want)
+		}
+	}
+	sportsTopMatchups := functionBody("sportsTopMatchups")
+	for _, want := range []string{`sportsEffectiveRanking`, `compareSportsEventsForTab`, `score >= 4`, `slice(0, 6)`} {
+		if !strings.Contains(sportsTopMatchups, want) {
+			t.Fatalf("top matchups must use bounded deterministic ranking via %q", want)
+		}
+	}
+	rankedPlaceholder := functionBody("sportsEventIsRankedPlaceholder")
+	for _, want := range []string{`sportsEventHasPlayableAccess`, `48 * 3600`, `sportsEffectiveRanking`, `score >= 4`} {
+		if !strings.Contains(rankedPlaceholder, want) {
+			t.Fatalf("ranked unmatched fixtures must use a bounded honest placeholder via %q", want)
 		}
 	}
 	sportsFeature := functionBody("renderSportsFeature")
@@ -3676,7 +3694,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		t.Fatal("opening a sports league must preserve the active sports filter")
 	}
 	sportsEventDetail := functionBody("renderSportsEventDetail")
-	for _, want := range []string{`Live coverage`, `Event coverage`, `renderSportsBroadcastGroups`, `renderSportsCoverageCard`, `rankedSportsBroadcasts`, `renderSportsEventNavigation`, `data-sports-spoilers`, `data-sports-favorite-league`} {
+	for _, want := range []string{`Live coverage`, `Event coverage`, `renderSportsWhyThisGame`, `renderSportsMatchingDiagnostics`, `renderSportsBroadcastGroups`, `renderSportsCoverageCard`, `rankedSportsBroadcasts`, `renderSportsEventNavigation`, `data-sports-spoilers`, `data-sports-favorite-league`} {
 		if !strings.Contains(sportsEventDetail, want) {
 			t.Fatalf("sports event detail must include %q", want)
 		}

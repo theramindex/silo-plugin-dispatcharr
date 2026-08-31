@@ -592,6 +592,38 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; }
 .sports-section-head h2 { margin: 0; font-size: 1.05rem; letter-spacing: 0; }
 .sports-section-count { color: var(--muted); font-size: 0.72rem; font-weight: 750; }
+.sports-top-matchups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.55rem; }
+.sports-top-matchup { min-width: 0; min-height: 5.5rem; display: grid; grid-template-columns: 3.25rem minmax(0, 1fr) 1rem; align-items: center; gap: 0.7rem; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line)); border-radius: 0.55rem; background: linear-gradient(135deg, color-mix(in srgb, var(--panel-2) 88%, var(--accent) 12%), var(--panel)); color: var(--text); padding: 0.7rem; text-align: left; }
+.sports-top-matchup:hover { border-color: color-mix(in srgb, var(--accent) 62%, var(--line)); transform: translateY(-1px); }
+.sports-top-matchup > span:nth-child(2) { min-width: 0; display: grid; gap: 0.15rem; }
+.sports-top-matchup > span:nth-child(2) > small, .sports-top-matchup > span:nth-child(2) > strong, .sports-top-matchup > span:nth-child(2) > em { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sports-top-matchup > span:nth-child(2) > small { color: var(--muted); font-size: 0.62rem; font-weight: 850; letter-spacing: 0.06em; text-transform: uppercase; }
+.sports-top-matchup > span:nth-child(2) > strong { font-size: 0.82rem; }
+.sports-top-matchup > span:nth-child(2) > em { color: var(--muted); font-size: 0.68rem; font-style: normal; font-weight: 700; }
+.sports-top-score { width: 3.25rem; height: 3.25rem; display: grid; place-items: center; align-content: center; border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line)); border-radius: 50%; background: color-mix(in srgb, var(--accent) 15%, var(--rail-2)); }
+.sports-top-score b { font-size: 1rem; line-height: 1; }
+.sports-top-score small { margin-top: 0.15rem; color: var(--muted); font-size: 0.48rem; font-weight: 950; letter-spacing: 0.12em; }
+.sports-top-matchup > svg { width: 1rem; height: 1rem; color: var(--muted); }
+.sports-ranking-panel { display: grid; grid-template-columns: 8rem minmax(0, 1fr); gap: 0.8rem; border: 1px solid var(--line); border-radius: 0.55rem; background: var(--panel); padding: 0.8rem; }
+.sports-ranking-score { display: grid; place-items: center; align-content: center; border-right: 1px solid var(--line); text-align: center; }
+.sports-ranking-score b { font-size: 2rem; line-height: 1; }
+.sports-ranking-score small { margin-top: 0.3rem; color: var(--muted); font-size: 0.62rem; font-weight: 800; text-transform: uppercase; }
+.sports-ranking-signals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.45rem; }
+.sports-ranking-signals > span { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.1rem 0.35rem; border: 1px solid var(--line); border-radius: 0.45rem; background: var(--rail-2); padding: 0.55rem; }
+.sports-ranking-signals b { grid-row: 1 / 3; align-self: start; color: var(--accent); font-size: 0.7rem; }
+.sports-ranking-signals strong, .sports-ranking-signals small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sports-ranking-signals strong { font-size: 0.72rem; }
+.sports-ranking-signals small { color: var(--muted); font-size: 0.62rem; }
+.sports-match-diagnostics { border: 1px solid var(--line); border-radius: 0.55rem; background: var(--panel); overflow: hidden; }
+.sports-match-diagnostics summary { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; cursor: pointer; padding: 0.75rem 0.85rem; font-size: 0.78rem; font-weight: 850; }
+.sports-match-diagnostics summary small { color: var(--muted); font-size: 0.65rem; }
+.sports-match-diagnostics > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.45rem; border-top: 1px solid var(--line); padding: 0.7rem; }
+.sports-match-diagnostics > div > span { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.15rem 0.45rem; border: 1px solid var(--line); border-radius: 0.45rem; background: var(--rail-2); padding: 0.55rem; }
+.sports-match-diagnostics > div > span.accepted { border-color: color-mix(in srgb, #55c58a 38%, var(--line)); }
+.sports-match-diagnostics b, .sports-match-diagnostics small, .sports-match-diagnostics em { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sports-match-diagnostics b { font-size: 0.72rem; }
+.sports-match-diagnostics small { color: var(--muted); font-size: 0.61rem; text-transform: capitalize; }
+.sports-match-diagnostics em { grid-column: 1 / -1; color: var(--muted); font-size: 0.63rem; font-style: normal; }
 .sports-league-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.55rem; }
 .sports-league-card { min-height: 5rem; min-width: 0; display: grid; grid-template-columns: 2.4rem minmax(0, 1fr) 1rem; align-items: center; gap: 0.65rem; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--panel); color: var(--text); padding: 0.7rem; text-align: left; }
 .sports-league-card:hover { background: var(--panel-2); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
@@ -802,6 +834,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .recovery-actions button:hover, .recovery-panel > button:hover { background: var(--panel-2); }
 @media (max-width: 1080px) {
   .sports-event-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sports-top-matchups, .sports-ranking-signals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) {
   .sports-page { height: auto; }
@@ -842,6 +875,10 @@ button { cursor: pointer; touch-action: manipulation; }
   .sports-primary-action, .sports-secondary-action { min-height: 2.75rem; }
   .sports-league-grid { grid-template-columns: minmax(0, 1fr); }
   .sports-event-grid { grid-template-columns: minmax(0, 1fr); }
+  .sports-top-matchups, .sports-ranking-signals { grid-template-columns: minmax(0, 1fr); }
+  .sports-match-diagnostics > div { grid-template-columns: minmax(0, 1fr); }
+  .sports-ranking-panel { grid-template-columns: minmax(0, 1fr); }
+  .sports-ranking-score { min-height: 5rem; border-right: 0; border-bottom: 1px solid var(--line); }
   .sports-event-team { grid-template-columns: 2rem minmax(0, 1fr) auto; }
   .sports-event-team:last-child { grid-template-columns: auto minmax(0, 1fr) 2rem; }
   .sports-event-team-logo { width: 2rem; height: 2rem; }
