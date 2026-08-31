@@ -112,6 +112,9 @@ type sportarrEvent struct {
 	AwayTeamName        string         `json:"awayTeamName"`
 	HomeScore           sportarrString `json:"homeScore"`
 	AwayScore           sportarrString `json:"awayScore"`
+	HomeRank            int            `json:"homeRank"`
+	AwayRank            int            `json:"awayRank"`
+	Spread              *float64       `json:"spread"`
 	Parts               []any          `json:"parts"`
 }
 
@@ -409,6 +412,9 @@ func (event sportarrEvent) sportsEvent() SportsEvent {
 		},
 		HomeScore: string(event.HomeScore),
 		AwayScore: string(event.AwayScore),
+		HomeRank:  event.HomeRank,
+		AwayRank:  event.AwayRank,
+		Spread:    event.Spread,
 		Live:      live,
 		Completed: completed,
 	}

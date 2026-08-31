@@ -54,6 +54,7 @@ type HTTPRoutesServer struct {
 	sportsMu            sync.Mutex
 	sportsPrepared      sportsPreparedCache
 	sportsPreparedMu    sync.Mutex
+	sportsImages        *sportsImageCache
 	timeShift           *timeshift.Manager
 }
 
@@ -105,7 +106,7 @@ func NewHTTPRoutesServerWithCoordinatorAndSettingsFiles(store *cache.Store, sett
 }
 
 func newHTTPRoutesServer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
-	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, connectionTester: testConnection, sportsProvider: newSportarrSportsProvider(&http.Client{Timeout: 8 * time.Second}), timeShift: timeshift.NewManager("")}
+	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, connectionTester: testConnection, sportsProvider: newSportarrSportsProvider(&http.Client{Timeout: 8 * time.Second}), sportsImages: newSportsImageCache(defaultSportsImageCacheDir, secureSportsImageHTTPClient()), timeShift: timeshift.NewManager("")}
 	if syncer != nil {
 		server.coordinator = NewRefreshCoordinator(syncer)
 	}
@@ -238,6 +239,9 @@ type watchRequest struct {
 func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
 	if strings.HasPrefix(request.GetPath(), "/dispatcharr/timeshift/") {
 		return s.handleTimeShiftMedia(request), nil
+	}
+	if strings.HasPrefix(request.GetPath(), "/dispatcharr/api/sports/image/") {
+		return s.handleSportsImage(ctx, request), nil
 	}
 	switch request.GetPath() {
 	case "/dispatcharr", "/dispatcharr/player", "/dispatcharr/admin":

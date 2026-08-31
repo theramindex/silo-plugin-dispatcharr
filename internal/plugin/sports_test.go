@@ -1892,3 +1892,173 @@ func assertNoSportsMatch(t *testing.T, matches []SportsChannelMatch, channelID s
 		}
 	}
 }
+
+func TestRankSportsEventExplainsEditorialSignals(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	event := SportsEvent{
+		Name:        "#3 Tigers vs #8 Bears Championship Rivalry",
+		Round:       "Championship",
+		Description: "A classic rivalry projected as a toss-up.",
+		StartUnix:   now.Add(90 * time.Minute).Unix(),
+		Channels:    []SportsChannelMatch{{ID: "channel:1"}},
+	}
+	ranking := rankSportsEvent(event, now)
+
+	if ranking.Score <= 0 || ranking.Score > 10 {
+		t.Fatalf("ranking score = %v, want within (0, 10]", ranking.Score)
+	}
+	keys := map[string]bool{}
+	for _, signal := range ranking.Signals {
+		keys[signal.Key] = true
+	}
+	for _, key := range []string{"soon", "stage", "rivalry", "rank", "close", "coverage"} {
+		if !keys[key] {
+			t.Fatalf("ranking signals = %#v, missing %q", ranking.Signals, key)
+		}
+	}
+}
+
+func TestSportsRankingDoesNotTreatMatchNumberAsTeamRank(t *testing.T) {
+	t.Parallel()
+
+	ranking := rankSportsEvent(SportsEvent{Name: "Leeds vs Super Giants - 10th Match"}, time.Unix(1_700_000_000, 0))
+	for _, signal := range ranking.Signals {
+		if signal.Key == "rank" {
+			t.Fatalf("match number produced a rank signal: %#v", ranking.Signals)
+		}
+	}
+}
+
+func TestSportsRankingDoesNotTreatLeagueNameAsChampionshipStage(t *testing.T) {
+	t.Parallel()
+
+	ranking := rankSportsEvent(SportsEvent{Name: "EFL Championship: Leeds vs Derby"}, time.Unix(1_700_000_000, 0))
+	for _, signal := range ranking.Signals {
+		if signal.Key == "stage" {
+			t.Fatalf("league name produced a stage signal: %#v", ranking.Signals)
+		}
+	}
+}
+
+func TestSportsRankingPrefersTypedProviderRankAndSpreadSignals(t *testing.T) {
+	t.Parallel()
+
+	spread := 2.5
+	ranking := rankSportsEvent(SportsEvent{
+		Name: "Team A vs Team B", HomeRank: 4, AwayRank: 9, Spread: &spread,
+	}, time.Unix(1_700_000_000, 0))
+	signals := map[string]SportsRankingSignal{}
+	for _, signal := range ranking.Signals {
+		signals[signal.Key] = signal
+	}
+	if !strings.Contains(signals["rank"].Detail, "provider-ranked") {
+		t.Fatalf("rank signal = %#v, want typed provider evidence", signals["rank"])
+	}
+	if !strings.Contains(signals["close"].Detail, "three points") {
+		t.Fatalf("close signal = %#v, want typed provider spread", signals["close"])
+	}
+	if ranking.Knee != sportsRankingKnee {
+		t.Fatalf("ranking knee = %v, want %v", ranking.Knee, sportsRankingKnee)
+	}
+}
+
+func TestStableSportsEventIdentitySurvivesReschedule(t *testing.T) {
+	t.Parallel()
+
+	base := SportsEvent{
+		LeagueID: "nfl",
+		Season:   "2026",
+		Round:    "Week 4",
+		Name:     "Jets at Giants",
+		Home:     normalizeSportsTeam(SportsTeam{Name: "Giants"}),
+		Away:     normalizeSportsTeam(SportsTeam{Name: "Jets"}),
+	}
+	first := base
+	first.StartUnix = 1_700_000_000
+	second := base
+	second.StartUnix = 1_700_086_400
+
+	if got, want := stableSportsEventIdentity(first), stableSportsEventIdentity(second); got != want {
+		t.Fatalf("stable identity changed across reschedule: %q != %q", got, want)
+	}
+	first.ProviderID = "provider-event-42"
+	second.ProviderID = "provider-event-42"
+	if got, want := stableSportsEventIdentity(first), stableSportsEventIdentity(second); got != want {
+		t.Fatalf("provider identity changed across reschedule: %q != %q", got, want)
+	}
+	second.ProviderSource = "another-provider"
+	if got, want := stableSportsEventIdentity(first), stableSportsEventIdentity(second); got == want {
+		t.Fatalf("provider identity collided across sources: %q == %q", got, want)
+	}
+}
+
+func TestSportsChannelMatchingReportsEvidenceConfidenceAndGuardrails(t *testing.T) {
+	t.Parallel()
+
+	start := time.Date(2026, time.August, 31, 20, 0, 0, 0, time.UTC).Unix()
+	event := SportsEvent{
+		LeagueID: "nfl", LeagueName: "NFL", Name: "Jets at Giants", StartUnix: start,
+		Away: SportsTeam{Name: "New York Jets", Abbreviation: "NYJ"},
+		Home: SportsTeam{Name: "New York Giants", Abbreviation: "NYG"},
+	}
+	snapshot := cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{
+			{ID: "exact", Name: "NYJ vs NYG", CategoryID: "nfl", CategoryName: "NFL"},
+			{ID: "split", Name: "NYJ studio", CategoryID: "nfl", CategoryName: "NYG | NFL"},
+			{ID: "preview", Name: "NYJ vs NYG Pregame Preview", CategoryID: "nfl", CategoryName: "NFL"},
+			{ID: "stale", Name: "NYJ vs NYG 2026-08-30", CategoryID: "nfl", CategoryName: "NFL"},
+			{ID: "epg", Name: "National Sports", CategoryID: "nfl", CategoryName: "NFL"},
+		},
+		Programs: []model.Program{{ID: "program", ChannelID: "epg", Title: "NFL: New York Jets vs New York Giants", StartUnix: start, EndUnix: start + 7200}},
+		Content:  model.ContentState{LiveCategories: []model.Category{{ID: "nfl", Name: "NFL", Kind: "live"}}},
+	}}
+
+	matches := matchSportsChannels(event, snapshot)
+	byID := map[string]SportsChannelMatch{}
+	for _, match := range matches {
+		byID[match.ID] = match
+	}
+	if match := byID["exact"]; match.Confidence != "high" || match.Evidence != "channel" {
+		t.Fatalf("exact match = %#v, want high-confidence channel evidence", match)
+	}
+	if match := byID["epg"]; match.Confidence != "high" || match.Evidence != "epg" {
+		t.Fatalf("EPG match = %#v, want high-confidence EPG evidence", match)
+	}
+	if _, ok := byID["split"]; ok {
+		t.Fatalf("split-segment teams should not create a match: %#v", byID["split"])
+	}
+	if _, ok := byID["stale"]; ok {
+		t.Fatalf("stale dated feed should not create a match: %#v", byID["stale"])
+	}
+	if preview, ok := byID["preview"]; ok && preview.Score >= byID["exact"].Score {
+		t.Fatalf("preview score %d should be below exact score %d", preview.Score, byID["exact"].Score)
+	}
+	_, diagnostics := newSportsChannelIndex(snapshot).MatchDetailed(event)
+	rejections := map[string]string{}
+	for _, diagnostic := range diagnostics {
+		if !diagnostic.Accepted {
+			rejections[diagnostic.ChannelID] = diagnostic.Reason
+		}
+	}
+	for _, channelID := range []string{"split", "stale"} {
+		if rejections[channelID] == "" {
+			t.Fatalf("diagnostics = %#v, missing rejection for %q", diagnostics, channelID)
+		}
+	}
+}
+
+func TestSportsWeakTeamAliasRejectsGenericNames(t *testing.T) {
+	t.Parallel()
+
+	if got := sportsWeakTeamAlias("Manchester United"); got != "" {
+		t.Fatalf("generic alias = %q, want empty", got)
+	}
+	if got := sportsWeakTeamAlias("Huddersfield Town"); got != "" {
+		t.Fatalf("short alias = %q, want empty", got)
+	}
+	if got := sportsWeakTeamAlias("Portland Timbers"); got != "timbers" {
+		t.Fatalf("specific alias = %q, want timbers", got)
+	}
+}
