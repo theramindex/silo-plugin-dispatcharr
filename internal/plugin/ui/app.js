@@ -2590,7 +2590,7 @@ function addKeywordPass(keyword) {
   state.app.preferences.keywordPasses = normalizeKeywordPasses(keywordPasses().concat([{ keyword: keyword, createdAt: Date.now() }]));
   savePrefs();
   showAppToast("Added to My TV.");
-  if (state.view === "mytv") renderMyTVPage();
+  if (state.view === "mytv") updateMyTVSearchSurface();
   else renderSearchPage();
 }
 function removeKeywordPass(id) {
@@ -2598,7 +2598,7 @@ function removeKeywordPass(id) {
   if (!state.app || !state.app.preferences) return;
   state.app.preferences.keywordPasses = keywordPasses().filter(function(pass) { return pass.id !== id; });
   savePrefs();
-  if (state.view === "mytv") renderMyTVPage();
+  if (state.view === "mytv") updateMyTVSearchSurface();
   else renderOnLaterPage();
 }
 function onLaterFilters() {
@@ -2829,7 +2829,7 @@ function myTVFollowingHTML() {
 }
 function myTVSearchResults(query) {
   query = String(query || "").trim();
-  if (query.length < 2) return "";
+  if (query.length < 2) return "<p class=\"my-tv-search-note\">Keep typing to search shows, teams, fighters, leagues, and events.</p>";
   const people = rankedSearchMatches(myTVSportsPeople(), function(team) {
     return searchMatchScore(team.name, [team.abbreviation, team.kind, team.leagueName].join(" "), query);
   }, 12);
@@ -2864,22 +2864,39 @@ function myTVSearchResults(query) {
   const groups = [["Teams & fighters", personRows], ["Leagues", leagueRows], ["From the guide", titleRows], ["Events", eventRows]].filter(function(group) { return group[1].length; });
   return "<section class=\"my-tv-search-results\">" + trackQuery + (groups.length ? groups.map(function(group) { return "<div><h3>" + escapeHTML(group[0]) + "</h3><div class=\"my-tv-result-list\">" + group[1].join("") + "</div></div>"; }).join("") : "<p class=\"my-tv-search-note\">No current listings match yet. Track the search and My TV will watch future guide updates.</p>") + "</section>";
 }
+function myTVDashboardHTML() {
+  const guidePrograms = myTVGuidePrograms();
+  const sportsEvents = myTVFollowedSportsEvents();
+  const featuredEvents = myTVFeaturedEvents();
+  const upcoming = (guidePrograms.length ? onLaterShelfHTML("From your guide", guidePrograms) : "")
+    + (sportsEvents.length ? "<section class=\"my-tv-section\"><header><h3>Your sports</h3><span>" + sportsEvents.length + " coming up</span></header><div class=\"sports-event-grid my-tv-sports-grid\">" + sportsEvents.map(renderSportsEventTile).join("") + "</div></section>" : "")
+    + (featuredEvents.length ? "<section class=\"my-tv-section\"><header><h3>Your events</h3><span>" + featuredEvents.length + " coming up</span></header><div class=\"event-shelf-rail\">" + featuredEvents.map(renderBroadcastEventCard).join("") + "</div></section>" : "");
+  const empty = !upcoming ? "<section class=\"my-tv-empty\"><div><strong>Make this page yours</strong><p>Search for a show, team, fighter, league, or event. My TV will connect what you follow to live and upcoming coverage.</p></div><div class=\"my-tv-empty-actions\"><button type=\"button\" data-view=\"sports\">Browse sports</button><button type=\"button\" data-view=\"events\">Browse events</button></div></section>" : "";
+  return myTVFollowingHTML() + (upcoming ? "<section class=\"my-tv-up-next\"><header><h2>Up next</h2></header>" + upcoming + "</section>" : "") + empty;
+}
+function updateMyTVSearchSurface() {
+  const query = state.myTVQuery || "";
+  const results = byId("my-tv-search-results");
+  const dashboard = byId("my-tv-dashboard");
+  const clear = byId("my-tv-search-clear");
+  if (results) {
+    results.hidden = !query;
+    results.innerHTML = query ? myTVSearchResults(query) : "";
+  }
+  if (dashboard) {
+    dashboard.hidden = !!query;
+    if (!query) dashboard.innerHTML = myTVDashboardHTML();
+  }
+  if (clear) clear.hidden = !query;
+}
 function renderMyTVPage() {
   const root = byId("view");
   if (!root) return;
   if (!state.sports && !state.sportsLoading) loadSports(false);
   if (!state.events && !state.eventsLoading) loadEvents(false);
   const query = state.myTVQuery || "";
-  const guidePrograms = myTVGuidePrograms();
-  const sportsEvents = myTVFollowedSportsEvents();
-  const featuredEvents = myTVFeaturedEvents();
-  const hasFollowing = keywordPasses().length || Object.keys(sportsFavoriteTeamMap()).length || Object.keys(sportsFavoriteLeagueMap()).length || Object.keys(featuredEventMap()).length;
-  const discovery = query ? myTVSearchResults(query) : "";
-  const upcoming = (guidePrograms.length ? onLaterShelfHTML("From your guide", guidePrograms) : "")
-    + (sportsEvents.length ? "<section class=\"my-tv-section\"><header><h3>Your sports</h3><span>" + sportsEvents.length + " coming up</span></header><div class=\"sports-event-grid my-tv-sports-grid\">" + sportsEvents.map(renderSportsEventTile).join("") + "</div></section>" : "")
-    + (featuredEvents.length ? "<section class=\"my-tv-section\"><header><h3>Your events</h3><span>" + featuredEvents.length + " coming up</span></header><div class=\"event-shelf-rail\">" + featuredEvents.map(renderBroadcastEventCard).join("") + "</div></section>" : "");
-  const empty = !query && !upcoming ? "<div class=\"my-tv-empty\"><span>" + icon("heart") + "</span><strong>Build your own TV calendar</strong><p>Follow a show, team, fighter, league, or event. My TV will connect it to guide listings as coverage appears.</p></div>" : "";
-  root.innerHTML = "<div class=\"my-tv-page\"><header class=\"my-tv-hero\"><div><span class=\"my-tv-eyebrow\">Personal television</span><h2>My TV</h2><p>Everything you follow, matched against what’s live and coming up.</p></div><label class=\"my-tv-search\"><span>" + icon("search") + "</span><input id=\"my-tv-search\" type=\"search\" value=\"" + escapeHTML(query) + "\" placeholder=\"Search shows, teams, fighters, leagues, or events\" autocomplete=\"off\"><small>" + (hasFollowing ? "Add more to My TV" : "Start with anything you care about") + "</small></label></header>" + discovery + (!query ? myTVFollowingHTML() + (upcoming ? "<section class=\"my-tv-up-next\"><header><h2>Up next</h2></header>" + upcoming + "</section>" : "") + empty : "") + "</div>";
+  root.innerHTML = "<div class=\"my-tv-page\"><header class=\"my-tv-header\"><div class=\"my-tv-heading\"><h2>My TV</h2><p>Your follows, matched to what’s live and coming up.</p></div><label class=\"my-tv-search\"><span>" + icon("search") + "</span><input id=\"my-tv-search\" type=\"search\" value=\"" + escapeHTML(query) + "\" placeholder=\"Search shows, teams, fighters, leagues, or events\" aria-label=\"Search My TV\" autocomplete=\"off\" spellcheck=\"false\"><button id=\"my-tv-search-clear\" type=\"button\" aria-label=\"Clear My TV search\" data-my-tv-search-clear=\"true\"" + (query ? "" : " hidden") + ">" + icon("x") + "</button></label></header><div id=\"my-tv-search-results\" class=\"my-tv-search-surface\" aria-live=\"polite\"" + (query ? "" : " hidden") + "></div><div id=\"my-tv-dashboard\"" + (query ? " hidden" : "") + "></div></div>";
+  updateMyTVSearchSurface();
 }
 function loadSportsLibraries(force) {
   if (state.sportsLibrariesLoading) return state.sportsLibrariesPromise || Promise.resolve(items(state.sportsLibraries));
@@ -3071,7 +3088,7 @@ function loadSports(force, preparedOnly) {
   }).finally(function() {
     state.sportsLoading = false;
     if (state.view === "sports") renderSportsPage();
-    if (state.view === "mytv") renderMyTVPage();
+    if (state.view === "mytv") updateMyTVSearchSurface();
     if (state.view === "search") updateSearchPageResults();
     if (state.view === "player" && state.playerSportsOpen) renderPlayerSportsDrawer();
   });
@@ -4163,7 +4180,7 @@ function toggleSportsTeamFavorite(teamID, enabled) {
   else delete state.app.preferences.sportsFavoriteTeams[teamID];
   applySportsFavoritesToPayload();
   savePrefs();
-  if (state.view === "mytv") renderMyTVPage();
+  if (state.view === "mytv") updateMyTVSearchSurface();
   else if (state.view === "search") updateSearchPageResults();
   else renderSportsPage();
 }
@@ -4173,7 +4190,7 @@ function toggleSportsLeagueFavorite(leagueID, enabled) {
   if (enabled) state.app.preferences.sportsFavoriteLeagues[leagueID] = true;
   else delete state.app.preferences.sportsFavoriteLeagues[leagueID];
   savePrefs();
-  if (state.view === "mytv") renderMyTVPage();
+  if (state.view === "mytv") updateMyTVSearchSurface();
   else if (state.view === "search") updateSearchPageResults();
   else renderSportsPage();
 }
@@ -4221,7 +4238,7 @@ function loadEvents(force) {
   }).finally(function() {
     state.eventsLoading = false;
     if (state.view === "events") renderEventsPage();
-    if (state.view === "mytv") renderMyTVPage();
+    if (state.view === "mytv") updateMyTVSearchSurface();
     if (state.view === "search") updateSearchPageResults();
   });
 }
@@ -4337,7 +4354,7 @@ function toggleFeaturedEvent(eventID) {
   else featured[eventID] = true;
   state.app.preferences.featuredEvents = featured;
   savePrefs();
-  if (state.view === "mytv") renderMyTVPage();
+  if (state.view === "mytv") updateMyTVSearchSurface();
   else if (state.view === "search") updateSearchPageResults();
   else renderEventsPage();
 }
@@ -7819,6 +7836,18 @@ document.addEventListener("click", function(event) {
     setView("search");
     return;
   }
+  const myTVSearchClear = event.target.closest("[data-my-tv-search-clear]");
+  if (myTVSearchClear) {
+    event.preventDefault();
+    state.myTVQuery = "";
+    const input = byId("my-tv-search");
+    if (input) {
+      input.value = "";
+      input.focus();
+    }
+    updateMyTVSearchSurface();
+    return;
+  }
   const keywordPassAdd = event.target.closest("[data-keyword-pass-add]");
   if (keywordPassAdd) {
     event.preventDefault();
@@ -7839,7 +7868,7 @@ document.addEventListener("click", function(event) {
     const previousRail = onLaterMore.closest(".on-later-shelf-rail");
     const previousScrollLeft = previousRail ? Number(previousRail.scrollLeft || 0) : 0;
     state.onLaterShelfLimits[key] = previousLimit + 18;
-    if (state.view === "mytv") renderMyTVPage();
+    if (state.view === "mytv") updateMyTVSearchSurface();
     else renderOnLaterPage();
     restoreOnLaterShelfPosition(key, previousLimit, previousScrollLeft);
     return;
@@ -8419,13 +8448,7 @@ document.addEventListener("input", function(event) {
   }
   if (event.target && event.target.id === "my-tv-search") {
     state.myTVQuery = event.target.value || "";
-    const caret = Number(event.target.selectionStart || state.myTVQuery.length);
-    renderMyTVPage();
-    const input = byId("my-tv-search");
-    if (input) {
-      input.focus();
-      input.setSelectionRange(caret, caret);
-    }
+    updateMyTVSearchSurface();
     return;
   }
   if (event.target && event.target.id === "player-guide-search") {

@@ -2862,6 +2862,32 @@ func TestPlayerUIMyTVIsAlwaysAvailable(t *testing.T) {
 	}
 }
 
+func TestPlayerUIMyTVSearchKeepsInputMounted(t *testing.T) {
+	t.Parallel()
+
+	script := playerAppJavaScript()
+	start := strings.Index(script, `if (event.target && event.target.id === "my-tv-search")`)
+	if start < 0 {
+		t.Fatal("expected delegated My TV search input handler")
+	}
+	endOffset := strings.Index(script[start:], `if (event.target && event.target.id === "player-guide-search")`)
+	if endOffset < 0 {
+		t.Fatal("expected My TV search handler boundary")
+	}
+	handler := script[start : start+endOffset]
+	if !strings.Contains(handler, `updateMyTVSearchSurface();`) {
+		t.Fatal("expected My TV search to update only the result surface")
+	}
+	if strings.Contains(handler, `renderMyTVPage()`) || strings.Contains(handler, `.focus()`) {
+		t.Fatal("My TV search must not replace or manually refocus its input while typing")
+	}
+	for _, want := range []string{`function updateMyTVSearchSurface()`, `id=\"my-tv-search-results\"`, `id=\"my-tv-dashboard\"`, `data-my-tv-search-clear=\"true\"`, `class=\"my-tv-header\"`} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("expected stable My TV search surface marker %q", want)
+		}
+	}
+}
+
 func TestPlayerUIChannelGroupTilesIncludeSemanticGlyphs(t *testing.T) {
 	t.Parallel()
 
