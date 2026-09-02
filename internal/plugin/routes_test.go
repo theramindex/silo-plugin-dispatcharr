@@ -2894,6 +2894,10 @@ func TestPlayerUIMyTVSearchBuildsTeamGamePassesFromLeagueRosters(t *testing.T) {
 	script := playerAppJavaScript()
 	for _, want := range []string{
 		`function ensureMyTVTeamCatalog(query)`,
+		`function myTVBuiltInSportsPeople()`,
+		`["Washington Nationals", "WSH"]`,
+		`"gamepass:mlb:" + slug`,
+		`function sportsFavoriteTeamMatches(team)`,
 		`loadSportsLeagueTeams(league)`,
 		`Math.min(3, pending.length)`,
 		`function myTVSportsPassLabel(team)`,
