@@ -2888,6 +2888,34 @@ func TestPlayerUIMyTVSearchKeepsInputMounted(t *testing.T) {
 	}
 }
 
+func TestPlayerUIMyTVSearchBuildsTeamGamePassesFromLeagueRosters(t *testing.T) {
+	t.Parallel()
+
+	script := playerAppJavaScript()
+	for _, want := range []string{
+		`function ensureMyTVTeamCatalog(query)`,
+		`loadSportsLeagueTeams(league)`,
+		`Math.min(3, pending.length)`,
+		`function myTVSportsPassLabel(team)`,
+		`"mlb", "nfl", "nba", "nhl", "wnba", "mls"`,
+		`Create game pass`,
+		`Game pass active`,
+		`Searching team rosters…`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("expected My TV team game-pass discovery to include %q", want)
+		}
+	}
+	start := strings.Index(script, `if (event.target && event.target.id === "my-tv-search")`)
+	if start < 0 {
+		t.Fatal("expected delegated My TV search input handler")
+	}
+	endOffset := strings.Index(script[start:], `if (event.target && event.target.id === "player-guide-search")`)
+	if endOffset < 0 || !strings.Contains(script[start:start+endOffset], `ensureMyTVTeamCatalog(state.myTVQuery);`) {
+		t.Fatal("expected My TV searches to begin lazy league-roster discovery")
+	}
+}
+
 func TestPlayerUIChannelGroupTilesIncludeSemanticGlyphs(t *testing.T) {
 	t.Parallel()
 
