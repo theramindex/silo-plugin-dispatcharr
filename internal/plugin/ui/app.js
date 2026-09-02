@@ -2766,6 +2766,32 @@ function myTVGuidePrograms() {
     return passes.some(function(pass) { return text.indexOf(lower(pass.keyword)) !== -1; });
   })).sort(function(left, right) { return Number(left.startUnix || 0) - Number(right.startUnix || 0); });
 }
+function sportsGamePassSlug(value) {
+  return lower(value).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+function myTVBuiltInSportsPeople() {
+  const mlb = [
+    ["Arizona Diamondbacks", "ARI"], ["Athletics", "ATH"], ["Atlanta Braves", "ATL"], ["Baltimore Orioles", "BAL"],
+    ["Boston Red Sox", "BOS"], ["Chicago Cubs", "CHC"], ["Chicago White Sox", "CWS"], ["Cincinnati Reds", "CIN"],
+    ["Cleveland Guardians", "CLE"], ["Colorado Rockies", "COL"], ["Detroit Tigers", "DET"], ["Houston Astros", "HOU"],
+    ["Kansas City Royals", "KC"], ["Los Angeles Angels", "LAA"], ["Los Angeles Dodgers", "LAD"], ["Miami Marlins", "MIA"],
+    ["Milwaukee Brewers", "MIL"], ["Minnesota Twins", "MIN"], ["New York Mets", "NYM"], ["New York Yankees", "NYY"],
+    ["Philadelphia Phillies", "PHI"], ["Pittsburgh Pirates", "PIT"], ["San Diego Padres", "SD"], ["San Francisco Giants", "SF"],
+    ["Seattle Mariners", "SEA"], ["St. Louis Cardinals", "STL"], ["Tampa Bay Rays", "TB"], ["Texas Rangers", "TEX"],
+    ["Toronto Blue Jays", "TOR"], ["Washington Nationals", "WSH"]
+  ];
+  return mlb.map(function(team) {
+    const slug = sportsGamePassSlug(team[0]);
+    return { id: "gamepass:mlb:" + slug, name: team[0], abbreviation: team[1], kind: "Team", leagueName: "MLB", logoUrl: "https://game-thumbs.swvn.io/mlb/" + slug + "/teamlogo.png" };
+  });
+}
+function sportsFavoriteTeamMatches(team) {
+  const favorites = sportsFavoriteTeamMap();
+  if (favorites[String(team && team.id || "")]) return true;
+  const slug = sportsGamePassSlug(team && (team.name || team.abbreviation));
+  if (!slug) return false;
+  return Object.keys(favorites).some(function(id) { return !!favorites[id] && String(id).indexOf("gamepass:") === 0 && String(id).endsWith(":" + slug); });
+}
 function myTVLeagueCatalogPriority(league, query) {
   const identity = lower([league && league.id, league && league.name, league && league.sportName].join(" "));
   const major = ["mlb", "nfl", "nba", "nhl", "wnba", "mls"];
@@ -2816,6 +2842,11 @@ function myTVSportsPeople() {
     items(state.sportsLeagueTeams[leagueID]).forEach(function(team) {
       if (team && team.id && !found[team.id]) found[team.id] = Object.assign({}, team, { kind: "Team", leagueName: (sportsLeagueByID(state.sports, leagueID) || {}).name || "" });
     });
+  });
+  const knownNames = {};
+  Object.keys(found).forEach(function(id) { knownNames[sportsGamePassSlug(found[id] && found[id].name)] = true; });
+  myTVBuiltInSportsPeople().forEach(function(team) {
+    if (!knownNames[sportsGamePassSlug(team.name)]) found[team.id] = team;
   });
   return Object.keys(found).map(function(id) { return found[id]; });
 }
@@ -2886,9 +2917,9 @@ function myTVSearchResults(query) {
     return searchMatchScore(event.name || event.shortName, [event.categoryName, event.description, event.keyword].join(" "), query);
   }, 8);
   const passSaved = keywordPasses().some(function(pass) { return lower(pass.keyword) === lower(query); });
-  const trackQuery = "<button class=\"my-tv-track-query\" type=\"button\" data-keyword-pass-add=\"" + escapeHTML(query) + "\"" + (passSaved ? " disabled" : "") + ">" + icon(passSaved ? "check" : "plus") + "<span><strong>" + (passSaved ? "Tracking this search" : "Track “" + escapeHTML(query) + "”") + "</strong><small>Watch future guide listings for a match</small></span></button>";
+  const trackQuery = people.length || leagues.length ? "" : "<button class=\"my-tv-track-query\" type=\"button\" data-keyword-pass-add=\"" + escapeHTML(query) + "\"" + (passSaved ? " disabled" : "") + ">" + icon(passSaved ? "check" : "plus") + "<span><strong>" + (passSaved ? "Tracking this search" : "Track “" + escapeHTML(query) + "”") + "</strong><small>Watch future guide listings for a match</small></span></button>";
   const personRows = people.map(function(team) {
-    const followed = !!sportsFavoriteTeamMap()[team.id];
+    const followed = sportsFavoriteTeamMatches(team);
     const passLabel = myTVSportsPassLabel(team);
     return "<article class=\"my-tv-result\"><span class=\"my-tv-result-mark\">" + renderSportsTeamLogo(team, "my-tv-result-logo") + "</span><span><strong>" + escapeHTML(team.name || "Team") + "</strong><small>" + escapeHTML(passLabel) + "</small></span><button type=\"button\" data-sports-favorite-team=\"" + escapeHTML(team.id || "") + "\" data-sports-favorite-enabled=\"" + (followed ? "false" : "true") + "\">" + (followed ? "Game pass active" : "Create game pass") + "</button></article>";
   });
@@ -3167,10 +3198,9 @@ function loadSportsLeagueTeams(league) {
   return request;
 }
 function applySportsFavoritesToPayload() {
-  const favorites = sportsFavoriteTeamMap();
   items(state.sports && state.sports.events).forEach(function(event) {
-    if (event.home) event.home.favorite = !!favorites[event.home.id];
-    if (event.away) event.away.favorite = !!favorites[event.away.id];
+    if (event.home) event.home.favorite = sportsFavoriteTeamMatches(event.home);
+    if (event.away) event.away.favorite = sportsFavoriteTeamMatches(event.away);
   });
 }
 function sportsTabLabel(tab) {
@@ -3819,8 +3849,7 @@ function sportsEventStartSort(event, fallback) {
   return start > 0 ? start : fallback;
 }
 function sportsEventIsFollowed(event) {
-  const favorites = sportsFavoriteTeamMap();
-  return !!(favorites[(event.home || {}).id] || favorites[(event.away || {}).id] || sportsFavoriteLeagueMap()[event.leagueId]);
+  return !!(sportsFavoriteTeamMatches(event.home || {}) || sportsFavoriteTeamMatches(event.away || {}) || sportsFavoriteLeagueMap()[event.leagueId]);
 }
 function sportsEventMatchesQuery(event) {
   const channels = items(event.channels).map(function(channel) { return [channel.name, channel.categoryName, channel.reason].join(" "); }).join(" ");
