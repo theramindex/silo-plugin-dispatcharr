@@ -11,6 +11,7 @@ const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "asse
 const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", folderGroupPickerOpen: false, searchQuery: "", searchType: "all", searchAiringChannel: "", searchReturnView: "home", recentSearches: [], myTVQuery: "", onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsMoreOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsFailedMedia: {}, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLeagueTeams: {}, sportsLeagueTeamsLoading: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "connection", adminConnectionStatus: "idle", adminConnectionMessage: "", adminConnectionLoading: false, adminConnectionLoadError: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 const appHistoryStateKey = "dispatcharrRoute";
 state.onLaterShelfLimits = {};
+state.myTVTeamCatalogLoading = null;
 state.aspectMode = "fit";
 state.guideCategoryPickerOpen = false;
 state.guideCategoryQuery = "";
@@ -2765,6 +2766,43 @@ function myTVGuidePrograms() {
     return passes.some(function(pass) { return text.indexOf(lower(pass.keyword)) !== -1; });
   })).sort(function(left, right) { return Number(left.startUnix || 0) - Number(right.startUnix || 0); });
 }
+function myTVLeagueCatalogPriority(league, query) {
+  const identity = lower([league && league.id, league && league.name, league && league.sportName].join(" "));
+  const major = ["mlb", "nfl", "nba", "nhl", "wnba", "mls"];
+  const direct = searchMatchScore(league && league.name, identity, query) > 0 ? 100 : 0;
+  const majorIndex = major.findIndex(function(slug) { return identity.indexOf(slug) !== -1; });
+  return direct + (majorIndex === -1 ? 0 : 50 - majorIndex);
+}
+function ensureMyTVTeamCatalog(query) {
+  query = String(query || "").trim();
+  if (query.length < 2 || !sportsEnabled()) return Promise.resolve([]);
+  const leagues = items(state.sports && state.sports.leagues);
+  if (!leagues.length) {
+    if (!state.sportsLoading) loadSports(false);
+    return Promise.resolve([]);
+  }
+  if (state.myTVTeamCatalogLoading) return state.myTVTeamCatalogLoading;
+  const pending = leagues.filter(function(league) {
+    return league && league.id && !Object.prototype.hasOwnProperty.call(state.sportsLeagueTeams, String(league.id));
+  }).sort(function(left, right) {
+    return myTVLeagueCatalogPriority(right, query) - myTVLeagueCatalogPriority(left, query);
+  });
+  if (!pending.length) return Promise.resolve([]);
+  let next = 0;
+  const worker = function() {
+    if (next >= pending.length) return Promise.resolve();
+    const league = pending[next++];
+    return loadSportsLeagueTeams(league).then(function() {
+      if (state.view === "mytv" && String(state.myTVQuery || "").trim().length >= 2) updateMyTVSearchSurface();
+    }).then(worker);
+  };
+  const workerCount = Math.min(3, pending.length);
+  state.myTVTeamCatalogLoading = Promise.all(Array.from({ length: workerCount }, worker)).finally(function() {
+    state.myTVTeamCatalogLoading = null;
+    if (state.view === "mytv") updateMyTVSearchSurface();
+  });
+  return state.myTVTeamCatalogLoading;
+}
 function myTVSportsPeople() {
   const found = {};
   items(state.sports && state.sports.events).forEach(function(event) {
@@ -2780,6 +2818,11 @@ function myTVSportsPeople() {
     });
   });
   return Object.keys(found).map(function(id) { return found[id]; });
+}
+function myTVSportsPassLabel(team) {
+  if (lower(team && team.kind) === "fighter") return "Fight pass";
+  const league = String(team && team.leagueName || "").trim();
+  return (league ? league + " " : "") + "game pass";
 }
 function myTVFollowedPeople() {
   const people = {};
@@ -2814,7 +2857,7 @@ function myTVFollowingCard(kind, entity) {
   const name = entity.name || (isLeague ? "Saved league" : "Saved team");
   const mark = isLeague ? renderSportsLeagueMark(entity) : renderSportsTeamLogo(entity, "my-tv-follow-logo");
   const attr = isLeague ? "data-sports-favorite-league" : "data-sports-favorite-team";
-  return "<article class=\"my-tv-follow-card\"><span class=\"my-tv-follow-mark\">" + mark + "</span><span><strong>" + escapeHTML(name) + "</strong><small>" + escapeHTML(isLeague ? "League" : (entity.kind || "Team")) + "</small></span><button type=\"button\" " + attr + "=\"" + escapeHTML(id) + "\" data-sports-favorite-enabled=\"false\" aria-label=\"Unfollow " + escapeHTML(name) + "\">" + icon("x") + "</button></article>";
+  return "<article class=\"my-tv-follow-card\"><span class=\"my-tv-follow-mark\">" + mark + "</span><span><strong>" + escapeHTML(name) + "</strong><small>" + escapeHTML(isLeague ? "League" : myTVSportsPassLabel(entity)) + "</small></span><button type=\"button\" " + attr + "=\"" + escapeHTML(id) + "\" data-sports-favorite-enabled=\"false\" aria-label=\"Remove " + escapeHTML(name) + " pass\">" + icon("x") + "</button></article>";
 }
 function myTVFollowingHTML() {
   const passes = keywordPasses();
@@ -2846,7 +2889,8 @@ function myTVSearchResults(query) {
   const trackQuery = "<button class=\"my-tv-track-query\" type=\"button\" data-keyword-pass-add=\"" + escapeHTML(query) + "\"" + (passSaved ? " disabled" : "") + ">" + icon(passSaved ? "check" : "plus") + "<span><strong>" + (passSaved ? "Tracking this search" : "Track “" + escapeHTML(query) + "”") + "</strong><small>Watch future guide listings for a match</small></span></button>";
   const personRows = people.map(function(team) {
     const followed = !!sportsFavoriteTeamMap()[team.id];
-    return "<article class=\"my-tv-result\"><span class=\"my-tv-result-mark\">" + renderSportsTeamLogo(team, "my-tv-result-logo") + "</span><span><strong>" + escapeHTML(team.name || "Team") + "</strong><small>" + escapeHTML([team.kind || "Team", team.leagueName].filter(Boolean).join(" · ")) + "</small></span><button type=\"button\" data-sports-favorite-team=\"" + escapeHTML(team.id || "") + "\" data-sports-favorite-enabled=\"" + (followed ? "false" : "true") + "\">" + (followed ? "Following" : "Follow") + "</button></article>";
+    const passLabel = myTVSportsPassLabel(team);
+    return "<article class=\"my-tv-result\"><span class=\"my-tv-result-mark\">" + renderSportsTeamLogo(team, "my-tv-result-logo") + "</span><span><strong>" + escapeHTML(team.name || "Team") + "</strong><small>" + escapeHTML(passLabel) + "</small></span><button type=\"button\" data-sports-favorite-team=\"" + escapeHTML(team.id || "") + "\" data-sports-favorite-enabled=\"" + (followed ? "false" : "true") + "\">" + (followed ? "Game pass active" : "Create game pass") + "</button></article>";
   });
   const leagueRows = leagues.map(function(league) {
     const followed = !!sportsFavoriteLeagueMap()[league.id];
@@ -2862,7 +2906,8 @@ function myTVSearchResults(query) {
     return "<article class=\"my-tv-result\"><span class=\"my-tv-result-mark\">" + icon("calendar") + "</span><span><strong>" + escapeHTML(event.shortName || event.name || "Event") + "</strong><small>" + escapeHTML([event.categoryName, eventStatusLabel(event)].filter(Boolean).join(" · ")) + "</small></span><button type=\"button\" data-event-feature=\"" + escapeHTML(event.id || "") + "\"" + (adminFeaturedEventMap()[event.id] ? " disabled" : "") + ">" + (followed ? "Following" : "Follow") + "</button></article>";
   });
   const groups = [["Teams & fighters", personRows], ["Leagues", leagueRows], ["From the guide", titleRows], ["Events", eventRows]].filter(function(group) { return group[1].length; });
-  return "<section class=\"my-tv-search-results\">" + trackQuery + (groups.length ? groups.map(function(group) { return "<div><h3>" + escapeHTML(group[0]) + "</h3><div class=\"my-tv-result-list\">" + group[1].join("") + "</div></div>"; }).join("") : "<p class=\"my-tv-search-note\">No current listings match yet. Track the search and My TV will watch future guide updates.</p>") + "</section>";
+  const catalogNote = state.myTVTeamCatalogLoading ? "<p class=\"my-tv-search-note\">Searching team rosters…</p>" : "";
+  return "<section class=\"my-tv-search-results\">" + trackQuery + catalogNote + (groups.length ? groups.map(function(group) { return "<div><h3>" + escapeHTML(group[0]) + "</h3><div class=\"my-tv-result-list\">" + group[1].join("") + "</div></div>"; }).join("") : "<p class=\"my-tv-search-note\">No current listings match yet. Track the search and My TV will watch future guide updates.</p>") + "</section>";
 }
 function myTVDashboardHTML() {
   const guidePrograms = myTVGuidePrograms();
@@ -2897,6 +2942,7 @@ function renderMyTVPage() {
   const query = state.myTVQuery || "";
   root.innerHTML = "<div class=\"my-tv-page\"><header class=\"my-tv-header\"><div class=\"my-tv-heading\"><h2>My TV</h2><p>Your follows, matched to what’s live and coming up.</p></div><label class=\"my-tv-search\"><span>" + icon("search") + "</span><input id=\"my-tv-search\" type=\"search\" value=\"" + escapeHTML(query) + "\" placeholder=\"Search shows, teams, fighters, leagues, or events\" aria-label=\"Search My TV\" autocomplete=\"off\" spellcheck=\"false\"><button id=\"my-tv-search-clear\" type=\"button\" aria-label=\"Clear My TV search\" data-my-tv-search-clear=\"true\"" + (query ? "" : " hidden") + ">" + icon("x") + "</button></label></header><div id=\"my-tv-search-results\" class=\"my-tv-search-surface\" aria-live=\"polite\"" + (query ? "" : " hidden") + "></div><div id=\"my-tv-dashboard\"" + (query ? " hidden" : "") + "></div></div>";
   updateMyTVSearchSurface();
+  ensureMyTVTeamCatalog(query);
 }
 function loadSportsLibraries(force) {
   if (state.sportsLibrariesLoading) return state.sportsLibrariesPromise || Promise.resolve(items(state.sportsLibraries));
@@ -3088,7 +3134,10 @@ function loadSports(force, preparedOnly) {
   }).finally(function() {
     state.sportsLoading = false;
     if (state.view === "sports") renderSportsPage();
-    if (state.view === "mytv") updateMyTVSearchSurface();
+    if (state.view === "mytv") {
+      updateMyTVSearchSurface();
+      ensureMyTVTeamCatalog(state.myTVQuery);
+    }
     if (state.view === "search") updateSearchPageResults();
     if (state.view === "player" && state.playerSportsOpen) renderPlayerSportsDrawer();
   });
@@ -8449,6 +8498,7 @@ document.addEventListener("input", function(event) {
   if (event.target && event.target.id === "my-tv-search") {
     state.myTVQuery = event.target.value || "";
     updateMyTVSearchSurface();
+    ensureMyTVTeamCatalog(state.myTVQuery);
     return;
   }
   if (event.target && event.target.id === "player-guide-search") {
