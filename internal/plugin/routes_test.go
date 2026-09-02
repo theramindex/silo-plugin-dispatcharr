@@ -283,7 +283,12 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`aria-label="Live TV (Dispatcharr) sections"`,
 		`data-admin-identity-field=\"name\"`,
 		`<span>Guide</span>`,
-		`<span>On Later</span>`,
+		`<span>My TV</span>`,
+		`data-view="mytv"`,
+		`function renderMyTVPage()`,
+		`function myTVSportsPeople()`,
+		`Search shows, teams, fighters, leagues, or events`,
+		`My TV will watch future guide updates`,
 		`Favorites <small id="favorite-count">0</small>`,
 		`<span>Sports</span>`,
 		`<span>Events</span>`,
@@ -332,7 +337,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`function recordingSchedulingEnabled()`,
 		`/dispatcharr/api/recordings/capability`,
 		`Scheduling requires a Dispatcharr admin account or Admin API Key.`,
-		`Channels, programs, sports, or events`,
+		`Channels, shows, teams, fighters, leagues, and events`,
 		`function renderSportsPage()`,
 		`function renderSportsTopbarTabs()`,
 		`state.sportsReplayStandaloneEvents = [];`,
@@ -2838,30 +2843,21 @@ func TestPlayerUIHidesChannelGroupGridInsideSelectedCategory(t *testing.T) {
 	}
 }
 
-func TestPlayerUIAdminCanDisableOnLater(t *testing.T) {
+func TestPlayerUIMyTVIsAlwaysAvailable(t *testing.T) {
 	t.Parallel()
 
 	page := playerPageHTMLTemplate
 	script := playerAppJavaScript()
 	styles := playerStylesCSS()
-	if !strings.Contains(page, `data-view="onlater"`) {
-		t.Fatal("expected the On Later navigation item to use the shared view visibility contract")
+	if !strings.Contains(page, `data-view="mytv"`) {
+		t.Fatal("expected the My TV navigation item to use the shared view visibility contract")
 	}
 	if !strings.Contains(styles, `[hidden] { display: none !important; }`) {
 		t.Fatal("expected hidden navigation items to override component display styles")
 	}
-	for _, want := range []string{
-		`onLaterEnabled: true`,
-		`function onLaterEnabled()`,
-		`state.adminCategorySettings.onLaterEnabled = state.adminCategorySettings.onLaterEnabled !== false;`,
-		`button.dataset.view === "onlater" && !onLaterEnabled()`,
-		`if (view === "onlater" && !onLaterEnabled()) view = "home";`,
-		`if (state.view === "onlater" && !onLaterEnabled()) state.view = "home";`,
-		`data-admin-identity-field=\"on-later\"`,
-		`Show On Later`,
-	} {
-		if !strings.Contains(script, want) {
-			t.Fatalf("expected configurable On Later navigation behavior to include %q", want)
+	for _, removed := range []string{`function onLaterEnabled()`, `data-admin-identity-field=\"on-later\"`, `Show On Later`, `Show My TV`} {
+		if strings.Contains(script, removed) || strings.Contains(page, removed) {
+			t.Fatalf("expected legacy On Later control %q to be removed", removed)
 		}
 	}
 }

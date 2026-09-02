@@ -8,7 +8,7 @@ const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuff
 const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", folderGroupPickerOpen: false, searchQuery: "", searchType: "all", searchAiringChannel: "", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsMoreOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsFailedMedia: {}, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLeagueTeams: {}, sportsLeagueTeamsLoading: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "connection", adminConnectionStatus: "idle", adminConnectionMessage: "", adminConnectionLoading: false, adminConnectionLoadError: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", folderGroupCategoryID: "", folderGroupPickerOpen: false, searchQuery: "", searchType: "all", searchAiringChannel: "", searchReturnView: "home", recentSearches: [], myTVQuery: "", onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsMoreOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsFailedMedia: {}, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLeagueTeams: {}, sportsLeagueTeamsLoading: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "connection", adminConnectionStatus: "idle", adminConnectionMessage: "", adminConnectionLoading: false, adminConnectionLoadError: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 const appHistoryStateKey = "dispatcharrRoute";
 state.onLaterShelfLimits = {};
 state.aspectMode = "fit";
@@ -94,6 +94,7 @@ function icon(name) {
     "chevron-right": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m9 6 6 6-6 6'/></svg>",
     "chevron-down": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m6 9 6 6 6-6'/></svg>",
     "check": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m5 12.5 4.25 4.25L19 7'/></svg>",
+    "plus": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' d='M12 5v14M5 12h14'/></svg>",
     "ellipsis": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z'/></svg>",
     "play": "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><path d='M8 5.6v12.8c0 .55.6.9 1.08.62l10.1-6.4a.73.73 0 0 0 0-1.24L9.08 4.98A.72.72 0 0 0 8 5.6Z'/></svg>",
     "record": "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><path d='M12 20.25a8.25 8.25 0 1 0 0-16.5 8.25 8.25 0 0 0 0 16.5Zm0-4a4.25 4.25 0 1 1 0-8.5 4.25 4.25 0 0 1 0 8.5Z'/></svg>",
@@ -257,7 +258,6 @@ function sportsFirstPlayerEnabled() {
   return sportsEnabled() && adminSettings().sportsFirstPlayerEnabled === true;
 }
 function sportsEnabled() { return adminSettings().sportsEnabled !== false; }
-function onLaterEnabled() { return adminSettings().onLaterEnabled !== false; }
 function channelGroupsInSideMenu() { return adminSettings().sideMenuMode === "channels"; }
 function configuredSportsLibraryIDs() {
   const seen = {};
@@ -408,7 +408,6 @@ function normalizeAdminCategorySettings() {
   const appDisplayName = String(state.adminCategorySettings.appDisplayName || "").trim();
   state.adminCategorySettings.appDisplayName = Array.from(appDisplayName || "Live TV (Dispatcharr)").slice(0, 80).join("");
   state.adminCategorySettings.sideMenuMode = state.adminCategorySettings.sideMenuMode === "channels" ? "channels" : "guide";
-  state.adminCategorySettings.onLaterEnabled = state.adminCategorySettings.onLaterEnabled !== false;
   if (state.adminCategorySettings.mode === "custom" || state.adminCategorySettings.mode === "admin_delimiter") state.adminCategorySettings.mode = "delimiter";
   if (["normal", "delimiter"].indexOf(state.adminCategorySettings.mode) === -1) state.adminCategorySettings.mode = "normal";
   if (!state.adminCategorySettings.delimiter) state.adminCategorySettings.delimiter = "pipe";
@@ -1619,7 +1618,7 @@ function appRouteHash(snapshot) {
     return route;
   }
   if (snapshot.view === "live" && snapshot.category) return "#/channels/" + appRoutePart(snapshot.category);
-  const view = ["home", "channels", "live", "favorites", "guide", "onlater", "search", "recordings", "settings", "multiview"].indexOf(snapshot.view) !== -1 ? snapshot.view : "home";
+  const view = ["home", "channels", "live", "favorites", "guide", "mytv", "search", "recordings", "settings", "multiview"].indexOf(snapshot.view) !== -1 ? snapshot.view : "home";
   return "#/" + view;
 }
 function readAppRouteHash() {
@@ -1636,7 +1635,8 @@ function readAppRouteHash() {
     return route;
   }
   if (parts[0] === "events") return { view: "events", eventsTab: parts[1] || "upcoming", eventCategory: parts[2] === "category" ? (parts[3] || "") : "" };
-  const view = ["home", "channels", "live", "favorites", "guide", "onlater", "search", "recordings", "settings", "multiview"].indexOf(parts[0]) !== -1 ? parts[0] : "home";
+  if (parts[0] === "onlater") return { view: "mytv" };
+  const view = ["home", "channels", "live", "favorites", "guide", "mytv", "search", "recordings", "settings", "multiview"].indexOf(parts[0]) !== -1 ? parts[0] : "home";
   return { view: view };
 }
 function commitAppRoute(mode) {
@@ -1675,10 +1675,13 @@ function restoreAppRoute(snapshot) {
 }
 function setView(view, options) {
   options = options || {};
-  if (view === "onlater" && !onLaterEnabled()) view = "home";
   if (view === "sports" && !sportsEnabled()) view = "home";
   if (view === "search" && state.view !== "search" && state.view !== "player") {
     state.searchReturnView = state.view || "home";
+  }
+  if (view === "search") {
+    loadSports(false);
+    loadEvents(false);
   }
   if (view !== "player") {
     stopPlayback();
@@ -1687,8 +1690,13 @@ function setView(view, options) {
   if (view !== "multiview" && state.view === "multiview") stopAllMultiview("leave_multiview");
   if (view !== state.view && !options.preserveBrowseState) state.folderQuery = "";
   state.view = view;
-  if ((view === "favorites" || view === "onlater") && !options.preserveBrowseState) state.category = "";
-  if ((view === "search" || view === "onlater") && dvrEnabled()) loadRecordings(false);
+  if ((view === "favorites" || view === "mytv") && !options.preserveBrowseState) state.category = "";
+  if ((view === "search" || view === "mytv") && dvrEnabled()) loadRecordings(false);
+  if (view === "mytv") {
+    state.category = "";
+    loadSports(false);
+    loadEvents(false);
+  }
   if (view === "sports") {
     state.category = "";
     loadSports(false);
@@ -1978,7 +1986,7 @@ function renderRail() {
     if (label) label.textContent = showChannels ? "Channels" : "Guide";
   }
   document.querySelectorAll("[data-view]").forEach(function(button) {
-    const unavailable = (button.dataset.view === "recordings" && !dvrEnabled()) || (button.dataset.view === "sports" && !sportsEnabled()) || (button.dataset.view === "onlater" && !onLaterEnabled());
+    const unavailable = (button.dataset.view === "recordings" && !dvrEnabled()) || (button.dataset.view === "sports" && !sportsEnabled());
     const activeViews = String(button.dataset.activeViews || button.dataset.view || "").split(/\s+/).filter(Boolean);
     button.hidden = unavailable;
     const active = !unavailable && activeViews.indexOf(state.view) !== -1;
@@ -2014,7 +2022,6 @@ function render() {
   if (!state.app) return;
   if (state.view === "recordings" && !dvrEnabled()) state.view = "home";
   if (state.view === "sports" && !sportsEnabled()) state.view = "home";
-  if (state.view === "onlater" && !onLaterEnabled()) state.view = "home";
   if (state.view === "admin" && !isAdminRoute) state.view = "home";
   document.querySelector(".shell").classList.toggle("is-player", state.view === "player");
   document.querySelector(".shell").classList.toggle("is-guide", state.view === "guide");
@@ -2022,7 +2029,8 @@ function render() {
   document.querySelector(".shell").classList.toggle("is-events", state.view === "events");
   document.querySelector(".shell").classList.toggle("is-multiview", state.view === "multiview");
   document.querySelector(".shell").classList.toggle("is-search", state.view === "search");
-  document.querySelector(".shell").classList.toggle("is-onlater", state.view === "onlater");
+  document.querySelector(".shell").classList.toggle("is-onlater", state.view === "mytv");
+  document.querySelector(".shell").classList.toggle("is-mytv", state.view === "mytv");
   resetMainHorizontalScroll();
   renderRail();
   renderSportsTopbarTabs();
@@ -2033,7 +2041,7 @@ function render() {
   else if (state.view === "live" || state.view === "favorites") renderLivePage();
   else if (state.view === "sports") renderSportsPage();
   else if (state.view === "events") renderEventsPage();
-  else if (state.view === "onlater") renderOnLaterPage();
+  else if (state.view === "mytv") renderMyTVPage();
   else if (state.view === "search") renderSearchPage();
   else if (state.view === "recordings") renderRecordingsPage();
   else if (state.view === "admin") renderAdminPage();
@@ -2374,6 +2382,32 @@ function searchResultSections(query) {
     }) });
   }
   if (include("sports")) {
+    const people = rankedSearchMatches(myTVSportsPeople(), function(team) {
+      return searchMatchScore(team.name, [team.abbreviation, team.kind, team.leagueName].join(" "), query);
+    }, 12);
+    sections.push({ id: "sports-people", title: "Teams & Fighters", rows: people.map(function(team) {
+      const followed = !!sportsFavoriteTeamMap()[team.id];
+      return {
+        attrs: "data-sports-favorite-team=\"" + escapeHTML(team.id || "") + "\" data-sports-favorite-enabled=\"" + (followed ? "false" : "true") + "\"",
+        art: renderSportsTeamLogo(team, "logo"),
+        title: team.name || "Team",
+        meta: [team.kind || "Team", team.leagueName || ""].filter(Boolean).join(" - "),
+        action: followed ? "Following" : "Follow"
+      };
+    }) });
+    const leagues = rankedSearchMatches(items(state.sports && state.sports.leagues), function(league) {
+      return searchMatchScore(league.name, [league.sportName, league.id].join(" "), query);
+    }, 8);
+    sections.push({ id: "sports-leagues", title: "Leagues", rows: leagues.map(function(league) {
+      const followed = !!sportsFavoriteLeagueMap()[league.id];
+      return {
+        attrs: "data-sports-favorite-league=\"" + escapeHTML(league.id || "") + "\" data-sports-favorite-enabled=\"" + (followed ? "false" : "true") + "\"",
+        art: renderSportsLeagueMark(league),
+        title: league.name || "League",
+        meta: [league.sportName || "Sports", "League"].join(" - "),
+        action: followed ? "Following" : "Follow"
+      };
+    }) });
     const matchingPrograms = rankedSearchMatches(programs().filter(programLooksSports), function(program) {
       const channel = channelByID(program.channelId) || {};
       return searchMatchScore(program.title, [channel.name, channel.categoryName].join(" "), query);
@@ -2390,6 +2424,20 @@ function searchResultSections(query) {
     }) });
   }
   if (include("events")) {
+    const trackedEvents = rankedSearchMatches(items(state.events && state.events.events), function(event) {
+      return searchMatchScore(event.name || event.shortName, [event.categoryName, event.description, event.keyword].join(" "), query);
+    }, 10);
+    sections.push({ id: "tracked-events", title: "Events", rows: trackedEvents.map(function(event) {
+      const followed = !!(featuredEventMap()[event.id] || adminFeaturedEventMap()[event.id]);
+      return {
+        attrs: "data-event-feature=\"" + escapeHTML(event.id || "") + "\"",
+        disabled: !!adminFeaturedEventMap()[event.id],
+        art: "<span class=\"logo logo-fallback\">EVT</span>",
+        title: event.shortName || event.name || "Event",
+        meta: [event.categoryName || "Event", eventStatusLabel(event)].filter(Boolean).join(" - "),
+        action: followed ? "Following" : "Follow"
+      };
+    }) });
     const matchingPrograms = rankedSearchMatches(programs().filter(programLooksEvent), function(program) {
       const channel = channelByID(program.channelId) || {};
       return searchMatchScore(program.title, [channel.name, channel.categoryName].join(" "), query);
@@ -2444,8 +2492,8 @@ function renderSearchResultCard(row) {
 }
 function renderSearchResults(query) {
   const sections = searchResultSections(query);
-  const savePass = query && !keywordPasses().some(function(pass) { return lower(pass.keyword) === lower(query); }) ? "<button class=\"search-save-pass\" type=\"button\" data-keyword-pass-add=\"" + escapeHTML(query) + "\">Save Keyword Pass</button>" : "";
-  if (!sections.length) return "<div class=\"search-empty\"><span>" + icon("search") + "</span><strong>No matches for &ldquo;" + escapeHTML(query) + "&rdquo;</strong><p>Try a channel name, category, or program title.</p>" + savePass + "</div>";
+  const savePass = query && !keywordPasses().some(function(pass) { return lower(pass.keyword) === lower(query); }) ? "<button class=\"search-save-pass\" type=\"button\" data-keyword-pass-add=\"" + escapeHTML(query) + "\">Add to My TV</button>" : "";
+  if (!sections.length) return "<div class=\"search-empty\"><span>" + icon("search") + "</span><strong>No current matches for &ldquo;" + escapeHTML(query) + "&rdquo;</strong><p>Add it to My TV and we’ll watch future guide listings.</p>" + savePass + "</div>";
   return (savePass ? "<div class=\"search-pass-action\">" + savePass + "</div>" : "") + "<div class=\"search-results\">" + sections.map(function(section) {
     return "<section class=\"search-result-section\"><header class=\"search-result-section-head\"><h3>" + escapeHTML(section.title) + "</h3><span>" + section.rows.length + (section.rows.length === 1 ? " result" : " results") + "</span></header><div class=\"search-result-list\">" + section.rows.map(renderSearchResultRow).join("") + "</div></section>";
   }).join("") + "</div>";
@@ -2524,7 +2572,7 @@ function renderSearchPage() {
     return "<button class=\"search-chip" + (filter === item.id ? " active" : "") + "\" type=\"button\" data-search-type=\"" + escapeHTML(item.id) + "\">" + escapeHTML(item.label) + "</button>";
   }).join("") + "</div>";
   const clear = query ? "<button class=\"search-query-clear\" type=\"button\" data-search-query-clear=\"true\" aria-label=\"Clear search\">" + icon("x") + "</button>" : "";
-  root.innerHTML = "<div class=\"search-page\"><header class=\"search-commandbar\"><div class=\"search-commandbar-title\"><h2>Search</h2><span>Channels, groups, and guide</span></div><div class=\"search-form\"><label class=\"search-input-shell\"><span>" + icon("search") + "</span><input id=\"search-page-input\" class=\"search-field\" value=\"" + escapeHTML(query) + "\" placeholder=\"Channels, programs, sports, or events\" autocomplete=\"off\" spellcheck=\"false\">" + clear + "</label><button class=\"search-cancel\" type=\"button\" data-search-cancel=\"true\">Done</button></div>" + filterHTML + "</header><div id=\"search-page-results\" class=\"search-page-results\" aria-live=\"polite\">" + renderSearchPageResults() + "</div></div>";
+  root.innerHTML = "<div class=\"search-page\"><header class=\"search-commandbar\"><div class=\"search-commandbar-title\"><h2>Search</h2><span>Channels, shows, teams, fighters, leagues, and events</span></div><div class=\"search-form\"><label class=\"search-input-shell\"><span>" + icon("search") + "</span><input id=\"search-page-input\" class=\"search-field\" value=\"" + escapeHTML(query) + "\" placeholder=\"Search everything on TV\" autocomplete=\"off\" spellcheck=\"false\">" + clear + "</label><button class=\"search-cancel\" type=\"button\" data-search-cancel=\"true\">Done</button></div>" + filterHTML + "</header><div id=\"search-page-results\" class=\"search-page-results\" aria-live=\"polite\">" + renderSearchPageResults() + "</div></div>";
   const input = byId("search-page-input");
   if (input && document.activeElement !== input) {
     setTimeout(function() {
@@ -2541,15 +2589,17 @@ function addKeywordPass(keyword) {
   if (!keyword || !state.app || !state.app.preferences) return;
   state.app.preferences.keywordPasses = normalizeKeywordPasses(keywordPasses().concat([{ keyword: keyword, createdAt: Date.now() }]));
   savePrefs();
-  showAppToast("Keyword Pass saved.");
-  renderSearchPage();
+  showAppToast("Added to My TV.");
+  if (state.view === "mytv") renderMyTVPage();
+  else renderSearchPage();
 }
 function removeKeywordPass(id) {
   id = String(id || "");
   if (!state.app || !state.app.preferences) return;
   state.app.preferences.keywordPasses = keywordPasses().filter(function(pass) { return pass.id !== id; });
   savePrefs();
-  renderOnLaterPage();
+  if (state.view === "mytv") renderMyTVPage();
+  else renderOnLaterPage();
 }
 function onLaterFilters() {
   return [
@@ -2704,6 +2754,132 @@ function renderOnLaterPage() {
     + (passHTML && (type === "all" || type === "passes") ? passHTML : "")
     + (programs.length ? "<div class=\"on-later-shelves\">" + (repeatAirings.length && time !== "live" ? onLaterShelfHTML("Upcoming Airings", repeatAirings, renderOnLaterAiringCard) : "") + onLaterShelves(programs, time, type).map(function(shelf) { return onLaterShelfHTML(shelf.title, shelf.programs); }).join("") + "</div>" : "<div class=\"empty\">No matching guide entries.</div>")
     + "</div>";
+}
+function myTVGuidePrograms() {
+  const passes = keywordPasses();
+  const now = Math.floor(Date.now() / 1000);
+  if (!passes.length) return [];
+  return distinctOnLaterPrograms(programsFor("").filter(function(program) {
+    if (programIsGuidePlaceholder(program) || Number(program.endUnix || 0) < now) return false;
+    const text = lower(programSearchText(program));
+    return passes.some(function(pass) { return text.indexOf(lower(pass.keyword)) !== -1; });
+  })).sort(function(left, right) { return Number(left.startUnix || 0) - Number(right.startUnix || 0); });
+}
+function myTVSportsPeople() {
+  const found = {};
+  items(state.sports && state.sports.events).forEach(function(event) {
+    const combat = /boxing|mma|combat|ufc|fight/.test(lower([event.sportName, event.leagueName, event.name].join(" ")));
+    [event.away, event.home].forEach(function(team) {
+      if (!team || !team.id || found[team.id]) return;
+      found[team.id] = Object.assign({}, team, { kind: combat ? "Fighter" : "Team", leagueName: event.leagueName || "" });
+    });
+  });
+  Object.keys(state.sportsLeagueTeams || {}).forEach(function(leagueID) {
+    items(state.sportsLeagueTeams[leagueID]).forEach(function(team) {
+      if (team && team.id && !found[team.id]) found[team.id] = Object.assign({}, team, { kind: "Team", leagueName: (sportsLeagueByID(state.sports, leagueID) || {}).name || "" });
+    });
+  });
+  return Object.keys(found).map(function(id) { return found[id]; });
+}
+function myTVFollowedPeople() {
+  const people = {};
+  myTVSportsPeople().forEach(function(team) { people[team.id] = team; });
+  return Object.keys(sportsFavoriteTeamMap()).filter(function(id) { return !!sportsFavoriteTeamMap()[id]; }).map(function(id) {
+    return people[id] || { id: id, name: "Saved team", abbreviation: "TV", kind: "Team" };
+  });
+}
+function myTVFollowedLeagues() {
+  const leagues = {};
+  items(state.sports && state.sports.leagues).forEach(function(league) { if (league && league.id) leagues[league.id] = league; });
+  return Object.keys(sportsFavoriteLeagueMap()).filter(function(id) { return !!sportsFavoriteLeagueMap()[id]; }).map(function(id) {
+    return leagues[id] || { id: id, name: "Saved league" };
+  });
+}
+function myTVFollowedSportsEvents() {
+  const now = Math.floor(Date.now() / 1000);
+  return items(state.sports && state.sports.events).filter(function(event) {
+    return sportsEventIsFollowed(event) && (!event.completed || Number(event.endUnix || 0) >= now - 3 * 3600);
+  }).sort(compareSportsEventsForTab).slice(0, 18);
+}
+function myTVFeaturedEvents() {
+  const followed = Object.assign({}, adminFeaturedEventMap(), featuredEventMap());
+  const now = Math.floor(Date.now() / 1000);
+  return items(state.events && state.events.events).filter(function(event) {
+    return followed[event.id] && (!event.completed || Number(event.endUnix || 0) >= now - 3 * 3600);
+  }).sort(function(left, right) { return Number(left.startUnix || 0) - Number(right.startUnix || 0); }).slice(0, 12);
+}
+function myTVFollowingCard(kind, entity) {
+  const isLeague = kind === "league";
+  const id = String(entity.id || "");
+  const name = entity.name || (isLeague ? "Saved league" : "Saved team");
+  const mark = isLeague ? renderSportsLeagueMark(entity) : renderSportsTeamLogo(entity, "my-tv-follow-logo");
+  const attr = isLeague ? "data-sports-favorite-league" : "data-sports-favorite-team";
+  return "<article class=\"my-tv-follow-card\"><span class=\"my-tv-follow-mark\">" + mark + "</span><span><strong>" + escapeHTML(name) + "</strong><small>" + escapeHTML(isLeague ? "League" : (entity.kind || "Team")) + "</small></span><button type=\"button\" " + attr + "=\"" + escapeHTML(id) + "\" data-sports-favorite-enabled=\"false\" aria-label=\"Unfollow " + escapeHTML(name) + "\">" + icon("x") + "</button></article>";
+}
+function myTVFollowingHTML() {
+  const passes = keywordPasses();
+  const people = myTVFollowedPeople();
+  const leagues = myTVFollowedLeagues();
+  const featuredCount = Object.keys(featuredEventMap()).length;
+  if (!passes.length && !people.length && !leagues.length && !featuredCount) return "";
+  const searches = passes.map(function(pass) {
+    return "<article class=\"my-tv-follow-card query\"><span class=\"my-tv-follow-mark\">" + icon("search") + "</span><span><strong>" + escapeHTML(pass.keyword) + "</strong><small>Title or event</small></span><button type=\"button\" data-keyword-pass-remove=\"" + escapeHTML(pass.id) + "\" aria-label=\"Stop tracking " + escapeHTML(pass.keyword) + "\">" + icon("x") + "</button></article>";
+  });
+  return "<section class=\"my-tv-section\"><header><h3>Following</h3><span>" + escapeHTML(String(passes.length + people.length + leagues.length + featuredCount)) + " saved</span></header><div class=\"my-tv-following\">" + searches.concat(people.map(function(team) { return myTVFollowingCard("team", team); }), leagues.map(function(league) { return myTVFollowingCard("league", league); })).join("") + "</div></section>";
+}
+function myTVSearchResults(query) {
+  query = String(query || "").trim();
+  if (query.length < 2) return "";
+  const people = rankedSearchMatches(myTVSportsPeople(), function(team) {
+    return searchMatchScore(team.name, [team.abbreviation, team.kind, team.leagueName].join(" "), query);
+  }, 12);
+  const leagues = rankedSearchMatches(items(state.sports && state.sports.leagues), function(league) {
+    return searchMatchScore(league.name, [league.sportName, league.id].join(" "), query);
+  }, 8);
+  const guideTitles = rankedSearchMatches(distinctOnLaterPrograms(programsFor("").filter(function(program) {
+    return !programIsGuidePlaceholder(program) && Number(program.endUnix || 0) >= Math.floor(Date.now() / 1000);
+  })), function(program) { return searchMatchScore(program.title, programSearchText(program), query); }, 10);
+  const events = rankedSearchMatches(items(state.events && state.events.events), function(event) {
+    return searchMatchScore(event.name || event.shortName, [event.categoryName, event.description, event.keyword].join(" "), query);
+  }, 8);
+  const passSaved = keywordPasses().some(function(pass) { return lower(pass.keyword) === lower(query); });
+  const trackQuery = "<button class=\"my-tv-track-query\" type=\"button\" data-keyword-pass-add=\"" + escapeHTML(query) + "\"" + (passSaved ? " disabled" : "") + ">" + icon(passSaved ? "check" : "plus") + "<span><strong>" + (passSaved ? "Tracking this search" : "Track “" + escapeHTML(query) + "”") + "</strong><small>Watch future guide listings for a match</small></span></button>";
+  const personRows = people.map(function(team) {
+    const followed = !!sportsFavoriteTeamMap()[team.id];
+    return "<article class=\"my-tv-result\"><span class=\"my-tv-result-mark\">" + renderSportsTeamLogo(team, "my-tv-result-logo") + "</span><span><strong>" + escapeHTML(team.name || "Team") + "</strong><small>" + escapeHTML([team.kind || "Team", team.leagueName].filter(Boolean).join(" · ")) + "</small></span><button type=\"button\" data-sports-favorite-team=\"" + escapeHTML(team.id || "") + "\" data-sports-favorite-enabled=\"" + (followed ? "false" : "true") + "\">" + (followed ? "Following" : "Follow") + "</button></article>";
+  });
+  const leagueRows = leagues.map(function(league) {
+    const followed = !!sportsFavoriteLeagueMap()[league.id];
+    return "<article class=\"my-tv-result\"><span class=\"my-tv-result-mark\">" + renderSportsLeagueMark(league) + "</span><span><strong>" + escapeHTML(league.name || "League") + "</strong><small>League</small></span><button type=\"button\" data-sports-favorite-league=\"" + escapeHTML(league.id || "") + "\" data-sports-favorite-enabled=\"" + (followed ? "false" : "true") + "\">" + (followed ? "Following" : "Follow") + "</button></article>";
+  });
+  const titleRows = guideTitles.map(function(program) {
+    const saved = keywordPasses().some(function(pass) { return lower(pass.keyword) === lower(program.title); });
+    const channel = channelByID(program.channelId) || {};
+    return "<article class=\"my-tv-result\"><span class=\"my-tv-result-mark\">" + logoHTML(channel) + "</span><span><strong>" + escapeHTML(program.title || "Program") + "</strong><small>" + escapeHTML([dateTimeLabel(program.startUnix), channel.name].filter(Boolean).join(" · ")) + "</small></span><button type=\"button\" data-keyword-pass-add=\"" + escapeHTML(program.title || "") + "\"" + (saved ? " disabled" : "") + ">" + (saved ? "Tracking" : "Track") + "</button></article>";
+  });
+  const eventRows = events.map(function(event) {
+    const followed = !!(featuredEventMap()[event.id] || adminFeaturedEventMap()[event.id]);
+    return "<article class=\"my-tv-result\"><span class=\"my-tv-result-mark\">" + icon("calendar") + "</span><span><strong>" + escapeHTML(event.shortName || event.name || "Event") + "</strong><small>" + escapeHTML([event.categoryName, eventStatusLabel(event)].filter(Boolean).join(" · ")) + "</small></span><button type=\"button\" data-event-feature=\"" + escapeHTML(event.id || "") + "\"" + (adminFeaturedEventMap()[event.id] ? " disabled" : "") + ">" + (followed ? "Following" : "Follow") + "</button></article>";
+  });
+  const groups = [["Teams & fighters", personRows], ["Leagues", leagueRows], ["From the guide", titleRows], ["Events", eventRows]].filter(function(group) { return group[1].length; });
+  return "<section class=\"my-tv-search-results\">" + trackQuery + (groups.length ? groups.map(function(group) { return "<div><h3>" + escapeHTML(group[0]) + "</h3><div class=\"my-tv-result-list\">" + group[1].join("") + "</div></div>"; }).join("") : "<p class=\"my-tv-search-note\">No current listings match yet. Track the search and My TV will watch future guide updates.</p>") + "</section>";
+}
+function renderMyTVPage() {
+  const root = byId("view");
+  if (!root) return;
+  if (!state.sports && !state.sportsLoading) loadSports(false);
+  if (!state.events && !state.eventsLoading) loadEvents(false);
+  const query = state.myTVQuery || "";
+  const guidePrograms = myTVGuidePrograms();
+  const sportsEvents = myTVFollowedSportsEvents();
+  const featuredEvents = myTVFeaturedEvents();
+  const hasFollowing = keywordPasses().length || Object.keys(sportsFavoriteTeamMap()).length || Object.keys(sportsFavoriteLeagueMap()).length || Object.keys(featuredEventMap()).length;
+  const discovery = query ? myTVSearchResults(query) : "";
+  const upcoming = (guidePrograms.length ? onLaterShelfHTML("From your guide", guidePrograms) : "")
+    + (sportsEvents.length ? "<section class=\"my-tv-section\"><header><h3>Your sports</h3><span>" + sportsEvents.length + " coming up</span></header><div class=\"sports-event-grid my-tv-sports-grid\">" + sportsEvents.map(renderSportsEventTile).join("") + "</div></section>" : "")
+    + (featuredEvents.length ? "<section class=\"my-tv-section\"><header><h3>Your events</h3><span>" + featuredEvents.length + " coming up</span></header><div class=\"event-shelf-rail\">" + featuredEvents.map(renderBroadcastEventCard).join("") + "</div></section>" : "");
+  const empty = !query && !upcoming ? "<div class=\"my-tv-empty\"><span>" + icon("heart") + "</span><strong>Build your own TV calendar</strong><p>Follow a show, team, fighter, league, or event. My TV will connect it to guide listings as coverage appears.</p></div>" : "";
+  root.innerHTML = "<div class=\"my-tv-page\"><header class=\"my-tv-hero\"><div><span class=\"my-tv-eyebrow\">Personal television</span><h2>My TV</h2><p>Everything you follow, matched against what’s live and coming up.</p></div><label class=\"my-tv-search\"><span>" + icon("search") + "</span><input id=\"my-tv-search\" type=\"search\" value=\"" + escapeHTML(query) + "\" placeholder=\"Search shows, teams, fighters, leagues, or events\" autocomplete=\"off\"><small>" + (hasFollowing ? "Add more to My TV" : "Start with anything you care about") + "</small></label></header>" + discovery + (!query ? myTVFollowingHTML() + (upcoming ? "<section class=\"my-tv-up-next\"><header><h2>Up next</h2></header>" + upcoming + "</section>" : "") + empty : "") + "</div>";
 }
 function loadSportsLibraries(force) {
   if (state.sportsLibrariesLoading) return state.sportsLibrariesPromise || Promise.resolve(items(state.sportsLibraries));
@@ -2895,6 +3071,8 @@ function loadSports(force, preparedOnly) {
   }).finally(function() {
     state.sportsLoading = false;
     if (state.view === "sports") renderSportsPage();
+    if (state.view === "mytv") renderMyTVPage();
+    if (state.view === "search") updateSearchPageResults();
     if (state.view === "player" && state.playerSportsOpen) renderPlayerSportsDrawer();
   });
 }
@@ -3932,6 +4110,10 @@ function openSportsLeague(leagueID) {
   commitAppRoute("push");
 }
 function openSportsEvent(eventID) {
+  if (state.view === "mytv") {
+    state.view = "sports";
+    state.sportsTab = "favorites";
+  }
   state.sportsSelectedEventID = String(eventID || "");
   state.sportsExpandedEvents = {};
   renderSportsPage();
@@ -3981,7 +4163,9 @@ function toggleSportsTeamFavorite(teamID, enabled) {
   else delete state.app.preferences.sportsFavoriteTeams[teamID];
   applySportsFavoritesToPayload();
   savePrefs();
-  renderSportsPage();
+  if (state.view === "mytv") renderMyTVPage();
+  else if (state.view === "search") updateSearchPageResults();
+  else renderSportsPage();
 }
 function toggleSportsLeagueFavorite(leagueID, enabled) {
   leagueID = String(leagueID || "");
@@ -3989,7 +4173,9 @@ function toggleSportsLeagueFavorite(leagueID, enabled) {
   if (enabled) state.app.preferences.sportsFavoriteLeagues[leagueID] = true;
   else delete state.app.preferences.sportsFavoriteLeagues[leagueID];
   savePrefs();
-  renderSportsPage();
+  if (state.view === "mytv") renderMyTVPage();
+  else if (state.view === "search") updateSearchPageResults();
+  else renderSportsPage();
 }
 function setSportsPreferredChannel(leagueID, channelID) {
   leagueID = String(leagueID || "");
@@ -4035,6 +4221,8 @@ function loadEvents(force) {
   }).finally(function() {
     state.eventsLoading = false;
     if (state.view === "events") renderEventsPage();
+    if (state.view === "mytv") renderMyTVPage();
+    if (state.view === "search") updateSearchPageResults();
   });
 }
 function eventTabLabel(tab) {
@@ -4149,7 +4337,9 @@ function toggleFeaturedEvent(eventID) {
   else featured[eventID] = true;
   state.app.preferences.featuredEvents = featured;
   savePrefs();
-  renderEventsPage();
+  if (state.view === "mytv") renderMyTVPage();
+  else if (state.view === "search") updateSearchPageResults();
+  else renderEventsPage();
 }
 function renderEventBroadcastWindows(event) {
   const windows = items(event && event.windows);
@@ -4720,7 +4910,7 @@ function loadRecordings(force) {
     state.recordings = { available: false, reason: "Unable to load Dispatcharr recordings.", items: [] };
   }).finally(function() {
     state.recordingsLoading = false;
-    if (state.view === "recordings" || state.view === "search" || state.view === "onlater") render();
+    if (state.view === "recordings" || state.view === "search" || state.view === "mytv") render();
   });
 }
 function programByID(channelID, programID) {
@@ -5876,7 +6066,6 @@ function updateAdminIdentityField(field, target) {
   const settings = state.adminCategorySettings || defaultAdminCategorySettings();
   if (field === "name") settings.appDisplayName = target.value;
   if (field === "side-menu") settings.sideMenuMode = target.value;
-  if (field === "on-later") settings.onLaterEnabled = !!target.checked;
   state.adminCategorySettings = settings;
   normalizeAdminCategorySettings();
   markAdminSettingsDraft();
@@ -6297,8 +6486,7 @@ function renderAdminIdentitySettings() {
   const settings = adminSettings();
   root.innerHTML = adminSaveStatusHTML()
     + "<label class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>App name</strong><small>Shown in the app header and browser title. The Silo sidebar uses the installed plugin label.</small></span><input type=\"text\" maxlength=\"80\" data-admin-identity-field=\"name\" value=\"" + escapeHTML(settings.appDisplayName) + "\"></label>"
-    + "<label class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>User side menu</strong><small>Keep the TV Guide in the menu, or replace it with Channels and move the Home channel groups there.</small></span><select data-admin-identity-field=\"side-menu\"><option value=\"guide\"" + (settings.sideMenuMode === "guide" ? " selected" : "") + ">Guide</option><option value=\"channels\"" + (settings.sideMenuMode === "channels" ? " selected" : "") + ">Channels</option></select></label>"
-    + "<label class=\"settings-row compact-row\"><span><strong>Show On Later</strong><small>Show upcoming guide discovery in the user navigation.</small></span><input type=\"checkbox\" data-admin-identity-field=\"on-later\"" + (settings.onLaterEnabled !== false ? " checked" : "") + "></label>";
+    + "<label class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>User side menu</strong><small>Keep the TV Guide in the menu, or replace it with Channels and move the Home channel groups there.</small></span><select data-admin-identity-field=\"side-menu\"><option value=\"guide\"" + (settings.sideMenuMode === "guide" ? " selected" : "") + ">Guide</option><option value=\"channels\"" + (settings.sideMenuMode === "channels" ? " selected" : "") + ">Channels</option></select></label>";
 }
 function renderAdminRecordingSettings() {
   const root = byId("admin-recording-settings");
@@ -7651,7 +7839,8 @@ document.addEventListener("click", function(event) {
     const previousRail = onLaterMore.closest(".on-later-shelf-rail");
     const previousScrollLeft = previousRail ? Number(previousRail.scrollLeft || 0) : 0;
     state.onLaterShelfLimits[key] = previousLimit + 18;
-    renderOnLaterPage();
+    if (state.view === "mytv") renderMyTVPage();
+    else renderOnLaterPage();
     restoreOnLaterShelfPosition(key, previousLimit, previousScrollLeft);
     return;
   }
@@ -8226,6 +8415,17 @@ document.addEventListener("input", function(event) {
     state.searchQuery = event.target.value || "";
     state.searchAiringChannel = "";
     scheduleSearchResultsUpdate();
+    return;
+  }
+  if (event.target && event.target.id === "my-tv-search") {
+    state.myTVQuery = event.target.value || "";
+    const caret = Number(event.target.selectionStart || state.myTVQuery.length);
+    renderMyTVPage();
+    const input = byId("my-tv-search");
+    if (input) {
+      input.focus();
+      input.setSelectionRange(caret, caret);
+    }
     return;
   }
   if (event.target && event.target.id === "player-guide-search") {
