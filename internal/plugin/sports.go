@@ -382,6 +382,7 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 		}
 		return events[i].Name < events[j].Name
 	})
+	events = filterPlayableSportsEvents(events)
 	if enricher, ok := s.sportsProvider.(sportsEventEnricher); ok {
 		events = enricher.EnrichEvents(ctx, events, 8)
 	}
@@ -420,6 +421,35 @@ func normalizeSportsEventFreshness(event SportsEvent, now time.Time) SportsEvent
 	event.Status = "final"
 	event.StatusText = "Final"
 	return event
+}
+
+func sportsPlayableChannelMatch(match SportsChannelMatch) bool {
+	switch strings.ToLower(strings.TrimSpace(match.Confidence)) {
+	case "low":
+		return false
+	case "high", "medium":
+		return true
+	default:
+		return match.Score >= sportsChannelMinimumScore
+	}
+}
+
+func filterPlayableSportsEvents(events []SportsEvent) []SportsEvent {
+	playable := make([]SportsEvent, 0, len(events))
+	for _, event := range events {
+		channels := make([]SportsChannelMatch, 0, len(event.Channels))
+		for _, match := range event.Channels {
+			if sportsPlayableChannelMatch(match) {
+				channels = append(channels, match)
+			}
+		}
+		if len(channels) == 0 {
+			continue
+		}
+		event.Channels = channels
+		playable = append(playable, event)
+	}
+	return playable
 }
 
 func mergeSportsGuideEvents(events, guideEvents []SportsEvent) []SportsEvent {

@@ -113,6 +113,27 @@ func TestHTTPRoutesServerEventsExcludesSportsPrograms(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerEventsIgnoresBroadEntertainmentKeywords(t *testing.T) {
+	t.Parallel()
+
+	start := time.Now().Add(24 * time.Hour).Unix()
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{{ID: "ch:variety", Name: "Variety East", CategoryID: "variety", CategoryName: "US | Entertainment"}},
+		Programs: []model.Program{
+			{ID: "p:festival", ChannelID: "ch:variety", Title: "Summer Music Festival", StartUnix: start, EndUnix: start + 3600},
+			{ID: "p:ceremony", ChannelID: "ch:variety", Title: "Local School Ceremony", StartUnix: start + 3600, EndUnix: start + 7200},
+			{ID: "p:special", ChannelID: "ch:variety", Title: "Friday Live Special", StartUnix: start + 7200, EndUnix: start + 10800},
+		},
+		Content: model.ContentState{LiveCategories: []model.Category{{ID: "variety", Name: "US | Entertainment", Kind: "live"}}},
+	}})
+
+	payload := fetchEventsPayload(t, NewHTTPRoutesServer(store))
+	if len(payload.Events) != 0 {
+		t.Fatalf("expected broad entertainment keywords to stay out of Events, got %+v", payload.Events)
+	}
+}
+
 func TestHTTPRoutesServerEventsDoesNotMatchSummaryOnlyKeywords(t *testing.T) {
 	t.Parallel()
 

@@ -23,6 +23,8 @@ go test -race ./...
 node --check internal/plugin/ui/lineup.js
 node --check internal/plugin/ui/sports_replays.js
 node --check internal/plugin/ui/app.js
+node --check internal/plugin/ui/guide.js
+node --check internal/plugin/ui/player.js
 node --test scripts/sports-replays.test.mjs
 node --test scripts/update-catalog.test.mjs
 go run . manifest >/dev/null

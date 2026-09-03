@@ -259,7 +259,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if response.GetHeaders()["cache-control"] != "no-store" {
 		t.Fatalf("expected app shell to disable browser caching, got %q", response.GetHeaders()["cache-control"])
 	}
-	if !strings.Contains(string(response.GetBody()), `src="dispatcharr/assets/app.js?v=`) || !strings.Contains(string(response.GetBody()), `src="dispatcharr/assets/sports_replays.js?v=`) || strings.Contains(string(response.GetBody()), "__ASSET_VERSION__") {
+	if !strings.Contains(string(response.GetBody()), `src="dispatcharr/assets/app.js?v=`) || !strings.Contains(string(response.GetBody()), `src="dispatcharr/assets/sports_replays.js?v=`) || !strings.Contains(string(response.GetBody()), `src="dispatcharr/assets/guide.js?v=`) || !strings.Contains(string(response.GetBody()), `src="dispatcharr/assets/player.js?v=`) || strings.Contains(string(response.GetBody()), "__ASSET_VERSION__") {
 		t.Fatalf("expected root app shell to reference versioned assets: %s", string(response.GetBody()))
 	}
 	body := string(response.GetBody()) + "\n" + playerAppJavaScript() + "\n" + playerStylesCSS()
@@ -605,6 +605,8 @@ func TestManifestDeclaresPublicApplicationRoutesOnly(t *testing.T) {
 		"GET /dispatcharr/assets/app.js",
 		"GET /dispatcharr/assets/lineup.js",
 		"GET /dispatcharr/assets/sports_replays.js",
+		"GET /dispatcharr/assets/guide.js",
+		"GET /dispatcharr/assets/player.js",
 		"GET /dispatcharr/assets/app.css",
 	} {
 		if !seen[route] {
@@ -3442,7 +3444,7 @@ func TestHTTPRoutesServerPlayerRoute(t *testing.T) {
 	if strings.Contains(body, "__ASSET_PREFIX__") || strings.Contains(body, "__PLAYER_LIBRARIES__") {
 		t.Fatalf("expected asset placeholders to be resolved")
 	}
-	if !strings.Contains(body, `src="assets/app.js?v=`) || !strings.Contains(body, `href="assets/app.css?v=`) || strings.Contains(body, "mpegts.js") {
+	if !strings.Contains(body, `src="assets/app.js?v=`) || !strings.Contains(body, `src="assets/guide.js?v=`) || !strings.Contains(body, `src="assets/player.js?v=`) || !strings.Contains(body, `href="assets/app.css?v=`) || strings.Contains(body, "mpegts.js") {
 		t.Fatalf("expected external application assets and on-demand player libraries")
 	}
 	if !strings.Contains(playerAppJavaScript(), "output_profile=2") {
@@ -4111,6 +4113,8 @@ func TestHTTPRoutesServerApplicationAssetRoutes(t *testing.T) {
 		"/dispatcharr/assets/app.js":            "application/javascript; charset=utf-8",
 		"/dispatcharr/assets/lineup.js":         "application/javascript; charset=utf-8",
 		"/dispatcharr/assets/sports_replays.js": "application/javascript; charset=utf-8",
+		"/dispatcharr/assets/guide.js":          "application/javascript; charset=utf-8",
+		"/dispatcharr/assets/player.js":         "application/javascript; charset=utf-8",
 		"/dispatcharr/assets/app.css":           "text/css; charset=utf-8",
 	}
 	for path, contentType := range tests {
@@ -4138,7 +4142,7 @@ func TestPlayerAppSportsReplaysUseUserScopedCatalogLibraries(t *testing.T) {
 		`groups: [], sort: "created_at", order: "desc"`,
 		`}, 2);`,
 		`accessibleSportsLibraryIDs(libraries)`,
-		`if (view === "sports" && !sportsEnabled()) view = "home"`,
+		`if (view === "sports" && !sportsNavAvailable()) view = "home"`,
 		`data-admin-sports-library-id`,
 	} {
 		if !strings.Contains(script, marker) {
