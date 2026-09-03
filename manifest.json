@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.dispatcharr",
-  "version": "0.3.119",
+  "version": "0.3.120",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -82,6 +82,20 @@
       "id": "dispatcharr-asset-app-js",
       "method": "GET",
       "path": "/dispatcharr/assets/app.js",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-asset-guide-js",
+      "method": "GET",
+      "path": "/dispatcharr/assets/guide.js",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-asset-player-js",
+      "method": "GET",
+      "path": "/dispatcharr/assets/player.js",
       "access": "authenticated",
       "navigable": false
     },

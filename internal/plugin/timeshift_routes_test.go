@@ -107,6 +107,23 @@ func TestTimeShiftRoutesShareBuffersAndGateAdminOperations(t *testing.T) {
 	}
 }
 
+func TestTimeShiftStartRejectsHLSProxyStreams(t *testing.T) {
+	t.Parallel()
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{Channels: []model.Channel{
+		{ID: "hls", StreamURL: "https://dispatcharr.example/proxy/hls/channel-1"},
+	}}})
+	store.SetAdminSettings(json.RawMessage(`{"liveRewindEnabled":true}`))
+	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings { return config.Settings{SourceMode: config.SourceModeDirectLogin} })
+	server.timeShift = timeshift.NewManager(t.TempDir())
+	response, _ := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Path: "/dispatcharr/api/timeshift/start", Method: http.MethodPost, Body: []byte(`{"channelId":"hls"}`),
+	})
+	if response.GetStatusCode() != http.StatusConflict {
+		t.Fatalf("expected HLS rewind to stay unavailable, got %d %s", response.GetStatusCode(), response.GetBody())
+	}
+}
+
 func TestTimeShiftStartFallsBackWhenDisabledOrNotDirect(t *testing.T) {
 	t.Parallel()
 	store := cache.NewStore()

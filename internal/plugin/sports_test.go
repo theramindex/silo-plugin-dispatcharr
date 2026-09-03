@@ -1014,11 +1014,16 @@ func TestSportsRouteReturnsWhilePreparedPayloadBuildRuns(t *testing.T) {
 	t.Parallel()
 
 	provider := &blockingSportsProvider{
-		events:  []SportsEvent{{ID: "event:ready", LeagueID: "nfl", LeagueName: "NFL", Name: "Jets at Giants", StartUnix: 1700000000}},
+		events:  []SportsEvent{{ID: "event:ready", LeagueID: "nfl", LeagueName: "NFL", Name: "Jets at Giants", StartUnix: 1700000000, Away: SportsTeam{Name: "New York Jets", Abbreviation: "NYJ"}, Home: SportsTeam{Name: "New York Giants", Abbreviation: "NYG"}}},
 		started: make(chan struct{}),
 		release: make(chan struct{}),
 	}
-	server := NewHTTPRoutesServer(cache.NewStore())
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{{ID: "exact", Name: "NYJ vs NYG", CategoryID: "nfl", CategoryName: "NFL"}},
+		Content:  model.ContentState{LiveCategories: []model.Category{{ID: "nfl", Name: "NFL", Kind: "live"}}},
+	}})
+	server := NewHTTPRoutesServer(store)
 	server.sportsProvider = provider
 
 	startedAt := time.Now()
@@ -1308,8 +1313,12 @@ func TestHTTPRoutesServerSportsUsesStaleCacheOnProviderError(t *testing.T) {
 	t.Parallel()
 
 	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{{ID: "exact", Name: "NYJ vs NYG", CategoryID: "nfl", CategoryName: "NFL"}},
+		Content:  model.ContentState{LiveCategories: []model.Category{{ID: "nfl", Name: "NFL", Kind: "live"}}},
+	}})
 	server := NewHTTPRoutesServer(store)
-	server.sportsProvider = staticSportsProvider{events: []SportsEvent{{ID: "event:cached", LeagueID: "nfl", LeagueName: "NFL", Name: "Jets at Giants", StartUnix: 1700000000}}}
+	server.sportsProvider = staticSportsProvider{events: []SportsEvent{{ID: "event:cached", LeagueID: "nfl", LeagueName: "NFL", Name: "Jets at Giants", StartUnix: 1700000000, Away: SportsTeam{Name: "New York Jets", Abbreviation: "NYJ"}, Home: SportsTeam{Name: "New York Giants", Abbreviation: "NYG"}}}}
 	first := fetchSportsPayload(t, server)
 	if len(first.Events) != 1 {
 		t.Fatalf("expected cached event seed, got %+v", first)
@@ -2047,6 +2056,46 @@ func TestSportsChannelMatchingReportsEvidenceConfidenceAndGuardrails(t *testing.
 			t.Fatalf("diagnostics = %#v, missing rejection for %q", diagnostics, channelID)
 		}
 	}
+}
+
+func TestSportsPayloadOmitsUnmatchedAndLowConfidenceEvents(t *testing.T) {
+	t.Parallel()
+
+	start := time.Date(2026, time.September, 2, 20, 0, 0, 0, time.UTC).Unix()
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{
+			{ID: "exact", Name: "NYJ vs NYG", CategoryID: "nfl", CategoryName: "NFL"},
+			{ID: "preview", Name: "NYJ vs NYG Pregame Preview", CategoryID: "nfl", CategoryName: "NFL"},
+			{ID: "music", Name: "AyazTV Persian Music", CategoryID: "music", CategoryName: "International TV | Music"},
+		},
+		Content: model.ContentState{LiveCategories: []model.Category{{ID: "nfl", Name: "NFL", Kind: "live"}, {ID: "music", Name: "International TV | Music", Kind: "live"}}},
+	}})
+	server := NewHTTPRoutesServer(store)
+	server.sportsProvider = staticSportsProvider{events: []SportsEvent{
+		{
+			ID: "event:playable", LeagueID: "nfl", LeagueName: "NFL", Name: "Jets at Giants", StartUnix: start,
+			Away: SportsTeam{Name: "New York Jets", Abbreviation: "NYJ"},
+			Home: SportsTeam{Name: "New York Giants", Abbreviation: "NYG"},
+		},
+		{
+			ID: "event:unmatched", LeagueID: "pga", LeagueName: "PGA Tour", Name: "Korn Ferry Championship", StartUnix: start,
+			Away: SportsTeam{Name: "Korn Ferry"}, Home: SportsTeam{Name: "PGA Tour"},
+		},
+	}}
+
+	payload := fetchSportsPayload(t, server)
+	if len(payload.Events) != 1 || payload.Events[0].ID != "event:playable" {
+		t.Fatalf("expected only the confident channel match, got %+v", payload.Events)
+	}
+	for _, match := range payload.Events[0].Channels {
+		if match.Confidence == "low" {
+			t.Fatalf("playable sports events must not keep low-confidence feeds: %+v", payload.Events[0].Channels)
+		}
+	}
+	assertSportsMatch(t, payload.Events[0].Channels, "exact")
+	assertNoSportsMatch(t, payload.Events[0].Channels, "preview")
+	assertNoSportsMatch(t, payload.Events[0].Channels, "music")
 }
 
 func TestSportsWeakTeamAliasRejectsGenericNames(t *testing.T) {

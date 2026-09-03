@@ -61,7 +61,7 @@ func (s *HTTPRoutesServer) handleTimeShiftStart(request *pluginv1.HandleHTTPRequ
 	if err != nil {
 		return textResponse(http.StatusNotFound, err.Error())
 	}
-	if strings.Contains(strings.ToLower(streamURL), ".m3u8") {
+	if publicStreamFormat(streamURL) == "hls" {
 		return textResponse(http.StatusConflict, "live rewind currently supports MPEG-TS channels only")
 	}
 	lease, err := s.timeShift.Acquire(payload.ChannelID, streamURL, config)

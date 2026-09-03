@@ -3,9 +3,10 @@ package plugin
 import (
 	"embed"
 	"fmt"
+	"strings"
 )
 
-//go:embed ui/page.html ui/styles.css ui/lineup.js ui/sports_replays.js ui/app.js
+//go:embed ui/page.html ui/styles.css ui/lineup.js ui/sports_replays.js ui/app.js ui/guide.js ui/player.js
 var playerUIAssets embed.FS
 
 var playerPageHTMLTemplate string
@@ -23,19 +24,15 @@ func mustLoadPlayerPageHTMLTemplate() string {
 }
 
 func playerAppJavaScript() string {
-	lineup, err := playerUIAssets.ReadFile("ui/lineup.js")
-	if err != nil {
-		return ""
+	parts := make([]string, 0, 5)
+	for _, name := range []string{"ui/lineup.js", "ui/sports_replays.js", "ui/app.js", "ui/guide.js", "ui/player.js"} {
+		payload, err := playerUIAssets.ReadFile(name)
+		if err != nil {
+			return ""
+		}
+		parts = append(parts, string(payload))
 	}
-	replays, err := playerUIAssets.ReadFile("ui/sports_replays.js")
-	if err != nil {
-		return ""
-	}
-	script, err := playerUIAssets.ReadFile("ui/app.js")
-	if err != nil {
-		return ""
-	}
-	return string(lineup) + "\n" + string(replays) + "\n" + string(script)
+	return strings.Join(parts, "\n")
 }
 
 func playerStylesCSS() string {
