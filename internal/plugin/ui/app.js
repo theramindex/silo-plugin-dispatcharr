@@ -1644,7 +1644,7 @@ function commitAppRoute(mode) {
   if (!window.history || typeof window.history.pushState !== "function" || typeof window.history.replaceState !== "function") return;
   const snapshot = appRouteSnapshot();
   const hash = appRouteHash(snapshot);
-  const historyState = Object.assign({}, window.history.state || {});
+  const historyState = {};
   historyState[appHistoryStateKey] = snapshot;
   const target = window.location.pathname + window.location.search + hash;
   if (mode === "replace" || window.location.hash === hash) window.history.replaceState(historyState, "", target);
@@ -1806,7 +1806,9 @@ async function loadApp() {
     await hydrateApp(cached, { localCache: true });
     state.appLoadedFromCache = true;
     renderedCachedApp = true;
-    render();
+    try { render(); } catch (error) {
+      try { console.warn("Dispatcharr cached render failed", error); } catch (_) {}
+    }
   }
   try {
     await hydrateApp(await getJSON("/dispatcharr/api/app"));
@@ -2151,6 +2153,26 @@ function renderSavedLineupsHome() {
 function emptyStateHTML(title, detail) {
   detail = String(detail || "").trim();
   return "<div class=\"empty\"><strong>" + escapeHTML(title) + "</strong>" + (detail ? "<div class=\"muted\">" + escapeHTML(detail) + "</div>" : "") + "</div>";
+}
+function handleAppBootFailure(error) {
+  try { console.error("Dispatcharr boot failed", error); } catch (_) {}
+  if (state.app) {
+    try { render(); } catch (_) {}
+    return;
+  }
+  const root = byId("view");
+  if (!root || typeof document === "undefined" || !document.createElement) return;
+  const wrap = document.createElement("div");
+  wrap.className = "empty";
+  wrap.setAttribute("role", "status");
+  const title = document.createElement("strong");
+  title.textContent = isAdminRoute ? "Unable to load Dispatcharr Admin." : "Unable to load Live TV.";
+  wrap.appendChild(title);
+  const detail = document.createElement("div");
+  detail.className = "muted";
+  detail.textContent = isAdminRoute ? "Refresh this page or return to Silo Admin." : "Check your Dispatcharr connection in Dispatcharr Admin, then refresh this page.";
+  wrap.appendChild(detail);
+  root.replaceChildren(wrap);
 }
 function catalogEmptyDetail() {
   if (!state.app || !state.app.status) return "Check your connection in Dispatcharr Admin or press Refresh.";
@@ -8078,8 +8100,8 @@ if (globalSearch) {
     setView("search");
   };
 }
-const initialAppRouteSnapshot = readAppRouteHash();
-if (initialAppRouteSnapshot.view !== "player") applyAppRouteSnapshot(initialAppRouteSnapshot);
+window.initialAppRouteSnapshot = readAppRouteHash();
+if (window.initialAppRouteSnapshot.view !== "player") applyAppRouteSnapshot(window.initialAppRouteSnapshot);
 window.addEventListener("popstate", function(event) {
   const snapshot = event.state && event.state[appHistoryStateKey] ? event.state[appHistoryStateKey] : readAppRouteHash();
   restoreAppRoute(snapshot);

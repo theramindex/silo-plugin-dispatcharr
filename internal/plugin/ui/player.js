@@ -469,8 +469,7 @@ function startWatch(channel) {
 startGuideAutoRefresh();
 const initialAppLoad = isAdminRoute ? loadAdminApp() : loadApp();
 initialAppLoad.then(function() {
-  if (initialAppRouteSnapshot.view === "player" && initialAppRouteSnapshot.channelID) restoreAppRoute(initialAppRouteSnapshot);
+  const snapshot = window.initialAppRouteSnapshot || readAppRouteHash();
+  if (snapshot.view === "player" && snapshot.channelID) restoreAppRoute(snapshot);
   else commitAppRoute("replace");
-}).catch(function() {
-  byId("view").innerHTML = emptyStateHTML(isAdminRoute ? "Unable to load Dispatcharr Admin." : "Unable to load Live TV.", isAdminRoute ? "Refresh this page or return to Silo Admin." : "Check your Dispatcharr connection in Dispatcharr Admin, then refresh this page.");
-});
+}).catch(handleAppBootFailure);

@@ -2979,10 +2979,17 @@ func TestPlayerAppUsesBrowserHistoryForNavigation(t *testing.T) {
 		`window.history.pushState`,
 		`window.history.replaceState`,
 		`window.addEventListener("popstate"`,
+		`window.initialAppRouteSnapshot = readAppRouteHash()`,
+		`window.initialAppRouteSnapshot || readAppRouteHash()`,
+		`function handleAppBootFailure(error)`,
+		`}).catch(handleAppBootFailure);`,
 	} {
 		if !strings.Contains(script, want) {
 			t.Fatalf("browser navigation history must include %q", want)
 		}
+	}
+	if strings.Contains(functionSource("commitAppRoute"), "Object.assign({}, window.history.state") {
+		t.Fatal("commitAppRoute must not clone host history state")
 	}
 	for functionName := range map[string]bool{
 		"setView":          true,
