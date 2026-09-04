@@ -97,6 +97,42 @@ func TestSportsAndEventsNavIgnoreCurrentTabFilters(t *testing.T) {
 	}
 }
 
+func TestBootFailureKeepsHydratedApp(t *testing.T) {
+	t.Parallel()
+
+	result := runUIInvariantScript(t, []string{
+		`state.app = { preferences: defaultPrefs(), source: { mode: "direct_login", profiles: [] }, channels: [{ id: "ch-1", name: "CNN", categoryId: "news", categoryName: "News" }], categories: [{ id: "news", name: "News" }], status: {} };`,
+		`const view = document.getElementById("view");`,
+		`view.textContent = "cached-home";`,
+		`console.error = function() {};`,
+		`handleAppBootFailure(new Error("DataCloneError"));`,
+		`const shown = String(view.textContent || "");`,
+		`globalThis.__result = { showedEmpty: shown.indexOf("Unable to load Live TV") !== -1, keptApp: !!state.app };`,
+	})
+	if result.ShowedEmpty || !result.KeptApp {
+		t.Fatalf("boot failure must keep a hydrated app instead of the empty state: %+v", result)
+	}
+}
+
+func TestCommitAppRouteDoesNotCloneHistoryState(t *testing.T) {
+	t.Parallel()
+
+	result := runUIInvariantScript(t, []string{
+		`window.history = {`,
+		`  state: { silo: function() {}, nested: { fn: function() {} } },`,
+		`  pushState: function(next) { globalThis.__pushed = next; },`,
+		`  replaceState: function(next) { globalThis.__replaced = next; }`,
+		`};`,
+		`window.location.hash = "";`,
+		`commitAppRoute("replace");`,
+		`const replaced = globalThis.__replaced || {};`,
+		`globalThis.__result = { clonedSilo: Object.prototype.hasOwnProperty.call(replaced, "silo"), routeKeyCount: Object.keys(replaced).length };`,
+	})
+	if result.ClonedSilo || result.RouteKeyCount != 1 {
+		t.Fatalf("commitAppRoute must write only plugin route state: %+v", result)
+	}
+}
+
 type uiInvariantResult struct {
 	KeptToolbar           bool `json:"keptToolbar"`
 	ViewWritesAfterSearch int  `json:"viewWritesAfterSearch"`
@@ -105,6 +141,10 @@ type uiInvariantResult struct {
 	ScrollTop             int  `json:"scrollTop"`
 	SportsHidden          bool `json:"sportsHidden"`
 	EventsHidden          bool `json:"eventsHidden"`
+	ShowedEmpty           bool `json:"showedEmpty"`
+	KeptApp               bool `json:"keptApp"`
+	ClonedSilo            bool `json:"clonedSilo"`
+	RouteKeyCount         int  `json:"routeKeyCount"`
 }
 
 func runUIInvariantScript(t *testing.T, statements []string) uiInvariantResult {
@@ -126,12 +166,15 @@ const vm = require("vm");
 const source = fs.readFileSync(%q, "utf8").replace(/startGuideAutoRefresh\(\);[\s\S]*$/, "");
 function makeElement() {
   const attributes = {};
+  const children = [];
   const element = {
     innerHTML: "", textContent: "", value: "", scrollTop: 0, scrollLeft: 0, hidden: false, style: {}, dataset: {},
     classList: { add: () => {}, remove: () => {}, toggle: () => {}, contains: () => false },
     setAttribute: (name, value) => { attributes[name] = String(value); },
     getAttribute: (name) => attributes[name] || null,
     removeAttribute: (name) => { delete attributes[name]; },
+    appendChild: (child) => { children.push(child); element.textContent += (child && child.textContent) || ""; return child; },
+    replaceChildren: (...nodes) => { children.length = 0; element.innerHTML = ""; element.textContent = ""; nodes.forEach((child) => element.appendChild(child)); },
     querySelector: () => makeElement(),
     querySelectorAll: () => [],
     addEventListener: () => {},
@@ -151,6 +194,7 @@ const sandbox = {
     querySelectorAll: () => [],
     querySelector: () => makeElement(),
     getElementById: (id) => elements[id] = elements[id] || makeElement(),
+    createElement: () => makeElement(),
     addEventListener: () => {},
     contains: () => true
   },
