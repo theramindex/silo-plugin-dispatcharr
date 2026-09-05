@@ -2161,18 +2161,12 @@ function handleAppBootFailure(error) {
     return;
   }
   const root = byId("view");
-  if (!root || typeof document === "undefined" || !document.createElement) return;
-  const wrap = document.createElement("div");
-  wrap.className = "empty";
-  wrap.setAttribute("role", "status");
-  const title = document.createElement("strong");
-  title.textContent = isAdminRoute ? "Unable to load Dispatcharr Admin." : "Unable to load Live TV.";
-  wrap.appendChild(title);
-  const detail = document.createElement("div");
-  detail.className = "muted";
-  detail.textContent = isAdminRoute ? "Refresh this page or return to Silo Admin." : "Check your Dispatcharr connection in Dispatcharr Admin, then refresh this page.";
-  wrap.appendChild(detail);
-  root.replaceChildren(wrap);
+  if (!root) return;
+  root.setAttribute("role", "status");
+  root.innerHTML = emptyStateHTML(
+    isAdminRoute ? "Unable to load Dispatcharr Admin." : "Unable to load Live TV.",
+    isAdminRoute ? "Refresh this page or return to Silo Admin." : "Check your Dispatcharr connection in Dispatcharr Admin, then refresh this page."
+  );
 }
 function catalogEmptyDetail() {
   if (!state.app || !state.app.status) return "Check your connection in Dispatcharr Admin or press Refresh.";
