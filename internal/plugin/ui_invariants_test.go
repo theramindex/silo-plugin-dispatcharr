@@ -6,8 +6,24 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"testing"
 )
+
+func TestMenuNavigationAfterSeparateScriptLoads(t *testing.T) {
+	t.Parallel()
+	result := runUIInvariantScript(t, []string{
+		`render = function() {};`,
+		`const getElementById = document.getElementById;`,
+		`document.getElementById = function(id) { return id === "player" ? null : getElementById(id); };`,
+		`const button = document.getElementById("primary-browse-nav");`,
+		`button.onclick();`,
+		`globalThis.__result = { menuWorks: state.view === "channels" };`,
+	})
+	if !result.MenuWorks {
+		t.Fatal("Channels menu must navigate after loading the page scripts separately")
+	}
+}
 
 func TestGuideSearchDoesNotRecreateCommandBar(t *testing.T) {
 	t.Parallel()
@@ -148,6 +164,7 @@ func TestCommitAppRouteDoesNotCloneHistoryState(t *testing.T) {
 }
 
 type uiInvariantResult struct {
+	MenuWorks             bool `json:"menuWorks"`
 	KeptToolbar           bool `json:"keptToolbar"`
 	ViewWritesAfterSearch int  `json:"viewWritesAfterSearch"`
 	EPGWrites             int  `json:"epgWrites"`
@@ -165,19 +182,33 @@ func runUIInvariantScript(t *testing.T, statements []string) uiInvariantResult {
 	t.Helper()
 
 	dir := t.TempDir()
-	appScriptPath := filepath.Join(dir, "app.js")
 	runnerPath := filepath.Join(dir, "runner.js")
-	if err := os.WriteFile(appScriptPath, []byte(extractPlayerScript(t)), 0o600); err != nil {
-		t.Fatalf("write app script: %v", err)
+	page, err := playerUIAssets.ReadFile("ui/page.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var scripts []string
+	for _, match := range regexp.MustCompile(`<script defer src="__ASSET_PREFIX__/([^?]+)\?`).FindAllStringSubmatch(string(page), -1) {
+		source, err := playerUIAssets.ReadFile("ui/" + match[1])
+		if err != nil {
+			t.Fatal(err)
+		}
+		scripts = append(scripts, string(source))
+	}
+	if len(scripts) == 0 {
+		t.Fatal("page has no deferred scripts")
+	}
+	scriptsJSON, err := json.Marshal(scripts)
+	if err != nil {
+		t.Fatal(err)
 	}
 	body := ""
 	for _, statement := range statements {
 		body += statement + "\n"
 	}
 	nodeScript := fmt.Sprintf(`
-const fs = require("fs");
 const vm = require("vm");
-const source = fs.readFileSync(%q, "utf8").replace(/startGuideAutoRefresh\(\);[\s\S]*$/, "");
+const scripts = %s;
 function makeElement() {
   const attributes = {};
   const element = {
@@ -195,6 +226,8 @@ function makeElement() {
   return element;
 }
 const elements = {};
+elements["primary-browse-nav"] = makeElement();
+elements["primary-browse-nav"].dataset.view = "channels";
 const sandbox = {
   window: { location: { pathname: "/api/v1/plugins/14/dispatcharr", search: "" }, addEventListener: () => {}, innerHeight: 800, scrollY: 0 },
   document: {
@@ -202,7 +235,7 @@ const sandbox = {
     body: makeElement(),
     activeElement: null,
     hidden: false,
-    querySelectorAll: () => [],
+    querySelectorAll: (selector) => selector === "[data-view]" ? [elements["primary-browse-nav"]] : [],
     querySelector: () => makeElement(),
     getElementById: (id) => elements[id] = elements[id] || makeElement(),
     addEventListener: () => {},
@@ -219,9 +252,12 @@ const sandbox = {
   fetch: async () => ({ ok: true, status: 200, text: async () => "{}", json: async () => ({}) })
 };
 vm.createContext(sandbox);
-vm.runInContext(source + "\n" + %s, sandbox);
+for (const source of scripts) {
+  vm.runInContext(source.replace(/startGuideAutoRefresh\(\);[\s\S]*$/, ""), sandbox);
+}
+vm.runInContext(%s, sandbox);
 process.stdout.write(JSON.stringify(sandbox.__result || {}));
-`, appScriptPath, strconvQuote(body))
+`, scriptsJSON, strconvQuote(body))
 	if err := os.WriteFile(runnerPath, []byte(nodeScript), 0o600); err != nil {
 		t.Fatalf("write ui invariant runner: %v", err)
 	}
