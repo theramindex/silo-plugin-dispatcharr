@@ -466,6 +466,8 @@ function startWatch(channel) {
   }).catch(function() {});
 }
 
+document.addEventListener("fullscreenchange", updateFullscreenButton);
+document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
 startGuideAutoRefresh();
 const initialAppLoad = isAdminRoute ? loadAdminApp() : loadApp();
 initialAppLoad.then(function() {

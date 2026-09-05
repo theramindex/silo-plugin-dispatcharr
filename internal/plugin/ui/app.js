@@ -7755,8 +7755,6 @@ document.addEventListener("focusout", function(event) {
   const target = overflowTooltipTarget(event);
   if (target) hideOverflowTooltip();
 });
-document.addEventListener("fullscreenchange", updateFullscreenButton);
-document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
 document.addEventListener("keydown", function(event) {
   if (state.folderGroupPickerOpen && event.key === "Escape") {
     event.preventDefault();
