@@ -103,14 +103,28 @@ func TestBootFailureKeepsHydratedApp(t *testing.T) {
 	result := runUIInvariantScript(t, []string{
 		`state.app = { preferences: defaultPrefs(), source: { mode: "direct_login", profiles: [] }, channels: [{ id: "ch-1", name: "CNN", categoryId: "news", categoryName: "News" }], categories: [{ id: "news", name: "News" }], status: {} };`,
 		`const view = document.getElementById("view");`,
-		`view.textContent = "cached-home";`,
+		`view.innerHTML = "cached-home";`,
+		`render = function() { throw new Error("render failed"); };`,
 		`console.error = function() {};`,
 		`handleAppBootFailure(new Error("DataCloneError"));`,
-		`const shown = String(view.textContent || "");`,
-		`globalThis.__result = { showedEmpty: shown.indexOf("Unable to load Live TV") !== -1, keptApp: !!state.app };`,
+		`globalThis.__result = { keptApp: !!state.app && view.innerHTML === "cached-home" };`,
 	})
-	if result.ShowedEmpty || !result.KeptApp {
+	if !result.KeptApp {
 		t.Fatalf("boot failure must keep a hydrated app instead of the empty state: %+v", result)
+	}
+}
+
+func TestBootFailureWithoutAppShowsRecoveryMessage(t *testing.T) {
+	t.Parallel()
+
+	result := runUIInvariantScript(t, []string{
+		`console.error = function() {};`,
+		`handleAppBootFailure(new Error("network failed"));`,
+		`const view = document.getElementById("view");`,
+		`globalThis.__result = { showedEmpty: view.innerHTML.includes("Unable to load Live TV.") && view.innerHTML.includes("Check your Dispatcharr connection") && view.getAttribute("role") === "status" };`,
+	})
+	if !result.ShowedEmpty {
+		t.Fatal("boot failure without app data must show an accessible recovery message")
 	}
 }
 
@@ -166,15 +180,12 @@ const vm = require("vm");
 const source = fs.readFileSync(%q, "utf8").replace(/startGuideAutoRefresh\(\);[\s\S]*$/, "");
 function makeElement() {
   const attributes = {};
-  const children = [];
   const element = {
     innerHTML: "", textContent: "", value: "", scrollTop: 0, scrollLeft: 0, hidden: false, style: {}, dataset: {},
     classList: { add: () => {}, remove: () => {}, toggle: () => {}, contains: () => false },
     setAttribute: (name, value) => { attributes[name] = String(value); },
     getAttribute: (name) => attributes[name] || null,
     removeAttribute: (name) => { delete attributes[name]; },
-    appendChild: (child) => { children.push(child); element.textContent += (child && child.textContent) || ""; return child; },
-    replaceChildren: (...nodes) => { children.length = 0; element.innerHTML = ""; element.textContent = ""; nodes.forEach((child) => element.appendChild(child)); },
     querySelector: () => makeElement(),
     querySelectorAll: () => [],
     addEventListener: () => {},
@@ -194,7 +205,6 @@ const sandbox = {
     querySelectorAll: () => [],
     querySelector: () => makeElement(),
     getElementById: (id) => elements[id] = elements[id] || makeElement(),
-    createElement: () => makeElement(),
     addEventListener: () => {},
     contains: () => true
   },
