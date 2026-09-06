@@ -650,7 +650,38 @@ func guideSportsMetadata(categories []string) (bool, bool) {
 	return sportsMetadata, sportsTalk
 }
 
+var collegeCompetitionPattern = regexp.MustCompile(`\b(?:(womens|mens|women|men) )?(?:college|ncaa) (?:(womens|mens|women|men) )?(football|basketball|soccer|baseball|softball|volleyball|hockey|lacrosse|gymnastics|wrestling)\b`)
+
+func guideCollegeCompetition(value string) (string, string, string) {
+	text := strings.NewReplacer("women s", "womens", "men s", "mens").Replace(normalizeMatchText(value))
+	var chosen []string
+	for _, match := range collegeCompetitionPattern.FindAllStringSubmatch(text, -1) {
+		if chosen == nil || match[1] != "" || match[2] != "" {
+			chosen = match
+		}
+		if match[1] != "" || match[2] != "" {
+			break
+		}
+	}
+	if chosen == nil {
+		return "", "", ""
+	}
+	sport := chosen[3]
+	sportName := strings.ToUpper(sport[:1]) + sport[1:]
+	gender := firstNonEmpty(chosen[1], chosen[2])
+	if gender != "" {
+		if strings.HasPrefix(gender, "women") {
+			return "college-womens-" + sport, "Women's College " + sportName, sportName
+		}
+		return "college-mens-" + sport, "Men's College " + sportName, sportName
+	}
+	return "college-" + sport, "College " + sportName, sportName
+}
+
 func guideSportsLeague(value string) (string, string, string, bool) {
+	if id, name, sport := guideCollegeCompetition(value); id != "" {
+		return id, name, sport, true
+	}
 	text := normalizeMatchText(value)
 	for _, candidate := range []struct {
 		terms     []string
