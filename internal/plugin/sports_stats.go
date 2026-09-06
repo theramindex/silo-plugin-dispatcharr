@@ -18,6 +18,7 @@ import (
 type footballStatsCache struct {
 	mu      sync.Mutex
 	entries map[string]SportsGameStats
+	events  map[string]SportsEvent
 	baseURL string
 	client  *http.Client
 }
@@ -33,6 +34,8 @@ type SportsGameStats struct {
 	HomeScore     string           `json:"homeScore,omitempty"`
 	AwayScore     string           `json:"awayScore,omitempty"`
 	LastPlay      string           `json:"lastPlay,omitempty"`
+	Possession    string           `json:"possession,omitempty"`
+	FieldPosition string           `json:"fieldPosition,omitempty"`
 	Rows          []SportsGameStat `json:"rows"`
 }
 
@@ -49,6 +52,10 @@ type espnStatsTeam struct {
 }
 
 type espnStatsCompetition struct {
+	Situation struct {
+		Possession       string `json:"possession"`
+		DownDistanceText string `json:"downDistanceText"`
+	} `json:"situation"`
 	Date        string `json:"date"`
 	Competitors []struct {
 		HomeAway string        `json:"homeAway"`
@@ -103,6 +110,14 @@ func (s *HTTPRoutesServer) handleSportsGameStats(ctx context.Context, request *p
 			return s.respondJSON(http.StatusOK, s.sportsStats.load(ctx, event))
 		}
 	}
+	// A broadcast may end before the game does. Keep polling a previously
+	// validated fixture, without trusting client-supplied team identities.
+	s.sportsStats.mu.Lock()
+	event, known := s.sportsStats.events[id]
+	s.sportsStats.mu.Unlock()
+	if known && time.Now().Unix()-event.StartUnix < 12*3600 {
+		return s.respondJSON(http.StatusOK, s.sportsStats.load(ctx, event))
+	}
 	return textResponse(http.StatusNotFound, "game not found"), nil
 }
 
@@ -111,6 +126,13 @@ func (cache *footballStatsCache) load(ctx context.Context, event SportsEvent) Sp
 	defer cache.mu.Unlock()
 	now := time.Now()
 	key := event.ID
+	if cache.events == nil || len(cache.events) >= 256 {
+		cache.events = make(map[string]SportsEvent)
+	}
+	cache.events[event.ID] = event
+	if event.StableID != "" {
+		cache.events[event.StableID] = event
+	}
 	if value, ok := cache.entries[key]; ok && now.Unix()-value.UpdatedAtUnix < 30 {
 		return value
 	}
@@ -167,6 +189,7 @@ func (cache *footballStatsCache) fetch(ctx context.Context, event SportsEvent) (
 		return missing, err
 	}
 	match := ""
+	var matchedCompetition espnStatsCompetition
 	for _, candidate := range board.Events {
 		if len(candidate.Competitions) != 1 || !espnStatsMatches(event, candidate.Competitions[0]) {
 			continue
@@ -175,6 +198,7 @@ func (cache *footballStatsCache) fetch(ctx context.Context, event SportsEvent) (
 			return missing, nil
 		} // Ambiguous fixtures must not share stats.
 		match = candidate.ID
+		matchedCompetition = candidate.Competitions[0]
 	}
 	if match == "" {
 		return missing, nil
@@ -186,7 +210,16 @@ func (cache *footballStatsCache) fetch(ctx context.Context, event SportsEvent) (
 	if summary.Header.ID != match || len(summary.Header.Competitions) != 1 || !espnStatsMatches(event, summary.Header.Competitions[0]) {
 		return missing, nil
 	}
-	return espnGameStats(event, summary), nil
+	result := espnGameStats(event, summary)
+	if result.Live && !result.Completed && matchedCompetition.Status.Type.State == "in" {
+		for _, side := range matchedCompetition.Competitors {
+			if side.Team.ID != "" && side.Team.ID == matchedCompetition.Situation.Possession {
+				result.Possession = side.HomeAway
+				result.FieldPosition = matchedCompetition.Situation.DownDistanceText
+			}
+		}
+	}
+	return result, nil
 }
 
 func espnStatsTeamMatches(team SportsTeam, candidate espnStatsTeam) bool {

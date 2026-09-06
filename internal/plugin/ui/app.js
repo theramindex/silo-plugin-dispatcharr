@@ -3352,7 +3352,7 @@ function renderSportsGameStats(event) {
   if (!sportsHasCollegeFootballStats(event) || sportsScoresHidden(false)) return "";
   const data = sportsGameStatsState.id === sportsEventStateID(event) ? sportsGameStatsState.data : null;
   if (!data || !data.available) return sportsSectionHTML("Game stats", "", "<p class=\"sports-stats-note\">" + escapeHTML(data ? data.message : "Loading live stats…") + "</p>", "sports-stats-section");
-  const source = "<a class=\"sports-section-count\" href=\"" + escapeHTML(data.sourceUrl) + "\" target=\"_blank\" rel=\"noopener noreferrer\">ESPN · Updated " + escapeHTML(new Date(data.updatedAtUnix * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })) + "</a>";
+  const source = "<a class=\"sports-section-count\" title=\"" + (data.completed ? "Final game statistics" : "Refreshes every 30 seconds while this page is visible") + "\" href=\"" + escapeHTML(data.sourceUrl) + "\" target=\"_blank\" rel=\"noopener noreferrer\">ESPN · Updated " + escapeHTML(new Date(data.updatedAtUnix * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })) + "</a>";
   const body = (data.message ? "<p class=\"sports-stats-note\">" + escapeHTML(data.message) + " Showing the last successful update.</p>" : "")
     + (data.lastPlay ? "<p class=\"sports-stats-play\"><strong>Latest play</strong><span>" + escapeHTML(data.lastPlay) + "</span></p>" : "")
     + "<table class=\"sports-stats-table\"><thead><tr><th scope=\"col\">" + escapeHTML(sportsTeamName(event.away)) + "</th><th scope=\"col\">Team stats</th><th scope=\"col\">" + escapeHTML(sportsTeamName(event.home)) + "</th></tr></thead><tbody>"
@@ -3765,7 +3765,7 @@ function renderSportsEventDetail(payload, event) {
   const broadcasts = channels.length ? renderSportsBroadcastGroups(channels, event) : "<div class=\"empty\">No matching live broadcasts.</div>";
   const coverage = matches.length ? "<div class=\"sports-coverage-grid\">" + matches.slice(0, 8).map(renderSportsCoverageCard).join("") + "</div>" : "";
   const relatedBody = related.length ? "<div class=\"sports-event-grid\">" + related.map(renderSportsEventTile).join("") + "</div>" : "";
-  const metadata = [event.sportName, event.season, event.round, event.venue].filter(Boolean);
+  const metadata = [event.venue].filter(Boolean);
   const metadataHTML = metadata.length ? "<p class=\"sports-event-metadata\">" + metadata.map(escapeHTML).join(" · ") + "</p>" : "";
   const navigation = renderSportsEventNavigation(payload, event);
   const leagueFavorite = !!sportsFavoriteLeagueMap()[event.leagueId];
@@ -3783,11 +3783,14 @@ function renderSportsDetailScore(event) {
   const showScore = sportsEventHasScores(event);
   const phase = live ? "Live" : (event.completed ? "Final" : (event.startUnix ? sportsDateLabel(event.startUnix) : "Time TBD"));
   if (sportsEventIsProgram(event)) return "<div class=\"sports-detail-program\"><strong>" + escapeHTML(sportsStatusLabel(event)) + "</strong><span>" + escapeHTML(phase) + "</span></div>";
-  return "<div class=\"sports-detail-score\">" + renderSportsDetailTeam(event.away || {}, event.awayScore, showScore) + "<div class=\"sports-detail-status\"><strong>" + escapeHTML(sportsStatusLabel(event)) + "</strong><span>" + escapeHTML(phase) + "</span></div>" + renderSportsDetailTeam(event.home || {}, event.homeScore, showScore) + "</div>";
+  const stats = sportsGameStatsState.id === sportsEventStateID(event) ? sportsGameStatsState.data : null;
+  const possession = stats && stats.live && !stats.completed && !stats.message && !sportsScoresHidden(false) ? stats.possession : "";
+  const position = possession && stats.fieldPosition ? "<p class=\"sports-field-position\">" + escapeHTML(sportsTeamName(event[possession])) + " ball · " + escapeHTML(stats.fieldPosition) + "</p>" : "";
+  return "<div class=\"sports-detail-score\">" + renderSportsDetailTeam(event.away || {}, event.awayScore, showScore, possession === "away") + "<div class=\"sports-detail-status\"><strong>" + escapeHTML(sportsStatusLabel(event)) + "</strong><span>" + escapeHTML(phase) + "</span></div>" + renderSportsDetailTeam(event.home || {}, event.homeScore, showScore, possession === "home") + "</div>" + position;
 }
-function renderSportsDetailTeam(team, score, showScore) {
+function renderSportsDetailTeam(team, score, showScore, possession) {
   const accent = safeSportsTeamColor(team && team.primaryColor);
-  return "<div class=\"sports-detail-team\"" + (accent ? " style=\"--sports-team-accent:" + escapeHTML(accent) + "\"" : "") + ">" + renderSportsTeamLogo(team, "sports-detail-team-logo") + "<span><strong>" + escapeHTML(sportsTeamName(team)) + "</strong>" + (showScore ? "<b>" + escapeHTML(sportsScoresHidden(false) ? "–" : (score || "0")) + "</b>" : "") + "</span></div>";
+  return "<div class=\"sports-detail-team\"" + (accent ? " style=\"--sports-team-accent:" + escapeHTML(accent) + "\"" : "") + ">" + renderSportsTeamLogo(team, "sports-detail-team-logo") + "<span><strong>" + escapeHTML(sportsTeamName(team)) + "</strong>" + (showScore ? "<b>" + escapeHTML(sportsScoresHidden(false) ? "–" : (score || "0")) + "</b>" : "") + (possession ? "<small class=\"sports-possession\">Possession</small>" : "") + "</span></div>";
 }
 function renderSportsEventNavigation(payload, event) {
   const events = sportsLeagueEvents(payload, event.leagueId).filter(sportsEventHasPlayableAccess).sort(function(left, right) { return sportsEventStartSort(left, 0) - sportsEventStartSort(right, 0); });
