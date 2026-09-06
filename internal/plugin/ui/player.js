@@ -86,7 +86,7 @@ function renderPlayerPage() {
   renderPlayerGuidePanel();
   renderPlayerSportsDrawer();
   if (sportsFirstPlayerActive()) {
-    loadSports(false).then(renderPlayerSportsDrawer);
+    loadSports(false);
     startPlayerSportsRefresh();
   }
   renderPlayerMoreMenu();

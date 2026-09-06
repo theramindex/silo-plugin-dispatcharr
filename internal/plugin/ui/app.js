@@ -4252,6 +4252,7 @@ function renderPlayerSportsDrawer() {
   root.classList.toggle("open", !!state.playerSportsOpen);
   if (!state.playerSportsOpen) {
     root.innerHTML = "";
+    root.playerSportsMarkup = "";
     observePlayerSportsDrawerLayout();
     return;
   }
@@ -4268,16 +4269,21 @@ function renderPlayerSportsDrawer() {
   const currentFeedIDs = {};
   currentFeeds.forEach(function(channel) { currentFeedIDs[channel.id] = true; });
   const channels = playerSportsChannels(primaryEvents).filter(function(channel) { return !currentFeedIDs[channel.id]; });
-  const loading = (state.sportsLoading && !state.sports) || !!(state.sports && state.sports.refreshing && !events.length);
+  const loading = !events.length && (!state.sports || state.sportsLoading || !!state.sports.refreshing);
   const status = byId("player-sports-status");
   if (status) status.textContent = loading ? "Loading related sports." : (primaryEvents.length ? primaryEvents.length + " related or live sports events available." : "No related sports events available.");
-  root.innerHTML = "<div class=\"player-sports-head\"><div><strong>Related sports</strong><span>Switch feeds or browse related coverage</span></div><div class=\"player-sports-head-actions\"><button type=\"button\" data-sports-spoilers=\"player\" aria-label=\"" + (sportsScoresHidden(true) ? "Show scores" : "Hide scores") + "\" aria-pressed=\"" + (sportsScoresHidden(true) ? "true" : "false") + "\">" + icon(sportsScoresHidden(true) ? "eye-off" : "eye") + "</button><button type=\"button\" data-player-action=\"sports-close\" aria-label=\"Close related sports\">" + icon("x") + "</button></div></div><div class=\"player-sports-body\">"
-    + (loading ? "<div class=\"player-sports-loading\"><span></span><span></span><span></span></div>" : "")
-    + (!loading && !events.length ? "<div class=\"player-sports-empty\">No live events have a confident channel match.</div>" : "")
+  const markup = "<div class=\"player-sports-head\"><div><strong>Related sports</strong><span>Switch feeds or browse related coverage</span></div><div class=\"player-sports-head-actions\"><button type=\"button\" data-sports-spoilers=\"player\" aria-label=\"" + (sportsScoresHidden(true) ? "Show scores" : "Hide scores") + "\" aria-pressed=\"" + (sportsScoresHidden(true) ? "true" : "false") + "\">" + icon(sportsScoresHidden(true) ? "eye-off" : "eye") + "</button><button type=\"button\" data-player-action=\"sports-close\" aria-label=\"Close related sports\">" + icon("x") + "</button></div></div><div class=\"player-sports-body\">"
+    + (!events.length ? "<div class=\"player-sports-empty\">" + (loading ? "Loading related sports…" : (state.sports && state.sports.error ? "Related sports are temporarily unavailable." : "No live sports available right now.")) + "</div>" : "")
     + (currentFeeds.length ? "<div class=\"player-sports-section\"><div class=\"player-sports-section-title\">Current event feeds</div><div class=\"player-sports-channel-rail player-sports-feed-list\">" + currentFeeds.map(renderPlayerSportsFeed).join("") + "</div></div>" : "")
     + (primaryEvents.length ? "<div class=\"player-sports-section\"><div class=\"player-sports-section-title\">" + (currentEvent ? "Related to this event" : "Live now") + "</div><div class=\"player-sports-rail\">" + primaryEvents.map(renderPlayerSportsEvent).join("") + "</div></div>" : "")
     + (channels.length ? "<div class=\"player-sports-section\"><div class=\"player-sports-section-title\">Related channels</div><div class=\"player-sports-channel-rail\">" + channels.map(renderPlayerSportsChannel).join("") + "</div></div>" : "")
     + (otherEvents.length ? "<details class=\"player-sports-more\" data-player-sports-more" + (state.playerSportsMoreOpen ? " open" : "") + "><summary>More live sports <span>" + escapeHTML(String(otherEvents.length)) + "</span>" + icon("chevron-down") + "</summary><div class=\"player-sports-rail\">" + otherEvents.map(renderPlayerSportsEvent).join("") + "</div></details>" : "") + "</div>";
+  if (root.playerSportsMarkup === markup) return;
+  const body = root.querySelector(".player-sports-body");
+  const scrollTop = body ? body.scrollTop : 0;
+  root.innerHTML = markup;
+  root.playerSportsMarkup = markup;
+  root.querySelector(".player-sports-body").scrollTop = scrollTop;
   observePlayerSportsDrawerLayout();
 }
 function stopPlayerSportsRefresh() {
@@ -4300,7 +4306,7 @@ function togglePlayerSports(open) {
   renderPlayerGuidePanel();
   renderPlayerSportsDrawer();
   if (state.playerSportsOpen) {
-    loadSports(false).then(renderPlayerSportsDrawer);
+    loadSports(false);
     startPlayerSportsRefresh();
   } else {
     state.playerSportsMoreOpen = false;
