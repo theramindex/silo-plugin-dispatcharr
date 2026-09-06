@@ -12,6 +12,27 @@ import (
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
 )
 
+func TestStateOfTheUnionDoesNotMatchWeeklyShow(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		title string
+		want  bool
+	}{
+		{"State of the Union With Jake Tapper and Dana Bash ᴺᵉʷ", false},
+		{"State of the Union with Dana Bash", false},
+		{"CNN: State of the Union with Jake Tapper", false},
+		{"State of the Union", true},
+		{"State of the Union Address", true},
+		{"State of the Union Address with Jake Tapper and Dana Bash", true},
+		{"Presidential Address", true},
+	} {
+		_, _, got := matchEventKeyword(model.Program{Title: tc.title}, defaultEventKeywordRules())
+		if got != tc.want {
+			t.Errorf("%q: matched=%v, want %v", tc.title, got, tc.want)
+		}
+	}
+}
+
 func TestHTTPRoutesServerEventsDetectsGuidePrograms(t *testing.T) {
 	t.Parallel()
 

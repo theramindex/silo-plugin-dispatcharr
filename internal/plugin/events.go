@@ -376,6 +376,11 @@ func matchEventKeyword(program model.Program, rules []EventKeywordRule) (EventKe
 	for _, rule := range rules {
 		for _, keyword := range rule.Keywords {
 			normalizedKeyword := normalizeMatchText(keyword)
+			// The hosted weekly news show shares the address's name.
+			// Keep explicit address coverage and other configured rules eligible.
+			if normalizedKeyword == "state of the union" && containsMatchTerm(titleText, "state of the union with") {
+				continue
+			}
 			if normalizedKeyword != "" && strings.Contains(" "+titleText+" ", " "+normalizedKeyword+" ") {
 				if matchEventExclusion(exclusionText, rule.ExcludeKeywords) {
 					break
