@@ -10,6 +10,22 @@ import (
 	"testing"
 )
 
+func TestSavedGamePassKeepsIdentityWhenLiveTeamArrives(t *testing.T) {
+	t.Parallel()
+	result := runUIInvariantScript(t, []string{
+		`state.app = { preferences: defaultPrefs() };`,
+		`const id = "gamepass:mlb:new-york-yankees";`,
+		`state.app.preferences.sportsFavoriteTeams[id] = true;`,
+		`state.sports = { events: [{ leagueName:"MLB", home: { id:"live-yankees", name:"New York Yankees" } }], leagues: [{id:"mlb", name:"MLB"}] };`,
+		`state.app.preferences.sportsFavoriteLeagues.mlb = true;`,
+		`const html = myTVFollowingHTML();`,
+		`globalThis.__result = { stableResults: html.includes("New York Yankees") && html.includes("MLB game pass") && html.includes(id) && html.includes("teamlogo.png") && html.includes("Remove MLB pass") && !html.includes("Saved team") };`,
+	})
+	if !result.StableResults {
+		t.Fatal("saved game passes must retain their team identity when search deduplicates a live roster entry")
+	}
+}
+
 func TestMyTVRosterUpdatesPreserveUnchangedResults(t *testing.T) {
 	t.Parallel()
 	result := runUIInvariantScript(t, []string{
