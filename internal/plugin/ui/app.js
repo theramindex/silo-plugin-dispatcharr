@@ -3790,7 +3790,7 @@ function renderSportsDetailScore(event) {
 }
 function renderSportsDetailTeam(team, score, showScore, possession) {
   const accent = safeSportsTeamColor(team && team.primaryColor);
-  return "<div class=\"sports-detail-team\"" + (accent ? " style=\"--sports-team-accent:" + escapeHTML(accent) + "\"" : "") + ">" + renderSportsTeamLogo(team, "sports-detail-team-logo") + "<span><strong>" + escapeHTML(sportsTeamName(team)) + "</strong>" + (showScore ? "<b>" + escapeHTML(sportsScoresHidden(false) ? "–" : (score || "0")) + "</b>" : "") + (possession ? "<small class=\"sports-possession\">Possession</small>" : "") + "</span></div>";
+  return "<div class=\"sports-detail-team\"" + (accent ? " style=\"--sports-team-accent:" + escapeHTML(accent) + "\"" : "") + ">" + renderSportsTeamLogo(team, "sports-detail-team-logo") + "<span><strong>" + escapeHTML(sportsTeamName(team)) + "</strong>" + (showScore ? "<b>" + escapeHTML(sportsScoresHidden(false) ? "–" : (score || "0")) + "</b>" : "") + "<small class=\"sports-possession\">" + (possession ? "Possession" : "") + "</small></span></div>";
 }
 function renderSportsEventNavigation(payload, event) {
   const events = sportsLeagueEvents(payload, event.leagueId).filter(sportsEventHasPlayableAccess).sort(function(left, right) { return sportsEventStartSort(left, 0) - sportsEventStartSort(right, 0); });
