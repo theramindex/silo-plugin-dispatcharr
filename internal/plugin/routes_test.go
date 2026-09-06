@@ -3641,7 +3641,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		}
 	}
 	sportsMatchupThumbnail := functionBody("renderSportsMatchupThumbnail")
-	for _, want := range []string{`sportsEventIsRace`, `renderSportsRaceThumbnail`, `sportsEventIsProgram`, `renderSportsProgramThumbnail`, `primaryColor`, `leagueLogoUrl`, `renderSportsTeamLogo`, `sportsTeamName`, `sports-matchup-thumb`, `sportsEventIsLive`} {
+	for _, want := range []string{`sportsEventIsRace`, `renderSportsRaceThumbnail`, `sportsEventIsProgram`, `renderSportsProgramThumbnail`, `primaryColor`, `leagueLogoUrl`, `renderSportsTeamLogo`, `sportsTeamName`, `sports-matchup-thumb`, `sportsEventHasScores`} {
 		if !strings.Contains(sportsMatchupThumbnail, want) {
 			t.Fatalf("sports matchup thumbnail must include %q", want)
 		}

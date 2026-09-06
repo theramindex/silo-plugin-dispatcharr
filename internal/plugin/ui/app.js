@@ -3421,6 +3421,9 @@ function sportsFeaturedEvent(events) {
   if (upcoming.length) return upcoming[0];
   return values.slice().sort(function(left, right) { return Number(right.startUnix || 0) - Number(left.startUnix || 0); })[0] || null;
 }
+function sportsEventHasScores(event) {
+  return event && event.homeScore != null && String(event.homeScore) !== "" && event.awayScore != null && String(event.awayScore) !== "";
+}
 function sportsEventIsLive(event) {
   if (!event || !event.live || event.completed) return false;
   const status = lower(event.status);
@@ -3472,7 +3475,7 @@ function renderSportsFeatureScore(event) {
   if (sportsEventIsRace(event)) return renderSportsRaceSummary(event, "sports-feature-race");
   if (sportsEventIsProgram(event)) return "";
   const live = sportsEventIsLive(event);
-  const showScore = !!(live || event.completed);
+  const showScore = sportsEventHasScores(event);
   return "<div class=\"sports-feature-score\">"
     + renderSportsFeatureTeam(event.away || {}, event.awayScore, showScore)
     + "<em>" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "<small class=\"" + (live ? "live" : "") + "\">" + escapeHTML(sportsStatusLabel(event)) + "</small></em>"
@@ -3538,7 +3541,7 @@ function renderSportsMatchupThumbnail(event) {
   const awayColor = safeSportsTeamColor(away.primaryColor || away.secondaryColor, "#262a32");
   const homeColor = safeSportsTeamColor(home.primaryColor || home.secondaryColor, "#30343c");
   const leagueLogo = safeSportsMediaURL(event.leagueLogoUrl);
-  const showScore = !!(sportsEventIsLive(event) || event.completed);
+  const showScore = sportsEventHasScores(event);
   const center = leagueLogo ? "<img src=\"" + escapeHTML(leagueLogo) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;\"><b hidden>VS</b>" : "<b>VS</b>";
   return "<span class=\"sports-matchup-thumb\" aria-hidden=\"true\" style=\"--match-away:" + awayColor + ";--match-home:" + homeColor + "\">"
     + "<span class=\"sports-matchup-thumb-team away\">" + renderSportsTeamLogo(away, "sports-matchup-thumb-logo") + "<strong>" + escapeHTML(sportsTeamName(away)) + "</strong>" + (showScore ? "<em>" + escapeHTML(sportsScoresHidden(false) ? "–" : (event.awayScore || "0")) + "</em>" : "") + "</span>"
@@ -3576,7 +3579,7 @@ function renderSportsArtworkMatchup(event) {
   const away = event.away || {};
   const home = event.home || {};
   const leagueLogo = safeSportsMediaURL(event.leagueLogoUrl);
-  const showScore = !!(sportsEventIsLive(event) || event.completed);
+  const showScore = sportsEventHasScores(event);
   const center = leagueLogo ? "<img src=\"" + escapeHTML(leagueLogo) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;\"><b hidden>VS</b>" : "<b>VS</b>";
   return "<span class=\"sports-artwork-matchup\" aria-hidden=\"true\">"
     + "<span class=\"sports-artwork-team\">" + renderSportsTeamLogo(away, "sports-artwork-team-logo") + "<strong>" + escapeHTML(sportsTeamName(away)) + "</strong>" + (showScore ? "<em>" + escapeHTML(sportsScoresHidden(false) ? "–" : (event.awayScore || "0")) + "</em>" : "") + "</span>"
@@ -3738,7 +3741,7 @@ function renderSportsEventDetail(payload, event) {
 function renderSportsDetailScore(event) {
   if (sportsEventIsRace(event)) return renderSportsRaceSummary(event, "sports-detail-race");
   const live = sportsEventIsLive(event);
-  const showScore = !!(live || event.completed);
+  const showScore = sportsEventHasScores(event);
   const phase = live ? "Live" : (event.completed ? "Final" : (event.startUnix ? sportsDateLabel(event.startUnix) : "Time TBD"));
   if (sportsEventIsProgram(event)) return "<div class=\"sports-detail-program\"><strong>" + escapeHTML(sportsStatusLabel(event)) + "</strong><span>" + escapeHTML(phase) + "</span></div>";
   return "<div class=\"sports-detail-score\">" + renderSportsDetailTeam(event.away || {}, event.awayScore, showScore) + "<div class=\"sports-detail-status\"><strong>" + escapeHTML(sportsStatusLabel(event)) + "</strong><span>" + escapeHTML(phase) + "</span></div>" + renderSportsDetailTeam(event.home || {}, event.homeScore, showScore) + "</div>";
@@ -3990,7 +3993,7 @@ function renderSportsMatchup(event, status) {
   const center = event.leagueName || event.leagueId || "Sports";
   const detail = status;
   const live = sportsEventIsLive(event);
-  const showScore = !!(live || event.completed);
+  const showScore = sportsEventHasScores(event);
   const stateClass = live ? " live" : (event.completed ? " final" : " upcoming");
   return "<div class=\"sports-matchup\">" + renderSportsMatchTeam(event.away || {}, event.awayScore, showScore) + "<div class=\"sports-versus\"><strong>" + escapeHTML(center) + "</strong>" + (detail ? "<span class=\"sports-match-status" + stateClass + "\">" + escapeHTML(detail) + "</span>" : "") + "</div>" + renderSportsMatchTeam(event.home || {}, event.homeScore, showScore) + "</div>";
 }
@@ -4090,7 +4093,7 @@ function renderPlayerSportsEvent(event) {
   const away = event.away || {};
   const home = event.home || {};
   const live = sportsEventIsLive(event);
-  const scored = live || event.completed;
+  const scored = sportsEventHasScores(event);
   const current = playerSportsChannelMatches(event, state.currentChannel && state.currentChannel.id);
   const hidden = sportsScoresHidden(true);
   return "<button class=\"player-sports-event" + (live ? " live" : "") + (current ? " current" : "") + "\" type=\"button\" data-player-sports-channel=\"" + escapeHTML(channel && channel.id) + "\"><span class=\"player-sports-event-top\"><span class=\"player-sports-league\">" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</span><span class=\"player-sports-status\">" + escapeHTML(sportsStatusLabel(event)) + "</span></span><span class=\"player-sports-team\"><span>" + escapeHTML(sportsTeamAbbreviation(away)) + "</span><strong>" + (scored ? escapeHTML(hidden ? "–" : (event.awayScore || "0")) : "") + "</strong></span><span class=\"player-sports-team\"><span>" + escapeHTML(sportsTeamAbbreviation(home)) + "</span><strong>" + (scored ? escapeHTML(hidden ? "–" : (event.homeScore || "0")) : "") + "</strong></span><small>" + escapeHTML((channel && channel.name) || event.shortName || event.name || "Sports") + "</small></button>";
