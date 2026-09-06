@@ -46,6 +46,11 @@ func TestSportsPayloadKeepsGuideMatchedScoresAfterDeadline(t *testing.T) {
 		t.Fatalf("guide-matched scores must survive the matching deadline: %+v", payload.Events)
 	}
 	index := newSportsChannelIndex(store.Current())
+	server.sportsImages = newSportsImageCache(t.TempDir(), nil)
+	withImages := server.proxySportsEventImages(payload.Events)
+	if withImages[0].Home.LogoURL != payload.Events[0].Home.LogoURL {
+		t.Fatal("public college identity logos must stay usable when provider scores arrive")
+	}
 	if payload.Events[0].LeagueName != "College Football" || payload.Events[0].Home.ID != stableSportsTeamID(SportsTeam{Name: "Michigan", Abbreviation: "M"}) || payload.Events[0].Home.LogoURL == "" {
 		t.Fatal("provider scores must preserve guide college identity and saved passes")
 	}
