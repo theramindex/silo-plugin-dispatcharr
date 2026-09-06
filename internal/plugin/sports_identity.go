@@ -17,6 +17,7 @@ const (
 	aflTeamLogoBase       = "https://squiggle.com.au/wp-content/themes/squiggle/assets/images/"
 	formulaELeagueLogoURL = "https://upload.wikimedia.org/wikipedia/commons/8/8c/Formula-e-logo-championship_2023.svg"
 	ncaaTeamLogoBase      = "https://a.espncdn.com/i/teamlogos/ncaa/500/"
+	ncaaLeagueLogoURL     = "https://upload.wikimedia.org/wikipedia/commons/d/dd/NCAA_logo.svg"
 )
 
 type sportsIdentityRoute struct {
@@ -160,6 +161,9 @@ func applySportsIdentityFallbacks(event SportsEvent) SportsEvent {
 func applySpecialSportsIdentityFallbacks(event SportsEvent) SportsEvent {
 	identityText := normalizeSportsIdentityText(strings.Join([]string{event.LeagueID, event.LeagueName, event.SportName, event.Name}, " "))
 	if leagueID, _, sport := guideCollegeCompetition(identityText); leagueID != "" && sport != "Football" {
+		if event.LeagueLogoURL == "" {
+			event.LeagueLogoURL = ncaaLeagueLogoURL
+		}
 		// Football keeps its existing IDs so saved passes remain valid. Other
 		// college teams belong to a competition, not just a school.
 		for _, team := range []*SportsTeam{&event.Home, &event.Away} {
