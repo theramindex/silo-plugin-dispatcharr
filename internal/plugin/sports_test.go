@@ -25,6 +25,33 @@ type staticSportsProvider struct {
 	err    error
 }
 
+func TestSportsPayloadKeepsGuideMatchedScoresAfterDeadline(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	start := now.Add(-time.Hour).Unix()
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{{ID: "nbc", Name: "NBC"}},
+		Programs: []model.Program{{ID: "game", ChannelID: "nbc", Title: "College Football: Western Michigan at Michigan", StartUnix: start, EndUnix: now.Add(time.Hour).Unix()}},
+	}})
+	server := NewHTTPRoutesServer(store)
+	server.sportsProvider = staticSportsProvider{events: []SportsEvent{{
+		ID: "provider-game", Name: "Michigan vs Western Michigan", LeagueName: "NCAA Division 1", StartUnix: start, Status: "scheduled",
+		Home: SportsTeam{Name: "Michigan"}, Away: SportsTeam{Name: "Western Michigan"}, HomeScore: "7", AwayScore: "3",
+	}}}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	payload := server.sportsPayload(ctx, true)
+	if len(payload.Events) != 1 || payload.Events[0].HomeScore != "7" || payload.Events[0].AwayScore != "3" || !payload.Events[0].Live || len(payload.Events[0].Channels) != 1 {
+		t.Fatalf("guide-matched scores must survive the matching deadline: %+v", payload.Events)
+	}
+	index := newSportsChannelIndex(store.Current())
+	matches, _ := index.MatchDetailedContext(ctx, payload.Events[0])
+	if len(matches) != 0 {
+		t.Fatal("expired matching must stop scanning channels")
+	}
+}
+
 type deadlineSportsProvider struct {
 	maxRemaining time.Duration
 }
