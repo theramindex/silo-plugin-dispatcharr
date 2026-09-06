@@ -3392,8 +3392,8 @@ function renderSportsTopMatchups(events) {
       + "<span><small>" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</small><strong>" + escapeHTML(sportsEventTitle(event)) + "</strong><em>" + escapeHTML(reasons || sportsStatusLabel(event)) + "</em></span>"
       + icon("chevron-right") + "</button>";
   }).join("") + "</div>";
-  const explanation = "<details class=\"sports-ranking-help\"><summary>Why these games?</summary><p>Recommendations use start time, championship stage, rivalries, rankings, close scores, your followed teams and leagues, and available channels. The number is an interest score out of 10. Open a game to see its reasons and points.</p></details>";
-  return sportsSectionHTML("Top matchups", "", explanation + body, "sports-top-section");
+  const explanation = "<span class=\"sports-ranking-help\"><button type=\"button\" class=\"sports-ranking-trigger\" aria-describedby=\"sports-ranking-tooltip\">Why these games?</button><span role=\"tooltip\" id=\"sports-ranking-tooltip\">Recommendations use start time, championship stage, rivalries, rankings, close scores, your followed teams and leagues, and available channels. The number is an interest score out of 10. Open a game to see its reasons and points.</span></span>";
+  return sportsSectionHTML("Top matchups", explanation, body, "sports-top-section");
 }
 function renderSportsWhyThisGame(event) {
   const ranking = sportsEffectiveRanking(event);
