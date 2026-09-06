@@ -8,6 +8,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 const statsFixtureCompetition = `{"date":"2026-09-06T01:30Z","competitors":[{"homeAway":"home","score":"46","team":{"id":"21","location":"San Diego State"}},{"homeAway":"away","score":"20","team":{"id":"2502","location":"Portland State"}}],"status":{"type":{"state":"in","detail":"4:04 - 4th Quarter","completed":false}}}`
@@ -17,6 +21,9 @@ func statsFixtureEvent() SportsEvent {
 }
 
 func TestCollegeFootballStatsMatchBothSchoolsAndDate(t *testing.T) {
+	if !espnStatsTeamMatches(SportsTeam{Name: "Hawaii"}, espnStatsTeam{Location: "Hawai'i"}) {
+		t.Fatal("Hawaii punctuation variants must match")
+	}
 	var competition espnStatsCompetition
 	if err := json.Unmarshal([]byte(statsFixtureCompetition), &competition); err != nil {
 		t.Fatal(err)
@@ -97,5 +104,20 @@ func TestCollegeFootballStatsUpstreamFailure(t *testing.T) {
 	cache := footballStatsCache{baseURL: server.URL, client: server.Client()}
 	if value := cache.load(context.Background(), statsFixtureEvent()); value.Available || value.Message == "" {
 		t.Fatal("failed source must report unavailable without invented statistics")
+	}
+}
+
+func TestCollegeFootballStatsUsesRegisteredSportsRoute(t *testing.T) {
+	server := NewHTTPRoutesServer(cache.NewStore())
+	server.sportsPrepared = sportsPreparedCache{Ready: true, ExpiresAfter: time.Now().Add(time.Minute), Payload: SportsPayload{Events: []SportsEvent{statsFixtureEvent()}}}
+	server.sportsStats.entries = map[string]SportsGameStats{"game": {Available: true, UpdatedAtUnix: time.Now().Unix(), HomeScore: "46", AwayScore: "20"}}
+	query, _ := structpb.NewStruct(map[string]any{"game_stats": "game"})
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/dispatcharr/api/sports", Query: query})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stats SportsGameStats
+	if response.GetStatusCode() != http.StatusOK || json.Unmarshal(response.GetBody(), &stats) != nil || !stats.Available || stats.HomeScore != "46" {
+		t.Fatalf("registered sports route must serve the requested box score: %s", response.GetBody())
 	}
 }

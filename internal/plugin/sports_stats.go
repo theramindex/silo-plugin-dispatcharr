@@ -93,7 +93,7 @@ func (s *HTTPRoutesServer) handleSportsGameStats(ctx context.Context, request *p
 	if request.GetMethod() != "" && request.GetMethod() != http.MethodGet {
 		return textResponse(http.StatusMethodNotAllowed, "method not allowed"), nil
 	}
-	id := queryValue(request, "event_id")
+	id := queryValue(request, "game_stats")
 	for _, event := range s.preparedSportsPayload(false).Events {
 		if id != "" && (event.ID == id || event.StableID == id) {
 			leagueID, _, _, _ := guideSportsLeague(event.LeagueName)
@@ -190,14 +190,17 @@ func (cache *footballStatsCache) fetch(ctx context.Context, event SportsEvent) (
 }
 
 func espnStatsTeamMatches(team SportsTeam, candidate espnStatsTeam) bool {
-	name := normalizeSportsIdentityText(team.Name)
+	canonical := func(value string) string {
+		return normalizeSportsIdentityText(strings.NewReplacer("'", "", "’", "", "ʻ", "").Replace(value))
+	}
+	name := canonical(team.Name)
 	if name == "" {
 		return false
 	}
 	if id := ncaaTeamLogoIDs[name]; id != "" && candidate.ID == id {
 		return true
 	}
-	return name == normalizeSportsIdentityText(candidate.Location) || name == normalizeSportsIdentityText(candidate.DisplayName)
+	return name == canonical(candidate.Location) || name == canonical(candidate.DisplayName)
 }
 
 func espnStatsMatches(event SportsEvent, competition espnStatsCompetition) bool {
