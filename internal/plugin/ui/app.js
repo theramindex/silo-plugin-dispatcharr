@@ -3392,26 +3392,8 @@ function renderSportsTopMatchups(events) {
       + "<span><small>" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</small><strong>" + escapeHTML(sportsEventTitle(event)) + "</strong><em>" + escapeHTML(reasons || sportsStatusLabel(event)) + "</em></span>"
       + icon("chevron-right") + "</button>";
   }).join("") + "</div>";
-  const explanation = "<span class=\"sports-ranking-help\"><button type=\"button\" class=\"sports-ranking-trigger\" aria-describedby=\"sports-ranking-tooltip\">Why these games?</button><span role=\"tooltip\" id=\"sports-ranking-tooltip\">Recommendations use start time, championship stage, rivalries, rankings, close scores, your followed teams and leagues, and available channels. The number is an interest score out of 10. Open a game to see its reasons and points.</span></span>";
+  const explanation = "<span class=\"sports-ranking-help\"><button type=\"button\" class=\"sports-ranking-trigger\" aria-describedby=\"sports-ranking-tooltip\">Why these games?</button><span role=\"tooltip\" id=\"sports-ranking-tooltip\">Recommendations use start time, championship stage, rivalries, rankings, close scores, your followed teams and leagues, and available channels. The number is an interest score out of 10.</span></span>";
   return sportsSectionHTML("Top matchups", explanation, body, "sports-top-section");
-}
-function renderSportsWhyThisGame(event) {
-  const ranking = sportsEffectiveRanking(event);
-  if (!ranking.signals.length) return "";
-  const body = "<div class=\"sports-ranking-panel\"><span class=\"sports-ranking-score\"><b>" + escapeHTML(ranking.score.toFixed(1)) + "</b><small>interest score</small></span><div class=\"sports-ranking-signals\">" + ranking.signals.map(function(signal) {
-    return "<span><b>+" + escapeHTML(Number(signal.points || 0).toFixed(1)) + "</b><strong>" + escapeHTML(signal.label || signal.key || "Signal") + "</strong>" + (signal.detail ? "<small>" + escapeHTML(signal.detail) + "</small>" : "") + "</span>";
-  }).join("") + "</div></div>";
-  return sportsSectionHTML("Why this game?", "<span class=\"sports-section-count\">Transparent ranking</span>", body, "sports-ranking-section");
-}
-function renderSportsMatchingDiagnostics(event) {
-  const diagnostics = items(event && event.matchDiagnostics);
-  if (!diagnostics.length) return "";
-  const accepted = diagnostics.filter(function(item) { return !!item.accepted; }).length;
-  const body = "<details class=\"sports-match-diagnostics\"><summary>How broadcasts were matched <small>" + escapeHTML(accepted + " accepted · " + (diagnostics.length - accepted) + " rejected") + "</small></summary><div>" + diagnostics.map(function(item) {
-    const stateLabel = item.accepted ? ((item.confidence || "medium") + " confidence") : "Rejected";
-    return "<span class=\"" + (item.accepted ? "accepted" : "rejected") + "\"><b>" + escapeHTML(item.channelName || item.channelId || "Candidate") + "</b><small>" + escapeHTML(stateLabel + (item.evidence ? " · " + item.evidence : "")) + "</small><em>" + escapeHTML(item.reason || "No matching evidence") + "</em></span>";
-  }).join("") + "</div></details>";
-  return sportsSectionHTML("Matching diagnostics", "<span class=\"sports-section-count\">Read only</span>", body, "sports-diagnostics-section");
 }
 function sportsFeaturedEvent(events) {
   const values = items(events);
@@ -3734,8 +3716,6 @@ function renderSportsEventDetail(payload, event) {
   return "<div class=\"sports-pinned sports-detail-toolbar\"><button type=\"button\" class=\"sports-back\" data-sports-back=\"event\">" + icon("arrow-left") + "<span>" + escapeHTML(state.sportsLeague ? (sportsLeagueByID(payload, state.sportsLeague) || {}).name || "League" : "Sports") + "</span></button>" + navigation + "<button type=\"button\" class=\"sports-detail-tool" + (sportsScoresHidden(false) ? " active" : "") + "\" data-sports-spoilers=\"global\" aria-pressed=\"" + (sportsScoresHidden(false) ? "true" : "false") + "\">" + icon(sportsScoresHidden(false) ? "eye-off" : "eye") + "<span>" + (sportsScoresHidden(false) ? "Show scores" : "Hide scores") + "</span></button><button type=\"button\" class=\"sports-detail-tool" + (leagueFavorite ? " active" : "") + "\" data-sports-favorite-league=\"" + escapeHTML(event.leagueId || "") + "\" data-sports-favorite-enabled=\"" + (leagueFavorite ? "false" : "true") + "\" aria-pressed=\"" + (leagueFavorite ? "true" : "false") + "\">" + icon(leagueFavorite ? "heart-solid" : "heart") + "<span>" + (leagueFavorite ? "Following league" : "Follow league") + "</span></button><button type=\"button\" class=\"sports-refresh\" data-sports-refresh=\"true\">" + icon("loader") + "<span>Refresh scores</span></button></div>"
     + "<div class=\"sports-score-scroll sports-event-detail\"><header class=\"sports-event-hero" + (art ? " has-art" : " no-art") + "\">" + (art ? "<img class=\"sports-event-hero-art\" src=\"" + escapeHTML(art) + "\" alt=\"\"" + artDimensions + ">" : "")
     + "<div class=\"sports-event-hero-copy\"><span class=\"sports-eyebrow\">" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</span><h1>" + escapeHTML(sportsEventTitle(event)) + "</h1>" + metadataHTML + renderSportsDetailScore(event) + "<div class=\"sports-feature-actions\">" + watch + (matches[0] ? "<a class=\"sports-secondary-action\" href=\"" + escapeHTML(sportsReplayHref(matches[0].item || {})) + "\">" + icon("play") + "<span>Watch replay</span></a>" : "") + "</div></div></header>"
-    + renderSportsWhyThisGame(event)
-    + renderSportsMatchingDiagnostics(event)
     + sportsSectionHTML(live ? "Live coverage" : "Matched channels", "<span class=\"sports-section-count\">" + channelCountLabel + "</span>", broadcasts, "sports-broadcast-section")
     + sportsSectionHTML("Event coverage", "<span class=\"sports-section-count\">Matched from Silo</span>", coverage, "sports-coverage-section")
     + sportsSectionHTML("More from " + (event.leagueName || event.leagueId || "this league"), "", relatedBody, "sports-related-section") + "</div>";
