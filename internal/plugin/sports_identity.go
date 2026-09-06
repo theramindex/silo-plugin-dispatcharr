@@ -78,15 +78,21 @@ var sportsCountryNames = map[string]string{
 }
 
 var ncaaTeamLogoIDs = map[string]string{
-	"florida":                 "57",
-	"florida gators":          "57",
-	"florida state":           "52",
-	"florida state seminoles": "52",
-	"fsu":                     "52",
-	"indiana":                 "84",
-	"indiana hoosiers":        "84",
-	"oregon":                  "2483",
-	"oregon ducks":            "2483",
+	"michigan":                   "130",
+	"michigan wolverines":        "130",
+	"western michigan":           "2711",
+	"western michigan broncos":   "2711",
+	"central michigan":           "2117",
+	"central michigan chippewas": "2117",
+	"florida":                    "57",
+	"florida gators":             "57",
+	"florida state":              "52",
+	"florida state seminoles":    "52",
+	"fsu":                        "52",
+	"indiana":                    "84",
+	"indiana hoosiers":           "84",
+	"oregon":                     "2483",
+	"oregon ducks":               "2483",
 }
 
 var aflTeamLogoFiles = map[string]string{
@@ -185,7 +191,7 @@ func applyReferencedSportsTeamIdentity(team SportsTeam) SportsTeam {
 }
 
 func applyNCAATeamIdentity(team SportsTeam) SportsTeam {
-	if team.LogoURL != "" {
+	if team.LogoURL != "" && !strings.HasPrefix(team.LogoURL, gameThumbsPublicBaseURL+"/") {
 		return team
 	}
 	if teamID := ncaaTeamLogoIDs[normalizeSportsIdentityText(team.Name)]; teamID != "" {
