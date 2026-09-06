@@ -159,6 +159,15 @@ func applySportsIdentityFallbacks(event SportsEvent) SportsEvent {
 
 func applySpecialSportsIdentityFallbacks(event SportsEvent) SportsEvent {
 	identityText := normalizeSportsIdentityText(strings.Join([]string{event.LeagueID, event.LeagueName, event.SportName, event.Name}, " "))
+	if leagueID, _, sport := guideCollegeCompetition(identityText); leagueID != "" && sport != "Football" {
+		// Football keeps its existing IDs so saved passes remain valid. Other
+		// college teams belong to a competition, not just a school.
+		for _, team := range []*SportsTeam{&event.Home, &event.Away} {
+			if team.Name != "" {
+				team.ID = "college-team:" + sportsHash(leagueID+"|"+normalizeMatchText(team.Name))
+			}
+		}
+	}
 	if event.LeagueLogoURL == "" && formulaERacePattern.MatchString(identityText) {
 		event.LeagueLogoURL = formulaELeagueLogoURL
 	}

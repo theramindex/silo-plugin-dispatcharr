@@ -479,6 +479,33 @@ func TestNormalizeSportsEventsAddsGameThumbsIdentityFallbacks(t *testing.T) {
 	}
 }
 
+func TestCollegeGamePassesSeparateSports(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ title, league string }{
+		{"College Football: Michigan at Notre Dame", "College Football"},
+		{"Men's College Basketball: Michigan at Notre Dame", "Men's College Basketball"},
+		{"Women's College Basketball: Michigan at Notre Dame", "Women's College Basketball"},
+		{"Men's College Soccer: Michigan at Notre Dame", "Men's College Soccer"},
+		{"Women's College Volleyball: Michigan at Notre Dame", "Women's College Volleyball"},
+		{"NCAA Softball: Michigan at Notre Dame", "College Softball"},
+	}
+	seen := map[string]bool{}
+	for _, tc := range cases {
+		event := normalizeSportsEvents([]SportsEvent{{Name: tc.title, Home: SportsTeam{Name: "Michigan", Abbreviation: "M"}}})[0]
+		if event.LeagueName != tc.league || seen[event.Home.ID] {
+			t.Fatalf("college passes must distinguish competition: %+v", event)
+		}
+		seen[event.Home.ID] = true
+		if tc.league == "College Football" && event.Home.ID != stableSportsTeamID(SportsTeam{Name: "Michigan", Abbreviation: "M"}) {
+			t.Fatal("existing football passes must retain their identity")
+		}
+		roster := mergeSportsLeagueRosterTeams(event.LeagueID, event.LeagueName, event.SportName, []SportsTeam{event.Home})
+		if len(roster) != 1 || roster[0].ID != event.Home.ID || normalizeSportsEvents([]SportsEvent{event})[0].Home.ID != event.Home.ID {
+			t.Fatal("roster and repeated normalization must retain the competition identity")
+		}
+	}
+}
+
 func TestMichiganSchoolsHaveDistinctRosterLogos(t *testing.T) {
 	t.Parallel()
 	input := []SportsTeam{

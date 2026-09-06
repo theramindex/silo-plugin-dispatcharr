@@ -10,6 +10,24 @@ import (
 	"testing"
 )
 
+func TestMyTVCollegePassesShowSeparateCompetitions(t *testing.T) {
+	t.Parallel()
+	result := runUIInvariantScript(t, []string{
+		`state.app = { preferences: defaultPrefs() };`,
+		`state.sports = { events: [
+		  { leagueName:"College Football", home:{id:"michigan-football", name:"Michigan"} },
+		  { leagueName:"Men's College Basketball", home:{id:"michigan-mens-basketball", name:"Michigan"} },
+		  { leagueName:"Women's College Basketball", home:{id:"michigan-womens-basketball", name:"Michigan"} }
+		], leagues: [] };`,
+		`state.app.preferences.sportsFavoriteTeams["michigan-football"] = true;`,
+		`const teams = myTVSportsPeople().filter(team => team.name === "Michigan");`,
+		`globalThis.__result = { stableResults: teams.length === 3 && new Set(teams.map(myTVSportsPassLabel)).size === 3 && teams.filter(sportsFavoriteTeamMatches).length === 1 && myTVFollowedPeople()[0].leagueName === "College Football" };`,
+	})
+	if !result.StableResults {
+		t.Fatal("college search results and active passes must distinguish sports and men's/women's competitions")
+	}
+}
+
 func TestSavedGamePassKeepsIdentityWhenLiveTeamArrives(t *testing.T) {
 	t.Parallel()
 	result := runUIInvariantScript(t, []string{
