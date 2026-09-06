@@ -522,6 +522,7 @@ func TestCollegeGamePassesSeparateSports(t *testing.T) {
 		{"Women's College Basketball: Michigan at Notre Dame", "Women's College Basketball"},
 		{"Men's College Soccer: Michigan at Notre Dame", "Men's College Soccer"},
 		{"Women's College Volleyball: Michigan at Notre Dame", "Women's College Volleyball"},
+		{"NCAA Women's Field Hockey: Michigan at Notre Dame", "Women's College Field Hockey"},
 		{"NCAA Softball: Michigan at Notre Dame", "College Softball"},
 	}
 	seen := map[string]bool{}
@@ -541,6 +542,24 @@ func TestCollegeGamePassesSeparateSports(t *testing.T) {
 		if len(roster) != 1 || roster[0].ID != event.Home.ID || normalizeSportsEvents([]SportsEvent{event})[0].Home.ID != event.Home.ID {
 			t.Fatal("roster and repeated normalization must retain the competition identity")
 		}
+	}
+}
+
+func TestCollegeFieldHockeyClassification(t *testing.T) {
+	t.Parallel()
+	for _, title := range []string{
+		"NCAA Women's Field Hockey: Michigan at Notre Dame",
+		"Women's College Field Hockey: Michigan at Notre Dame",
+		"NCAA Women’s Field Hockey: Michigan at Notre Dame",
+	} {
+		id, name, sport, ok := guideSportsLeague(title)
+		if !ok || id != "college-womens-field-hockey" || name != "Women's College Field Hockey" || sport != "Field Hockey" {
+			t.Fatalf("incorrect field hockey classification for %q: %q %q %q %v", title, id, name, sport, ok)
+		}
+	}
+	id, _, sport, ok := guideSportsLeague("Women's College Hockey: Michigan at Notre Dame")
+	if !ok || id != "college-womens-hockey" || sport != "Hockey" {
+		t.Fatal("field hockey must remain separate from college hockey")
 	}
 }
 

@@ -673,7 +673,7 @@ func guideSportsMetadata(categories []string) (bool, bool) {
 	return sportsMetadata, sportsTalk
 }
 
-var collegeCompetitionPattern = regexp.MustCompile(`\b(?:(womens|mens|women|men) )?(?:college|ncaa) (?:(womens|mens|women|men) )?(football|basketball|soccer|baseball|softball|volleyball|hockey|lacrosse|gymnastics|wrestling)\b`)
+var collegeCompetitionPattern = regexp.MustCompile(`\b(?:(womens|mens|women|men) )?(?:college|ncaa) (?:(womens|mens|women|men) )?(football|basketball|soccer|baseball|softball|volleyball|field hockey|hockey|lacrosse|gymnastics|wrestling)\b`)
 
 func guideCollegeCompetition(value string) (string, string, string) {
 	text := strings.NewReplacer("women s", "womens", "men s", "mens").Replace(normalizeMatchText(value))
@@ -691,6 +691,10 @@ func guideCollegeCompetition(value string) (string, string, string) {
 	}
 	sport := chosen[3]
 	sportName := strings.ToUpper(sport[:1]) + sport[1:]
+	if sport == "field hockey" {
+		sport = "field-hockey"
+		sportName = "Field Hockey"
+	}
 	gender := firstNonEmpty(chosen[1], chosen[2])
 	if gender != "" {
 		if strings.HasPrefix(gender, "women") {

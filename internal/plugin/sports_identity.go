@@ -141,7 +141,7 @@ var gameThumbsTeamLeagueRoutes = []sportsIdentityRoute{
 }
 
 var gameThumbsChelseaYouthSuffix = regexp.MustCompile(`(?i)\bchelsea\s+(?:u21|under[ -]?21s?)\b`)
-var collegeSportsIdentity = regexp.MustCompile(`(?i)\b(?:cfp|ncaa|ncaaf|college[- ]+(?:football|soccer|basketball|baseball|volleyball|softball|hockey))\b`)
+var collegeSportsIdentity = regexp.MustCompile(`(?i)\b(?:cfp|ncaa|ncaaf|college[- ]+(?:football|soccer|basketball|baseball|volleyball|softball|field[- ]+hockey|hockey))\b`)
 
 func applySportsIdentityFallbacks(event SportsEvent) SportsEvent {
 	event = applySpecialSportsIdentityFallbacks(event)
