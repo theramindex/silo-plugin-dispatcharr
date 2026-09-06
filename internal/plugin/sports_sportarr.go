@@ -95,6 +95,9 @@ type sportarrEvent struct {
 	EventType           string         `json:"eventType"`
 	LeagueID            string         `json:"leagueId"`
 	LeagueName          string         `json:"leagueName"`
+	LeagueBadgeURL      string         `json:"leagueBadgeUrl"`
+	HomeTeamBadgeURL    string         `json:"homeTeamBadgeUrl"`
+	AwayTeamBadgeURL    string         `json:"awayTeamBadgeUrl"`
 	SeasonName          string         `json:"seasonName"`
 	Round               string         `json:"round"`
 	VenueName           string         `json:"venueName"`
@@ -389,6 +392,7 @@ func (event sportarrEvent) sportsEvent() SportsEvent {
 		ProviderLeagueID:  event.LeagueID,
 		LeagueID:          event.LeagueID,
 		LeagueName:        event.LeagueName,
+		LeagueLogoURL:     safeSportsImageURL(event.LeagueBadgeURL),
 		Name:              event.Name,
 		ShortName:         event.ShortName,
 		EventType:         event.EventType,
@@ -403,12 +407,14 @@ func (event sportarrEvent) sportsEvent() SportsEvent {
 		StartUnix:         startUnix,
 		EndUnix:           endUnix,
 		Home: SportsTeam{
-			ID:   event.HomeTeamID,
-			Name: event.HomeTeamName,
+			ID:      event.HomeTeamID,
+			Name:    event.HomeTeamName,
+			LogoURL: safeSportsImageURL(event.HomeTeamBadgeURL),
 		},
 		Away: SportsTeam{
-			ID:   event.AwayTeamID,
-			Name: event.AwayTeamName,
+			ID:      event.AwayTeamID,
+			Name:    event.AwayTeamName,
+			LogoURL: safeSportsImageURL(event.AwayTeamBadgeURL),
 		},
 		HomeScore: string(event.HomeScore),
 		AwayScore: string(event.AwayScore),

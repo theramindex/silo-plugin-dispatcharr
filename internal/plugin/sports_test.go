@@ -1476,6 +1476,23 @@ func TestSportarrSportsEventMapsCanonicalFields(t *testing.T) {
 	}
 }
 
+func TestSportarrEventBadgesSurvivePreparedPayload(t *testing.T) {
+	var source sportarrEvent
+	if err := json.Unmarshal([]byte(`{"id":"atlas-atlante","leagueBadgeUrl":"https://sportarr.net/static/images/league/mx/badge.png","homeTeamBadgeUrl":"https://sportarr.net/static/images/team/atlas/badge.png","awayTeamBadgeUrl":"https://sportarr.net/static/images/team/atlante/badge.png"}`), &source); err != nil {
+		t.Fatal(err)
+	}
+	server := &HTTPRoutesServer{sportsImages: newSportsImageCache(t.TempDir(), nil)}
+	event := server.proxySportsEventImages([]SportsEvent{source.sportsEvent()})[0]
+	if event.LeagueLogoURL != source.LeagueBadgeURL || event.Home.LogoURL != source.HomeTeamBadgeURL || event.Away.LogoURL != source.AwayTeamBadgeURL {
+		t.Fatalf("event badges were lost or rewritten: %+v", event)
+	}
+	event.Home = applySportarrTeam(event.Home, sportarrTeam{LogoURL: "https://r2.thesportsdb.com/images/media/team/badge/atlas.png"})
+	event = server.proxySportsEventImages([]SportsEvent{event})[0]
+	if event.Home.LogoURL != "https://r2.thesportsdb.com/images/media/team/badge/atlas.png" {
+		t.Fatalf("enriched team badge was rewritten: %s", event.Home.LogoURL)
+	}
+}
+
 func TestSportarrSportsProviderLoadsPaginatedPublicEvents(t *testing.T) {
 	t.Parallel()
 
