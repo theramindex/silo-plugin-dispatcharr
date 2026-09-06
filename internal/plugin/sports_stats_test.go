@@ -14,7 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-const statsFixtureCompetition = `{"date":"2026-09-06T01:30Z","competitors":[{"homeAway":"home","score":"46","team":{"id":"21","location":"San Diego State"}},{"homeAway":"away","score":"20","team":{"id":"2502","location":"Portland State"}}],"status":{"type":{"state":"in","detail":"4:04 - 4th Quarter","completed":false}}}`
+const statsFixtureCompetition = `{"date":"2026-09-06T01:30Z","situation":{"possession":"21","downDistanceText":"2nd & Goal at PRST 6"},"competitors":[{"homeAway":"home","score":"46","team":{"id":"21","location":"San Diego State"}},{"homeAway":"away","score":"20","team":{"id":"2502","location":"Portland State"}}],"status":{"type":{"state":"in","detail":"4:04 - 4th Quarter","completed":false}}}`
 
 func statsFixtureEvent() SportsEvent {
 	return SportsEvent{ID: "game", LeagueID: "college-football", StartUnix: time.Date(2026, 9, 6, 1, 30, 0, 0, time.UTC).Unix(), Home: SportsTeam{Name: "San Diego State"}, Away: SportsTeam{Name: "Portland State"}}
@@ -78,6 +78,9 @@ func TestCollegeFootballStatsFetchAndCache(t *testing.T) {
 	if len(value.Rows) != 2 || value.Rows[0].Away != "370" || value.Rows[0].Home != "366" || value.Rows[1].Away != "0" {
 		t.Fatalf("stats must retain orientation and zero values: %+v", value.Rows)
 	}
+	if value.Possession != "home" || value.FieldPosition != "2nd & Goal at PRST 6" {
+		t.Fatalf("possession must use ESPN's current situation: %+v", value)
+	}
 	_ = cache.load(context.Background(), statsFixtureEvent())
 	if requests != 2 {
 		t.Fatalf("expected cached scoreboard and summary, got %d requests", requests)
@@ -119,5 +122,20 @@ func TestCollegeFootballStatsUsesRegisteredSportsRoute(t *testing.T) {
 	var stats SportsGameStats
 	if response.GetStatusCode() != http.StatusOK || json.Unmarshal(response.GetBody(), &stats) != nil || !stats.Available || stats.HomeScore != "46" {
 		t.Fatalf("registered sports route must serve the requested box score: %s", response.GetBody())
+	}
+	// The open game's TV listing has ended; its validated identity remains usable.
+	remembered := statsFixtureEvent()
+	remembered.StartUnix = time.Now().Add(-4 * time.Hour).Unix()
+	server.sportsStats.events["game"] = remembered
+	server.sportsPrepared.Payload.Events = nil
+	response, err = server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/dispatcharr/api/sports", Query: query})
+	if err != nil || response.GetStatusCode() != http.StatusOK {
+		t.Fatal("an open game must keep updating after the guide listing ends")
+	}
+	remembered.StartUnix = time.Now().Add(-13 * time.Hour).Unix()
+	server.sportsStats.events["game"] = remembered
+	response, _ = server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/dispatcharr/api/sports", Query: query})
+	if response.GetStatusCode() != http.StatusNotFound {
+		t.Fatal("expired fixture identities must not remain available indefinitely")
 	}
 }
