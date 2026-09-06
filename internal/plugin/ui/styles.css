@@ -637,6 +637,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-feature-fallback .sports-matchup-thumb-logo, .sports-feature-fallback .sports-matchup-thumb-logo.logo-fallback { width: clamp(4.75rem, 8vw, 7rem); height: clamp(4.75rem, 8vw, 7rem); }
 .sports-feature h1, .sports-league-hero h1, .sports-event-hero h1 { margin: 0; color: var(--text); font-size: 2.35rem; line-height: 1.04; letter-spacing: 0; text-wrap: balance; }
 .sports-feature-score { width: min(42rem, 100%); display: grid; grid-template-columns: minmax(0, 1fr) minmax(7rem, auto) minmax(0, 1fr); align-items: center; gap: 0.9rem; }
+.sports-feature-schedule { margin: 0; color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
 .sports-feature-score > span { min-width: 0; display: flex; align-items: center; gap: 0.65rem; }
 .sports-feature-score > span:last-child { flex-direction: row-reverse; justify-content: flex-start; text-align: right; }
 .sports-feature-team-logo { width: 3.25rem; height: 3.25rem; flex: 0 0 3.25rem; object-fit: contain; filter: drop-shadow(0 0.2rem 0.35rem rgba(0,0,0,0.28)); }
