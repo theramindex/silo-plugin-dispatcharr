@@ -437,6 +437,12 @@ button { cursor: pointer; touch-action: manipulation; }
 .my-tv-search svg { width: 1.1rem; height: 1.1rem; }
 .my-tv-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); padding: 0; font: inherit; font-size: 0.88rem; font-weight: 680; }
 .my-tv-search input::placeholder { color: color-mix(in srgb, var(--muted) 88%, transparent); opacity: 1; }
+.my-tv-search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
+.my-tv-search-context { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.my-tv-search-context h3 { margin: 0; font-size: 1rem; }
+.my-tv-back { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; padding: 0.4rem 0.7rem; border: 1px solid var(--line); border-radius: 0.5rem; background: transparent; color: var(--text); font: inherit; font-size: 0.8rem; }
+.my-tv-back:hover, .my-tv-back:focus-visible { background: var(--panel); }
+.my-tv-back svg { width: 1rem; height: 1rem; }
 .my-tv-search > button { width: 2rem; height: 2rem; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--muted); padding: 0; }
 .my-tv-search > button:hover, .my-tv-search > button:focus-visible { background: var(--bg); color: var(--text); }
 .my-tv-search-surface, #my-tv-dashboard { min-width: 0; }

@@ -3015,6 +3015,12 @@ function myTVDashboardHTML() {
 }
 function updateMyTVSearchSurface() {
   const query = state.myTVQuery || "";
+  const title = byId("my-tv-title");
+  const description = byId("my-tv-description");
+  const context = byId("my-tv-search-context");
+  if (title) title.textContent = query ? "Find & follow" : "My TV";
+  if (description) description.textContent = query ? "Create game passes and follow shows, teams, or events." : "Your saved follows and what’s coming up next.";
+  if (context) context.hidden = !query;
   const results = byId("my-tv-search-results");
   const dashboard = byId("my-tv-dashboard");
   const clear = byId("my-tv-search-clear");
@@ -3038,7 +3044,9 @@ function renderMyTVPage() {
   if (!state.sports && !state.sportsLoading) loadSports(false);
   if (!state.events && !state.eventsLoading) loadEvents(false);
   const query = state.myTVQuery || "";
-  root.innerHTML = "<div class=\"my-tv-page\"><header class=\"my-tv-header\"><div class=\"my-tv-heading\"><h2>My TV</h2><p>Your follows, matched to what’s live and coming up.</p></div><label class=\"my-tv-search\"><span>" + icon("search") + "</span><input id=\"my-tv-search\" type=\"search\" value=\"" + escapeHTML(query) + "\" placeholder=\"Search shows, teams, fighters, leagues, or events\" aria-label=\"Search My TV\" autocomplete=\"off\" spellcheck=\"false\"><button id=\"my-tv-search-clear\" type=\"button\" aria-label=\"Clear My TV search\" data-my-tv-search-clear=\"true\"" + (query ? "" : " hidden") + ">" + icon("x") + "</button></label></header><div id=\"my-tv-search-results\" class=\"my-tv-search-surface\" aria-live=\"polite\"" + (query ? "" : " hidden") + "></div><div id=\"my-tv-dashboard\"" + (query ? " hidden" : "") + "></div></div>";
+  root.innerHTML = "<div class=\"my-tv-page\"><header class=\"my-tv-header\"><div class=\"my-tv-heading\"><h2 id=\"my-tv-title\">My TV</h2><p id=\"my-tv-description\">Your saved follows and what’s coming up next.</p></div><label class=\"my-tv-search\"><span>" + icon("search") + "</span><input id=\"my-tv-search\" type=\"search\" value=\"" + escapeHTML(query) + "\" placeholder=\"Find shows, teams, leagues, or events to follow\" aria-label=\"Find something to follow\" autocomplete=\"off\" spellcheck=\"false\"><button id=\"my-tv-search-clear\" type=\"button\" aria-label=\"Clear My TV search\" data-my-tv-search-clear=\"true\"" + (query ? "" : " hidden") + ">" + icon("x") + "</button></label></header>"
+    + "<div id=\"my-tv-search-context\" class=\"my-tv-search-context\" hidden><h3>Search results</h3><button class=\"my-tv-back\" type=\"button\" data-my-tv-search-clear=\"true\">" + icon("arrow-left") + "Back to My TV</button></div>"
+    + "<div id=\"my-tv-search-results\" class=\"my-tv-search-surface\" aria-live=\"polite\"" + (query ? "" : " hidden") + "></div><div id=\"my-tv-dashboard\"" + (query ? " hidden" : "") + "></div></div>";
   updateMyTVSearchSurface();
   ensureMyTVTeamCatalog(query);
 }
