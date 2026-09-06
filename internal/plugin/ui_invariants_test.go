@@ -10,6 +10,29 @@ import (
 	"testing"
 )
 
+func TestMyTVRosterUpdatesPreserveUnchangedResults(t *testing.T) {
+	t.Parallel()
+	result := runUIInvariantScript(t, []string{
+		`state.app = { preferences: defaultPrefs(), channels: [], categories: [], programs: [], status: {} };`,
+		`state.sports = { events: [], leagues: [{id:"mlb", name:"MLB"}, {id:"nba", name:"NBA"}] };`,
+		`state.view = "mytv"; state.myTVQuery = "nationals";`,
+		`const results = document.getElementById("my-tv-search-results");`,
+		`let writes = 0;`,
+		`Object.defineProperty(results, "innerHTML", { get() { return this.html || ""; }, set(value) { this.html = value; writes++; } });`,
+		`updateMyTVSearchSurface();`,
+		`state.myTVTeamCatalogLoading = Promise.resolve();`,
+		`state.sportsLeagueTeams.nba = [{ id:"nba-1", name:"Boston Celtics" }];`,
+		`updateMyTVSearchSurface(); updateMyTVSearchSurface();`,
+		`state.myTVTeamCatalogLoading = null; updateMyTVSearchSurface();`,
+		`const stableResults = writes === 1 && results.innerHTML.includes("Washington Nationals");`,
+		`state.myTVQuery = "yankees"; updateMyTVSearchSurface();`,
+		`globalThis.__result = { stableResults: stableResults && writes === 2 && results.innerHTML.includes("New York Yankees") && !results.innerHTML.includes("Washington Nationals") };`,
+	})
+	if !result.StableResults {
+		t.Fatal("unrelated roster updates must preserve the existing game-pass controls, while a new query must update them")
+	}
+}
+
 func TestMenuNavigationAfterSeparateScriptLoads(t *testing.T) {
 	t.Parallel()
 	result := runUIInvariantScript(t, []string{
@@ -164,6 +187,7 @@ func TestCommitAppRouteDoesNotCloneHistoryState(t *testing.T) {
 }
 
 type uiInvariantResult struct {
+	StableResults         bool `json:"stableResults"`
 	MenuWorks             bool `json:"menuWorks"`
 	KeptToolbar           bool `json:"keptToolbar"`
 	ViewWritesAfterSearch int  `json:"viewWritesAfterSearch"`

@@ -3000,7 +3000,7 @@ function myTVSearchResults(query) {
     return "<article class=\"my-tv-result\"><span class=\"my-tv-result-mark\">" + icon("calendar") + "</span><span><strong>" + escapeHTML(event.shortName || event.name || "Event") + "</strong><small>" + escapeHTML([event.categoryName, eventStatusLabel(event)].filter(Boolean).join(" · ")) + "</small></span><button type=\"button\" data-event-feature=\"" + escapeHTML(event.id || "") + "\"" + (adminFeaturedEventMap()[event.id] ? " disabled" : "") + ">" + (followed ? "Following" : "Follow") + "</button></article>";
   });
   const groups = [["Teams & fighters", personRows], ["Leagues", leagueRows], ["From the guide", titleRows], ["Events", eventRows]].filter(function(group) { return group[1].length; });
-  const catalogNote = state.myTVTeamCatalogLoading ? "<p class=\"my-tv-search-note\">Searching team rosters…</p>" : "";
+  const catalogNote = state.myTVTeamCatalogLoading && !people.length && !leagues.length ? "<p class=\"my-tv-search-note\">Searching team rosters…</p>" : "";
   return "<section class=\"my-tv-search-results\">" + trackQuery + catalogNote + (groups.length ? groups.map(function(group) { return "<div><h3>" + escapeHTML(group[0]) + "</h3><div class=\"my-tv-result-list\">" + group[1].join("") + "</div></div>"; }).join("") : "<p class=\"my-tv-search-note\">No current listings match yet. Track the search and My TV will watch future guide updates.</p>") + "</section>";
 }
 function myTVDashboardHTML() {
@@ -3020,7 +3020,11 @@ function updateMyTVSearchSurface() {
   const clear = byId("my-tv-search-clear");
   if (results) {
     results.hidden = !query;
-    results.innerHTML = query ? myTVSearchResults(query) : "";
+    const html = query ? myTVSearchResults(query) : "";
+    if (results.myTVSearchHTML !== html) {
+      results.innerHTML = html;
+      results.myTVSearchHTML = html;
+    }
   }
   if (dashboard) {
     dashboard.hidden = !!query;
