@@ -3592,6 +3592,8 @@ function renderSportsMatchupThumbnail(event) {
 function renderSportsProgramThumbnail(event) {
   const logo = safeSportsMediaURL(event.leagueLogoUrl);
   const mark = logo ? "<img src=\"" + escapeHTML(logo) + "\" alt=\"\">" : icon("trophy");
+  const bouts = event.leagueId === "boxing" ? sportsEventTitle(event).split(";").map(function(bout) { return bout.trim().replace(/^Boxeo de Primera\s*:\s*/i, ""); }) : [];
+  if (bouts.length > 1) return "<span class=\"sports-matchup-thumb sports-program-thumb\" aria-hidden=\"true\"><span class=\"sports-program-mark\">" + mark + "</span><span class=\"sports-program-copy\"><small>Boxing · " + bouts.length + " bouts</small>" + bouts.map(function(bout) { return "<strong>" + escapeHTML(bout) + "</strong>"; }).join("") + "</span></span>";
   return "<span class=\"sports-matchup-thumb sports-program-thumb\" aria-hidden=\"true\">"
     + "<span class=\"sports-program-mark\">" + mark + "</span>"
     + "<span class=\"sports-program-copy\"><small>" + escapeHTML(event.leagueName || event.sportName || "Sports") + "</small><strong>" + escapeHTML(sportsEventTitle(event)) + "</strong></span>"
