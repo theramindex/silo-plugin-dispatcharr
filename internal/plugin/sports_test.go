@@ -46,6 +46,9 @@ func TestSportsPayloadKeepsGuideMatchedScoresAfterDeadline(t *testing.T) {
 		t.Fatalf("guide-matched scores must survive the matching deadline: %+v", payload.Events)
 	}
 	index := newSportsChannelIndex(store.Current())
+	if payload.Events[0].LeagueName != "College Football" || payload.Events[0].Home.ID != stableSportsTeamID(SportsTeam{Name: "Michigan", Abbreviation: "M"}) || payload.Events[0].Home.LogoURL == "" {
+		t.Fatal("provider scores must preserve guide college identity and saved passes")
+	}
 	matches, _ := index.MatchDetailedContext(ctx, payload.Events[0])
 	if len(matches) != 0 {
 		t.Fatal("expired matching must stop scanning channels")

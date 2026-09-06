@@ -10,6 +10,21 @@ import (
 	"testing"
 )
 
+func TestSportsScoresVisibleWithStaleProviderStatus(t *testing.T) {
+	t.Parallel()
+	result := runUIInvariantScript(t, []string{
+		`state.app = { preferences: defaultPrefs() };`,
+		`const event = { status:"airing", live:true, home:{name:"Michigan"}, away:{name:"Western Michigan"}, homeScore:"7", awayScore:"3" };`,
+		`const html = renderSportsDetailScore(event);`,
+		`state.app.preferences.sportsSpoilersHidden = true;`,
+		`const hidden = renderSportsDetailScore(event);`,
+		`globalThis.__result = { stableResults: html.includes("<b>7</b>") && html.includes("<b>3</b>") && !hidden.includes("<b>7</b>") && !sportsEventHasScores({live:true}) && sportsEventHasScores({homeScore:0, awayScore:0}) };`,
+	})
+	if !result.StableResults {
+		t.Fatal("available scores must display despite stale status, respect spoilers, and avoid invented zeroes")
+	}
+}
+
 func TestMyTVCollegePassesShowSeparateCompetitions(t *testing.T) {
 	t.Parallel()
 	result := runUIInvariantScript(t, []string{

@@ -464,6 +464,17 @@ func mergeSportsGuideEvents(events, guideEvents []SportsEvent) []SportsEvent {
 				continue
 			}
 			merged[index].Channels = mergeSportsChannelMatches(guideEvent.Channels, merged[index].Channels)
+			if guideEvent.SportName != "" && guideEvent.SportName != "Sports" {
+				merged[index].LeagueID = guideEvent.LeagueID
+				merged[index].LeagueName = guideEvent.LeagueName
+				merged[index].SportName = guideEvent.SportName
+				merged[index].LeagueLogoURL = firstNonEmpty(guideEvent.LeagueLogoURL, merged[index].LeagueLogoURL)
+			}
+			for _, pair := range [][2]*SportsTeam{{&merged[index].Home, &guideEvent.Home}, {&merged[index].Away, &guideEvent.Away}} {
+				if normalizeMatchText(pair[0].Name) == normalizeMatchText(pair[1].Name) {
+					*pair[0] = mergeSportsTeamIdentity(*pair[1], *pair[0])
+				}
+			}
 			if guideEvent.Live && merged[index].Status == "scheduled" {
 				merged[index].Live = true
 				merged[index].Status = "airing"
