@@ -356,7 +356,7 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 		events[index] = normalizeSportsEventFreshness(events[index], now)
 		events[index].Home.Favorite = false
 		events[index].Away.Favorite = false
-		if strings.HasPrefix(events[index].ID, "epg:") && len(events[index].Channels) > 0 {
+		if len(events[index].Channels) > 0 {
 			events[index].Channels = mergeSportsChannelMatches(events[index].Channels)
 			events[index].MatchDiagnostics = make([]SportsMatchDiagnostic, 0, len(events[index].Channels))
 			for _, match := range events[index].Channels {
@@ -367,7 +367,10 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 			}
 			continue
 		}
-		matches, diagnostics := channelIndex.MatchDetailed(events[index])
+		if ctx.Err() != nil {
+			continue
+		}
+		matches, diagnostics := channelIndex.MatchDetailedContext(ctx, events[index])
 		events[index].Channels = mergeSportsChannelMatches(events[index].Channels, matches)
 		events[index].MatchDiagnostics = diagnostics
 	}
@@ -461,6 +464,11 @@ func mergeSportsGuideEvents(events, guideEvents []SportsEvent) []SportsEvent {
 				continue
 			}
 			merged[index].Channels = mergeSportsChannelMatches(guideEvent.Channels, merged[index].Channels)
+			if guideEvent.Live && merged[index].Status == "scheduled" {
+				merged[index].Live = true
+				merged[index].Status = "airing"
+				merged[index].StatusText = "On now"
+			}
 			matched = true
 			break
 		}
@@ -1281,6 +1289,10 @@ func (index sportsChannelIndex) Match(event SportsEvent) []SportsChannelMatch {
 }
 
 func (index sportsChannelIndex) MatchDetailed(event SportsEvent) ([]SportsChannelMatch, []SportsMatchDiagnostic) {
+	return index.MatchDetailedContext(context.Background(), event)
+}
+
+func (index sportsChannelIndex) MatchDetailedContext(ctx context.Context, event SportsEvent) ([]SportsChannelMatch, []SportsMatchDiagnostic) {
 	terms := sportsMatchTerms(event)
 	if len(terms) == 0 {
 		return []SportsChannelMatch{}, []SportsMatchDiagnostic{}
@@ -1288,6 +1300,9 @@ func (index sportsChannelIndex) MatchDetailed(event SportsEvent) ([]SportsChanne
 	matches := make([]SportsChannelMatch, 0)
 	diagnostics := make([]SportsMatchDiagnostic, 0)
 	for _, indexed := range index.Channels {
+		if ctx.Err() != nil {
+			break
+		}
 		result := scoreIndexedSportsChannelResult(indexed, event, terms)
 		score, reason := result.Score, result.Reason
 		if score < sportsChannelMinimumScore {
