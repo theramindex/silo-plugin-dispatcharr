@@ -479,6 +479,25 @@ func TestNormalizeSportsEventsAddsGameThumbsIdentityFallbacks(t *testing.T) {
 	}
 }
 
+func TestMichiganSchoolsHaveDistinctRosterLogos(t *testing.T) {
+	t.Parallel()
+	input := []SportsTeam{
+		{ID: "michigan", Name: "Michigan", LogoURL: gameThumbsTeamLogoURL("ncaaf", "Michigan")},
+		{ID: "western", Name: "Western Michigan", LogoURL: gameThumbsTeamLogoURL("ncaaf", "Western Michigan")},
+		{ID: "central", Name: "Central Michigan", LogoURL: gameThumbsTeamLogoURL("ncaaf", "Central Michigan")},
+	}
+	teams := mergeSportsLeagueRosterTeams("ncaaf", "College Football", "Football", input)
+	want := map[string]string{"Michigan": "130", "Western Michigan": "2711", "Central Michigan": "2117"}
+	if len(teams) != 3 {
+		t.Fatalf("schools must remain separate: %+v", teams)
+	}
+	for _, team := range teams {
+		if team.LogoURL != ncaaTeamLogoBase+want[team.Name]+".png" {
+			t.Errorf("wrong logo for %s: %s", team.Name, team.LogoURL)
+		}
+	}
+}
+
 func TestSportsIdentityFallbacksAddFormulaELeagueLogo(t *testing.T) {
 	t.Parallel()
 
