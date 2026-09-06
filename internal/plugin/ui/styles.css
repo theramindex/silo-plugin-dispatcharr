@@ -659,6 +659,14 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; }
 .sports-section-head h2 { margin: 0; font-size: 1.05rem; letter-spacing: 0; }
 .sports-section-count { color: var(--muted); font-size: 0.72rem; font-weight: 750; }
+.sports-stats-section { max-width: 60rem; }
+.sports-stats-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.sports-stats-table th, .sports-stats-table td { border-bottom: 1px solid var(--line); padding: 0.65rem 0.4rem; text-align: center; overflow-wrap: anywhere; }
+.sports-stats-table thead th { background: var(--panel); }
+.sports-stats-table tbody th { color: var(--muted); font-size: 0.75rem; font-weight: 600; }
+.sports-stats-table td { font-weight: 750; }
+.sports-stats-play { display: grid; gap: 0.35rem; margin: 0; padding: 0.85rem; background: var(--panel); border: 1px solid var(--line); border-radius: 0.5rem; font-size: 0.8rem; line-height: 1.5; }
+.sports-stats-play strong, .sports-stats-note { color: var(--muted); font-size: 0.75rem; }
 .sports-ranking-help { position: relative; flex-shrink: 0; color: var(--muted); font-size: 0.72rem; }
 .sports-ranking-trigger { border: 0; border-radius: 0; padding: 0; background: none; color: inherit; font: inherit; font-weight: 750; cursor: help; }
 .sports-ranking-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }

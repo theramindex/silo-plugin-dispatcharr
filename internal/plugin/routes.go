@@ -52,6 +52,7 @@ type HTTPRoutesServer struct {
 	sportsProvider      sportsProvider
 	sportsCache         sportsEventCache
 	sportsMu            sync.Mutex
+	sportsStats         footballStatsCache
 	sportsPrepared      sportsPreparedCache
 	sportsPreparedMu    sync.Mutex
 	sportsImages        *sportsImageCache
@@ -318,6 +319,8 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return s.handleSports(ctx, request)
 	case "/dispatcharr/api/sports/league-teams":
 		return s.handleSportsLeagueTeams(ctx, request)
+	case "/dispatcharr/api/sports/game-stats":
+		return s.handleSportsGameStats(ctx, request)
 	case "/dispatcharr/api/sports/favorites":
 		return s.handleSportsFavorite(request)
 	case "/dispatcharr/api/events":
