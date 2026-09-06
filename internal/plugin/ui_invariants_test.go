@@ -16,6 +16,7 @@ func TestSportsScoresVisibleWithStaleProviderStatus(t *testing.T) {
 		`state.app = { preferences: defaultPrefs() };`,
 		`const event = { status:"airing", live:true, home:{name:"Michigan"}, away:{name:"Western Michigan"}, homeScore:"7", awayScore:"3" };`,
 		`const html = renderSportsDetailScore(event);`,
+		`if (safeSportsMediaURL("/dispatcharr/api/sports/image/example") !== "/api/v1/plugins/14/dispatcharr/api/sports/image/example") throw new Error("proxy images must use the plugin installation route");`,
 		`state.app.preferences.sportsSpoilersHidden = true;`,
 		`const hidden = renderSportsDetailScore(event);`,
 		`globalThis.__result = { stableResults: html.includes("<b>7</b>") && html.includes("<b>3</b>") && !hidden.includes("<b>7</b>") && !sportsEventHasScores({live:true}) && sportsEventHasScores({homeScore:0, awayScore:0}) };`,
