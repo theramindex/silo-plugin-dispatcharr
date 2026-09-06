@@ -2920,6 +2920,7 @@ function myTVSportsPassLabel(team) {
 }
 function myTVFollowedPeople() {
   const people = {};
+  myTVBuiltInSportsPeople().forEach(function(team) { people[team.id] = team; });
   myTVSportsPeople().forEach(function(team) { people[team.id] = team; });
   return Object.keys(sportsFavoriteTeamMap()).filter(function(id) { return !!sportsFavoriteTeamMap()[id]; }).map(function(id) {
     return people[id] || { id: id, name: "Saved team", abbreviation: "TV", kind: "Team" };
