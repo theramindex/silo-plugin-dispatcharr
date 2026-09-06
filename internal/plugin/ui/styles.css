@@ -659,10 +659,11 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; }
 .sports-section-head h2 { margin: 0; font-size: 1.05rem; letter-spacing: 0; }
 .sports-section-count { color: var(--muted); font-size: 0.72rem; font-weight: 750; }
-.sports-ranking-help { color: var(--muted); font-size: 0.8rem; }
-.sports-ranking-help summary { cursor: pointer; width: fit-content; min-height: 2.75rem; align-content: center; color: var(--text); }
-.sports-ranking-help p { max-width: 65ch; margin: 0 0 0.5rem; line-height: 1.5; }
-.sports-ranking-help summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.sports-ranking-help { position: relative; flex-shrink: 0; color: var(--muted); font-size: 0.72rem; }
+.sports-ranking-trigger { border: 0; border-radius: 0; padding: 0; background: none; color: inherit; font: inherit; font-weight: 750; cursor: help; }
+.sports-ranking-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.sports-ranking-help [role="tooltip"] { display: none; position: absolute; z-index: 10; top: 100%; right: 0; width: min(22rem, calc(100vw - 3rem)); padding: 0.85rem; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--panel); color: var(--text); box-shadow: 0 0.5rem 1.5rem #0006; font-size: 0.8rem; line-height: 1.5; font-weight: 400; }
+.sports-ranking-help:hover [role="tooltip"], .sports-ranking-help:focus-within [role="tooltip"] { display: block; }
 .sports-top-matchups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.55rem; }
 .sports-top-matchup { min-width: 0; min-height: 5.5rem; display: grid; grid-template-columns: 3.25rem minmax(0, 1fr) 1rem; align-items: center; gap: 0.7rem; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line)); border-radius: 0.55rem; background: linear-gradient(135deg, color-mix(in srgb, var(--panel-2) 88%, var(--accent) 12%), var(--panel)); color: var(--text); padding: 0.7rem; text-align: left; }
 .sports-top-matchup:hover { border-color: color-mix(in srgb, var(--accent) 62%, var(--line)); transform: translateY(-1px); }
