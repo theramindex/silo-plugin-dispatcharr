@@ -564,7 +564,8 @@ func sportsEventsFromGuideWithScoreHints(snapshot cache.Snapshot, now time.Time)
 			awayName, homeName, matchup = series, location, true
 			eventType = "race"
 		}
-		if !sportsContext || (!matchup && !metadataSports) {
+		boutCard := leagueID == "boxing" && guideSportsMultipleBouts(displayTitle)
+		if !sportsContext || (!matchup && !metadataSports && !boutCard) {
 			continue
 		}
 		if !matchup {
@@ -714,14 +715,15 @@ func guideSportsLeague(value string) (string, string, string, bool) {
 		{[]string{"nba"}, "nba", "NBA", "Basketball"},
 		{[]string{"nfl"}, "nfl", "NFL", "Football"},
 		{[]string{"cfp", "college football"}, "college-football", "College Football", "Football"},
-		{[]string{"mlb"}, "mlb", "MLB", "Baseball"},
+		{[]string{"mlb", "cubs classics"}, "mlb", "MLB", "Baseball"},
+		{[]string{"cebl", "canadian elite basketball league"}, "cebl", "CEBL", "Basketball"},
 		{[]string{"nhl"}, "nhl", "NHL", "Hockey"},
 		{[]string{"mls"}, "mls", "MLS", "Soccer"},
 		{[]string{"uefa champions league", "champions league"}, "uefa-champions-league", "UEFA Champions League", "Soccer"},
 		{[]string{"premier league"}, "premier-league", "Premier League", "Soccer"},
 		{[]string{"world cup", "fifa"}, "world-cup", "World Cup", "Soccer"},
 		{[]string{"ufc", "mma"}, "mma", "MMA", "Combat Sports"},
-		{[]string{"boxing"}, "boxing", "Boxing", "Combat Sports"},
+		{[]string{"boxing", "boxeo"}, "boxing", "Boxing", "Combat Sports"},
 		{[]string{"formula e", "formule e"}, "formula-e", "Formula E", "Motorsport"},
 		{[]string{"formula 1", "f1"}, "formula-1", "Formula 1", "Motorsport"},
 		{[]string{"nascar cup series", "ncs race"}, "nascar-cup-series", "NASCAR Cup Series", "Motorsport"},
@@ -744,7 +746,7 @@ func guideSportsLeague(value string) (string, string, string, bool) {
 
 func guideSportsMatchup(title string) (string, string, bool) {
 	title = cleanGuideSportsAnnotations(title)
-	if guideSportsNonMatchTitle.MatchString(title) {
+	if guideSportsNonMatchTitle.MatchString(title) || guideSportsMultipleBouts(title) {
 		return "", "", false
 	}
 	title = guideSportsNextGameSuffix.ReplaceAllString(title, "")
@@ -771,6 +773,20 @@ func guideSportsMatchup(title string) (string, string, bool) {
 		return "", "", false
 	}
 	return left, right, true
+}
+
+// A semicolon-separated fight card is one broadcast, not one pair of fighters.
+func guideSportsMultipleBouts(title string) bool {
+	parts := strings.Split(title, ";")
+	if len(parts) < 2 {
+		return false
+	}
+	for _, part := range parts {
+		if len(sportsMatchupSeparator.FindAllStringIndex(part, -1)) != 1 {
+			return false
+		}
+	}
+	return true
 }
 
 func cleanGuideSportsAnnotations(value string) string {

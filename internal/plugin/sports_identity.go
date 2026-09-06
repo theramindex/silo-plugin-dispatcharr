@@ -58,9 +58,11 @@ var gameThumbsLeagueRoutes = []sportsIdentityRoute{
 
 var sportsCountryNames = map[string]string{
 	"afghanistan":          "Afghanistan",
+	"argentina":            "Argentina",
 	"australia":            "Australia",
 	"bangladesh":           "Bangladesh",
 	"canada":               "Canada",
+	"cuba":                 "Cuba",
 	"dominican republic":   "Dominican Republic",
 	"england":              "England",
 	"india":                "India",
@@ -161,6 +163,20 @@ func applySportsIdentityFallbacks(event SportsEvent) SportsEvent {
 
 func applySpecialSportsIdentityFallbacks(event SportsEvent) SportsEvent {
 	identityText := normalizeSportsIdentityText(strings.Join([]string{event.LeagueID, event.LeagueName, event.SportName, event.Name}, " "))
+	for _, team := range []*SportsTeam{&event.Away, &event.Home} {
+		if team.LogoURL != "" {
+			continue
+		}
+		name := normalizeSportsIdentityText(team.Name)
+		if event.LeagueID == "mlb" {
+			if code := map[string]string{"dodgers": "lad", "los angeles dodgers": "lad", "cubs": "chc", "chicago cubs": "chc"}[name]; code != "" {
+				team.LogoURL = "https://a.espncdn.com/i/teamlogos/mlb/500/" + code + ".png"
+			}
+		}
+		if event.LeagueID == "cebl" && (name == "brampton" || name == "brampton honey badgers") {
+			team.LogoURL = "https://irp.cdn-website.com/ffc1e51d/dms3rep/multi/opt/BramptonHoneyBadgers_Icon+%282%29-1920w.png"
+		}
+	}
 	if leagueID, _, sport := guideCollegeCompetition(identityText); leagueID != "" && sport != "Football" {
 		if event.LeagueLogoURL == "" {
 			event.LeagueLogoURL = ncaaLeagueLogoURL
@@ -229,6 +245,10 @@ func applyAFLTeamIdentity(team SportsTeam) SportsTeam {
 
 func applyCountryTeamIdentity(team SportsTeam) SportsTeam {
 	if team.LogoURL != "" {
+		return team
+	}
+	if code := map[string]string{"argentina": "ar", "cuba": "cu"}[normalizeSportsIdentityText(team.Name)]; code != "" {
+		team.LogoURL = "https://flagcdn.com/w160/" + code + ".png"
 		return team
 	}
 	if country := sportsCountryNames[normalizeSportsIdentityText(team.Name)]; country != "" {
