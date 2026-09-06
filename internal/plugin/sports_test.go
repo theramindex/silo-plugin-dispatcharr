@@ -496,6 +496,9 @@ func TestCollegeGamePassesSeparateSports(t *testing.T) {
 			t.Fatalf("college passes must distinguish competition: %+v", event)
 		}
 		seen[event.Home.ID] = true
+		if tc.league != "College Football" && event.LeagueLogoURL != ncaaLeagueLogoURL {
+			t.Fatalf("college competitions need an NCAA league mark: %s", event.LeagueName)
+		}
 		if tc.league == "College Football" && event.Home.ID != stableSportsTeamID(SportsTeam{Name: "Michigan", Abbreviation: "M"}) {
 			t.Fatal("existing football passes must retain their identity")
 		}
