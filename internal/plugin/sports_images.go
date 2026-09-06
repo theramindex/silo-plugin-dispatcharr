@@ -171,7 +171,7 @@ func (s *HTTPRoutesServer) proxySportsEventImages(events []SportsEvent) []Sports
 		for _, logo := range []*string{&event.LeagueLogoURL, &event.Home.LogoURL, &event.Away.LogoURL} {
 			// These public identity assets already load directly in guide results.
 			// Keep the same URLs when provider scores arrive.
-			if strings.HasPrefix(*logo, ncaaTeamLogoBase) || strings.HasPrefix(*logo, gameThumbsPublicBaseURL+"/") || *logo == ncaaLeagueLogoURL {
+			if strings.HasPrefix(*logo, ncaaTeamLogoBase) || strings.HasPrefix(*logo, gameThumbsPublicBaseURL+"/") || *logo == ncaaLeagueLogoURL || *logo == formulaOneLeagueLogoURL || *logo == formulaELeagueLogoURL {
 				continue
 			}
 			*logo = s.sportsImages.register(*logo)

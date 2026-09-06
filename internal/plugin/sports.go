@@ -1035,6 +1035,10 @@ func sportsLeagues(events []SportsEvent) []SportsLeague {
 				Description: event.LeagueDescription,
 			}
 			byID[id] = league
+			if id == "sports" {
+				league.Name = "Other sports"
+				league.Description = "Guide broadcasts whose league has not been identified."
+			}
 		}
 		if league.ProviderID == "" {
 			league.ProviderID = event.ProviderLeagueID

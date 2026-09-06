@@ -563,6 +563,23 @@ func TestMichiganSchoolsHaveDistinctRosterLogos(t *testing.T) {
 	}
 }
 
+func TestFormulaLeagueLogosSurvivePreparedPayload(t *testing.T) {
+	t.Parallel()
+	server := NewHTTPRoutesServer(nil)
+	server.sportsImages = newSportsImageCache(t.TempDir(), nil)
+	events := server.proxySportsEventImages(normalizeSportsEvents([]SportsEvent{
+		{Name: "Formula 1: Italian Grand Prix", LeagueName: "Formula 1"},
+		{Name: "Formula E: London E-Prix", LeagueName: "Formula E"},
+	}))
+	if events[0].LeagueLogoURL != formulaOneLeagueLogoURL || events[1].LeagueLogoURL != formulaELeagueLogoURL {
+		t.Fatalf("public racing logos must remain loadable after preparation: %+v", events)
+	}
+	leagues := sportsLeagues([]SportsEvent{{LeagueID: "sports", LeagueName: "Sports"}})
+	if len(leagues) != 1 || leagues[0].ID != "sports" || leagues[0].Name != "Other sports" || leagues[0].Description == "" {
+		t.Fatal("unidentified broadcasts must remain available with an honest category label")
+	}
+}
+
 func TestSportsIdentityFallbacksAddFormulaELeagueLogo(t *testing.T) {
 	t.Parallel()
 
