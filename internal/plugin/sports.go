@@ -190,6 +190,9 @@ type SportsMatchDiagnostic struct {
 }
 
 func (s *HTTPRoutesServer) handleSports(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if queryValue(request, "game_stats") != "" {
+		return s.handleSportsGameStats(ctx, request)
+	}
 	if request.GetMethod() != "" && request.GetMethod() != http.MethodGet {
 		return textResponse(http.StatusMethodNotAllowed, "method not allowed"), nil
 	}

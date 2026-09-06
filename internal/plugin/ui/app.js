@@ -3324,7 +3324,7 @@ function syncSportsGameStats(event) {
   }
   if (!id || sportsGameStatsState.loading || Date.now() - sportsGameStatsState.fetchedAt < 30000) return;
   sportsGameStatsState.loading = true;
-  getJSONWithin("/dispatcharr/api/sports/game-stats?event_id=" + encodeURIComponent(id), 12000, "Stats took too long to respond.").then(function(data) {
+  getJSONWithin("/dispatcharr/api/sports?game_stats=" + encodeURIComponent(id), 12000, "Stats took too long to respond.").then(function(data) {
     if (sportsGameStatsState.id !== id) return;
     if (!data.available && sportsGameStatsState.data && sportsGameStatsState.data.available) sportsGameStatsState.data.message = data.message;
     else sportsGameStatsState.data = data;
