@@ -45,4 +45,12 @@ func TestSportsCardsUseScopedTeamLogosAndNationalFlags(t *testing.T) {
 	if team := applyCountryTeamIdentity(SportsTeam{Name: "Brampton"}); team.LogoURL != "" {
 		t.Fatal("a city club must not receive a national flag")
 	}
+	server := NewHTTPRoutesServer(cache.NewStore())
+	server.sportsImages = newSportsImageCache(t.TempDir(), nil)
+	refreshed := server.proxySportsEventImages(events)
+	for i, event := range refreshed {
+		if event.Home.LogoURL != events[i].Home.LogoURL || event.Away.LogoURL != events[i].Away.LogoURL {
+			t.Fatal("provider refresh must preserve the working public identity URLs")
+		}
+	}
 }
