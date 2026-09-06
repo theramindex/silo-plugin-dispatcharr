@@ -545,6 +545,33 @@ func TestCollegeGamePassesSeparateSports(t *testing.T) {
 	}
 }
 
+func TestWorldCupCompetitionsRemainSeparate(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ title, id, league, sport string }{
+		{"Copa Mundial Femenina Sub-20 de la FIFA 2026 : Estados Unidos Sub-20 vs. Italia Sub-20", "fifa-womens-u20-world-cup", "FIFA Women's U-20 World Cup", "Soccer"},
+		{"2026 FIFA U-20 Women's World Cup : USA U20 vs. Italy U20", "fifa-womens-u20-world-cup", "FIFA Women's U-20 World Cup", "Soccer"},
+		{"2026 FIBA Women's Basketball World Cup : Puerto Rico vs. Belgium", "fiba-womens-world-cup", "FIBA Women's Basketball World Cup", "Basketball"},
+		{"FIFA U20 World Cup: USA vs. Italy", "fifa-u20-world-cup", "FIFA U-20 World Cup", "Soccer"},
+		{"FIFA Women's World Cup: USA vs. Italy", "fifa-womens-world-cup", "FIFA Women's World Cup", "Soccer"},
+		{"FIBA Basketball World Cup: USA vs. Italy", "fiba-world-cup", "FIBA Basketball World Cup", "Basketball"},
+		{"FIFA World Cup: USA vs. Italy", "world-cup", "World Cup", "Soccer"},
+	}
+	for _, tc := range cases {
+		id, league, sport, matched := guideSportsLeague(tc.title)
+		if !matched || id != tc.id || league != tc.league || sport != tc.sport {
+			t.Fatalf("wrong competition for %q: %q %q %q", tc.title, id, league, sport)
+		}
+		// Previously cached/provider classifications must also be corrected.
+		event := SportsEvent{Name: tc.title, LeagueID: "world-cup", LeagueName: "World Cup", SportName: "Soccer"}
+		for range 2 {
+			event = canonicalizeKnownSportsLeague(event)
+			if event.LeagueID != tc.id || event.LeagueName != tc.league || event.SportName != tc.sport {
+				t.Fatalf("incorrect or unstable canonical competition: %+v", event)
+			}
+		}
+	}
+}
+
 func TestCollegeFieldHockeyClassification(t *testing.T) {
 	t.Parallel()
 	for _, title := range []string{

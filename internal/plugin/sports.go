@@ -705,7 +705,41 @@ func guideCollegeCompetition(value string) (string, string, string) {
 	return "college-" + sport, "College " + sportName, sportName
 }
 
+var under20CompetitionPattern = regexp.MustCompile(`\b(?:u|under|sub) ?20\b`)
+
+func guideWorldCupCompetition(value string) (string, string, string) {
+	text := normalizeMatchText(value)
+	if !containsMatchTerm(text, "world cup") && !containsMatchTerm(text, "copa mundial") {
+		return "", "", ""
+	}
+	womens := false
+	for _, term := range []string{"women", "womens", "femenina", "femenino"} {
+		womens = womens || containsMatchTerm(text, term)
+	}
+	if containsMatchTerm(text, "fiba") || containsMatchTerm(text, "basketball") {
+		if womens {
+			return "fiba-womens-world-cup", "FIBA Women's Basketball World Cup", "Basketball"
+		}
+		return "fiba-world-cup", "FIBA Basketball World Cup", "Basketball"
+	}
+	if containsMatchTerm(text, "fifa") || containsMatchTerm(text, "soccer") {
+		if under20CompetitionPattern.MatchString(text) {
+			if womens {
+				return "fifa-womens-u20-world-cup", "FIFA Women's U-20 World Cup", "Soccer"
+			}
+			return "fifa-u20-world-cup", "FIFA U-20 World Cup", "Soccer"
+		}
+		if womens {
+			return "fifa-womens-world-cup", "FIFA Women's World Cup", "Soccer"
+		}
+	}
+	return "", "", ""
+}
+
 func guideSportsLeague(value string) (string, string, string, bool) {
+	if id, name, sport := guideWorldCupCompetition(value); id != "" {
+		return id, name, sport, true
+	}
 	if id, name, sport := guideCollegeCompetition(value); id != "" {
 		return id, name, sport, true
 	}
