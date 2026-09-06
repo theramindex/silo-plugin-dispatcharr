@@ -3392,7 +3392,8 @@ function renderSportsTopMatchups(events) {
       + "<span><small>" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</small><strong>" + escapeHTML(sportsEventTitle(event)) + "</strong><em>" + escapeHTML(reasons || sportsStatusLabel(event)) + "</em></span>"
       + icon("chevron-right") + "</button>";
   }).join("") + "</div>";
-  return sportsSectionHTML("Top matchups", "<span class=\"sports-section-count\">Why these games?</span>", body, "sports-top-section");
+  const explanation = "<details class=\"sports-ranking-help\"><summary>Why these games?</summary><p>Recommendations use start time, championship stage, rivalries, rankings, close scores, your followed teams and leagues, and available channels. The number is an interest score out of 10. Open a game to see its reasons and points.</p></details>";
+  return sportsSectionHTML("Top matchups", "", explanation + body, "sports-top-section");
 }
 function renderSportsWhyThisGame(event) {
   const ranking = sportsEffectiveRanking(event);
@@ -3497,13 +3498,14 @@ function renderSportsLeagueShelf(payload, events) {
   const body = "<div class=\"sports-league-grid\">" + leagues.map(function(league) {
     const visibleEvents = items(events).filter(function(event) { return String(event.leagueId || "") === String(league.id || ""); });
     const liveCount = visibleEvents.filter(sportsEventIsLive).length;
-    const detail = [league.sportName, liveCount ? liveCount + " live" : visibleEvents.length + " events"].filter(Boolean).join(" · ");
+    const detail = [league.id === "sports" ? "League not identified" : league.sportName, liveCount ? liveCount + " live" : visibleEvents.length + " events"].filter(Boolean).join(" · ");
     return "<button type=\"button\" class=\"sports-league-card\" data-sports-open-league=\"" + escapeHTML(league.id || "") + "\">" + renderSportsLeagueMark(league) + "<span><strong>" + escapeHTML(league.name || league.id || "League") + "</strong><small>" + escapeHTML(detail) + "</small></span>" + icon("chevron-right") + "</button>";
   }).join("") + "</div>";
   return sportsSectionHTML("Browse leagues", "", body, "sports-league-section");
 }
 function renderSportsLeagueMark(league) {
   const name = league && (league.name || league.id) || "League";
+  if (league && league.id === "sports") return "<span class=\"sports-league-mark\" aria-label=\"Other sports\">" + icon("tv") + "</span>";
   const logo = safeSportsMediaURL(league && league.logoUrl);
   const fallback = sportsLeagueFallbackMark(league);
   if (logo) return "<span class=\"sports-league-mark has-logo\"><img src=\"" + escapeHTML(logo) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;this.parentElement.classList.remove('has-logo');\"><span hidden>" + escapeHTML(fallback) + "</span></span>";

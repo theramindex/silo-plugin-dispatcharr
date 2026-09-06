@@ -13,11 +13,12 @@ const gameThumbsPublicBaseURL = "https://game-thumbs.swvn.io"
 const sportsLogosRawBaseURL = "https://raw.githubusercontent.com/alexanderthebadatcoding/Sports-Logos/main"
 
 const (
-	aflLeagueLogoURL      = "https://r2.thesportsdb.com/images/media/league/badge/wvx4721525519372.png"
-	aflTeamLogoBase       = "https://squiggle.com.au/wp-content/themes/squiggle/assets/images/"
-	formulaELeagueLogoURL = "https://upload.wikimedia.org/wikipedia/commons/8/8c/Formula-e-logo-championship_2023.svg"
-	ncaaTeamLogoBase      = "https://a.espncdn.com/i/teamlogos/ncaa/500/"
-	ncaaLeagueLogoURL     = "https://upload.wikimedia.org/wikipedia/commons/d/dd/NCAA_logo.svg"
+	aflLeagueLogoURL        = "https://r2.thesportsdb.com/images/media/league/badge/wvx4721525519372.png"
+	aflTeamLogoBase         = "https://squiggle.com.au/wp-content/themes/squiggle/assets/images/"
+	formulaELeagueLogoURL   = "https://upload.wikimedia.org/wikipedia/commons/8/8c/Formula-e-logo-championship_2023.svg"
+	formulaOneLeagueLogoURL = "https://upload.wikimedia.org/wikipedia/commons/2/2d/Formula_One_logo.svg"
+	ncaaTeamLogoBase        = "https://a.espncdn.com/i/teamlogos/ncaa/500/"
+	ncaaLeagueLogoURL       = "https://upload.wikimedia.org/wikipedia/commons/d/dd/NCAA_logo.svg"
 )
 
 type sportsIdentityRoute struct {
@@ -174,6 +175,9 @@ func applySpecialSportsIdentityFallbacks(event SportsEvent) SportsEvent {
 	}
 	if event.LeagueLogoURL == "" && formulaERacePattern.MatchString(identityText) {
 		event.LeagueLogoURL = formulaELeagueLogoURL
+	}
+	if leagueID, _, _, _ := guideSportsLeague(identityText); event.LeagueLogoURL == "" && leagueID == "formula-1" {
+		event.LeagueLogoURL = formulaOneLeagueLogoURL
 	}
 	if collegeSportsIdentity.MatchString(identityText) {
 		event.Away = applyNCAATeamIdentity(event.Away)
