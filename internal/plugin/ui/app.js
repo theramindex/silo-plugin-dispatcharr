@@ -3392,7 +3392,13 @@ function sportsLeagueByID(payload, leagueID) {
   return items(payload && payload.leagues).find(function(league) { return String(league.id || "") === String(leagueID); }) || null;
 }
 function sportsEventTitle(event) {
-  if (event && (event.name || event.shortName)) return event.name || event.shortName;
+  if (event && (event.name || event.shortName)) {
+    const title = String(event.name || event.shortName);
+    if (/^Next Game:\s*/i.test(title)) {
+      return title.replace(/^Next Game:\s*/i, "").replace(/\s+on\s+\d{4}-\d{2}-\d{2}\s+at\s+\d{1,2}:\d{2}\s*(?:AM|PM)\s*[A-Z]{2,5}\s*$/i, "");
+    }
+    return title;
+  }
   return sportsTeamName(event && event.away) + " at " + sportsTeamName(event && event.home);
 }
 function sportsEventStateID(event) {
@@ -3496,6 +3502,7 @@ function renderSportsFeature(event) {
     + (art ? "" : "<div class=\"sports-feature-fallback\">" + renderSportsMatchupThumbnail(event) + "</div>")
     + "<div class=\"sports-feature-copy\"><span class=\"sports-eyebrow\">" + escapeHTML(live ? "Featured live event" : (onNow ? sportsStatusLabel(event) : "Next up")) + "</span>"
     + "<h1>" + escapeHTML(sportsEventTitle(event)) + "</h1>"
+    + (!onNow && event.startUnix ? "<p class=\"sports-feature-schedule\">" + escapeHTML(sportsDateLabel(event.startUnix)) + "</p>" : "")
     + (art ? renderSportsFeatureScore(event) : "")
     + "<div class=\"sports-feature-actions\">" + watch + "<button type=\"button\" class=\"sports-secondary-action\" data-sports-open-event=\"" + escapeHTML(sportsEventStateID(event)) + "\">Event details" + icon("chevron-right") + "</button></div>"
     + "</div></section>";

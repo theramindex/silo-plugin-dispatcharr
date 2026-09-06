@@ -32,6 +32,7 @@ func TestSportsCardsUseScopedTeamLogosAndNationalFlags(t *testing.T) {
 		{ID: "classic", Name: "Cubs Classics : 2007: Dodgers at Cubs", Away: SportsTeam{Name: "Dodgers"}, Home: SportsTeam{Name: "Cubs"}},
 		{ID: "cebl", Name: "CEBL: Brampton at Ottawa", Away: SportsTeam{Name: "Brampton"}, Home: SportsTeam{Name: "Ottawa"}},
 		{ID: "countries", Name: "Volleyball: Argentina vs Cuba", Away: SportsTeam{Name: "Argentina"}, Home: SportsTeam{Name: "Cuba"}},
+		{ID: "fiba", Name: "2026 FIBA Women's Basketball World Cup: Puerto Rico vs Belgium"},
 	})
 	if events[0].LeagueID != "mlb" || !strings.HasSuffix(events[0].Away.LogoURL, "/lad.png") || !strings.HasSuffix(events[0].Home.LogoURL, "/chc.png") {
 		t.Fatalf("baseball classics must retain MLB artwork: %+v", events[0])
@@ -42,6 +43,9 @@ func TestSportsCardsUseScopedTeamLogosAndNationalFlags(t *testing.T) {
 	if events[2].Away.LogoURL != "https://flagcdn.com/w160/ar.png" || events[2].Home.LogoURL != "https://flagcdn.com/w160/cu.png" {
 		t.Fatal("national teams must receive their country flags")
 	}
+	if events[1].LeagueLogoURL != ceblLeagueLogoURL || events[3].LeagueLogoURL != fibaWomensLeagueLogoURL {
+		t.Fatal("CEBL and FIBA women's basketball must receive their official league marks")
+	}
 	if team := applyCountryTeamIdentity(SportsTeam{Name: "Brampton"}); team.LogoURL != "" {
 		t.Fatal("a city club must not receive a national flag")
 	}
@@ -49,7 +53,7 @@ func TestSportsCardsUseScopedTeamLogosAndNationalFlags(t *testing.T) {
 	server.sportsImages = newSportsImageCache(t.TempDir(), nil)
 	refreshed := server.proxySportsEventImages(events)
 	for i, event := range refreshed {
-		if event.Home.LogoURL != events[i].Home.LogoURL || event.Away.LogoURL != events[i].Away.LogoURL {
+		if event.Home.LogoURL != events[i].Home.LogoURL || event.Away.LogoURL != events[i].Away.LogoURL || event.LeagueLogoURL != events[i].LeagueLogoURL {
 			t.Fatal("provider refresh must preserve the working public identity URLs")
 		}
 	}

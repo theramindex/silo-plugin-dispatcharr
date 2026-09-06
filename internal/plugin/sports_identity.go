@@ -19,6 +19,8 @@ const (
 	formulaOneLeagueLogoURL = "https://upload.wikimedia.org/wikipedia/commons/2/2d/Formula_One_logo.svg"
 	ncaaTeamLogoBase        = "https://a.espncdn.com/i/teamlogos/ncaa/500/"
 	ncaaLeagueLogoURL       = "https://upload.wikimedia.org/wikipedia/commons/d/dd/NCAA_logo.svg"
+	ceblLeagueLogoURL       = "https://irp.cdn-website.com/d8d53c44/dms3rep/multi/CEBL_Primary-Logo_Full-Wordmark.svg"
+	fibaWomensLeagueLogoURL = "https://assets.fiba.basketball/image/upload/w_400,h_128,c_fit/q_auto/f_auto/v1723639691/.asset_mainlogo--competition_208875"
 )
 
 type sportsIdentityRoute struct {
@@ -162,6 +164,14 @@ func applySportsIdentityFallbacks(event SportsEvent) SportsEvent {
 }
 
 func applySpecialSportsIdentityFallbacks(event SportsEvent) SportsEvent {
+	if event.LeagueLogoURL == "" {
+		switch event.LeagueID {
+		case "cebl":
+			event.LeagueLogoURL = ceblLeagueLogoURL
+		case "fiba-womens-world-cup":
+			event.LeagueLogoURL = fibaWomensLeagueLogoURL
+		}
+	}
 	identityText := normalizeSportsIdentityText(strings.Join([]string{event.LeagueID, event.LeagueName, event.SportName, event.Name}, " "))
 	for _, team := range []*SportsTeam{&event.Away, &event.Home} {
 		if team.LogoURL != "" {
