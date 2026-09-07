@@ -3550,9 +3550,9 @@ function renderSportsLeagueShelf(payload, events) {
 function renderSportsLeagueMark(league) {
   const name = league && (league.name || league.id) || "League";
   if (league && league.id === "sports") return "<span class=\"sports-league-mark\" aria-label=\"Other sports\">" + icon("tv") + "</span>";
-  const logo = safeSportsMediaURL(league && league.logoUrl);
+  const logo = sportsPreferredLogo(league && league.logoUrl, league && league.logoFallbackUrl);
   const fallback = sportsLeagueFallbackMark(league);
-  if (logo) return "<span class=\"sports-league-mark has-logo\"><img src=\"" + escapeHTML(logo) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;this.parentElement.classList.remove('has-logo');\"><span hidden>" + escapeHTML(fallback) + "</span></span>";
+  if (logo) return "<span class=\"sports-league-mark has-logo\"><img src=\"" + escapeHTML(logo) + "\" alt=\"\" loading=\"lazy\" onerror=\"markSportsMediaFailed(this);\"><span hidden>" + escapeHTML(fallback) + "</span></span>";
   return "<span class=\"sports-league-mark\" aria-label=\"" + escapeHTML(name) + "\"><span>" + escapeHTML(fallback) + "</span></span>";
 }
 function sportsLeagueFallbackMark(league) {
@@ -3586,21 +3586,23 @@ function renderSportsMatchupThumbnail(event) {
   const home = event.home || {};
   const awayColor = safeSportsTeamColor(away.primaryColor || away.secondaryColor, "#262a32");
   const homeColor = safeSportsTeamColor(home.primaryColor || home.secondaryColor, "#30343c");
-  const leagueLogo = safeSportsMediaURL(event.leagueLogoUrl);
+  const leagueLogo = sportsPreferredLogo(event.leagueLogoUrl, event.leagueLogoFallbackUrl);
   const showScore = sportsEventHasScores(event);
-  const center = leagueLogo ? "<img src=\"" + escapeHTML(leagueLogo) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;\"><b hidden>VS</b>" : "<b>VS</b>";
+  const center = leagueLogo ? "<img src=\"" + escapeHTML(leagueLogo) + "\" alt=\"\" onerror=\"markSportsMediaFailed(this);\"><b hidden>VS</b>" : "<b>VS</b>";
   return "<span class=\"sports-matchup-thumb\" aria-hidden=\"true\" style=\"--match-away:" + awayColor + ";--match-home:" + homeColor + "\">"
+    + sportsGeneratedBackground(event)
     + "<span class=\"sports-matchup-thumb-team away\">" + renderSportsTeamLogo(away, "sports-matchup-thumb-logo") + "<strong>" + escapeHTML(sportsTeamName(away)) + "</strong>" + (showScore ? "<em>" + escapeHTML(sportsScoresHidden(false) ? "–" : (event.awayScore || "0")) + "</em>" : "") + "</span>"
     + "<span class=\"sports-matchup-thumb-center\">" + center + "<small>vs</small></span>"
     + "<span class=\"sports-matchup-thumb-team home\">" + renderSportsTeamLogo(home, "sports-matchup-thumb-logo") + "<strong>" + escapeHTML(sportsTeamName(home)) + "</strong>" + (showScore ? "<em>" + escapeHTML(sportsScoresHidden(false) ? "–" : (event.homeScore || "0")) + "</em>" : "") + "</span>"
     + "</span>";
 }
 function renderSportsProgramThumbnail(event) {
-  const logo = safeSportsMediaURL(event.leagueLogoUrl);
-  const mark = logo ? "<img src=\"" + escapeHTML(logo) + "\" alt=\"\">" : icon("trophy");
+  const logo = sportsPreferredLogo(event.leagueLogoUrl, event.leagueLogoFallbackUrl);
+  const mark = logo ? "<img src=\"" + escapeHTML(logo) + "\" alt=\"\" onerror=\"markSportsMediaFailed(this);\"><b hidden>" + escapeHTML(sportsLeagueFallbackMark({ id: event.leagueId, name: event.leagueName })) + "</b>" : icon("trophy");
   const bouts = event.leagueId === "boxing" ? sportsEventTitle(event).split(";").map(function(bout) { return bout.trim().replace(/^Boxeo de Primera\s*:\s*/i, ""); }) : [];
-  if (bouts.length > 1) return "<span class=\"sports-matchup-thumb sports-program-thumb\" aria-hidden=\"true\"><span class=\"sports-program-mark\">" + mark + "</span><span class=\"sports-program-copy\"><small>Boxing · " + bouts.length + " bouts</small>" + bouts.map(function(bout) { return "<strong>" + escapeHTML(bout) + "</strong>"; }).join("") + "</span></span>";
+  if (bouts.length > 1) return "<span class=\"sports-matchup-thumb sports-program-thumb\" aria-hidden=\"true\">" + sportsGeneratedBackground(event) + "<span class=\"sports-program-mark\">" + mark + "</span><span class=\"sports-program-copy\"><small>Boxing · " + bouts.length + " bouts</small>" + bouts.map(function(bout) { return "<strong>" + escapeHTML(bout) + "</strong>"; }).join("") + "</span></span>";
   return "<span class=\"sports-matchup-thumb sports-program-thumb\" aria-hidden=\"true\">"
+    + sportsGeneratedBackground(event)
     + "<span class=\"sports-program-mark\">" + mark + "</span>"
     + "<span class=\"sports-program-copy\"><small>" + escapeHTML(event.leagueName || event.sportName || "Sports") + "</small><strong>" + escapeHTML(sportsEventTitle(event)) + "</strong></span>"
     + "</span>";
@@ -3618,17 +3620,17 @@ function renderSportsArtworkThumbnail(event, art) {
     + "</span>";
 }
 function renderSportsArtworkProgram(event) {
-  const logo = safeSportsMediaURL(event.leagueLogoUrl);
+  const logo = sportsPreferredLogo(event.leagueLogoUrl, event.leagueLogoFallbackUrl);
   return "<span class=\"sports-artwork-program\" aria-hidden=\"true\">"
-    + (logo ? "<img src=\"" + escapeHTML(logo) + "\" alt=\"\">" : icon("trophy"))
+    + (logo ? "<img src=\"" + escapeHTML(logo) + "\" alt=\"\" onerror=\"markSportsMediaFailed(this);\">" : icon("trophy"))
     + "<strong>" + escapeHTML(event.leagueName || event.sportName || "Sports") + "</strong></span>";
 }
 function renderSportsArtworkMatchup(event) {
   const away = event.away || {};
   const home = event.home || {};
-  const leagueLogo = safeSportsMediaURL(event.leagueLogoUrl);
+  const leagueLogo = sportsPreferredLogo(event.leagueLogoUrl, event.leagueLogoFallbackUrl);
   const showScore = sportsEventHasScores(event);
-  const center = leagueLogo ? "<img src=\"" + escapeHTML(leagueLogo) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;\"><b hidden>VS</b>" : "<b>VS</b>";
+  const center = leagueLogo ? "<img src=\"" + escapeHTML(leagueLogo) + "\" alt=\"\" onerror=\"markSportsMediaFailed(this);\"><b hidden>VS</b>" : "<b>VS</b>";
   return "<span class=\"sports-artwork-matchup\" aria-hidden=\"true\">"
     + "<span class=\"sports-artwork-team\">" + renderSportsTeamLogo(away, "sports-artwork-team-logo") + "<strong>" + escapeHTML(sportsTeamName(away)) + "</strong>" + (showScore ? "<em>" + escapeHTML(sportsScoresHidden(false) ? "–" : (event.awayScore || "0")) + "</em>" : "") + "</span>"
     + "<span class=\"sports-artwork-center\">" + center + "</span>"
@@ -3636,20 +3638,21 @@ function renderSportsArtworkMatchup(event) {
     + "</span>";
 }
 function renderSportsArtworkRace(event) {
-  const logo = safeSportsMediaURL(event.leagueLogoUrl);
+  const logo = sportsPreferredLogo(event.leagueLogoUrl, event.leagueLogoFallbackUrl);
   const series = sportsTeamName(event.away || {}) || event.leagueName || "Motorsport";
   const location = sportsTeamName(event.home || {}) || "Race";
   return "<span class=\"sports-artwork-race\" aria-hidden=\"true\">"
-    + (logo ? "<img src=\"" + escapeHTML(logo) + "\" alt=\"\">" : "")
+    + (logo ? "<img src=\"" + escapeHTML(logo) + "\" alt=\"\" onerror=\"markSportsMediaFailed(this);\">" : "")
     + "<span><strong>" + escapeHTML(series) + "</strong><small>" + escapeHTML(location) + "</small></span></span>";
 }
 function renderSportsRaceThumbnail(event) {
   const series = sportsTeamName(event.away || {}) || event.leagueName || "Motorsport";
   const location = sportsTeamName(event.home || {}) || "Race";
   const raceLabel = event.sportName || "Motorsport";
-  const logo = safeSportsMediaURL(event.leagueLogoUrl);
-  const mark = logo ? "<img src=\"" + escapeHTML(logo) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;\"><b hidden>" + escapeHTML(sportsLeagueFallbackMark({ id: event.leagueId, name: event.leagueName })) + "</b>" : "<b>" + escapeHTML(sportsLeagueFallbackMark({ id: event.leagueId, name: event.leagueName })) + "</b>";
+  const logo = sportsPreferredLogo(event.leagueLogoUrl, event.leagueLogoFallbackUrl);
+  const mark = logo ? "<img src=\"" + escapeHTML(logo) + "\" alt=\"\" onerror=\"markSportsMediaFailed(this);\"><b hidden>" + escapeHTML(sportsLeagueFallbackMark({ id: event.leagueId, name: event.leagueName })) + "</b>" : "<b>" + escapeHTML(sportsLeagueFallbackMark({ id: event.leagueId, name: event.leagueName })) + "</b>";
   return "<span class=\"sports-matchup-thumb sports-race-thumb\" aria-hidden=\"true\">"
+    + sportsGeneratedBackground(event)
     + "<span class=\"sports-race-mark\">" + mark + "</span>"
     + "<span class=\"sports-race-copy\"><small>" + escapeHTML(raceLabel) + "</small><strong>" + escapeHTML(series) + "</strong><span class=\"sports-race-location\"><small>Race</small><b>" + escapeHTML(location) + "</b></span></span>"
     + "</span>";
@@ -4030,13 +4033,41 @@ function markSportsMediaFailed(image) {
   const logo = safeSportsMediaURL(image && image.getAttribute("src"));
   if (logo) state.sportsFailedMedia[logo] = true;
   if (!image) return;
+  const fallback = state.sportsLogoFallbacks && state.sportsLogoFallbacks[logo];
+  if (fallback && !sportsMediaFailed(fallback)) {
+    image.setAttribute("src", fallback);
+    return;
+  }
   image.hidden = true;
   if (image.nextElementSibling) image.nextElementSibling.hidden = false;
+  if (image.parentElement && image.parentElement.classList.contains("sports-league-mark")) image.parentElement.classList.remove("has-logo");
+}
+function sportsPreferredLogo(value, fallbackValue) {
+  const logo = safeSportsMediaURL(value);
+  const fallback = safeSportsMediaURL(fallbackValue);
+  if (logo && fallback && logo !== fallback) {
+    if (!state.sportsLogoFallbacks) state.sportsLogoFallbacks = {};
+    state.sportsLogoFallbacks[logo] = fallback;
+  }
+  if (logo && !sportsMediaFailed(logo)) return logo;
+  return fallback && !sportsMediaFailed(fallback) ? fallback : "";
+}
+function sportsGeneratedBackground(event) {
+  const background = safeSportsMediaURL(event && event.gameThumbsBackgroundUrl);
+  if (!background || sportsMediaFailed(background)) return "";
+  return "<img class=\"sports-generated-bg\" src=\"" + escapeHTML(background) + "\" alt=\"\" loading=\"lazy\" onload=\"this.parentElement.classList.add('has-generated-art');\" onerror=\"markSportsBackgroundFailed(this);\">";
+}
+function markSportsBackgroundFailed(image) {
+  const url = safeSportsMediaURL(image && image.getAttribute("src"));
+  if (url) state.sportsFailedMedia[url] = true;
+  if (!image) return;
+  image.hidden = true;
+  if (image.parentElement) image.parentElement.classList.remove("has-generated-art");
 }
 function renderSportsTeamLogo(team, className) {
   const label = sportsTeamAbbreviation(team).slice(0, 3);
-  const logo = safeSportsMediaURL(team && team.logoUrl);
-  if (logo && !sportsMediaFailed(logo)) return "<img class=\"" + className + "\" src=\"" + escapeHTML(logo) + "\" alt=\"\" onerror=\"markSportsMediaFailed(this);\"><span class=\"" + className + " logo-fallback\" hidden>" + escapeHTML(label) + "</span>";
+  const logo = sportsPreferredLogo(team && team.logoUrl, team && team.logoFallbackUrl);
+  if (logo) return "<img class=\"" + className + "\" src=\"" + escapeHTML(logo) + "\" alt=\"\" loading=\"lazy\" onerror=\"markSportsMediaFailed(this);\"><span class=\"" + className + " logo-fallback\" hidden>" + escapeHTML(label) + "</span>";
   return "<span class=\"" + className + " logo-fallback\">" + escapeHTML(label) + "</span>";
 }
 function renderSportsMatchup(event, status) {

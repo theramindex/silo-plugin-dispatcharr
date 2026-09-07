@@ -3,6 +3,36 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
+test('game-thumbs failures fall back once and retain the local layout', () => {
+  const source = fs.readFileSync(new URL('../internal/plugin/ui/app.js', import.meta.url), 'utf8');
+  const state = {sportsFailedMedia: {}};
+  const ctx = vm.createContext({state, safeSportsMediaURL: value => String(value || ''), escapeHTML: value => String(value || '')});
+  for (const name of ['sportsMediaFailed', 'markSportsMediaFailed', 'sportsPreferredLogo', 'sportsGeneratedBackground', 'markSportsBackgroundFailed']) {
+    const start = source.indexOf('function ' + name + '(');
+    const end = source.indexOf('\nfunction ', start + 1);
+    vm.runInContext(source.slice(start, end), ctx);
+  }
+  const primary = 'https://game-thumbs.swvn.io/nba/lakers/logo.png?variant=dark';
+  const fallback = 'https://example.com/lakers.png';
+  assert.equal(ctx.sportsPreferredLogo(primary, fallback), primary);
+  let src = primary, removed = false;
+  const image = {hidden: false, getAttribute: () => src, setAttribute: (_, value) => { src = value; }, nextElementSibling: {hidden: true}, parentElement: {classList: {contains: () => true, remove: () => {removed = true;}}}};
+  ctx.markSportsMediaFailed(image);
+  assert.equal(src, fallback);
+  assert.equal(image.hidden, false);
+  assert.equal(ctx.sportsPreferredLogo(primary, fallback), fallback);
+  ctx.markSportsMediaFailed(image);
+  assert.equal(image.hidden, true);
+  assert.equal(image.nextElementSibling.hidden, false);
+  assert.equal(ctx.sportsPreferredLogo(primary, fallback), '');
+  assert.equal(removed, true);
+  src = 'https://game-thumbs.swvn.io/nba/lakers/celtics/thumb.png';
+  const event = {gameThumbsBackgroundUrl: src};
+  assert.match(ctx.sportsGeneratedBackground(event), /loading="lazy"/);
+  ctx.markSportsBackgroundFailed(image);
+  assert.equal(ctx.sportsGeneratedBackground(event), '');
+});
+
 test('upcoming promotions show a matchup heading and separate start time', () => {
   const source = fs.readFileSync(new URL('../internal/plugin/ui/app.js', import.meta.url), 'utf8');
   const ctx = vm.createContext({

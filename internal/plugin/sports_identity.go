@@ -160,7 +160,7 @@ func applySportsIdentityFallbacks(event SportsEvent) SportsEvent {
 	}
 	event.Away = applySportsTeamIdentityFallback(event.Away, leagueSlug)
 	event.Home = applySportsTeamIdentityFallback(event.Home, leagueSlug)
-	return event
+	return applyGameThumbsArtwork(event, leagueSlug)
 }
 
 func applySpecialSportsIdentityFallbacks(event SportsEvent) SportsEvent {
@@ -287,6 +287,9 @@ func applySportsTeamIdentityFallback(team SportsTeam, eventLeagueSlug string) Sp
 }
 
 func gameThumbsLeagueSlugForEvent(event SportsEvent) string {
+	if slug := gameThumbsKnownLeague(event); slug != "" {
+		return slug
+	}
 	value := strings.Join([]string{event.LeagueID, event.LeagueName, event.SportName, event.Name, event.ShortName}, " ")
 	return firstSportsIdentityRoute(value, gameThumbsLeagueRoutes)
 }
@@ -316,7 +319,7 @@ func gameThumbsLeagueLogoURL(leagueSlug string) string {
 	if leagueSlug == "" {
 		return ""
 	}
-	return gameThumbsPublicBaseURL + "/" + url.PathEscape(leagueSlug) + "/leaguelogo.png"
+	return gameThumbsPublicBaseURL + "/" + url.PathEscape(leagueSlug) + "/logo.png"
 }
 
 func gameThumbsTeamLogoURL(leagueSlug, teamName string) string {
@@ -324,7 +327,7 @@ func gameThumbsTeamLogoURL(leagueSlug, teamName string) string {
 	if leagueSlug == "" || teamKey == "" {
 		return ""
 	}
-	return gameThumbsPublicBaseURL + "/" + url.PathEscape(leagueSlug) + "/" + url.PathEscape(teamKey) + "/teamlogo.png"
+	return gameThumbsPublicBaseURL + "/" + url.PathEscape(leagueSlug) + "/" + url.PathEscape(teamKey) + "/logo.png?variant=dark"
 }
 
 func gameThumbsCanonicalTeamName(value string) string {

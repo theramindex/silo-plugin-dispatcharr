@@ -168,7 +168,7 @@ func (s *HTTPRoutesServer) proxySportsEventImages(events []SportsEvent) []Sports
 	for index := range proxied {
 		event := &proxied[index]
 		event.ImageURL = s.sportsImages.register(event.ImageURL)
-		for _, logo := range []*string{&event.LeagueLogoURL, &event.Home.LogoURL, &event.Away.LogoURL} {
+		for _, logo := range []*string{&event.LeagueLogoURL, &event.Home.LogoURL, &event.Away.LogoURL, &event.LeagueLogoFallbackURL, &event.Home.LogoFallbackURL, &event.Away.LogoFallbackURL} {
 			if *logo == ceblLeagueLogoURL || *logo == fibaWomensLeagueLogoURL {
 				continue
 			}
