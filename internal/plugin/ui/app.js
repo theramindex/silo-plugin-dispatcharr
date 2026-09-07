@@ -3450,11 +3450,10 @@ function renderSportsTopMatchups(events) {
     const ranking = sportsEffectiveRanking(event);
     const reasons = ranking.signals.slice(0, 2).map(function(signal) { return signal.label; }).join(" · ");
     return "<button type=\"button\" class=\"sports-top-matchup\" data-sports-open-event=\"" + escapeHTML(sportsEventStateID(event)) + "\">"
-      + "<span class=\"sports-top-score\"><b>" + escapeHTML(ranking.score.toFixed(1)) + "</b><small>TOP</small></span>"
       + "<span><small>" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</small><strong>" + escapeHTML(sportsEventTitle(event)) + "</strong><em>" + escapeHTML(reasons || sportsStatusLabel(event)) + "</em></span>"
       + icon("chevron-right") + "</button>";
   }).join("") + "</div>";
-  const explanation = "<span class=\"sports-ranking-help\"><button type=\"button\" class=\"sports-ranking-trigger\" aria-describedby=\"sports-ranking-tooltip\">Why these games?</button><span role=\"tooltip\" id=\"sports-ranking-tooltip\">Recommendations use start time, championship stage, rivalries, rankings, close scores, your followed teams and leagues, and available channels. The number is an interest score out of 10.</span></span>";
+  const explanation = "<span class=\"sports-ranking-help\"><button type=\"button\" class=\"sports-ranking-trigger\" aria-describedby=\"sports-ranking-tooltip\">Why these games?</button><span role=\"tooltip\" id=\"sports-ranking-tooltip\">Recommendations use start time, championship stage, rivalries, rankings, close scores, your followed teams and leagues, and available channels.</span></span>";
   return sportsSectionHTML("Top matchups", explanation, body, "sports-top-section");
 }
 function sportsFeaturedEvent(events) {
