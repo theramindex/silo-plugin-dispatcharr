@@ -78,24 +78,26 @@ type SportsPayload struct {
 }
 
 type SportsLeague struct {
-	ID            string `json:"id"`
-	ProviderID    string `json:"providerId,omitempty"`
-	Name          string `json:"name"`
-	SportName     string `json:"sportName,omitempty"`
-	LogoURL       string `json:"logoUrl,omitempty"`
-	Description   string `json:"description,omitempty"`
-	LiveCount     int    `json:"liveCount"`
-	UpcomingCount int    `json:"upcomingCount"`
+	ID              string `json:"id"`
+	ProviderID      string `json:"providerId,omitempty"`
+	Name            string `json:"name"`
+	SportName       string `json:"sportName,omitempty"`
+	LogoURL         string `json:"logoUrl,omitempty"`
+	LogoFallbackURL string `json:"logoFallbackUrl,omitempty"`
+	Description     string `json:"description,omitempty"`
+	LiveCount       int    `json:"liveCount"`
+	UpcomingCount   int    `json:"upcomingCount"`
 }
 
 type SportsTeam struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	Abbreviation   string `json:"abbreviation,omitempty"`
-	LogoURL        string `json:"logoUrl,omitempty"`
-	PrimaryColor   string `json:"primaryColor,omitempty"`
-	SecondaryColor string `json:"secondaryColor,omitempty"`
-	Favorite       bool   `json:"favorite,omitempty"`
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	Abbreviation    string `json:"abbreviation,omitempty"`
+	LogoURL         string `json:"logoUrl,omitempty"`
+	LogoFallbackURL string `json:"logoFallbackUrl,omitempty"`
+	PrimaryColor    string `json:"primaryColor,omitempty"`
+	SecondaryColor  string `json:"secondaryColor,omitempty"`
+	Favorite        bool   `json:"favorite,omitempty"`
 }
 
 type SportsImage struct {
@@ -113,45 +115,47 @@ type SportsArtwork struct {
 }
 
 type SportsEvent struct {
-	ID                string                  `json:"id"`
-	StableID          string                  `json:"stableId"`
-	ProviderSource    string                  `json:"providerSource,omitempty"`
-	ProviderID        string                  `json:"providerId,omitempty"`
-	ProviderShortID   string                  `json:"providerShortId,omitempty"`
-	ProviderLeagueID  string                  `json:"providerLeagueId,omitempty"`
-	LeagueID          string                  `json:"leagueId"`
-	LeagueName        string                  `json:"leagueName"`
-	LeagueLogoURL     string                  `json:"leagueLogoUrl,omitempty"`
-	LeagueDescription string                  `json:"leagueDescription,omitempty"`
-	SportName         string                  `json:"sportName,omitempty"`
-	Name              string                  `json:"name"`
-	ShortName         string                  `json:"shortName,omitempty"`
-	EventType         string                  `json:"eventType,omitempty"`
-	Season            string                  `json:"season,omitempty"`
-	Round             string                  `json:"round,omitempty"`
-	Venue             string                  `json:"venue,omitempty"`
-	BroadcastTimezone string                  `json:"broadcastTimezone,omitempty"`
-	ImageURL          string                  `json:"imageUrl,omitempty"`
-	Artwork           *SportsArtwork          `json:"artwork,omitempty"`
-	Description       string                  `json:"description,omitempty"`
-	Status            string                  `json:"status"`
-	StatusText        string                  `json:"statusText,omitempty"`
-	Period            string                  `json:"period,omitempty"`
-	Clock             string                  `json:"clock,omitempty"`
-	StartUnix         int64                   `json:"startUnix"`
-	EndUnix           int64                   `json:"endUnix,omitempty"`
-	Home              SportsTeam              `json:"home"`
-	Away              SportsTeam              `json:"away"`
-	HomeScore         string                  `json:"homeScore,omitempty"`
-	AwayScore         string                  `json:"awayScore,omitempty"`
-	HomeRank          int                     `json:"homeRank,omitempty"`
-	AwayRank          int                     `json:"awayRank,omitempty"`
-	Spread            *float64                `json:"spread,omitempty"`
-	Live              bool                    `json:"live"`
-	Completed         bool                    `json:"completed"`
-	Channels          []SportsChannelMatch    `json:"channels"`
-	Ranking           SportsEventRanking      `json:"ranking"`
-	MatchDiagnostics  []SportsMatchDiagnostic `json:"matchDiagnostics,omitempty"`
+	ID                      string                  `json:"id"`
+	StableID                string                  `json:"stableId"`
+	ProviderSource          string                  `json:"providerSource,omitempty"`
+	ProviderID              string                  `json:"providerId,omitempty"`
+	ProviderShortID         string                  `json:"providerShortId,omitempty"`
+	ProviderLeagueID        string                  `json:"providerLeagueId,omitempty"`
+	LeagueID                string                  `json:"leagueId"`
+	LeagueName              string                  `json:"leagueName"`
+	LeagueLogoURL           string                  `json:"leagueLogoUrl,omitempty"`
+	LeagueLogoFallbackURL   string                  `json:"leagueLogoFallbackUrl,omitempty"`
+	GameThumbsBackgroundURL string                  `json:"gameThumbsBackgroundUrl,omitempty"`
+	LeagueDescription       string                  `json:"leagueDescription,omitempty"`
+	SportName               string                  `json:"sportName,omitempty"`
+	Name                    string                  `json:"name"`
+	ShortName               string                  `json:"shortName,omitempty"`
+	EventType               string                  `json:"eventType,omitempty"`
+	Season                  string                  `json:"season,omitempty"`
+	Round                   string                  `json:"round,omitempty"`
+	Venue                   string                  `json:"venue,omitempty"`
+	BroadcastTimezone       string                  `json:"broadcastTimezone,omitempty"`
+	ImageURL                string                  `json:"imageUrl,omitempty"`
+	Artwork                 *SportsArtwork          `json:"artwork,omitempty"`
+	Description             string                  `json:"description,omitempty"`
+	Status                  string                  `json:"status"`
+	StatusText              string                  `json:"statusText,omitempty"`
+	Period                  string                  `json:"period,omitempty"`
+	Clock                   string                  `json:"clock,omitempty"`
+	StartUnix               int64                   `json:"startUnix"`
+	EndUnix                 int64                   `json:"endUnix,omitempty"`
+	Home                    SportsTeam              `json:"home"`
+	Away                    SportsTeam              `json:"away"`
+	HomeScore               string                  `json:"homeScore,omitempty"`
+	AwayScore               string                  `json:"awayScore,omitempty"`
+	HomeRank                int                     `json:"homeRank,omitempty"`
+	AwayRank                int                     `json:"awayRank,omitempty"`
+	Spread                  *float64                `json:"spread,omitempty"`
+	Live                    bool                    `json:"live"`
+	Completed               bool                    `json:"completed"`
+	Channels                []SportsChannelMatch    `json:"channels"`
+	Ranking                 SportsEventRanking      `json:"ranking"`
+	MatchDiagnostics        []SportsMatchDiagnostic `json:"matchDiagnostics,omitempty"`
 }
 
 type SportsChannelMatch struct {
@@ -313,6 +317,7 @@ func uniqueSportsTeamNicknameAliases(teams []SportsTeam) map[string]string {
 }
 
 func mergeSportsTeamIdentity(primary, supplemental SportsTeam) SportsTeam {
+	primary.LogoFallbackURL = firstNonEmpty(primary.LogoFallbackURL, supplemental.LogoFallbackURL)
 	primary.ID = firstNonEmpty(primary.ID, supplemental.ID)
 	if primary.Name == "" || len(normalizeMatchText(supplemental.Name)) > len(normalizeMatchText(primary.Name)) {
 		primary.Name = supplemental.Name
@@ -1084,12 +1089,13 @@ func sportsLeagues(events []SportsEvent) []SportsLeague {
 		league := byID[id]
 		if league == nil {
 			league = &SportsLeague{
-				ID:          id,
-				ProviderID:  event.ProviderLeagueID,
-				Name:        firstNonEmpty(event.LeagueName, id),
-				SportName:   event.SportName,
-				LogoURL:     event.LeagueLogoURL,
-				Description: event.LeagueDescription,
+				ID:              id,
+				ProviderID:      event.ProviderLeagueID,
+				Name:            firstNonEmpty(event.LeagueName, id),
+				SportName:       event.SportName,
+				LogoURL:         event.LeagueLogoURL,
+				LogoFallbackURL: event.LeagueLogoFallbackURL,
+				Description:     event.LeagueDescription,
 			}
 			byID[id] = league
 			if id == "sports" {
@@ -1105,6 +1111,7 @@ func sportsLeagues(events []SportsEvent) []SportsLeague {
 		}
 		if league.LogoURL == "" {
 			league.LogoURL = event.LeagueLogoURL
+			league.LogoFallbackURL = event.LeagueLogoFallbackURL
 		}
 		if league.Description == "" {
 			league.Description = event.LeagueDescription

@@ -34,7 +34,7 @@ func TestSportsCardsUseScopedTeamLogosAndNationalFlags(t *testing.T) {
 		{ID: "countries", Name: "Volleyball: Argentina vs Cuba", Away: SportsTeam{Name: "Argentina"}, Home: SportsTeam{Name: "Cuba"}},
 		{ID: "fiba", Name: "2026 FIBA Women's Basketball World Cup: Puerto Rico vs Belgium"},
 	})
-	if events[0].LeagueID != "mlb" || !strings.HasSuffix(events[0].Away.LogoURL, "/lad.png") || !strings.HasSuffix(events[0].Home.LogoURL, "/chc.png") {
+	if events[0].LeagueID != "mlb" || !strings.HasSuffix(events[0].Away.LogoFallbackURL, "/lad.png") || !strings.HasSuffix(events[0].Home.LogoFallbackURL, "/chc.png") {
 		t.Fatalf("baseball classics must retain MLB artwork: %+v", events[0])
 	}
 	if events[1].LeagueID != "cebl" || !strings.Contains(events[1].Away.LogoURL, "BramptonHoneyBadgers") {
@@ -43,7 +43,7 @@ func TestSportsCardsUseScopedTeamLogosAndNationalFlags(t *testing.T) {
 	if events[2].Away.LogoURL != "https://flagcdn.com/w160/ar.png" || events[2].Home.LogoURL != "https://flagcdn.com/w160/cu.png" {
 		t.Fatal("national teams must receive their country flags")
 	}
-	if events[1].LeagueLogoURL != ceblLeagueLogoURL || events[3].LeagueLogoURL != fibaWomensLeagueLogoURL {
+	if events[1].LeagueLogoURL != ceblLeagueLogoURL || events[3].LeagueLogoFallbackURL != fibaWomensLeagueLogoURL || events[3].LeagueLogoURL != gameThumbsLeagueLogoURL("fiba-women") {
 		t.Fatal("CEBL and FIBA women's basketball must receive their official league marks")
 	}
 	if team := applyCountryTeamIdentity(SportsTeam{Name: "Brampton"}); team.LogoURL != "" {

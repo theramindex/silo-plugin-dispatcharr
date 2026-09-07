@@ -407,64 +407,64 @@ func TestNormalizeSportsEventsAddsGameThumbsIdentityFallbacks(t *testing.T) {
 		},
 	})
 
-	if got := events[0].LeagueLogoURL; got != "https://game-thumbs.swvn.io/nba/leaguelogo.png" {
+	if got := events[0].LeagueLogoURL; got != "https://game-thumbs.swvn.io/nba/logo.png" {
 		t.Fatalf("expected NBA league fallback, got %q", got)
 	}
-	if got := events[0].Away.LogoURL; got != "https://game-thumbs.swvn.io/nba/heat/teamlogo.png" {
+	if got := events[0].Away.LogoURL; got != "https://game-thumbs.swvn.io/nba/heat/logo.png?variant=dark" {
 		t.Fatalf("expected Heat logo fallback, got %q", got)
 	}
-	if got := events[0].Home.LogoURL; got != "https://game-thumbs.swvn.io/nba/pistons/teamlogo.png" {
+	if got := events[0].Home.LogoURL; got != "https://game-thumbs.swvn.io/nba/pistons/logo.png?variant=dark" {
 		t.Fatalf("expected Pistons logo fallback, got %q", got)
 	}
-	if got := events[1].LeagueLogoURL; got != "https://game-thumbs.swvn.io/usa.nwsl/leaguelogo.png" {
+	if got := events[1].LeagueLogoURL; got != "https://game-thumbs.swvn.io/usa.nwsl/logo.png" {
 		t.Fatalf("expected NWSL league fallback, got %q", got)
 	}
-	if got := events[1].Away.LogoURL; got != "https://game-thumbs.swvn.io/usa.nwsl/kansas-city-current/teamlogo.png" {
+	if got := events[1].Away.LogoURL; got != "https://game-thumbs.swvn.io/usa.nwsl/kansas-city-current/logo.png?variant=dark" {
 		t.Fatalf("expected Kansas City Current logo fallback, got %q", got)
 	}
-	if got := events[1].Home.LogoURL; got != "https://game-thumbs.swvn.io/bra.1/palmeiras/teamlogo.png" {
+	if got := events[1].Home.LogoURL; got != "https://game-thumbs.swvn.io/bra.1/palmeiras/logo.png?variant=dark" {
 		t.Fatalf("expected Palmeiras cross-league fallback, got %q", got)
 	}
-	if events[2].LeagueLogoURL != "https://images.example/nfl.png" || events[2].Away.LogoURL != "https://images.example/cowboys.png" {
-		t.Fatalf("expected upstream artwork to win, got %+v", events[2])
+	if events[2].LeagueLogoFallbackURL != "https://images.example/nfl.png" || events[2].Away.LogoFallbackURL != "https://images.example/cowboys.png" {
+		t.Fatalf("expected upstream artwork to remain available as fallback, got %+v", events[2])
 	}
 	if events[3].LeagueLogoURL != "" || events[3].Away.LogoURL != "" || events[3].Home.LogoURL != "" {
 		t.Fatalf("expected unknown competition to retain honest empty artwork, got %+v", events[3])
 	}
-	if got := events[4].Away.LogoURL; got != "https://game-thumbs.swvn.io/bra.1/sao-paulo/teamlogo.png" {
+	if got := events[4].Away.LogoURL; got != "https://game-thumbs.swvn.io/bra.1/sao-paulo/logo.png?variant=dark" {
 		t.Fatalf("expected diacritics removed from São Paulo fallback, got %q", got)
 	}
-	if got := events[4].Home.LogoURL; got != "https://game-thumbs.swvn.io/bra.1/gremio/teamlogo.png" {
+	if got := events[4].Home.LogoURL; got != "https://game-thumbs.swvn.io/bra.1/gremio/logo.png?variant=dark" {
 		t.Fatalf("expected diacritics removed from Grêmio fallback, got %q", got)
 	}
-	if got := events[5].Away.LogoURL; got != "https://game-thumbs.swvn.io/epl/chelsea/teamlogo.png" {
+	if got := events[5].Away.LogoURL; got != "https://game-thumbs.swvn.io/epl/chelsea/logo.png?variant=dark" {
 		t.Fatalf("expected Chelsea U21 to use the senior club crest, got %q", got)
 	}
-	if got := events[5].Home.LogoURL; got != "https://game-thumbs.swvn.io/epl/bristol-rovers/teamlogo.png" {
+	if got := events[5].Home.LogoURL; got != "https://game-thumbs.swvn.io/epl/bristol-rovers/logo.png?variant=dark" {
 		t.Fatalf("expected Bristol Rovers to use the English pyramid crest, got %q", got)
 	}
-	if got := events[6].Away.LogoURL; got != "https://game-thumbs.swvn.io/nhl/new-york-islanders/teamlogo.png" {
+	if got := events[6].Away.LogoURL; got != "https://game-thumbs.swvn.io/nhl/new-york-islanders/logo.png?variant=dark" {
 		t.Fatalf("expected generic sports Islanders event to recover the NHL namespace, got %q", got)
 	}
-	if got := events[6].Home.LogoURL; got != "https://game-thumbs.swvn.io/nhl/tampa-bay-lightning/teamlogo.png" {
+	if got := events[6].Home.LogoURL; got != "https://game-thumbs.swvn.io/nhl/tampa-bay-lightning/logo.png?variant=dark" {
 		t.Fatalf("expected generic sports Lightning event to recover the NHL namespace, got %q", got)
 	}
-	if got := events[7].Away.LogoURL; got != "https://game-thumbs.swvn.io/nba/orlando-magic/teamlogo.png" {
+	if got := events[7].Away.LogoURL; got != "https://game-thumbs.swvn.io/nba/orlando-magic/logo.png?variant=dark" {
 		t.Fatalf("expected generic sports Magic event to recover the NBA namespace, got %q", got)
 	}
-	if got := events[7].Home.LogoURL; got != "https://game-thumbs.swvn.io/nba/new-york-knicks/teamlogo.png" {
+	if got := events[7].Home.LogoURL; got != "https://game-thumbs.swvn.io/nba/new-york-knicks/logo.png?variant=dark" {
 		t.Fatalf("expected generic sports Knicks event to recover the NBA namespace, got %q", got)
 	}
-	if got := events[8].LeagueLogoURL; got != "https://game-thumbs.swvn.io/ncaaf/leaguelogo.png" {
+	if got := events[8].LeagueLogoURL; got != "https://game-thumbs.swvn.io/ncaaf/logo.png" {
 		t.Fatalf("expected College Football to use the canonical NCAAF league mark, got %q", got)
 	}
-	if got := events[8].Away.LogoURL; got != "https://game-thumbs.swvn.io/ncaaf/miami/teamlogo.png" {
+	if got := events[8].Away.LogoURL; got != "https://game-thumbs.swvn.io/ncaaf/miami/logo.png?variant=dark" {
 		t.Fatalf("expected College Football teams to use the NCAAF namespace, got %q", got)
 	}
-	if got := events[9].LeagueLogoURL; got != "https://game-thumbs.swvn.io/NASCAR/leaguelogo.png" {
+	if got := events[9].LeagueLogoURL; got != "https://game-thumbs.swvn.io/NASCAR/logo.png" {
 		t.Fatalf("expected NASCAR Cup Series to use the NASCAR league mark, got %q", got)
 	}
-	if got := events[10].Away.LogoURL; got != "https://game-thumbs.swvn.io/country/new-zealand/teamlogo.png" {
+	if got := events[10].Away.LogoURL; got != "https://game-thumbs.swvn.io/country/new-zealand/logo.png?variant=dark" {
 		t.Fatalf("expected an international cricket side to use its country flag, got %q", got)
 	}
 	if got := events[10].Home.LogoURL; got != "" {
@@ -479,34 +479,34 @@ func TestNormalizeSportsEventsAddsGameThumbsIdentityFallbacks(t *testing.T) {
 	if got := events[11].Home.LogoURL; got != "https://squiggle.com.au/wp-content/themes/squiggle/assets/images/PortAdelaide.png" {
 		t.Fatalf("expected Port Adelaide crest from Squiggle, got %q", got)
 	}
-	if got := events[12].LeagueLogoURL; got != "https://game-thumbs.swvn.io/league-one/leaguelogo.png" {
+	if got := events[12].LeagueLogoURL; got != "https://game-thumbs.swvn.io/league-one/logo.png" {
 		t.Fatalf("expected English League One to use the GameThumbs league namespace, got %q", got)
 	}
-	if got := events[12].Away.LogoURL; got != "https://game-thumbs.swvn.io/league-one/huddersfield-town/teamlogo.png" {
+	if got := events[12].Away.LogoURL; got != "https://game-thumbs.swvn.io/league-one/huddersfield-town/logo.png?variant=dark" {
 		t.Fatalf("expected Huddersfield Town crest fallback, got %q", got)
 	}
-	if got := events[12].Home.LogoURL; got != "https://game-thumbs.swvn.io/league-one/cambridge-united/teamlogo.png" {
+	if got := events[12].Home.LogoURL; got != "https://game-thumbs.swvn.io/league-one/cambridge-united/logo.png?variant=dark" {
 		t.Fatalf("expected Cambridge United crest fallback, got %q", got)
 	}
-	if got := events[13].Home.LogoURL; got != "https://game-thumbs.swvn.io/boxing/leaguelogo.png" {
+	if got := events[13].Home.LogoFallbackURL; got != "https://game-thumbs.swvn.io/boxing/logo.png" {
 		t.Fatalf("expected a compound boxing opponent to use an honest boxing mark, got %q", got)
 	}
-	if got := events[14].Away.LogoURL; got != "https://a.espncdn.com/i/teamlogos/ncaa/500/2483.png" {
+	if got := events[14].Away.LogoFallbackURL; got != "https://a.espncdn.com/i/teamlogos/ncaa/500/2483.png" {
 		t.Fatalf("expected Oregon to use its NCAA mark, got %q", got)
 	}
-	if got := events[14].Home.LogoURL; got != "https://a.espncdn.com/i/teamlogos/ncaa/500/84.png" {
+	if got := events[14].Home.LogoFallbackURL; got != "https://a.espncdn.com/i/teamlogos/ncaa/500/84.png" {
 		t.Fatalf("expected Indiana to use its NCAA mark, got %q", got)
 	}
-	if got := events[15].Away.LogoURL; got != "https://game-thumbs.swvn.io/country/canada/teamlogo.png" {
+	if got := events[15].Away.LogoURL; got != "https://game-thumbs.swvn.io/country/canada/logo.png?variant=dark" {
 		t.Fatalf("expected Canada to use its country flag, got %q", got)
 	}
-	if got := events[15].Home.LogoURL; got != "https://game-thumbs.swvn.io/country/dominican-republic/teamlogo.png" {
+	if got := events[15].Home.LogoURL; got != "https://game-thumbs.swvn.io/country/dominican-republic/logo.png?variant=dark" {
 		t.Fatalf("expected Dominican Republic to use its country flag, got %q", got)
 	}
-	if got := events[16].Away.LogoURL; got != "https://a.espncdn.com/i/teamlogos/ncaa/500/52.png" {
+	if got := events[16].Away.LogoFallbackURL; got != "https://a.espncdn.com/i/teamlogos/ncaa/500/52.png" {
 		t.Fatalf("expected Florida State to use its NCAA mark, got %q", got)
 	}
-	if got := events[16].Home.LogoURL; got != "https://a.espncdn.com/i/teamlogos/ncaa/500/57.png" {
+	if got := events[16].Home.LogoFallbackURL; got != "https://a.espncdn.com/i/teamlogos/ncaa/500/57.png" {
 		t.Fatalf("expected Florida to use its NCAA mark, got %q", got)
 	}
 	if events[17].Away.LogoURL != "" || events[17].Home.LogoURL != "" {
@@ -532,7 +532,7 @@ func TestCollegeGamePassesSeparateSports(t *testing.T) {
 			t.Fatalf("college passes must distinguish competition: %+v", event)
 		}
 		seen[event.Home.ID] = true
-		if tc.league != "College Football" && event.LeagueLogoURL != ncaaLeagueLogoURL {
+		if tc.league != "College Football" && event.LeagueLogoFallbackURL != ncaaLeagueLogoURL {
 			t.Fatalf("college competitions need an NCAA league mark: %s", event.LeagueName)
 		}
 		if tc.league == "College Football" && event.Home.ID != stableSportsTeamID(SportsTeam{Name: "Michigan", Abbreviation: "M"}) {
@@ -603,7 +603,7 @@ func TestMichiganSchoolsHaveDistinctRosterLogos(t *testing.T) {
 		t.Fatalf("schools must remain separate: %+v", teams)
 	}
 	for _, team := range teams {
-		if team.LogoURL != ncaaTeamLogoBase+want[team.Name]+".png" {
+		if team.LogoFallbackURL != ncaaTeamLogoBase+want[team.Name]+".png" {
 			t.Errorf("wrong logo for %s: %s", team.Name, team.LogoURL)
 		}
 	}
@@ -617,7 +617,7 @@ func TestFormulaLeagueLogosSurvivePreparedPayload(t *testing.T) {
 		{Name: "Formula 1: Italian Grand Prix", LeagueName: "Formula 1"},
 		{Name: "Formula E: London E-Prix", LeagueName: "Formula E"},
 	}))
-	if events[0].LeagueLogoURL != formulaOneLeagueLogoURL || events[1].LeagueLogoURL != formulaELeagueLogoURL {
+	if events[0].LeagueLogoURL != gameThumbsLeagueLogoURL("F1") || events[0].LeagueLogoFallbackURL != formulaOneLeagueLogoURL || events[1].LeagueLogoURL != formulaELeagueLogoURL {
 		t.Fatalf("public racing logos must remain loadable after preparation: %+v", events)
 	}
 	leagues := sportsLeagues([]SportsEvent{{LeagueID: "sports", LeagueName: "Sports"}})
@@ -768,8 +768,8 @@ func TestSportsIdentityFallbacksUseHonestBoxingMarkForUnknownFighters(t *testing
 		LeagueID: "boxing", LeagueName: "Boxing", SportName: "Combat Sports", Name: "Diego Pacheco vs Steve Nelson",
 		Away: SportsTeam{Name: "Diego Pacheco"}, Home: SportsTeam{Name: "Steve Nelson"},
 	})
-	want := "https://game-thumbs.swvn.io/boxing/leaguelogo.png"
-	if event.Away.LogoURL != want || event.Home.LogoURL != want {
+	want := "https://game-thumbs.swvn.io/boxing/logo.png"
+	if event.Away.LogoFallbackURL != want || event.Home.LogoFallbackURL != want {
 		t.Fatalf("expected unavailable fighter portraits to use the honest boxing mark, got away=%q home=%q", event.Away.LogoURL, event.Home.LogoURL)
 	}
 }
@@ -1670,7 +1670,7 @@ func TestSportsLeagueTeamsRouteMergesFullRosterWithAiringTeams(t *testing.T) {
 	if len(payload.Teams) != 3 {
 		t.Fatalf("expected two roster teams plus the currently airing Sparks, got %+v", payload.Teams)
 	}
-	if payload.Teams[0].Name != "Atlanta Dream" || payload.Teams[0].ID != "event-dream" || payload.Teams[0].LogoURL != "https://images.example/live-dream.png" {
+	if payload.Teams[0].Name != "Atlanta Dream" || payload.Teams[0].ID != "event-dream" || payload.Teams[0].LogoFallbackURL != "https://images.example/live-dream.png" {
 		t.Fatalf("expected airing identity to win while roster metadata fills gaps, got %+v", payload.Teams[0])
 	}
 }
@@ -1693,7 +1693,7 @@ func TestMergeSportsLeagueRosterTeamsDeduplicatesUniqueTeamNicknameAliases(t *te
 	if len(teams) != 2 {
 		t.Fatalf("expected one card per canonical team, got %+v", teams)
 	}
-	if teams[0].Name != "Los Angeles Rams" || teams[0].Abbreviation != "LAR" || teams[0].LogoURL != "https://images.example/rams.png" {
+	if teams[0].Name != "Los Angeles Rams" || teams[0].Abbreviation != "LAR" || teams[0].LogoFallbackURL != "https://images.example/rams.png" {
 		t.Fatalf("expected the Rams alias to merge into the canonical roster identity, got %+v", teams[0])
 	}
 }
@@ -1860,13 +1860,13 @@ func TestSportarrEnrichmentPreservesExistingIdentityFallbacks(t *testing.T) {
 	event := SportsEvent{
 		LeagueID:          "nba",
 		LeagueName:        "NBA",
-		LeagueLogoURL:     "https://game-thumbs.swvn.io/nba/leaguelogo.png",
+		LeagueLogoURL:     "https://game-thumbs.swvn.io/nba/logo.png",
 		LeagueDescription: "Existing description",
 		SportName:         "Basketball",
 		Away: SportsTeam{
 			ID:             "heat",
 			Name:           "Heat",
-			LogoURL:        "https://game-thumbs.swvn.io/nba/heat/teamlogo.png",
+			LogoURL:        "https://game-thumbs.swvn.io/nba/heat/logo.png?variant=dark",
 			PrimaryColor:   "#aa0000",
 			SecondaryColor: "#000000",
 		},

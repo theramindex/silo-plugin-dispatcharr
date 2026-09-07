@@ -3635,7 +3635,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		}
 	}
 	sportsLeagueMark := functionBody("renderSportsLeagueMark")
-	for _, want := range []string{`safeSportsMediaURL`, `league.logoUrl`, `sportsLeagueFallbackMark`} {
+	for _, want := range []string{`sportsPreferredLogo`, `league.logoUrl`, `sportsLeagueFallbackMark`} {
 		if !strings.Contains(sportsLeagueMark, want) {
 			t.Fatalf("sports league cards must render normalized identity field %q", want)
 		}
@@ -3712,7 +3712,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		}
 	}
 	sportsTeamLogo := functionBody("renderSportsTeamLogo")
-	for _, want := range []string{`sportsMediaFailed`, `markSportsMediaFailed(this)`} {
+	for _, want := range []string{`sportsPreferredLogo`, `markSportsMediaFailed(this)`} {
 		if !strings.Contains(sportsTeamLogo, want) {
 			t.Fatalf("sports team logos must avoid retrying failed media via %q", want)
 		}
