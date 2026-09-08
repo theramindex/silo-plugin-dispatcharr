@@ -413,7 +413,11 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 }
 
 func guideSportsTitleHasScoreLookupHint(title string) bool {
-	return strings.Contains(title, "ᴸᶦᵛᵉ") || strings.Contains(title, "ᴺᵉʷ")
+	return guideSportsTitleIsLive(title) || strings.Contains(title, "ᴺᵉʷ")
+}
+
+func guideSportsTitleIsLive(title string) bool {
+	return strings.Contains(title, "ᴸᶦᵛᵉ") || containsMatchTerm(normalizeMatchText(title), "live")
 }
 
 func normalizeSportsEventFreshness(event SportsEvent, now time.Time) SportsEvent {
@@ -916,6 +920,9 @@ func guideSportsBroadcastStatus(program model.Program, endUnix int64, now time.T
 		}
 	}
 	if live {
+		if guideSportsTitleIsLive(program.Title) {
+			return true, false, "live", "Live"
+		}
 		return true, false, "airing", "On now"
 	}
 	if completed {

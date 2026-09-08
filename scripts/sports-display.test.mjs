@@ -32,6 +32,8 @@ test('event details use browse breadcrumbs and sport art without generic league 
   ctx.rankedSportsBroadcasts = () => [{id: 'watch-channel', name: 'Womens Sports Network'}];
   const watchPage = ctx.renderSportsEventDetail({}, event);
   assert.match(watchPage, /data-channel="watch-channel"/);
+  assert.match(watchPage.slice(0, watchPage.indexOf('</header>')), /sports-hero-feeds.*data-channel="watch-channel"/);
+  assert.equal((watchPage.match(/data-channel="watch-channel"/g) || []).length, 1);
   assert.doesNotMatch(watchPage, /Matched channels|candidate|Other feeds/);
   const nhl = {...event, leagueId: 'nhl', leagueName: 'NHL', sportName: 'Hockey'};
   assert.match(ctx.renderSportsEventNavigation({}, nhl), /href="#\/sports\/live\/league\/nhl">NHL/);
@@ -48,6 +50,27 @@ test('event details use browse breadcrumbs and sport art without generic league 
   assert.equal(image.hidden, true);
   assert.ok(classes.has('no-art'));
   assert.ok(!classes.has('has-art'));
+});
+
+test('MLB details render innings, final stats, and honor hidden scores', () => {
+  const source = fs.readFileSync(new URL('../internal/plugin/ui/app.js', import.meta.url), 'utf8');
+  const event = {id: 'mlb', leagueId: 'mlb', away: {name: 'Reds'}, home: {name: 'Dodgers'}};
+  const data = {available: true, completed: true, homeScore: '6', awayScore: '3', updatedAtUnix: 1, sourceUrl: 'https://www.espn.com/mlb/boxscore/', innings: [{number: 1, away: '0', home: '0'}, {number: 9, away: '0', home: ''}], rows: [{label: 'Hits', away: '7', home: '10'}]};
+  const ctx = vm.createContext({sportsGameStatsState: {id: 'mlb', data}, items: value => value || [], escapeHTML: value => String(value ?? ''), sportsScoresHidden: () => false, sportsEventStateID: e => e.id, sportsTeamName: t => t.name, sportsSectionHTML: (title, source, body) => title + source + body});
+  for (const name of ['sportsHasGameStats', 'renderSportsGameStats', 'renderSportsInnings']) {
+    const start = source.indexOf('function ' + name + '('), end = source.indexOf('\nfunction ', start + 1);
+    vm.runInContext(source.slice(start, end), ctx);
+  }
+  const html = ctx.renderSportsGameStats(event);
+  assert.match(html, /^Final stats/);
+  assert.match(html, /aria-label="Inning scores"/);
+  assert.match(html, /<td>0<\/td><td>–<\/td>/);
+  assert.match(html, /Hits/);
+  data.completed = false; data.live = true;
+  assert.match(ctx.renderSportsGameStats(event), /^Live stats/);
+  ctx.sportsScoresHidden = () => true;
+  assert.equal(ctx.renderSportsGameStats(event), '');
+  assert.equal(ctx.sportsHasGameStats({leagueId: 'nhl'}), false);
 });
 
 test('game-thumbs failures fall back once and retain the local layout', () => {
