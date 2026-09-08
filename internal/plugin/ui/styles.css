@@ -750,6 +750,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-matchup-thumb.has-generated-art .sports-matchup-thumb-logo { visibility: hidden; }
 .sports-matchup-thumb.has-generated-art .sports-matchup-thumb-team > strong, .sports-matchup-thumb.has-generated-art .sports-matchup-thumb-team > em { text-shadow: 0 1px 4px #000; }
 .sports-program-thumb .sports-generated-bg, .sports-race-thumb .sports-generated-bg { opacity: 0.2; }
+.sports-program-thumb .sports-field-bg, .sports-race-thumb .sports-field-bg { opacity: 0.4; }
 .sports-field-thumb { width: 100%; min-height: 14rem; aspect-ratio: auto; padding: 1rem 0.75rem; gap: 0.5rem; grid-template-columns: minmax(0, 1fr) 4rem minmax(0, 1fr); background: #131d18; }
 .sports-field-thumb::before { display: none; }
 .sports-field-thumb::after { background: linear-gradient(180deg, rgba(8,16,12,0.28), rgba(8,16,12,0.78)); }
