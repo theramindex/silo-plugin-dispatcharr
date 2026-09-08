@@ -90,3 +90,20 @@ func TestCrossLeagueMatchupKeepsIndividualClubArtwork(t *testing.T) {
 		t.Fatalf("single-league composite would replace a visiting club with a placeholder: %s", event.GameThumbsBackgroundURL)
 	}
 }
+
+func TestGenericGuideNHLMatchupUsesClubClassification(t *testing.T) {
+	input := SportsEvent{ID: "epg:devils", LeagueID: "sports", LeagueName: "Sports", SportName: "Sports", Name: "Best of Devils : 2026: New Jersey Devils at Minnesota Wild", Away: SportsTeam{Name: "New Jersey Devils"}, Home: SportsTeam{Name: "Minnesota Wild"}}
+	event := normalizeSportsEvents([]SportsEvent{input})[0]
+	if event.LeagueID != "nhl" || event.LeagueName != "NHL" || event.SportName != "Hockey" || event.ID != input.ID {
+		t.Fatalf("expected an NHL event with its existing source ID: %+v", event)
+	}
+	input.Home.Name = "Unknown opponent"
+	if event := canonicalizeKnownSportsLeague(input); event.LeagueID != "sports" {
+		t.Fatal("one recognized club is insufficient to infer a league")
+	}
+	input.Home.Name = "Minnesota Wild"
+	input.LeagueID, input.LeagueName = "international-exhibition", "International Exhibition"
+	if event := canonicalizeKnownSportsLeague(input); event.LeagueID != "international-exhibition" {
+		t.Fatal("club inference must preserve an explicitly identified competition")
+	}
+}
