@@ -3588,9 +3588,10 @@ function renderSportsMatchupThumbnail(event) {
   const homeColor = safeSportsTeamColor(home.primaryColor || home.secondaryColor, "#30343c");
   const leagueLogo = sportsPreferredLogo(event.leagueLogoUrl, event.leagueLogoFallbackUrl);
   const showScore = sportsEventHasScores(event);
+  const fieldArtwork = sportsFieldBackgroundURL(event);
   const center = leagueLogo ? "<img src=\"" + escapeHTML(leagueLogo) + "\" alt=\"\" onerror=\"markSportsMediaFailed(this);\"><b hidden>VS</b>" : "<b>VS</b>";
-  return "<span class=\"sports-matchup-thumb\" aria-hidden=\"true\" style=\"--match-away:" + awayColor + ";--match-home:" + homeColor + "\">"
-    + sportsGeneratedBackground(event)
+  return "<span class=\"sports-matchup-thumb" + (fieldArtwork ? " sports-field-thumb" : "") + "\" aria-hidden=\"true\" style=\"--match-away:" + awayColor + ";--match-home:" + homeColor + "\">"
+    + (fieldArtwork ? "<img class=\"sports-field-bg\" src=\"" + escapeHTML(fieldArtwork) + "\" alt=\"\" loading=\"lazy\" onerror=\"markSportsBackgroundFailed(this);\">" : sportsGeneratedBackground(event))
     + "<span class=\"sports-matchup-thumb-team away\">" + renderSportsTeamLogo(away, "sports-matchup-thumb-logo") + "<strong>" + escapeHTML(sportsTeamName(away)) + "</strong>" + (showScore ? "<em>" + escapeHTML(sportsScoresHidden(false) ? "–" : (event.awayScore || "0")) + "</em>" : "") + "</span>"
     + "<span class=\"sports-matchup-thumb-center\">" + center + "<small>vs</small></span>"
     + "<span class=\"sports-matchup-thumb-team home\">" + renderSportsTeamLogo(home, "sports-matchup-thumb-logo") + "<strong>" + escapeHTML(sportsTeamName(home)) + "</strong>" + (showScore ? "<em>" + escapeHTML(sportsScoresHidden(false) ? "–" : (event.homeScore || "0")) + "</em>" : "") + "</span>"
@@ -4051,6 +4052,14 @@ function sportsPreferredLogo(value, fallbackValue) {
   }
   if (logo && !sportsMediaFailed(logo)) return logo;
   return fallback && !sportsMediaFailed(fallback) ? fallback : "";
+}
+function sportsFieldBackgroundURL(event) {
+  // Generic baseball atmosphere, not a photo of the event's actual venue.
+  // Robert Bye / Unsplash; see ui/ARTWORK.md for the source and license.
+  const isBaseball = /^baseball$/i.test(String(event && event.sportName || "")) || /^(mlb|milb(?:-.*)?|kbo|npb|college-baseball|college-mens-baseball)$/.test(String(event && event.leagueId || ""));
+  if (!isBaseball) return "";
+  const url = "https://images.unsplash.com/photo-1431817986760-7cc7fbb937b2?auto=format&fit=crop&w=1200&q=80";
+  return sportsMediaFailed(url) ? "" : url;
 }
 function sportsGeneratedBackground(event) {
   const background = safeSportsMediaURL(event && event.gameThumbsBackgroundUrl);
