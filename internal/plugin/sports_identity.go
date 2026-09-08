@@ -294,6 +294,10 @@ func applySportsTeamIdentityFallback(team SportsTeam, eventLeagueSlug string) Sp
 }
 
 func gameThumbsLeagueSlugForEvent(event SportsEvent) string {
+	if event.LeagueID == "lanka-premier-league" {
+		// This competition has its own official assets, and must not match EPL.
+		return ""
+	}
 	if slug := gameThumbsKnownLeague(event); slug != "" {
 		return slug
 	}

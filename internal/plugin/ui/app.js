@@ -3401,6 +3401,9 @@ function sportsLeagueByID(payload, leagueID) {
   return items(payload && payload.leagues).find(function(league) { return String(league.id || "") === String(leagueID); }) || null;
 }
 function sportsEventTitle(event) {
+  if (event && event.leagueId === "lanka-premier-league" && event.away && event.away.name && event.home && event.home.name) {
+    return sportsTeamName(event.away) + " vs " + sportsTeamName(event.home) + (event.round ? " · " + event.round : "");
+  }
   if (event && (event.name || event.shortName)) {
     const title = String(event.name || event.shortName);
     if (/^Next Game:\s*/i.test(title)) {
