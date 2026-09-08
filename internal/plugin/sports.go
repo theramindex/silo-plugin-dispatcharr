@@ -742,6 +742,13 @@ func guideWorldCupCompetition(value string) (string, string, string) {
 }
 
 func guideSportsLeague(value string) (string, string, string, bool) {
+	competitionText := normalizeMatchText(value)
+	if containsMatchTerm(competitionText, "hoopqueens") || containsMatchTerm(competitionText, "hoop queens") {
+		return "hoopqueens", "HoopQueens Basketball", "Basketball", true
+	}
+	if containsMatchTerm(competitionText, "canada cup") && containsMatchTerm(competitionText, "softball") {
+		return "canada-cup-softball", "Canada Cup Softball", "Softball", true
+	}
 	if text := gameThumbsMatchText(value); containsMatchTerm(text, "volleyball nations league") {
 		if containsMatchTerm(text, "womens") || containsMatchTerm(text, "women") {
 			return "womens-volleyball-nations-league", "Women's Volleyball Nations League", "Volleyball", true
