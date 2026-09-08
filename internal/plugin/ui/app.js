@@ -1689,6 +1689,7 @@ function eventsNavAvailable() {
   });
 }
 function setView(view, options) {
+  if (view !== "guide") clearGuideSearchTimer();
   options = options || {};
   if (view === "sports" && !sportsNavAvailable()) view = "home";
   if (view === "events" && !eventsNavAvailable()) view = "home";
@@ -1952,12 +1953,14 @@ function refreshVisibleGuideBlock() {
     const guideScroll = byId("guide-scroll");
     const scrollLeft = guideScroll ? guideScroll.scrollLeft : 0;
     const scrollTop = guideScroll ? guideScroll.scrollTop : 0;
+    refreshGuideTimeline();
     resetGuideRows();
     renderEPG();
     if (guideScroll) {
       guideScroll.scrollLeft = scrollLeft;
       guideScroll.scrollTop = scrollTop;
     }
+    renderGuideProgramSearch();
     return;
   }
   render();
@@ -2074,12 +2077,12 @@ function startGuideAutoRefresh() {
   });
 }
 async function tickGuideAutoRefresh() {
-  if (!state.app || state.view !== "guide" || document.hidden) return;
+  if (!state.app || state.view !== "guide" || document.hidden || state.programDetails) return;
   const slotStart = guideSlotStart();
   if (!state.guideLastSlotStart) state.guideLastSlotStart = slotStart;
   if (slotStart !== state.guideLastSlotStart && !guideSearchFocused()) {
     state.guideLastSlotStart = slotStart;
-    renderGuidePage();
+    refreshVisibleGuideBlock();
   }
 
   const now = Date.now();
@@ -2090,12 +2093,7 @@ async function tickGuideAutoRefresh() {
     await refreshStatusData();
     await refreshSupplementalData();
     if (state.view !== "guide") return;
-    if (guideSearchFocused()) {
-      resetGuideRows();
-      renderEPG();
-    } else {
-      renderGuidePage();
-    }
+    refreshVisibleGuideBlock();
   } catch (error) {
     try { console.warn("Dispatcharr guide auto-refresh failed", error); } catch (_) {}
   } finally {
@@ -4940,7 +4938,10 @@ function maybeWarmGuideForChannels(channels, key) {
   postJSON("/dispatcharr/api/guide/ping", { channelIds: channelIds }).then(function(result) {
     if (result && result.refreshing) {
       setTimeout(function() {
-        refreshStatusData().then(function() { return refreshSupplementalData(); }).then(render).catch(function() {});
+        refreshStatusData().then(function() { return refreshSupplementalData(); }).then(function() {
+          if (state.view === "guide") refreshVisibleGuideBlock();
+          else render();
+        }).catch(function() {});
       }, 12000);
     }
   }).catch(function(error) {
@@ -6347,7 +6348,8 @@ function renderAdminSettingsTab(tab) {
       + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Event Keywords</h2><p>Events are detected from the Dispatcharr guide. One keyword per line or comma-separated.</p></div></div><div id=\"admin-event-keyword-settings\" class=\"settings-list event-keyword-list\"></div></div>";
   }
   return "<div class=\"settings-card settings-card-compact\"><h2>App identity</h2><div id=\"admin-identity-settings\" class=\"settings-list\"></div></div>"
-    + "<div class=\"settings-card settings-card-compact\"><h2>Recordings</h2><div id=\"admin-recording-settings\" class=\"settings-list\"></div></div>";
+    + "<div class=\"settings-card settings-card-compact\"><h2>Recordings</h2><div id=\"admin-recording-settings\" class=\"settings-list\"></div></div>"
+    + (isAdminRoute && byId("admin-license-notices") ? byId("admin-license-notices").innerHTML : "");
 }
 function renderAdminIdentitySettings() {
   const root = byId("admin-identity-settings");
@@ -7216,6 +7218,15 @@ function returnFromPlayer() {
   });
 }
 document.addEventListener("click", function(event) {
+  const guideNow = event.target.closest("[data-guide-now]");
+  if (guideNow) { event.preventDefault(); jumpGuideToNow(); return; }
+  const guideResult = event.target.closest("[data-guide-search-channel]");
+  if (guideResult) {
+    event.preventDefault();
+    jumpGuideToProgram(guideResult.getAttribute("data-guide-search-channel"), guideResult.getAttribute("data-guide-search-program"), Number(guideResult.getAttribute("data-guide-search-start")));
+    return;
+  }
+  if (!event.target.closest(".guide-search-wrap")) dismissGuideProgramSearch();
   const guideCategory = event.target.closest("[data-guide-category]");
   if (guideCategory) {
     event.preventDefault();
@@ -7861,6 +7872,7 @@ document.addEventListener("mouseout", function(event) {
   hideOverflowTooltip();
 });
 document.addEventListener("focusin", function(event) {
+  rememberGuideFocus(event.target);
   const target = overflowTooltipTarget(event);
   if (target) showOverflowTooltip(target, event);
   if (state.view === "player") wakePlayerChrome();
@@ -7888,6 +7900,7 @@ document.addEventListener("keydown", function(event) {
     return;
   }
   if (trapProgramModalFocus(event)) return;
+  if (handleGuideKeyboard(event)) return;
   if (state.programDetails && event.key === "Escape") {
     event.preventDefault();
     closeProgramDetails();

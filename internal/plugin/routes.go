@@ -1250,6 +1250,7 @@ func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) s
 	body = strings.ReplaceAll(body, "__ASSET_PREFIX__", assetPrefix)
 	body = strings.ReplaceAll(body, "__ASSET_VERSION__", pluginAssetVersion())
 	if request.GetPath() == "/dispatcharr/admin" {
+		body = strings.Replace(body, "</body>", adminLicenseNoticesHTML()+"</body>", 1)
 		body = removeTemplateBlock(body, "<!-- USER_NAV_START -->", "<!-- USER_NAV_END -->")
 		body = replaceTemplateBlock(body, "<!-- USER_TOPBAR_START -->", "<!-- USER_TOPBAR_END -->", adminTopbarHTML())
 		body = strings.ReplaceAll(body, "__APP_TITLE__", "Dispatcharr Admin")

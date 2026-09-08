@@ -484,8 +484,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	}
 	guideTitleIndex := strings.Index(guideRender, `class="guide-commandbar-title"`)
 	guideCategoryIndex := strings.Index(guideRender, `renderGuideCategoryPicker(categories)`)
-	guideSearchIndex := strings.Index(guideRender, `class=\"guide-search-field\"`)
-	guideActionIndex := strings.Index(guideRender, `class=\"guide-commandbar-actions\"`)
+	guideSearchIndex := strings.Index(guideRender, `+ searchHTML`)
+	guideActionIndex := strings.Index(guideRender, `+ actionsHTML`)
 	if guideTitleIndex < 0 || guideCategoryIndex < 0 || guideSearchIndex < 0 || guideActionIndex < 0 || !(guideTitleIndex < guideCategoryIndex && guideCategoryIndex < guideSearchIndex && guideSearchIndex < guideActionIndex) {
 		t.Fatalf("expected the guide command bar to order title, category, centered search, then Dispatcharr actions")
 	}
