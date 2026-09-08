@@ -239,10 +239,13 @@ function updateTimeShiftUI() {
     range.max = String(windowSeconds);
     range.value = String(Math.max(0, position - start));
   }
-  // One segment is the playback cushion; another can arrive between updates.
+  // HLS can increase its playback cushion after stalls. Allow playlist updates
+  // on either side of that target without flashing a rewind countdown.
   // Explicit rewind uses a tighter threshold so a short seek is still visible.
   const segment = timeShiftSegmentSeconds();
-  const tolerance = (state.timeShiftSession.rewound ? segment : segment * 2) + 1;
+  const targetLatency = state.hls && state.hls.targetLatency;
+  const target = Number.isFinite(targetLatency) && targetLatency > 0 ? targetLatency : segment;
+  const tolerance = target + (state.timeShiftSession.rewound ? 0 : segment * 2) + 1;
   const atLive = !video.paused && !video.ended && behind <= tolerance;
   if (atLive) state.timeShiftSession.rewound = false;
   if (label) label.textContent = atLive ? "LIVE" : "-" + Math.floor(behind / 60) + ":" + String(Math.floor(behind % 60)).padStart(2, "0");
@@ -345,6 +348,7 @@ function updateCenterPlayButton() {
   const button = byId("player-center-button");
   if (!video) return;
   const paused = video.paused || video.ended;
+  if (paused && state.timeShiftSession) state.timeShiftSession.rewound = true;
   const transport = byId("player-timeshift-play");
   if (transport) {
     transport.innerHTML = icon(paused ? "play" : "pause");

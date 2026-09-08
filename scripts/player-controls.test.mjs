@@ -51,6 +51,22 @@ test('paused playback does not advertise LIVE', () => {
   assert.notEqual(f.nodes['player-timeshift-label'].textContent, 'LIVE');
 });
 
+test('LIVE follows the increased HLS latency target after a startup stall', () => {
+  const f = fixture();
+  f.state.hls.latestLevelDetails.targetduration = 2;
+  f.state.hls.targetLatency = 4;
+  for (const time of [112.1, 114, 116, 118]) {
+    f.video.currentTime = time;
+    vm.runInContext('updateTimeShiftUI()', f.ctx);
+    assert.equal(f.nodes['player-timeshift-label'].textContent, 'LIVE');
+  }
+  f.video.paused = true;
+  vm.runInContext('updateCenterPlayButton()', f.ctx);
+  f.video.paused = false; f.setEnd(126);
+  vm.runInContext('updateCenterPlayButton()', f.ctx);
+  assert.equal(f.nodes['player-timeshift-label'].textContent, '-0:08', 'resuming a deliberate pause retains the offset');
+});
+
 test('managed rewind disables automatic catch-up while regular live playback retains it', () => {
   class Hls {
     static isSupported() {return true;}
