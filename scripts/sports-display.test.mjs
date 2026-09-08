@@ -3,6 +3,48 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
+test('event details use browse breadcrumbs and sport art without generic league copy', () => {
+  const source = fs.readFileSync(new URL('../internal/plugin/ui/app.js', import.meta.url), 'utf8');
+  const ctx = vm.createContext({
+    state: {sportsTab: 'live', sportsFailedMedia: {}},
+    escapeHTML: value => String(value || ''), safeSportsMediaURL: value => String(value || ''),
+    appRoutePart: encodeURIComponent, sportsTeamName: team => team?.name || '',
+    sportsEventTitle: event => event.name, icon: () => '', sportsScoresHidden: () => false,
+    rankedSportsBroadcasts: () => [], sportsReplayMatchesForEvent: () => [],
+    sportsEventArtwork: event => event.art || '', sportsArtworkDimensions: () => '',
+    sportsLeagueEvents: () => [], sportsEventHasPlayableAccess: () => true,
+    sportsEventIsLive: () => false, sportsFavoriteLeagueMap: () => ({}),
+    renderSportsDetailScore: () => '', renderSportsGameStats: () => '', sportsSectionHTML: () => ''
+  });
+  for (const name of ['appRouteHash', 'sportsTabLabel', 'sportsDetailLeagueLabel', 'renderSportsEventNavigation', 'sportsMediaFailed', 'sportsFieldBackgroundKind', 'sportsFieldBackgroundURL', 'markSportsDetailBackgroundFailed', 'renderSportsEventDetail']) {
+    const start = source.indexOf('function ' + name + '('), end = source.indexOf('\nfunction ', start + 1);
+    assert.ok(start >= 0 && end > start, name);
+    vm.runInContext(source.slice(start, end), ctx);
+  }
+  const event = {leagueId: 'sports', leagueName: 'Sports', sportName: 'Sports', name: 'NWSL Soccer: Palmeiras vs Chicago Stars', away: {name: 'Palmeiras'}, home: {name: 'Chicago Stars'}};
+  const html = ctx.renderSportsEventDetail({}, event);
+  assert.match(html, /aria-label="Breadcrumb"/);
+  assert.match(html, /href="#\/sports\/live"/);
+  assert.match(html, /aria-current="page"[^>]*>Palmeiras vs Chicago Stars/);
+  assert.doesNotMatch(html, />Previous<|>Next<|sports-eyebrow|data-sports-favorite-league/);
+  assert.match(html, /sports-event-hero-art.*images\.unsplash\.com/);
+  const nhl = {...event, leagueId: 'nhl', leagueName: 'NHL', sportName: 'Hockey'};
+  assert.match(ctx.renderSportsEventNavigation({}, nhl), /href="#\/sports\/live\/league\/nhl">NHL/);
+  const supplied = ctx.renderSportsEventDetail({}, {...event, art: 'https://example.com/event.jpg'});
+  assert.match(supplied, /src="https:\/\/example.com\/event.jpg"/);
+  assert.match(supplied, /data-sports-detail-fallback="https:\/\/images\.unsplash\.com/);
+  const attributes = new Map([['src', 'https://example.com/event.jpg'], ['data-sports-detail-fallback', 'https://example.com/pitch.jpg']]);
+  const classes = new Set(['has-art']);
+  const image = {hidden: false, getAttribute: key => attributes.get(key), setAttribute: (key, value) => attributes.set(key, value), removeAttribute: key => attributes.delete(key), parentElement: {classList: {remove: key => classes.delete(key), add: key => classes.add(key)}}};
+  ctx.markSportsDetailBackgroundFailed(image);
+  assert.equal(attributes.get('src'), 'https://example.com/pitch.jpg');
+  assert.equal(image.hidden, false);
+  ctx.markSportsDetailBackgroundFailed(image);
+  assert.equal(image.hidden, true);
+  assert.ok(classes.has('no-art'));
+  assert.ok(!classes.has('has-art'));
+});
+
 test('game-thumbs failures fall back once and retain the local layout', () => {
   const source = fs.readFileSync(new URL('../internal/plugin/ui/app.js', import.meta.url), 'utf8');
   const state = {sportsFailedMedia: {}};

@@ -1199,6 +1199,11 @@ func canonicalizeKnownSportsLeague(event SportsEvent) SportsEvent {
 		event.ShortName,
 	}, " "))
 	if !matched || leagueID == "" || leagueID == "sports" {
+		// Generic guide titles such as "Best of Devils" may omit the league.
+		// Require both full club identities before upgrading their classification.
+		if (event.LeagueID == "" || event.LeagueID == "sports") && gameThumbsLeagueSlugForTeam(event.Away, "") == "nhl" && gameThumbsLeagueSlugForTeam(event.Home, "") == "nhl" {
+			event.LeagueID, event.LeagueName, event.SportName = "nhl", "NHL", "Hockey"
+		}
 		return event
 	}
 	event.LeagueID = leagueID
