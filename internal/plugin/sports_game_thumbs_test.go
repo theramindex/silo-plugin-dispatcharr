@@ -80,3 +80,13 @@ func TestVolleyballNationsLeagueKeepsNationalTeamArtwork(t *testing.T) {
 		}
 	}
 }
+
+func TestCrossLeagueMatchupKeepsIndividualClubArtwork(t *testing.T) {
+	event := applySportsIdentityFallbacks(SportsEvent{LeagueID: "sports", LeagueName: "Sports", Name: "NWSL Soccer : Teal Rising Cup: Palmeiras vs. Chicago Stars", Away: SportsTeam{Name: "Palmeiras"}, Home: SportsTeam{Name: "Chicago Stars"}})
+	if event.Away.LogoURL != gameThumbsTeamLogoURL("bra.1", "Palmeiras") || event.Home.LogoURL != gameThumbsTeamLogoURL("usa.nwsl", "Chicago Stars") {
+		t.Fatalf("cross-league clubs need their own namespaces: %+v", event)
+	}
+	if event.GameThumbsBackgroundURL != "" {
+		t.Fatalf("single-league composite would replace a visiting club with a placeholder: %s", event.GameThumbsBackgroundURL)
+	}
+}

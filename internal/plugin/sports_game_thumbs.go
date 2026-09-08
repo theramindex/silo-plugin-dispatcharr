@@ -130,6 +130,12 @@ func applyGameThumbsArtwork(event SportsEvent, slug string) SportsEvent {
 	}
 	path := "/" + url.PathEscape(slug)
 	if event.EventType != "event" && event.EventType != "race" && usableSportsIdentityName(event.Away.Name) && usableSportsIdentityName(event.Home.Name) {
+		// A single-league composite cannot resolve visiting clubs from another
+		// league. Keep their individually resolved logos on the local backdrop.
+		if gameThumbsLeagueSlugForTeam(event.Away, slug) != slug || gameThumbsLeagueSlugForTeam(event.Home, slug) != slug {
+			event.GameThumbsBackgroundURL = ""
+			return event
+		}
 		path += "/" + url.PathEscape(gameThumbsTeamKey(gameThumbsCanonicalTeamName(event.Away.Name))) + "/" + url.PathEscape(gameThumbsTeamKey(gameThumbsCanonicalTeamName(event.Home.Name)))
 	}
 	event.GameThumbsBackgroundURL = gameThumbsPublicBaseURL + path + "/thumb.png?style=6&logo=false&fallback=true"

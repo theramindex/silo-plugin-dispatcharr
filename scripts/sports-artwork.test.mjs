@@ -66,6 +66,17 @@ test('league aliases disambiguate football and preserve specific sport metadata'
   assert.equal(ctx.sportsFieldBackgroundURL(null), '');
 });
 
+test('soccer guide titles provide a pitch when sport metadata is generic', () => {
+  const ctx = context();
+  for (const name of ['NWSL Soccer : Teal Rising Cup: Palmeiras vs. Chicago Stars', 'Italian Serie B Soccer : Palermo vs. Sampdoria']) {
+    const event = {sportName: 'Sports', leagueId: 'sports', leagueName: 'Sports', name};
+    assert.equal(ctx.sportsFieldBackgroundKind(event), 'soccer');
+    assert.equal(ctx.sportsFieldBackgroundURL(event), ctx.sportsFieldBackgroundURL({sportName: 'Soccer'}));
+  }
+  assert.equal(ctx.sportsFieldBackgroundKind({sportName: 'Cricket', name: 'Soccer special'}), 'cricket');
+  assert.equal(ctx.sportsFieldBackgroundKind({sportName: 'Sports', name: 'Athletics vs. Toronto'}), '');
+});
+
 test('missing or failed photos retain GameThumbs backgrounds', () => {
   const ctx = context();
   const event = {sportName: 'Basketball', gameThumbsBackgroundUrl: 'https://game-thumbs.swvn.io/nba/lakers/celtics/thumb.png'};
