@@ -169,7 +169,7 @@ func (s *HTTPRoutesServer) proxySportsEventImages(events []SportsEvent) []Sports
 		event := &proxied[index]
 		event.ImageURL = s.sportsImages.register(event.ImageURL)
 		for _, logo := range []*string{&event.LeagueLogoURL, &event.Home.LogoURL, &event.Away.LogoURL, &event.LeagueLogoFallbackURL, &event.Home.LogoFallbackURL, &event.Away.LogoFallbackURL} {
-			if *logo == ceblLeagueLogoURL || *logo == fibaWomensLeagueLogoURL {
+			if *logo == ceblLeagueLogoURL || *logo == fibaWomensLeagueLogoURL || *logo == iccLeagueLogoURL || isCEBLTeamLogo(*logo) {
 				continue
 			}
 			if strings.HasPrefix(*logo, "https://sportarr.net/static/images/team/") || strings.HasPrefix(*logo, "https://sportarr.net/static/images/league/") || strings.HasPrefix(*logo, "https://r2.thesportsdb.com/images/media/team/badge/") {

@@ -20,6 +20,7 @@ const (
 	ncaaTeamLogoBase        = "https://a.espncdn.com/i/teamlogos/ncaa/500/"
 	ncaaLeagueLogoURL       = "https://upload.wikimedia.org/wikipedia/commons/d/dd/NCAA_logo.svg"
 	ceblLeagueLogoURL       = "https://irp.cdn-website.com/d8d53c44/dms3rep/multi/CEBL_Primary-Logo_Full-Wordmark.svg"
+	iccLeagueLogoURL        = "https://images.icc-cricket.com/image/private/t_q-best/v1763015137/prd/assets/app-nav-dropdown/default-icc-logo.png"
 	fibaWomensLeagueLogoURL = "https://assets.fiba.basketball/image/upload/w_400,h_128,c_fit/q_auto/f_auto/v1723639691/.asset_mainlogo--competition_208875"
 )
 
@@ -170,6 +171,12 @@ func applySpecialSportsIdentityFallbacks(event SportsEvent) SportsEvent {
 			event.LeagueLogoURL = ceblLeagueLogoURL
 		case "fiba-womens-world-cup":
 			event.LeagueLogoURL = fibaWomensLeagueLogoURL
+		case "cricket":
+			// International series have no franchise-league badge. Use the
+			// governing body's mark without borrowing a domestic competition.
+			if gameThumbsLeagueSlugForEvent(event) == "" && sportsCountryNames[normalizeSportsIdentityText(event.Away.Name)] != "" && sportsCountryNames[normalizeSportsIdentityText(event.Home.Name)] != "" {
+				event.LeagueLogoURL = iccLeagueLogoURL
+			}
 		}
 	}
 	identityText := normalizeSportsIdentityText(strings.Join([]string{event.LeagueID, event.LeagueName, event.SportName, event.Name}, " "))
@@ -183,8 +190,8 @@ func applySpecialSportsIdentityFallbacks(event SportsEvent) SportsEvent {
 				team.LogoURL = "https://a.espncdn.com/i/teamlogos/mlb/500/" + code + ".png"
 			}
 		}
-		if event.LeagueID == "cebl" && (name == "brampton" || name == "brampton honey badgers") {
-			team.LogoURL = "https://irp.cdn-website.com/ffc1e51d/dms3rep/multi/opt/BramptonHoneyBadgers_Icon+%282%29-1920w.png"
+		if event.LeagueID == "cebl" {
+			team.LogoURL = ceblTeamLogo(name)
 		}
 	}
 	if leagueID, _, sport := guideCollegeCompetition(identityText); leagueID != "" && sport != "Football" {
