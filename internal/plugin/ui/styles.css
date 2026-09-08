@@ -1199,7 +1199,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .playback-shell.sports-open .playback-video { bottom: auto; height: calc(100% - var(--player-sports-drawer-height, 0px)); }
 .playback-scrim { pointer-events: none; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.84) 0%, rgba(0,0,0,0.28) 12%, transparent 30%, transparent 55%, rgba(0,0,0,0.22) 68%, rgba(0,0,0,0.92) 100%); transition: opacity 220ms ease; }
 .playback-shell.sports-open .playback-scrim { bottom: var(--player-sports-drawer-height, 0px); }
-.player-top { position: absolute; inset: 0.85rem 0.9rem auto; display: flex; align-items: center; justify-content: space-between; gap: 1rem; z-index: 2; }
+.player-top { position: absolute; inset: 0.85rem 0.9rem auto; display: flex; align-items: center; justify-content: space-between; gap: 1rem; z-index: 3; }
 .player-top, .player-bottom { transition: opacity 220ms ease, transform 220ms ease; }
 .playback-shell.is-idle { cursor: none; }
 .playback-shell.is-idle .playback-scrim { opacity: 0; }
@@ -1389,10 +1389,12 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .player-guide-row strong { font-size: 0.86rem; }
 .player-guide-row small { margin-top: 0.12rem; color: rgba(255,255,255,0.62); font-size: 0.72rem; font-weight: 750; }
 .player-guide-empty { padding: 1rem; color: rgba(255,255,255,0.6); font-size: 0.85rem; font-weight: 760; text-align: center; }
-.player-more-menu { position: absolute; top: calc(100% + 0.45rem); right: 0; z-index: 4; display: none; width: min(25rem, 84vw); overflow: hidden; border: 1px solid rgba(255,255,255,0.14); border-radius: 0.5rem; background: rgba(20,20,21,0.94); box-shadow: 0 1.2rem 2.4rem rgba(0,0,0,0.42); backdrop-filter: blur(22px); }
+.player-more-menu { position: absolute; top: calc(100% + 0.45rem); right: 0; z-index: 4; display: none; width: min(21rem, 84vw); max-height: calc(100dvh - 6rem); overflow-y: auto; overscroll-behavior: contain; border: 1px solid rgba(255,255,255,0.14); border-radius: 0.65rem; background: rgba(20,20,21,0.96); box-shadow: 0 1.2rem 2.4rem rgba(0,0,0,0.42); backdrop-filter: blur(22px); }
 .player-more-menu.open { display: block; }
 .player-more-kicker { padding: 0.8rem 0.95rem 0.35rem; color: rgba(255,255,255,0.56); font-size: 0.75rem; font-weight: 850; }
-.player-more-menu button { width: 100%; border: 0; background: transparent; color: white; display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 0.65rem; align-items: center; padding: 0.72rem 0.95rem; text-align: left; font-weight: 820; }
+.player-more-menu button { width: 100%; min-height: 44px; border: 0; background: transparent; color: white; display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 0.65rem; align-items: center; padding: 0.55rem 0.95rem; text-align: left; font-size: 0.875rem; font-weight: 650; }
+.player-more-menu button > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.player-more-menu button > img, .player-more-menu button > .logo { width: 2rem; height: 2rem; min-width: 0; object-fit: contain; }
 .menu-icon { width: 2rem; height: 2rem; display: inline-grid; place-items: center; color: rgba(255,255,255,0.78); }
 .player-more-menu button:hover { background: rgba(255,255,255,0.1); }
 .player-more-menu button small { display: block; margin-top: 0.12rem; color: rgba(255,255,255,0.58); font-size: 0.72rem; font-weight: 720; }

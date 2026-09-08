@@ -60,7 +60,7 @@ function renderPlayerPage() {
   const videoAttributes = " autoplay playsinline";
   const modeTag = replayMode ? "Replay" : "AV";
   const liveProgramWindow = !replayMode ? "<div class=\"player-live-window\"><span>Started " + escapeHTML(start) + "</span><strong><span class=\"live-dot\"></span>Live</strong><span>Ends " + escapeHTML(end) + "</span></div>" : "";
-  const timeShiftControls = "<div id=\"player-timeshift-controls\" class=\"player-timeshift-controls hidden\"><button class=\"player-icon\" data-player-action=\"rewind-30\" aria-label=\"Rewind 30 seconds\">" + icon("rewind") + "</button><button class=\"player-icon\" data-player-action=\"play-toggle\" aria-label=\"Play or pause\">" + icon("play") + "</button><button class=\"player-icon\" data-player-action=\"forward-30\" aria-label=\"Forward 30 seconds\">" + icon("forward") + "</button><input id=\"player-timeshift-range\" type=\"range\" min=\"0\" max=\"1\" step=\"0.25\" value=\"1\" aria-label=\"Live Rewind position\"><button class=\"player-live-button\" data-player-action=\"go-live\"><span class=\"live-dot\"></span><span id=\"player-timeshift-label\">LIVE</span></button></div>";
+  const timeShiftControls = "<div id=\"player-timeshift-controls\" class=\"player-timeshift-controls hidden\"><button class=\"player-icon\" data-player-action=\"rewind-30\" aria-label=\"Rewind 30 seconds\">" + icon("rewind") + "</button><button id=\"player-timeshift-play\" class=\"player-icon\" data-player-action=\"play-toggle\" aria-label=\"Play\">" + icon("play") + "</button><button class=\"player-icon\" data-player-action=\"forward-30\" aria-label=\"Forward 30 seconds\">" + icon("forward") + "</button><input id=\"player-timeshift-range\" type=\"range\" min=\"0\" max=\"1\" step=\"0.25\" value=\"1\" aria-label=\"Live Rewind position\"><button class=\"player-live-button\" data-player-action=\"go-live\"><span class=\"live-dot\"></span><span id=\"player-timeshift-label\">LIVE</span></button></div>";
   const topActions = "<div class=\"player-top-actions\">"
     + "<div class=\"player-audio\"><button id=\"player-audio-button\" class=\"player-chip\" data-player-action=\"audio-menu\" aria-haspopup=\"true\" aria-expanded=\"false\"><span>Audio</span>" + icon("chevron-down") + "</button><div id=\"player-audio-menu\" class=\"player-menu\" role=\"menu\"></div></div>"
     + "<div class=\"player-volume\"><button id=\"player-volume-button\" class=\"player-icon\" data-player-action=\"volume-menu\" aria-label=\"Volume\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("speaker") + "</button><div id=\"player-volume-popover\" class=\"volume-popover\"><span>VOL</span><input id=\"player-volume-slider\" type=\"range\" min=\"0\" max=\"100\" step=\"1\" value=\"" + Math.round(state.volume * 100) + "\" aria-label=\"Volume\"><span id=\"player-volume-value\" class=\"volume-value\"></span></div></div>"
@@ -207,6 +207,19 @@ function fallbackFromTimeShift(channel, message) {
   if (message) showPlayerToast(message);
 }
 
+function timeShiftSegmentSeconds() {
+  const details = state.hls && state.hls.latestLevelDetails;
+  const duration = Number(details && details.targetduration);
+  return Number.isFinite(duration) && duration > 0 ? duration : 6;
+}
+
+function timeShiftLivePosition(video) {
+  const start = video.seekable.start(0);
+  const end = video.seekable.end(video.seekable.length - 1);
+  const sync = state.hls && state.hls.liveSyncPosition;
+  return Math.max(start, Math.min(end, Number.isFinite(sync) ? sync : end - timeShiftSegmentSeconds()));
+}
+
 function updateTimeShiftUI() {
   const controls = byId("player-timeshift-controls");
   const range = byId("player-timeshift-range");
@@ -219,14 +232,22 @@ function updateTimeShiftUI() {
   if (!active) return;
   const start = video.seekable.start(0);
   const end = video.seekable.end(video.seekable.length - 1);
-  const position = Math.max(start, Math.min(end, video.currentTime || end));
+  const position = Math.max(start, Math.min(end, Number.isFinite(video.currentTime) ? video.currentTime : end));
   const windowSeconds = Math.max(0, end - start);
   const behind = Math.max(0, end - position);
   if (range) {
     range.max = String(windowSeconds);
     range.value = String(Math.max(0, position - start));
   }
-  if (label) label.textContent = behind < 3 ? "LIVE" : "-" + Math.floor(behind / 60) + ":" + String(Math.floor(behind % 60)).padStart(2, "0");
+  // One segment is the playback cushion; another can arrive between updates.
+  // Explicit rewind uses a tighter threshold so a short seek is still visible.
+  const segment = timeShiftSegmentSeconds();
+  const tolerance = (state.timeShiftSession.rewound ? segment : segment * 2) + 1;
+  const atLive = !video.paused && !video.ended && behind <= tolerance;
+  if (atLive) state.timeShiftSession.rewound = false;
+  if (label) label.textContent = atLive ? "LIVE" : "-" + Math.floor(behind / 60) + ":" + String(Math.floor(behind % 60)).padStart(2, "0");
+  const liveButton = label && label.parentElement;
+  if (liveButton) liveButton.setAttribute("aria-label", atLive ? "At live edge" : "Go live");
 }
 
 function applyAspectMode() {
@@ -246,21 +267,20 @@ function renderPlayerMoreMenu() {
     return !state.currentChannel || channel.id !== state.currentChannel.id;
   }).slice(0, 3);
   const sportsControl = sportsFirstPlayerActive()
-    ? "<button data-player-action=\"sports\">" + menuIcon("trophy") + "<span>Sports center<small>Scores, matchups, and related channels</small></span></button>"
+    ? "<button data-player-action=\"sports\">" + menuIcon("trophy") + "<span>Sports center</span></button>"
     : "";
-  menu.innerHTML = "<div class=\"player-more-kicker\">Video settings & controls</div>"
+  menu.innerHTML = "<div class=\"player-more-kicker\">Playback</div>"
     + "<button data-player-action=\"aspect\">" + menuIcon("aspect") + "<span>Aspect ratio<small>" + (state.aspectMode === "fit" ? "Fit to screen" : "Fill screen") + "</small></span></button>"
     + "<button data-player-action=\"fullscreen\">" + menuIcon(document.fullscreenElement ? "fullscreen-exit" : "fullscreen") + "<span>Fullscreen<small>" + (document.fullscreenElement ? "Exit player fullscreen" : "Fill the display") + "</small></span></button>"
-    + "<button data-player-action=\"pip\">" + menuIcon("pip") + "<span>Picture in Picture<small>Keep watching over other windows</small></span></button>"
-    + "<button data-player-action=\"guide\">" + menuIcon("guide") + "<span>Channel guide<small>Browse channels without leaving playback</small></span></button>"
+    + "<button data-player-action=\"pip\">" + menuIcon("pip") + "<span>Picture in Picture</span></button>"
+    + "<button data-player-action=\"guide\">" + menuIcon("guide") + "<span>Channel guide</span></button>"
     + sportsControl
-    + "<button data-player-action=\"add-multiview\">" + menuIcon("multiview") + "<span>Add to multiview<small>Tile this channel with up to three more</small></span></button>"
-    + "<button data-player-action=\"search-channel\">" + menuIcon("search") + "<span>Search channel<small>Jump to the channel list search</small></span></button>"
-    + (recent.length ? "<div class=\"player-more-separator\"></div><div class=\"player-more-kicker\">Channels history</div>" + recent.map(function(channel) { return "<button data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<span>" + escapeHTML(channel.name || "Untitled") + "<small>" + escapeHTML(channel.categoryName || "Live TV") + "</small></span></button>"; }).join("") : "")
-    + "<div class=\"player-more-separator\"></div><div class=\"player-more-kicker\">Video & audio casting</div>"
-    + "<button data-player-action=\"cast\">" + menuIcon("airplay") + "<span>AirPlay or Cast<small>Use browser playback target picker</small></span></button>"
-    + "<button data-player-action=\"copy-stream\">" + menuIcon("copy") + "<span>Copy stream URL<small>For an external player</small></span></button>"
-    + "<button data-player-action=\"open-stream\">" + menuIcon("external") + "<span>Use external video player<small>Open the stream route in a new tab</small></span></button>";
+    + "<button data-player-action=\"add-multiview\">" + menuIcon("multiview") + "<span>Add to multiview</span></button>"
+    + "<button data-player-action=\"search-channel\">" + menuIcon("search") + "<span>Search channel</span></button>"
+    + (recent.length ? "<div class=\"player-more-separator\"></div><div class=\"player-more-kicker\">Recent channels</div>" + recent.map(function(channel) { return "<button data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<span>" + escapeHTML(channel.name || "Untitled") + "<small>" + escapeHTML(channel.categoryName || "Live TV") + "</small></span></button>"; }).join("") : "")
+    + "<div class=\"player-more-separator\"></div><div class=\"player-more-kicker\">Open elsewhere</div>"
+    + "<button data-player-action=\"copy-stream\">" + menuIcon("copy") + "<span>Copy stream URL</span></button>"
+    + "<button data-player-action=\"open-stream\">" + menuIcon("external") + "<span>Open stream in new tab</span></button>";
 }
 
 function updateSubtitlesButton() {
@@ -323,7 +343,15 @@ function showPlayerToast(message) {
 function updateCenterPlayButton() {
   const video = byId("player");
   const button = byId("player-center-button");
-  if (!video || !button) return;
+  if (!video) return;
+  const paused = video.paused || video.ended;
+  const transport = byId("player-timeshift-play");
+  if (transport) {
+    transport.innerHTML = icon(paused ? "play" : "pause");
+    transport.setAttribute("aria-label", paused ? "Play" : "Pause");
+  }
+  updateTimeShiftUI();
+  if (!button) return;
   const loading = !!state.playerWaiting && !video.paused;
   const show = loading || video.paused;
   button.classList.toggle("hidden", !show);
@@ -372,6 +400,7 @@ function setVideoSource(url, options) {
   video.addEventListener("playing", function() { state.playerWaiting = false; updateCenterPlayButton(); });
   video.addEventListener("pause", updateCenterPlayButton);
   video.addEventListener("play", updateCenterPlayButton);
+  video.addEventListener("ended", updateCenterPlayButton);
   video.addEventListener("error", function() { state.playerWaiting = false; updateCenterPlayButton(); });
   if (video.textTracks && video.textTracks.addEventListener) {
     video.textTracks.addEventListener("addtrack", updateSubtitlesButton);

@@ -5758,12 +5758,14 @@ function timeShiftSeek(delta) {
   const start = video.seekable.start(0);
   const end = video.seekable.end(video.seekable.length - 1);
   video.currentTime = Math.max(start, Math.min(end - 0.25, video.currentTime + delta));
+  if (state.timeShiftSession) state.timeShiftSession.rewound = true;
   updateTimeShiftUI();
 }
 function timeShiftGoLive() {
   const video = byId("player");
   if (!video || !video.seekable || !video.seekable.length) return;
-  video.currentTime = Math.max(video.seekable.start(0), video.seekable.end(video.seekable.length - 1) - 0.5);
+  video.currentTime = timeShiftLivePosition(video);
+  if (state.timeShiftSession) state.timeShiftSession.rewound = false;
   video.play().catch(function() {});
   updateTimeShiftUI();
 }
@@ -5830,7 +5832,8 @@ function attachVideoSource(video, url, options) {
   };
   const isHLS = (options && options.format === "hls") || url.indexOf(".m3u8") !== -1;
   if (window.Hls && Hls.isSupported() && isHLS) {
-    const hlsOptions = managedTimeShift ? { liveSyncDurationCount: 1, liveMaxLatencyDurationCount: 5, maxBufferLength: 60 } : liveHLSOptions(options && options.hlsBufferSeconds);
+    // Managed rewind must not jump back to live after a pause or seek.
+    const hlsOptions = managedTimeShift ? { liveSyncDurationCount: 1, liveMaxLatencyDurationCount: Infinity, maxBufferLength: 60 } : liveHLSOptions(options && options.hlsBufferSeconds);
     hlsOptions.xhrSetup = applyCoreMediaRequest;
     attachment.hls = new Hls(hlsOptions);
     let recoveryAttempts = 0;
@@ -8224,6 +8227,7 @@ document.addEventListener("input", function(event) {
     const video = byId("player");
     if (video && video.seekable && video.seekable.length) {
       video.currentTime = video.seekable.start(0) + Number(event.target.value || 0);
+      if (state.timeShiftSession) state.timeShiftSession.rewound = true;
       updateTimeShiftUI();
     }
     return;
