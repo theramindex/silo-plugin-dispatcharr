@@ -14,9 +14,10 @@ test('event details use browse breadcrumbs and sport art without generic league 
     sportsEventArtwork: event => event.art || '', sportsArtworkDimensions: () => '',
     sportsLeagueEvents: () => [], sportsEventHasPlayableAccess: () => true,
     sportsEventIsLive: () => false, sportsFavoriteLeagueMap: () => ({}),
+    sportsBroadcastGroup: () => 'Other feeds', renderSportsBroadcastCard: channel => '<button data-channel="' + channel.id + '">Watch ' + channel.name + '</button>',
     renderSportsDetailScore: () => '', renderSportsGameStats: () => '', sportsSectionHTML: () => ''
   });
-  for (const name of ['appRouteHash', 'sportsTabLabel', 'sportsDetailLeagueLabel', 'renderSportsEventNavigation', 'sportsMediaFailed', 'sportsFieldBackgroundKind', 'sportsFieldBackgroundURL', 'markSportsDetailBackgroundFailed', 'renderSportsEventDetail']) {
+  for (const name of ['appRouteHash', 'sportsTabLabel', 'sportsDetailLeagueLabel', 'renderSportsEventNavigation', 'sportsMediaFailed', 'sportsFieldBackgroundKind', 'sportsFieldBackgroundURL', 'markSportsDetailBackgroundFailed', 'renderSportsBroadcastGroups', 'renderSportsEventDetail']) {
     const start = source.indexOf('function ' + name + '('), end = source.indexOf('\nfunction ', start + 1);
     assert.ok(start >= 0 && end > start, name);
     vm.runInContext(source.slice(start, end), ctx);
@@ -28,6 +29,10 @@ test('event details use browse breadcrumbs and sport art without generic league 
   assert.match(html, /aria-current="page"[^>]*>Palmeiras vs Chicago Stars/);
   assert.doesNotMatch(html, />Previous<|>Next<|sports-eyebrow|data-sports-favorite-league/);
   assert.match(html, /sports-event-hero-art.*images\.unsplash\.com/);
+  ctx.rankedSportsBroadcasts = () => [{id: 'watch-channel', name: 'Womens Sports Network'}];
+  const watchPage = ctx.renderSportsEventDetail({}, event);
+  assert.match(watchPage, /data-channel="watch-channel"/);
+  assert.doesNotMatch(watchPage, /Matched channels|candidate|Other feeds/);
   const nhl = {...event, leagueId: 'nhl', leagueName: 'NHL', sportName: 'Hockey'};
   assert.match(ctx.renderSportsEventNavigation({}, nhl), /href="#\/sports\/live\/league\/nhl">NHL/);
   const supplied = ctx.renderSportsEventDetail({}, {...event, art: 'https://example.com/event.jpg'});

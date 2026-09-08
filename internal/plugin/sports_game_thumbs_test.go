@@ -107,3 +107,22 @@ func TestGenericGuideNHLMatchupUsesClubClassification(t *testing.T) {
 		t.Fatal("club inference must preserve an explicitly identified competition")
 	}
 }
+
+func TestCanadianGuideCompetitionsRetainTheirSports(t *testing.T) {
+	for _, tc := range []struct{ title, league, name, sport string }{
+		{"(CA) (CBC 12) | HoopQueens Basketball: REIGN vs CHARGE (2026-07-12 21:00:00)", "hoopqueens", "HoopQueens Basketball", "Basketball"},
+		{"Hoop Queens: TIDE vs BLAZE", "hoopqueens", "HoopQueens Basketball", "Basketball"},
+		{"(CA) (CBC 09) | Canada Cup International Softball Championship: TBD vs TBD (2026-07-12 16:00:05)", "canada-cup-softball", "Canada Cup Softball", "Softball"},
+	} {
+		event := normalizeSportsEvents([]SportsEvent{{Name: tc.title, LeagueID: "sports", LeagueName: "Sports", SportName: "Sports"}})[0]
+		if event.LeagueID != tc.league || event.LeagueName != tc.name || event.SportName != tc.sport {
+			t.Fatalf("wrong competition for %q: %+v", tc.title, event)
+		}
+		if event.GameThumbsBackgroundURL != "" || event.LeagueLogoURL != "" {
+			t.Fatalf("unsupported competitions must not borrow another league's artwork: %+v", event)
+		}
+	}
+	if id, _, _, _ := guideSportsLeague("Canada Cup Ice Hockey"); id == "canada-cup-softball" {
+		t.Fatal("Canada Cup alone does not identify softball")
+	}
+}

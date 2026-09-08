@@ -3772,7 +3772,6 @@ function renderSportsEventDetail(payload, event) {
     return item.id !== event.id && sportsEventHasPlayableAccess(item);
   }).slice(0, 6);
   const live = sportsEventIsLive(event);
-  const channelCountLabel = channels.length + " " + (live ? (channels.length === 1 ? "broadcast" : "broadcasts") : (channels.length === 1 ? "candidate" : "candidates"));
   const watch = live && channels[0] ? "<button type=\"button\" class=\"sports-primary-action\" data-channel=\"" + escapeHTML(channels[0].id) + "\">" + icon("play") + "<span>Watch live on " + escapeHTML(channels[0].name || "preferred feed") + "</span></button>" : "";
   const broadcasts = channels.length ? renderSportsBroadcastGroups(channels, event) : "<div class=\"empty\">No matching live broadcasts.</div>";
   const coverage = matches.length ? "<div class=\"sports-coverage-grid\">" + matches.slice(0, 8).map(renderSportsCoverageCard).join("") + "</div>" : "";
@@ -3788,7 +3787,7 @@ function renderSportsEventDetail(payload, event) {
     + '<div class="sports-score-scroll sports-event-detail"><header class="sports-event-hero' + (art ? ' has-art' : ' no-art') + '">' + artHTML
     + '<div class="sports-event-hero-copy">' + (leagueLabel ? '<span class="sports-eyebrow">' + escapeHTML(leagueLabel) + '</span>' : '') + '<h1>' + escapeHTML(sportsEventTitle(event)) + '</h1>' + metadataHTML + renderSportsDetailScore(event) + (watch || matches[0] ? '<div class="sports-feature-actions">' + watch + (matches[0] ? '<a class="sports-secondary-action" href="' + escapeHTML(sportsReplayHref(matches[0].item || {})) + '">' + icon("play") + '<span>Watch replay</span></a>' : '') + '</div>' : '') + '</div></header>'
     + renderSportsGameStats(event)
-    + sportsSectionHTML(live ? "Live coverage" : "Matched channels", "<span class=\"sports-section-count\">" + channelCountLabel + "</span>", broadcasts, "sports-broadcast-section")
+    + '<section class="sports-section sports-broadcast-section" aria-label="Watch">' + broadcasts + '</section>'
     + sportsSectionHTML("Event coverage", "<span class=\"sports-section-count\">Matched from Silo</span>", coverage, "sports-coverage-section")
     + sportsSectionHTML(leagueLabel ? "More from " + leagueLabel : "More events", "", relatedBody, "sports-related-section") + "</div>";
 }
@@ -3887,8 +3886,9 @@ function renderSportsBroadcastGroups(channels, event) {
     groups[label].push(channel);
   });
   const groupOrder = ["Preferred", "Likely local", "Likely home", "Likely away", "Major network", "Alternate", "Spanish", "French", "Other feeds"];
-  return "<div class=\"sports-broadcast-groups\">" + groupOrder.filter(function(label) { return groups[label] && groups[label].length; }).map(function(label) {
-    return "<section class=\"sports-broadcast-group\"><h3>" + escapeHTML(label) + "</h3><div class=\"sports-broadcast-grid\">" + groups[label].map(function(channel) { return renderSportsBroadcastCard(channel, event); }).join("") + "</div></section>";
+  const visibleGroups = groupOrder.filter(function(label) { return groups[label] && groups[label].length; });
+  return "<div class=\"sports-broadcast-groups\">" + visibleGroups.map(function(label) {
+    return '<section class="sports-broadcast-group">' + (visibleGroups.length > 1 ? '<h3>' + escapeHTML(label) + '</h3>' : '') + '<div class="sports-broadcast-grid">' + groups[label].map(function(channel) { return renderSportsBroadcastCard(channel, event); }).join("") + "</div></section>";
   }).join("") + "</div>";
 }
 function renderSportsBroadcastCard(channel, event) {
