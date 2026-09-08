@@ -742,6 +742,15 @@ func guideWorldCupCompetition(value string) (string, string, string) {
 }
 
 func guideSportsLeague(value string) (string, string, string, bool) {
+	if text := gameThumbsMatchText(value); containsMatchTerm(text, "volleyball nations league") {
+		if containsMatchTerm(text, "womens") || containsMatchTerm(text, "women") {
+			return "womens-volleyball-nations-league", "Women's Volleyball Nations League", "Volleyball", true
+		}
+		if containsMatchTerm(text, "mens") || containsMatchTerm(text, "men") {
+			return "mens-volleyball-nations-league", "Men's Volleyball Nations League", "Volleyball", true
+		}
+		return "volleyball-nations-league", "Volleyball Nations League", "Volleyball", true
+	}
 	if id, name, sport := guideWorldCupCompetition(value); id != "" {
 		return id, name, sport, true
 	}

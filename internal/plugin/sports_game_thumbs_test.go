@@ -25,6 +25,9 @@ func TestGameThumbsBroadLeagueMappings(t *testing.T) {
 		{"UEFA Women's Champions League: Chelsea at Barcelona", "uefa.wchampions"},
 		{"Caribbean Premier League: Guyana at St Kitts", "cpl"},
 		{"Mystery Sporting Event: College Park at New York", ""},
+		{"Women's Volleyball Nations League: Canada vs Dominican Republic", ""},
+		{"Men's Volleyball Nations League: Canada vs Argentina", ""},
+		{"Women's Soccer: Borussia Dortmund vs AS Roma", ""},
 	}
 	for _, tc := range cases {
 		if got := gameThumbsLeagueSlugForEvent(SportsEvent{Name: tc.title}); got != tc.slug {
@@ -51,5 +54,29 @@ func TestGameThumbsArtworkPreservesFallbacksAndIdentity(t *testing.T) {
 	program := applySportsIdentityFallbacks(SportsEvent{LeagueID: "boxing", EventType: "event", Name: "Two boxing bouts", Home: SportsTeam{Name: "Not a fighter"}})
 	if strings.Contains(program.GameThumbsBackgroundURL, "not-a-fighter") {
 		t.Fatal("programs must use league backgrounds rather than invented matchups")
+	}
+}
+
+func TestVolleyballNationsLeagueKeepsNationalTeamArtwork(t *testing.T) {
+	for _, tc := range []struct{ title, league string }{
+		{"(CA) (CBC 01) | 2026 Women`s Volleyball Nations League: Canada vs Dominican Republic _ Hong Kong (2026-07-12 04:15:00)", "womens-volleyball-nations-league"},
+		{"2026 Men's Volleyball Nations League: Canada vs Dominican Republic", "mens-volleyball-nations-league"},
+	} {
+		events := normalizeSportsEvents([]SportsEvent{{Name: tc.title, LeagueID: "sports", LeagueName: "Sports", SportName: "Sports", Away: SportsTeam{Name: "Canada"}, Home: SportsTeam{Name: "Dominican Republic"}}})
+		if len(events) != 1 {
+			t.Fatal("expected a normalized event")
+		}
+		event := events[0]
+		if event.LeagueID != tc.league || event.SportName != "Volleyball" {
+			t.Fatalf("wrong competition: %+v", event)
+		}
+		for _, artwork := range []string{event.LeagueLogoURL, event.GameThumbsBackgroundURL, event.Away.LogoURL, event.Home.LogoURL} {
+			if strings.Contains(strings.ToLower(artwork), "ncaa") {
+				t.Fatalf("international volleyball received college artwork: %s", artwork)
+			}
+		}
+		if event.Away.LogoURL == "" || event.Home.LogoURL == "" {
+			t.Fatal("national teams must retain their country flags")
+		}
 	}
 }
