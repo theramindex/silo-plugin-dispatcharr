@@ -1193,8 +1193,9 @@ button { cursor: pointer; touch-action: manipulation; }
 }
 .player-view { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 1rem; align-items: start; }
 video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border: 1px solid var(--line); border-radius: 0.5rem; }
-.playback-shell { position: relative; width: 100%; height: 100dvh; min-height: 100vh; overflow: hidden; background: #000; }
-.playback-stage { position: relative; width: 100%; height: 100%; max-height: none; overflow: hidden; background: #000; }
+/* Clip moving controls without creating an invisible, focus-scrollable viewport. */
+.playback-shell { position: relative; width: 100%; height: 100dvh; min-height: 100vh; overflow: clip; background: #000; }
+.playback-stage { position: relative; width: 100%; height: 100%; max-height: none; overflow: clip; background: #000; }
 .playback-video { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto; object-fit: contain; border: 0; border-radius: 0; background: #000; }
 .playback-shell.sports-open .playback-video { bottom: auto; height: calc(100% - var(--player-sports-drawer-height, 0px)); }
 .playback-scrim { pointer-events: none; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.84) 0%, rgba(0,0,0,0.28) 12%, transparent 30%, transparent 55%, rgba(0,0,0,0.22) 68%, rgba(0,0,0,0.92) 100%); transition: opacity 220ms ease; }
