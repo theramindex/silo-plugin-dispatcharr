@@ -3589,7 +3589,7 @@ function renderSportsMatchupThumbnail(event) {
   const fieldArtwork = sportsFieldBackgroundURL(event);
   const center = leagueLogo ? "<img src=\"" + escapeHTML(leagueLogo) + "\" alt=\"\" onerror=\"markSportsMediaFailed(this);\"><b hidden>VS</b>" : "<b>VS</b>";
   return "<span class=\"sports-matchup-thumb" + (fieldArtwork ? " sports-field-thumb" : "") + "\" aria-hidden=\"true\" style=\"--match-away:" + awayColor + ";--match-home:" + homeColor + "\">"
-    + (fieldArtwork ? "<img class=\"sports-field-bg\" src=\"" + escapeHTML(fieldArtwork) + "\" alt=\"\" loading=\"lazy\" onerror=\"markSportsBackgroundFailed(this);\">" : sportsGeneratedBackground(event))
+    + renderSportsBackground(event)
     + "<span class=\"sports-matchup-thumb-team away\">" + renderSportsTeamLogo(away, "sports-matchup-thumb-logo") + "<strong>" + escapeHTML(sportsTeamName(away)) + "</strong>" + (showScore ? "<em>" + escapeHTML(sportsScoresHidden(false) ? "–" : (event.awayScore || "0")) + "</em>" : "") + "</span>"
     + "<span class=\"sports-matchup-thumb-center\">" + center + "<small>vs</small></span>"
     + "<span class=\"sports-matchup-thumb-team home\">" + renderSportsTeamLogo(home, "sports-matchup-thumb-logo") + "<strong>" + escapeHTML(sportsTeamName(home)) + "</strong>" + (showScore ? "<em>" + escapeHTML(sportsScoresHidden(false) ? "–" : (event.homeScore || "0")) + "</em>" : "") + "</span>"
@@ -3599,9 +3599,9 @@ function renderSportsProgramThumbnail(event) {
   const logo = sportsPreferredLogo(event.leagueLogoUrl, event.leagueLogoFallbackUrl);
   const mark = logo ? "<img src=\"" + escapeHTML(logo) + "\" alt=\"\" onerror=\"markSportsMediaFailed(this);\"><b hidden>" + escapeHTML(sportsLeagueFallbackMark({ id: event.leagueId, name: event.leagueName })) + "</b>" : icon("trophy");
   const bouts = event.leagueId === "boxing" ? sportsEventTitle(event).split(";").map(function(bout) { return bout.trim().replace(/^Boxeo de Primera\s*:\s*/i, ""); }) : [];
-  if (bouts.length > 1) return "<span class=\"sports-matchup-thumb sports-program-thumb\" aria-hidden=\"true\">" + sportsGeneratedBackground(event) + "<span class=\"sports-program-mark\">" + mark + "</span><span class=\"sports-program-copy\"><small>Boxing · " + bouts.length + " bouts</small>" + bouts.map(function(bout) { return "<strong>" + escapeHTML(bout) + "</strong>"; }).join("") + "</span></span>";
+  if (bouts.length > 1) return "<span class=\"sports-matchup-thumb sports-program-thumb\" aria-hidden=\"true\">" + renderSportsBackground(event) + "<span class=\"sports-program-mark\">" + mark + "</span><span class=\"sports-program-copy\"><small>Boxing · " + bouts.length + " bouts</small>" + bouts.map(function(bout) { return "<strong>" + escapeHTML(bout) + "</strong>"; }).join("") + "</span></span>";
   return "<span class=\"sports-matchup-thumb sports-program-thumb\" aria-hidden=\"true\">"
-    + sportsGeneratedBackground(event)
+    + renderSportsBackground(event)
     + "<span class=\"sports-program-mark\">" + mark + "</span>"
     + "<span class=\"sports-program-copy\"><small>" + escapeHTML(event.leagueName || event.sportName || "Sports") + "</small><strong>" + escapeHTML(sportsEventTitle(event)) + "</strong></span>"
     + "</span>";
@@ -3651,7 +3651,7 @@ function renderSportsRaceThumbnail(event) {
   const logo = sportsPreferredLogo(event.leagueLogoUrl, event.leagueLogoFallbackUrl);
   const mark = logo ? "<img src=\"" + escapeHTML(logo) + "\" alt=\"\" onerror=\"markSportsMediaFailed(this);\"><b hidden>" + escapeHTML(sportsLeagueFallbackMark({ id: event.leagueId, name: event.leagueName })) + "</b>" : "<b>" + escapeHTML(sportsLeagueFallbackMark({ id: event.leagueId, name: event.leagueName })) + "</b>";
   return "<span class=\"sports-matchup-thumb sports-race-thumb\" aria-hidden=\"true\">"
-    + sportsGeneratedBackground(event)
+    + renderSportsBackground(event)
     + "<span class=\"sports-race-mark\">" + mark + "</span>"
     + "<span class=\"sports-race-copy\"><small>" + escapeHTML(raceLabel) + "</small><strong>" + escapeHTML(series) + "</strong><span class=\"sports-race-location\"><small>Race</small><b>" + escapeHTML(location) + "</b></span></span>"
     + "</span>";
@@ -4051,13 +4051,81 @@ function sportsPreferredLogo(value, fallbackValue) {
   if (logo && !sportsMediaFailed(logo)) return logo;
   return fallback && !sportsMediaFailed(fallback) ? fallback : "";
 }
+function sportsFieldBackgroundKind(event) {
+  const normalize = function(value) { return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); };
+  const sport = normalize(event && event.sportName);
+  const league = normalize([event && event.leagueId, event && event.leagueName].join(" "));
+  // Check the supplied sport first, then league aliases. Bare "football" is
+  // ambiguous until the league is known; specific codes take precedence.
+  const rules = [
+    ["table-tennis", /\b(table tennis|ping pong|wtt)\b/],
+    ["field-hockey", /\b(field hockey|fih)\b/],
+    ["baseball", /\b(baseball|softball|mlb|milb|kbo|npb|wbsc)\b/],
+    ["basketball", /\b(basketball|nba|wnba|ncaab|fiba|euroleague|eurocup)\b/],
+    ["cricket", /\b(cricket|icc|ipl|indian premier league|big bash|caribbean premier league|pakistan super league|australian rules|australian football|afl)\b/],
+    ["rugby", /\b(rugby|nrl|six nations|united rugby championship)\b/],
+    ["football", /\b(american football|canadian football|college football|nfl|ncaaf|cfl|xfl|ufl|fbs|fcs)\b/],
+    ["hockey", /\b(ice hockey|hockey|nhl|ahl|echl|ohl|whl|qmjhl|khl|shl|liiga|ice skating|figure skating|speed skating)\b/],
+    ["tennis", /\b(tennis|atp|wta|itf|davis cup|billie jean king cup)\b/],
+    ["golf", /\b(golf|pga|lpga|dp world tour|liv golf|ryder cup)\b/],
+    ["volleyball", /\b(volleyball|fivb|vnl)\b/],
+    ["badminton", /\b(badminton|bwf)\b/],
+    ["motorsport", /\b(motorsport|motor sport|motor racing|auto racing|automobilism|formula 1|formula one|formula e|f1|nascar|indycar|moto ?gp|motorcycle racing|superbike|wsbk|imsa|wec|wrc|dtm)\b/],
+    ["mma", /\b(mma|mixed martial arts|ufc|bellator|pfl|one championship)\b/],
+    ["boxing", /\b(boxing|kickboxing|muay thai|wwe|aew|professional wrestling|pro wrestling)\b/],
+    ["swimming", /\b(swimming|aquatics|water polo|diving)\b/],
+    ["cycling", /\b(cycling|bmx|uci|tour de france|giro d italia|vuelta)\b/],
+    ["skiing", /\b(skiing|ski|snowboard|snowboarding|biathlon|bobsleigh|bobsled|luge|skeleton|winter sports)\b/],
+    ["athletics", /\b(athletics|track and field|track field|cross country|marathon|running|diamond league)\b/],
+    ["equestrian", /\b(equestrian|horse racing|horse riding|show jumping|dressage|kentucky derby|belmont stakes)\b/],
+    ["darts", /\b(darts|pdc)\b/],
+    ["snooker", /\b(snooker|billiards|pool|wst)\b/],
+    ["soccer", /\b(soccer|association football|fifa|uefa|concacaf|conmebol|epl|mls|nwsl|laliga|la liga|bundesliga|serie a|serie b|ligue 1|ligue 2|premier league|english league|english league championship|efl|eredivisie|liga mx|usl|champions league|europa league)\b/]
+  ];
+  for (const value of [sport, league]) {
+    const rule = rules.find(function(entry) { return entry[1].test(value); });
+    if (rule) return rule[0];
+  }
+  return sport === "football" ? "soccer" : "";
+}
 function sportsFieldBackgroundURL(event) {
-  // Generic baseball atmosphere, not a photo of the event's actual venue.
-  // Robert Bye / Unsplash; see ui/ARTWORK.md for the source and license.
-  const isBaseball = /^baseball$/i.test(String(event && event.sportName || "")) || /^(mlb|milb(?:-.*)?|kbo|npb|college-baseball|college-mens-baseball)$/.test(String(event && event.leagueId || ""));
-  if (!isBaseball) return "";
-  const url = "https://images.unsplash.com/photo-1431817986760-7cc7fbb937b2?auto=format&fit=crop&w=1200&q=80";
+  // Decorative sport atmosphere, not the current venue or a live camera.
+  // Fixed CDN photos; source and license details are in ui/ARTWORK.md.
+  const photos = {
+    "baseball": "photo-1431817986760-7cc7fbb937b2",
+    "football": "photo-1575317988650-5faf389cabef",
+    "basketball": "photo-1574907060871-4555aa8aca75",
+    "soccer": "photo-1767729790212-661953ecaa90",
+    "hockey": "photo-1711413236898-d2fef57ad3a3",
+    "tennis": "photo-1499510318569-1a3d67dc3976",
+    "cricket": "photo-1512719994953-eabf50895df7",
+    "rugby": "photo-1529663297269-6d349ec39b57",
+    "golf": "photo-1538648759472-7251f7cb2c2f",
+    "motorsport": "photo-1467277378664-19a209d31b02",
+    "swimming": "photo-1576610616656-d3aa5d1f4534",
+    "volleyball": "photo-1479859546309-cd77fa21c8f6",
+    "table-tennis": "photo-1511067007398-7e4b90cfa4bc",
+    "badminton": "photo-1547934045-2942d193cb49",
+    "athletics": "photo-1489976908522-aabacf277f49",
+    "skiing": "photo-1546180043-e1475c173021",
+    "cycling": "photo-1600403477955-2b8c2cfab221",
+    "field-hockey": "photo-1723272156032-1eac173d47b5",
+    "boxing": "photo-1575747515871-2e323827539e",
+    "mma": "photo-1738982510191-ab5c4965f8b3",
+    "darts": "photo-1579019163248-e7761241d85a",
+    "snooker": "photo-1760903192559-17dc111d31e3",
+    "equestrian": "flagged/photo-1569319388901-605a6d2d1299"
+};
+  const photo = photos[sportsFieldBackgroundKind(event)];
+  if (!photo) return "";
+  const url = "https://images.unsplash.com/" + photo + "?auto=format&fit=crop&w=1200&q=80";
   return sportsMediaFailed(url) ? "" : url;
+}
+function renderSportsBackground(event) {
+  const photo = sportsFieldBackgroundURL(event);
+  if (!photo) return sportsGeneratedBackground(event);
+  const fallback = safeSportsMediaURL(event && event.gameThumbsBackgroundUrl);
+  return '<img class="sports-field-bg" src="' + escapeHTML(photo) + '" data-sports-background-fallback="' + escapeHTML(fallback) + '" alt="" loading="lazy" onload="if(this.classList.contains(\'sports-generated-bg\'))this.parentElement.classList.add(\'has-generated-art\');" onerror="markSportsBackgroundFailed(this);">';
 }
 function sportsGeneratedBackground(event) {
   const background = safeSportsMediaURL(event && event.gameThumbsBackgroundUrl);
@@ -4068,6 +4136,14 @@ function markSportsBackgroundFailed(image) {
   const url = safeSportsMediaURL(image && image.getAttribute("src"));
   if (url) state.sportsFailedMedia[url] = true;
   if (!image) return;
+  const fallback = safeSportsMediaURL(image.getAttribute("data-sports-background-fallback"));
+  if (fallback && fallback !== url && !sportsMediaFailed(fallback)) {
+    image.removeAttribute("data-sports-background-fallback");
+    image.classList.remove("sports-field-bg");
+    image.classList.add("sports-generated-bg");
+    image.setAttribute("src", fallback);
+    return;
+  }
   image.hidden = true;
   if (image.parentElement) image.parentElement.classList.remove("has-generated-art");
 }
