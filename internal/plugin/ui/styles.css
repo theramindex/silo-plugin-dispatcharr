@@ -661,6 +661,12 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-section-head h2 { margin: 0; font-size: 1.05rem; letter-spacing: 0; }
 .sports-section-count { color: var(--muted); font-size: 0.72rem; font-weight: 750; }
 .sports-stats-section { min-width: 0; }
+.sports-linescore-scroll { overflow-x: auto; max-width: 100%; border: 1px solid var(--line); border-radius: 0.5rem; }
+.sports-linescore { width: 100%; border-collapse: collapse; font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sports-linescore th, .sports-linescore td { padding: 0.65rem; text-align: center; border-bottom: 1px solid var(--line); }
+.sports-linescore th:first-child { text-align: left; }
+.sports-linescore thead { color: var(--muted); background: var(--panel); }
+.sports-inning-total { font-weight: 800; background: var(--panel); }
 .sports-stats-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
 .sports-stats-table th, .sports-stats-table td { border-bottom: 1px solid var(--line); padding: 0.65rem 0.4rem; text-align: center; overflow-wrap: anywhere; }
 .sports-stats-table thead th { background: var(--panel); }
@@ -891,6 +897,11 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-broadcast-group h3 { margin: 0; color: var(--muted); font-size: 0.68rem; font-weight: 900; letter-spacing: 0.07em; text-transform: uppercase; }
 .sports-broadcast-card { min-width: 0; min-height: 6rem; display: grid; grid-template-columns: minmax(0, 1fr) 2.75rem; align-items: stretch; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--panel); color: var(--text); overflow: hidden; }
 .sports-broadcast-card.preferred { border-color: color-mix(in srgb, var(--warn) 52%, var(--line)); }
+.sports-hero-feeds { min-width: 0; padding-top: 0.25rem; }
+.sports-hero-feeds .sports-broadcast-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); }
+.sports-broadcast-card.compact { min-height: 3.75rem; background: color-mix(in srgb, var(--bg) 78%, transparent); }
+.sports-broadcast-card.compact .sports-broadcast-play { grid-template-columns: 2rem minmax(0, 1fr) 1rem; padding: 0.6rem; gap: 0.5rem; }
+.sports-broadcast-card.compact .sports-broadcast-badges:empty { display: none; }
 .sports-broadcast-play { min-width: 0; display: grid; grid-template-columns: 2.4rem minmax(0, 1fr) 1.25rem; align-items: center; gap: 0.65rem; border: 0; background: transparent; color: var(--text); padding: 0.65rem; text-align: left; }
 .sports-broadcast-play:hover { background: var(--panel-2); }
 .sports-broadcast-copy { min-width: 0; display: grid; gap: 0.12rem; }

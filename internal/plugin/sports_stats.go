@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -24,19 +25,26 @@ type footballStatsCache struct {
 }
 
 type SportsGameStats struct {
-	Available     bool             `json:"available"`
-	Message       string           `json:"message,omitempty"`
-	UpdatedAtUnix int64            `json:"updatedAtUnix"`
-	SourceURL     string           `json:"sourceUrl,omitempty"`
-	StatusText    string           `json:"statusText,omitempty"`
-	Live          bool             `json:"live"`
-	Completed     bool             `json:"completed"`
-	HomeScore     string           `json:"homeScore,omitempty"`
-	AwayScore     string           `json:"awayScore,omitempty"`
-	LastPlay      string           `json:"lastPlay,omitempty"`
-	Possession    string           `json:"possession,omitempty"`
-	FieldPosition string           `json:"fieldPosition,omitempty"`
-	Rows          []SportsGameStat `json:"rows"`
+	Available     bool               `json:"available"`
+	Message       string             `json:"message,omitempty"`
+	UpdatedAtUnix int64              `json:"updatedAtUnix"`
+	SourceURL     string             `json:"sourceUrl,omitempty"`
+	StatusText    string             `json:"statusText,omitempty"`
+	Live          bool               `json:"live"`
+	Completed     bool               `json:"completed"`
+	HomeScore     string             `json:"homeScore,omitempty"`
+	AwayScore     string             `json:"awayScore,omitempty"`
+	LastPlay      string             `json:"lastPlay,omitempty"`
+	Possession    string             `json:"possession,omitempty"`
+	FieldPosition string             `json:"fieldPosition,omitempty"`
+	Rows          []SportsGameStat   `json:"rows"`
+	Innings       []SportsGameInning `json:"innings,omitempty"`
+}
+
+type SportsGameInning struct {
+	Number int    `json:"number"`
+	Home   string `json:"home"`
+	Away   string `json:"away"`
 }
 
 type SportsGameStat struct {
@@ -58,9 +66,14 @@ type espnStatsCompetition struct {
 	} `json:"situation"`
 	Date        string `json:"date"`
 	Competitors []struct {
-		HomeAway string        `json:"homeAway"`
-		Score    string        `json:"score"`
-		Team     espnStatsTeam `json:"team"`
+		HomeAway   string        `json:"homeAway"`
+		Score      string        `json:"score"`
+		Team       espnStatsTeam `json:"team"`
+		Linescores []struct {
+			DisplayValue string `json:"displayValue"`
+		} `json:"linescores"`
+		Hits   *int `json:"hits"`
+		Errors *int `json:"errors"`
 	} `json:"competitors"`
 	Status struct {
 		Type struct {
@@ -84,6 +97,10 @@ type espnStatsSummary struct {
 			Statistics []struct {
 				Name         string `json:"name"`
 				DisplayValue string `json:"displayValue"`
+				Stats        []struct {
+					Name         string `json:"name"`
+					DisplayValue string `json:"displayValue"`
+				} `json:"stats"`
 			} `json:"statistics"`
 		} `json:"teams"`
 	} `json:"boxscore"`
@@ -94,6 +111,20 @@ type espnStatsSummary struct {
 			} `json:"plays"`
 		} `json:"current"`
 	} `json:"drives"`
+	Plays []struct {
+		Text string `json:"text"`
+	} `json:"plays"`
+}
+
+func sportsStatsLeaguePath(event SportsEvent) string {
+	id, _, _, _ := guideSportsLeague(event.LeagueName)
+	if event.LeagueID == "college-football" || id == "college-football" {
+		return "football/college-football"
+	}
+	if event.LeagueID == "mlb" || id == "mlb" {
+		return "baseball/mlb"
+	}
+	return ""
 }
 
 func (s *HTTPRoutesServer) handleSportsGameStats(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
@@ -103,9 +134,8 @@ func (s *HTTPRoutesServer) handleSportsGameStats(ctx context.Context, request *p
 	id := queryValue(request, "game_stats")
 	for _, event := range s.preparedSportsPayload(false).Events {
 		if id != "" && (event.ID == id || event.StableID == id) {
-			leagueID, _, _, _ := guideSportsLeague(event.LeagueName)
-			if event.LeagueID != "college-football" && leagueID != "college-football" {
-				return s.respondJSON(http.StatusOK, SportsGameStats{Message: "Live stats are currently available for college football."})
+			if sportsStatsLeaguePath(event) == "" {
+				return s.respondJSON(http.StatusOK, SportsGameStats{Message: "Live stats are not available for this competition yet."})
 			}
 			return s.respondJSON(http.StatusOK, s.sportsStats.load(ctx, event))
 		}
@@ -150,10 +180,10 @@ func (cache *footballStatsCache) load(ctx context.Context, event SportsEvent) Sp
 	return value
 }
 
-func (cache *footballStatsCache) get(ctx context.Context, path string, result any) error {
+func (cache *footballStatsCache) get(ctx context.Context, leaguePath, path string, result any) error {
 	base := cache.baseURL
 	if base == "" {
-		base = "https://site.api.espn.com/apis/site/v2/sports/football/college-football"
+		base = "https://site.api.espn.com/apis/site/v2/sports/" + leaguePath
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, base+path, nil)
 	if err != nil {
@@ -177,6 +207,10 @@ func (cache *footballStatsCache) get(ctx context.Context, path string, result an
 
 func (cache *footballStatsCache) fetch(ctx context.Context, event SportsEvent) (SportsGameStats, error) {
 	missing := SportsGameStats{Message: "No live box score is available for this game yet."}
+	leaguePath := sportsStatsLeaguePath(event)
+	if leaguePath == "" {
+		return missing, nil
+	}
 	if event.StartUnix == 0 {
 		return missing, nil
 	}
@@ -185,7 +219,11 @@ func (cache *footballStatsCache) fetch(ctx context.Context, event SportsEvent) (
 	var board struct {
 		Events []espnStatsEvent `json:"events"`
 	}
-	if err := cache.get(ctx, "/scoreboard?groups=80&limit=1000&dates="+dates, &board); err != nil {
+	boardPath := "/scoreboard?limit=1000&dates=" + dates
+	if leaguePath == "football/college-football" {
+		boardPath += "&groups=80"
+	}
+	if err := cache.get(ctx, leaguePath, boardPath, &board); err != nil {
 		return missing, err
 	}
 	match := ""
@@ -204,13 +242,16 @@ func (cache *footballStatsCache) fetch(ctx context.Context, event SportsEvent) (
 		return missing, nil
 	}
 	var summary espnStatsSummary
-	if err := cache.get(ctx, "/summary?event="+url.QueryEscape(match), &summary); err != nil {
+	if err := cache.get(ctx, leaguePath, "/summary?event="+url.QueryEscape(match), &summary); err != nil {
 		return missing, err
 	}
 	if summary.Header.ID != match || len(summary.Header.Competitions) != 1 || !espnStatsMatches(event, summary.Header.Competitions[0]) {
 		return missing, nil
 	}
 	result := espnGameStats(event, summary)
+	if leaguePath == "baseball/mlb" {
+		return result, nil
+	}
 	if result.Live && !result.Completed && matchedCompetition.Status.Type.State == "in" {
 		for _, side := range matchedCompetition.Competitors {
 			if side.Team.ID != "" && side.Team.ID == matchedCompetition.Situation.Possession {
@@ -261,6 +302,10 @@ func espnStatsMatches(event SportsEvent, competition espnStatsCompetition) bool 
 func espnGameStats(event SportsEvent, summary espnStatsSummary) SportsGameStats {
 	competition := summary.Header.Competitions[0]
 	result := SportsGameStats{SourceURL: "https://www.espn.com/college-football/boxscore/_/gameId/" + url.PathEscape(summary.Header.ID), StatusText: competition.Status.Type.Detail, Live: competition.Status.Type.State == "in", Completed: competition.Status.Type.Completed}
+	baseball := sportsStatsLeaguePath(event) == "baseball/mlb"
+	if baseball {
+		result.SourceURL = "https://www.espn.com/mlb/boxscore/_/gameId/" + url.PathEscape(summary.Header.ID)
+	}
 	for _, side := range competition.Competitors {
 		if side.HomeAway == "home" {
 			result.HomeScore = side.Score
@@ -281,19 +326,60 @@ func espnGameStats(event SportsEvent, summary espnStatsSummary) SportsGameStats 
 			continue
 		}
 		for _, stat := range team.Statistics {
-			target[stat.Name] = strings.TrimSpace(stat.DisplayValue)
+			if baseball {
+				for _, nested := range stat.Stats {
+					if stat.Name == "batting" || (stat.Name == "fielding" && nested.Name == "errors") {
+						target[nested.Name] = strings.TrimSpace(nested.DisplayValue)
+					}
+				}
+			} else {
+				target[stat.Name] = strings.TrimSpace(stat.DisplayValue)
+			}
 		}
 	}
-	for _, stat := range [][2]string{{"totalYards", "Total yards"}, {"netPassingYards", "Passing yards"}, {"rushingYards", "Rushing yards"}, {"firstDowns", "First downs"}, {"thirdDownEff", "Third down"}, {"fourthDownEff", "Fourth down"}, {"turnovers", "Turnovers"}, {"totalPenaltiesYards", "Penalties–yards"}, {"possessionTime", "Possession"}} {
+	rowNames := [][2]string{{"totalYards", "Total yards"}, {"netPassingYards", "Passing yards"}, {"rushingYards", "Rushing yards"}, {"firstDowns", "First downs"}, {"thirdDownEff", "Third down"}, {"fourthDownEff", "Fourth down"}, {"turnovers", "Turnovers"}, {"totalPenaltiesYards", "Penalties–yards"}, {"possessionTime", "Possession"}}
+	if baseball {
+		rowNames = [][2]string{{"runs", "Runs"}, {"hits", "Hits"}, {"errors", "Errors"}, {"homeRuns", "Home runs"}, {"walks", "Walks"}, {"strikeouts", "Strikeouts"}, {"stolenBases", "Stolen bases"}, {"avg", "Batting average"}, {"onBasePct", "On-base percentage"}}
+		for _, side := range competition.Competitors {
+			target := away
+			if side.HomeAway == "home" {
+				target = home
+			}
+			target["runs"] = side.Score
+			if side.Hits != nil {
+				target["hits"] = strconv.Itoa(*side.Hits)
+			}
+			if side.Errors != nil {
+				target["errors"] = strconv.Itoa(*side.Errors)
+			}
+			for i, inning := range side.Linescores {
+				for len(result.Innings) <= i {
+					result.Innings = append(result.Innings, SportsGameInning{Number: len(result.Innings) + 1})
+				}
+				if side.HomeAway == "home" {
+					result.Innings[i].Home = inning.DisplayValue
+				} else {
+					result.Innings[i].Away = inning.DisplayValue
+				}
+			}
+		}
+		for i := len(summary.Plays) - 1; i >= 0; i-- {
+			if text := strings.TrimSpace(summary.Plays[i].Text); text != "" {
+				result.LastPlay = text
+				break
+			}
+		}
+	}
+	for _, stat := range rowNames {
 		if home[stat[0]] != "" && away[stat[0]] != "" {
 			result.Rows = append(result.Rows, SportsGameStat{Label: stat[1], Home: home[stat[0]], Away: away[stat[0]]})
 		}
 	}
 	plays := summary.Drives.Current.Plays
-	if len(plays) > 0 {
+	if !baseball && len(plays) > 0 {
 		result.LastPlay = strings.TrimSpace(plays[len(plays)-1].Text)
 	}
-	result.Available = len(result.Rows) > 0
+	result.Available = len(result.Rows) > 0 && (!baseball || result.Live || result.Completed)
 	if !result.Available {
 		result.Message = "No live box score is available for this game yet."
 	}
