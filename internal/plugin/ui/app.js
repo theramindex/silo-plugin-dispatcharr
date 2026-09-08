@@ -2961,7 +2961,7 @@ function myTVFollowingHTML() {
   const searches = passes.map(function(pass) {
     return "<article class=\"my-tv-follow-card query\"><span class=\"my-tv-follow-mark\">" + icon("search") + "</span><span><strong>" + escapeHTML(pass.keyword) + "</strong><small>Title or event</small></span><button type=\"button\" data-keyword-pass-remove=\"" + escapeHTML(pass.id) + "\" aria-label=\"Stop tracking " + escapeHTML(pass.keyword) + "\">" + icon("x") + "</button></article>";
   });
-  return "<section class=\"my-tv-section\"><header><h3>Following</h3><span>" + escapeHTML(String(passes.length + people.length + leagues.length + featuredCount)) + " saved</span></header><div class=\"my-tv-following\">" + searches.concat(people.map(function(team) { return myTVFollowingCard("team", team); }), leagues.map(function(league) { return myTVFollowingCard("league", league); })).join("") + "</div></section>";
+  return "<section class=\"my-tv-section\" aria-label=\"Following\"><div class=\"my-tv-following\">" + searches.concat(people.map(function(team) { return myTVFollowingCard("team", team); }), leagues.map(function(league) { return myTVFollowingCard("league", league); })).join("") + "</div></section>";
 }
 function myTVSearchResults(query) {
   query = String(query || "").trim();
@@ -3007,7 +3007,7 @@ function myTVDashboardHTML() {
   const sportsEvents = myTVFollowedSportsEvents();
   const featuredEvents = myTVFeaturedEvents();
   const upcoming = (guidePrograms.length ? onLaterShelfHTML("From your guide", guidePrograms) : "")
-    + (sportsEvents.length ? "<section class=\"my-tv-section\"><header><h3>Your sports</h3><span>" + sportsEvents.length + " coming up</span></header><div class=\"sports-event-grid my-tv-sports-grid\">" + sportsEvents.map(renderSportsEventTile).join("") + "</div></section>" : "")
+    + (sportsEvents.length ? "<section class=\"my-tv-section\" aria-label=\"Your sports\"><div class=\"sports-event-grid my-tv-sports-grid\">" + sportsEvents.map(renderSportsEventTile).join("") + "</div></section>" : "")
     + (featuredEvents.length ? "<section class=\"my-tv-section\"><header><h3>Your events</h3><span>" + featuredEvents.length + " coming up</span></header><div class=\"event-shelf-rail\">" + featuredEvents.map(renderBroadcastEventCard).join("") + "</div></section>" : "");
   const empty = !upcoming ? "<section class=\"my-tv-empty\"><div><strong>Make this page yours</strong><p>Search for a show, team, fighter, league, or event. My TV will connect what you follow to live and upcoming coverage.</p></div><div class=\"my-tv-empty-actions\"><button type=\"button\" data-view=\"sports\">Browse sports</button><button type=\"button\" data-view=\"events\">Browse events</button></div></section>" : "";
   return myTVFollowingHTML() + (upcoming ? "<section class=\"my-tv-up-next\"><header><h2>Up next</h2></header>" + upcoming + "</section>" : "") + empty;
