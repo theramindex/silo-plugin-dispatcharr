@@ -30,6 +30,11 @@ var gameThumbsLeagues = func() []gameThumbsLeagueDefinition {
 			if len(term) < 3 || strings.Trim(term, "0123456789 ") == "" {
 				continue
 			}
+			// Gender plus sport alone is not evidence of a college competition.
+			// Imported aliases such as "womens volleyball" also describe national teams.
+			if strings.HasPrefix(values[i].Slug, "ncaa") && !strings.HasPrefix(term, "ncaa") && !containsMatchTerm(term, "college") {
+				continue
+			}
 			switch term {
 			case "sports", "ncaa", "country", "flags", "football", "basketball", "hockey", "soccer", "premier", "england", "championship", "national league", "super league", "us open", "olympic", "olympics", "boxing", "mma", "tennis", "fifa", "world cup":
 				continue
