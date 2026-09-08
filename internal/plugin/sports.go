@@ -47,7 +47,7 @@ var guideSportsNextGameSuffix = regexp.MustCompile(`(?i)\s+on\s+\d{4}-\d{2}-\d{2
 var sportsISODatePattern = regexp.MustCompile(`\b(20\d{2})[-_/](\d{1,2})[-_/](\d{1,2})\b`)
 var sportsUSDatePattern = regexp.MustCompile(`\b(\d{1,2})[-_/](\d{1,2})[-_/](20\d{2})\b`)
 var guideSportsMatchNumberSuffix = regexp.MustCompile(`(?i)\s*(?:,\s*match\s+\d+|[-,]?\s*\d+(?:st|nd|rd|th)\s+match)\s*$`)
-var guideSportsStageSuffix = regexp.MustCompile(`(?i)\s+-\s+(?:qualifier|eliminator|semi[- ]?final|final)\s*$`)
+var guideSportsStageSuffix = regexp.MustCompile(`(?i)\s+[-–—]\s+(?:qualifier|eliminator|semi[- ]?final|final)(?:\s+\d+)?\s*$`)
 var guideSportsCompetitionSuffix = regexp.MustCompile(`(?i)\s+-\s+(?:uefa\s+(?:champions|europa|conference)\s+league)\b.*$`)
 var guideSportsClockName = regexp.MustCompile(`(?i)^\d{1,2}(?::\d{2})?\s*(?:am|pm)(?:\s+[a-z]{2,5})?$`)
 var guideSportsNonMatchTitle = regexp.MustCompile(`(?i)\b(?:good morning|outdoor magazine|the verdict|the case for)\b`)
@@ -747,6 +747,9 @@ func guideWorldCupCompetition(value string) (string, string, string) {
 
 func guideSportsLeague(value string) (string, string, string, bool) {
 	competitionText := normalizeMatchText(value)
+	if containsMatchTerm(competitionText, "lanka premier league") || (containsMatchTerm(competitionText, "lpl") && containsMatchTerm(competitionText, "cricket")) {
+		return "lanka-premier-league", "Lanka Premier League", "Cricket", true
+	}
 	if containsMatchTerm(competitionText, "hoopqueens") || containsMatchTerm(competitionText, "hoop queens") {
 		return "hoopqueens", "HoopQueens Basketball", "Basketball", true
 	}
@@ -1181,6 +1184,7 @@ func normalizeSportsEvents(events []SportsEvent) []SportsEvent {
 		event.Period = strings.TrimSpace(event.Period)
 		event.Clock = strings.TrimSpace(event.Clock)
 		event = canonicalizeKnownSportsLeague(event)
+		event = normalizeLPLTeams(event)
 		event.Home = normalizeSportsTeam(event.Home)
 		event.Away = normalizeSportsTeam(event.Away)
 		event = applySportsIdentityFallbacks(event)

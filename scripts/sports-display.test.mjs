@@ -122,6 +122,7 @@ test('upcoming promotions show a matchup heading and separate start time', () =>
   assert.match(html, /<h1>New York Yankees @ San Diego Padres<\/h1>/);
   assert.match(html, /sports-feature-schedule.*Sun, Sep 6 4:10 PM/);
   assert.equal(ctx.sportsEventTitle({name: 'Classic MLB: 1986 Mets at Boston'}), 'Classic MLB: 1986 Mets at Boston');
+  assert.equal(ctx.sportsEventTitle({leagueId: 'lanka-premier-league', name: 'Cricket Highlights: LPL 2026: Gallants vs Kaps - Qualifier 2', away: {name: 'Galle Gallants'}, home: {name: 'Colombo Kaps'}, round: 'Qualifier 2'}), 'Galle Gallants vs Colombo Kaps · Qualifier 2');
   assert.equal(ctx.sportsEventTitle({name: 'Next Game: Yankees @ Padres'}), 'Yankees @ Padres');
   assert.doesNotMatch(ctx.renderSportsFeature({...event, startUnix: 0}), /sports-feature-schedule/);
 });
