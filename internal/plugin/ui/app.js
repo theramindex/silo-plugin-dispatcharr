@@ -4086,6 +4086,8 @@ function sportsFieldBackgroundKind(event) {
     const rule = rules.find(function(entry) { return entry[1].test(value); });
     if (rule) return rule[0];
   }
+  // Some EPG entries only classify the sport in their title.
+  if (/\b(soccer|nwsl)\b/.test(normalize(event && event.name))) return "soccer";
   return sport === "football" ? "soccer" : "";
 }
 function sportsFieldBackgroundURL(event) {
