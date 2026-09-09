@@ -387,6 +387,10 @@ button { cursor: pointer; touch-action: manipulation; }
 .search-channel-favorite svg { display: block; width: 100%; height: 100%; }
 .search-channel-favorite:hover, .search-channel-favorite.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .my-tv-favorites > header { align-items: center; }
+.my-tv-result-list:has(> .search-result-row) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+@media (max-width: 720px) {
+  .my-tv-result-list:has(> .search-result-row) { grid-template-columns: minmax(0, 1fr); }
+}
 .on-later-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(22rem, 100%), 1fr)); grid-auto-rows: minmax(7.5rem, auto); align-items: stretch; gap: 0.7rem; }
 .on-later-shelves, .event-shelves { display: grid; gap: 1.5rem; min-width: 0; }
 .on-later-shelf, .event-shelf { display: grid; gap: 0.6rem; min-width: 0; }
