@@ -505,6 +505,6 @@ startGuideAutoRefresh();
 const initialAppLoad = isAdminRoute ? loadAdminApp() : loadApp();
 initialAppLoad.then(function() {
   const snapshot = window.initialAppRouteSnapshot || readAppRouteHash();
-  if (snapshot.view === "player" && snapshot.channelID) restoreAppRoute(snapshot);
-  else commitAppRoute("replace");
+  restoreAppRoute(snapshot);
+  commitAppRoute("replace");
 }).catch(handleAppBootFailure);

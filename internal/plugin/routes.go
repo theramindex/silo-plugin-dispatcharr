@@ -57,6 +57,8 @@ type HTTPRoutesServer struct {
 	sportsPreparedMu    sync.Mutex
 	sportsImages        *sportsImageCache
 	timeShift           *timeshift.Manager
+	streamTickets       map[string]streamTicket
+	streamTicketsMu     sync.Mutex
 }
 
 type connectionSettingsStorage interface {
@@ -107,7 +109,7 @@ func NewHTTPRoutesServerWithCoordinatorAndSettingsFiles(store *cache.Store, sett
 }
 
 func newHTTPRoutesServer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
-	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, connectionTester: testConnection, sportsProvider: newSportarrSportsProvider(&http.Client{Timeout: 8 * time.Second}), sportsImages: newSportsImageCache(defaultSportsImageCacheDir, secureSportsImageHTTPClient()), timeShift: timeshift.NewManager("")}
+	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, connectionTester: testConnection, sportsProvider: newSportarrSportsProvider(&http.Client{Timeout: 8 * time.Second}), sportsImages: newSportsImageCache(defaultSportsImageCacheDir, secureSportsImageHTTPClient()), timeShift: timeshift.NewManager(""), streamTickets: map[string]streamTicket{}}
 	if syncer != nil {
 		server.coordinator = NewRefreshCoordinator(syncer)
 	}
@@ -241,7 +243,7 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 	if strings.HasPrefix(request.GetPath(), "/dispatcharr/timeshift/") {
 		return s.handleTimeShiftMedia(request), nil
 	}
-	if strings.HasPrefix(request.GetPath(), "/dispatcharr/api/sports/image/") {
+	if path, _, _ := strings.Cut(request.GetPath(), "?"); strings.HasPrefix(path, "/dispatcharr/api/sports/image/") || path == "/dispatcharr/api/sports/image" {
 		return s.handleSportsImage(ctx, request), nil
 	}
 	switch request.GetPath() {
@@ -352,8 +354,9 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		if err != nil {
 			return textResponse(http.StatusNotFound, err.Error()), nil
 		}
-		streamURL = appendPlaybackQuery(streamURL, request)
-		return redirectResponse(streamURL), nil
+		return s.serveProviderStream(ctx, streamURL, request), nil
+	case "/dispatcharr/stream/asset":
+		return s.handleStreamAsset(ctx, request), nil
 	case "/dispatcharr/vod/stream":
 		s.ensureCatalogHydrated(ctx)
 		itemID := queryValue(request, "item_id")
@@ -364,7 +367,7 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		if err != nil {
 			return textResponse(http.StatusNotFound, err.Error()), nil
 		}
-		return redirectResponse(streamURL), nil
+		return s.serveProviderStream(ctx, streamURL, request), nil
 	default:
 		return textResponse(http.StatusNotFound, "route not found"), nil
 	}
@@ -617,7 +620,7 @@ func (s *HTTPRoutesServer) buildAppPayload() AppPayload {
 		Source:       snapshot.Catalog.Source,
 		Channels:     publicChannels(snapshot.Catalog.Channels, s.hlsBufferSeconds()),
 		Categories:   liveCategories(snapshot),
-		Capabilities: appCapabilities(snapshot.Catalog.Source.Mode),
+		Capabilities: s.appCapabilities(snapshot.Catalog.Source.Mode),
 	}
 }
 
@@ -732,8 +735,8 @@ func (s *HTTPRoutesServer) seriesPayload() ContentPayload {
 }
 
 func (s *HTTPRoutesServer) handleRecordings(ctx context.Context) (*pluginv1.HandleHTTPResponse, error) {
-	if !dvrEnabledForSource(s.store.Current().Catalog.Source.Mode) {
-		return s.respondJSON(http.StatusOK, RecordingsPayload{Available: false, Reason: "Recordings require Dispatcharr Direct Connect.", Items: []json.RawMessage{}})
+	if !s.recordingsEnabled() {
+		return s.respondJSON(http.StatusOK, RecordingsPayload{Available: false, Reason: recordingsUnavailableReason(s), Items: []json.RawMessage{}})
 	}
 	client, err := s.dispatcharrClient()
 	if err != nil {
@@ -747,10 +750,9 @@ func (s *HTTPRoutesServer) handleRecordings(ctx context.Context) (*pluginv1.Hand
 }
 
 func (s *HTTPRoutesServer) handleRecordingCapability(ctx context.Context) (*pluginv1.HandleHTTPResponse, error) {
-	snapshot := s.store.Current()
-	if !dvrEnabledForSource(snapshot.Catalog.Source.Mode) {
+	if !s.recordingsEnabled() {
 		return s.respondJSON(http.StatusOK, RecordingCapabilityPayload{
-			Reason: "Recordings require Dispatcharr Direct Connect.",
+			Reason: recordingsUnavailableReason(s),
 		})
 	}
 	if s.settingsProvider == nil {
@@ -783,8 +785,8 @@ func (s *HTTPRoutesServer) handleRecordingCapability(ctx context.Context) (*plug
 }
 
 func (s *HTTPRoutesServer) handleScheduleRecording(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
-	if !dvrEnabledForSource(s.store.Current().Catalog.Source.Mode) {
-		return textResponse(http.StatusConflict, "recordings require Dispatcharr Direct Connect"), nil
+	if !s.recordingsEnabled() {
+		return textResponse(http.StatusConflict, recordingsUnavailableReason(s)), nil
 	}
 	var payload scheduleRecordingRequest
 	if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
@@ -1628,8 +1630,44 @@ func appCapabilities(sourceMode model.SourceMode) AppCapabilities {
 	}
 }
 
+func (s *HTTPRoutesServer) appCapabilities(sourceMode model.SourceMode) AppCapabilities {
+	caps := appCapabilities(sourceMode)
+	caps.Recordings = caps.Recordings && s.adminFlag("allowRecordingsByDefault", true)
+	return caps
+}
+
 func dvrEnabledForSource(sourceMode model.SourceMode) bool {
 	return sourceMode == model.SourceModeDirectLogin || sourceMode == model.SourceModeAPIKey
+}
+
+func (s *HTTPRoutesServer) recordingsEnabled() bool {
+	if s == nil || s.store == nil {
+		return false
+	}
+	if !dvrEnabledForSource(s.store.Current().Catalog.Source.Mode) {
+		return false
+	}
+	return s.adminFlag("allowRecordingsByDefault", true)
+}
+
+func recordingsUnavailableReason(s *HTTPRoutesServer) string {
+	if s != nil && s.store != nil && dvrEnabledForSource(s.store.Current().Catalog.Source.Mode) && !s.adminFlag("allowRecordingsByDefault", true) {
+		return "Recordings are turned off by Dispatcharr Admin."
+	}
+	return "Recordings require Dispatcharr Direct Connect."
+}
+
+func (s *HTTPRoutesServer) sportsFeatureEnabled() bool {
+	return s.adminFlag("sportsEnabled", true)
+}
+
+func (s *HTTPRoutesServer) adminFlag(key string, fallback bool) bool {
+	if s == nil || s.store == nil {
+		return fallback
+	}
+	settings := map[string]any{}
+	_ = json.Unmarshal(s.store.AdminSettings(), &settings)
+	return boolSetting(settings, key, fallback)
 }
 
 func queryValue(request *pluginv1.HandleHTTPRequest, key string) string {

@@ -135,7 +135,7 @@ func (cache *sportsImageCache) register(rawURL string) string {
 	}
 	cache.urls[key] = sportsImageSource{URL: rawURL, AccessedAt: time.Now()}
 	cache.mu.Unlock()
-	return "/dispatcharr/api/sports/image/" + key
+	return "/dispatcharr/api/sports/image?key=" + key
 }
 
 func (cache *sportsImageCache) source(key string) string {
@@ -202,7 +202,7 @@ func (s *HTTPRoutesServer) handleSportsImage(ctx context.Context, request *plugi
 	if s.sportsImages == nil {
 		return textResponse(http.StatusNotFound, "sports image cache unavailable")
 	}
-	key := strings.TrimPrefix(request.GetPath(), "/dispatcharr/api/sports/image/")
+	key := sportsImageKeyFromRequest(request)
 	if len(key) != 32 || strings.Trim(key, "0123456789abcdef") != "" {
 		return textResponse(http.StatusNotFound, "sports image not found")
 	}
@@ -220,6 +220,26 @@ func (s *HTTPRoutesServer) handleSportsImage(ctx context.Context, request *plugi
 		},
 		Body: payload,
 	}
+}
+
+func sportsImageKeyFromRequest(request *pluginv1.HandleHTTPRequest) string {
+	if request == nil {
+		return ""
+	}
+	if key := strings.TrimSpace(queryValue(request, "key")); key != "" {
+		return key
+	}
+	path := request.GetPath()
+	if rawPath, rawQuery, ok := strings.Cut(path, "?"); ok {
+		values, err := url.ParseQuery(rawQuery)
+		if err == nil {
+			if key := strings.TrimSpace(values.Get("key")); key != "" {
+				return key
+			}
+		}
+		path = rawPath
+	}
+	return strings.TrimPrefix(path, "/dispatcharr/api/sports/image/")
 }
 
 func (cache *sportsImageCache) load(ctx context.Context, key string) ([]byte, string, int) {
