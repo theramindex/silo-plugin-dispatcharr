@@ -609,6 +609,13 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-team-favorite span { display: none; }
 .sports-team-favorite.active, .sports-team-favorite:hover, .sports-team-favorite:focus-visible { border-color: var(--line); background: var(--rail-2); color: var(--warn); opacity: 1; }
 .sports-team-favorite.placeholder { opacity: 0; pointer-events: none; }
+.sports-team-heart { width: 2.75rem; min-width: 2.75rem; height: 2.75rem; min-height: 2.75rem; opacity: 1; flex: 0 0 auto; }
+.sports-team-heart svg { width: 1.1rem; height: 1.1rem; }
+.sports-event-tile { position: relative; }
+.sports-tile-team-favorites { position: absolute; top: 0.35rem; left: 0.35rem; right: 0.35rem; display: flex; justify-content: space-between; pointer-events: none; }
+.sports-tile-team-favorites .sports-team-heart { pointer-events: auto; color: white; background: rgba(15,17,23,0.8); }
+.sports-tile-team-favorites .sports-team-heart.active { color: var(--warn); }
+.sports-team-name-action { display: inline-flex; align-items: center; justify-content: center; gap: 0.25rem; min-width: 0; }
 .sports-channels { grid-area: channels; display: flex; flex-wrap: wrap; justify-content: center; gap: 0.3rem; min-width: 0; }
 .sports-channel-empty { grid-area: channels; width: min(28rem, 100%); min-height: 2.6rem; justify-self: center; margin-inline: auto; border: 1px dashed var(--line); border-radius: 0.5rem; background: color-mix(in srgb, var(--rail-2) 58%, transparent); display: grid; place-items: center; text-align: center; font-size: 0.78rem; font-weight: 850; }
 .sports-channel-wrap { display: grid; grid-template-columns: minmax(0, 1fr); justify-self: center; max-width: min(13.5rem, 100%); min-width: min(11.25rem, 100%); }

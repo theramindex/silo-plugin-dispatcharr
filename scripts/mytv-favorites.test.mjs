@@ -45,7 +45,7 @@ test('the actual favorite click handler saves and removes a channel using shared
   assert.equal(ctx.saves, 2);
   assert.equal(ctx.refreshes, 2);
 });
-test('search rows have a distinct accessible favorite action and the empty hub explains how to save', () => {
+test('search rows have a distinct favorite action and the empty favorites section is hidden', () => {
   const ctx = setup();
   const html = ctx.myTVChannelRow({ id: 'other', name: 'New channel' });
   assert.match(html, /data-channel="other"/);
@@ -54,5 +54,49 @@ test('search rows have a distinct accessible favorite action and the empty hub e
   assert.match(html, /Save New channel to My TV favorites/);
   ctx.prefs().favorites = {};
   ctx.prefs().favoriteOrder = [];
-  assert.match(ctx.myTVFavoriteChannelsHTML(), /Save channels with the heart button/);
+  assert.equal(ctx.myTVFavoriteChannelsHTML(), '');
+});
+
+function teamSetup() {
+  const ctx = setup();
+  ctx.prefs().sportsFavoriteTeams = {};
+  ctx.lower = value => String(value || '').toLowerCase();
+  ctx.sportsFavoriteTeamMap = () => ctx.prefs().sportsFavoriteTeams;
+  ctx.myTVSportsPeople = () => [{ id: 'epg-yankees', name: 'New York Yankees' }];
+  ctx.applySportsFavoritesToPayload = () => {};
+  for (const name of ['sportsGamePassSlug', 'myTVBuiltInSportsPeople', 'sportsFavoriteTeamMatches', 'sportsSavedTeamID', 'sportsTeamFavoriteButton', 'toggleSportsTeamFavorite']) {
+    const start = source.indexOf('function ' + name + '(');
+    vm.runInContext(source.slice(start, source.indexOf('\nfunction ', start + 1)), ctx);
+  }
+  return ctx;
+}
+test('team hearts save a stable game pass and reflect existing follows', () => {
+  const ctx = teamSetup(), team = { id: 'epg-yankees', name: 'New York Yankees' };
+  const key = 'gamepass:mlb:new-york-yankees';
+  assert.match(ctx.sportsTeamFavoriteButton(team), /data-sports-favorite-team="gamepass:mlb:new-york-yankees"/);
+  ctx.toggleSportsTeamFavorite(key, true);
+  assert.match(ctx.sportsTeamFavoriteButton(team), /aria-pressed="true"/);
+  assert.match(ctx.sportsTeamFavoriteButton(team), /data-icon="heart-solid"/);
+  ctx.prefs().sportsFavoriteTeams[team.id] = true;
+  ctx.toggleSportsTeamFavorite(team.id, false);
+  assert.equal(Object.keys(ctx.prefs().sportsFavoriteTeams).length, 0);
+  assert.match(ctx.sportsTeamFavoriteButton(team), /aria-pressed="false"/);
+  assert.equal(ctx.sportsTeamFavoriteButton({ name: 'Unknown' }), '');
+});
+test('card team hearts are outside the event-opening button and absent for program cards', () => {
+  const ctx = teamSetup();
+  Object.assign(ctx, {
+    sportsEventIsLive: () => false, sportsEventArtwork: () => '', sportsEventChannelsExpanded: () => false,
+    renderSportsMatchupThumbnail: () => '<span>Team artwork</span>', sportsStatusLabel: () => 'Live',
+    sportsEventTitle: () => 'Yankees vs Nationals', sportsEventStateID: () => 'event',
+    renderSportsTileAvailability: () => '', sportsEventIsRace: () => false, sportsEventIsProgram: () => false
+  });
+  const start = source.indexOf('function renderSportsEventTile(');
+  vm.runInContext(source.slice(start, source.indexOf('\nfunction ', start + 1)), ctx);
+  const event = { away: {id:'epg-yankees',name:'New York Yankees'}, home:{id:'nationals',name:'Washington Nationals'} };
+  const html = ctx.renderSportsEventTile(event);
+  assert.equal((html.match(/class="sports-team-favorite /g) || []).length, 2);
+  assert.ok(html.indexOf('sports-tile-team-favorites') > html.indexOf('</button>'));
+  ctx.sportsEventIsProgram = () => true;
+  assert.doesNotMatch(ctx.renderSportsEventTile(event), /sports-tile-team-favorites/);
 });
