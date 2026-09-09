@@ -589,6 +589,9 @@ func TestManifestDeclaresPublicApplicationRoutesOnly(t *testing.T) {
 	}
 	for _, route := range []string{
 		"GET /dispatcharr/api/sports",
+		"GET /dispatcharr/api/sports/league-teams",
+		"GET /dispatcharr/api/sports/image",
+		"GET /dispatcharr/stream/asset",
 		"GET /dispatcharr/api/events",
 		"POST /dispatcharr/api/guide/ping",
 		"GET /dispatcharr/api/admin-connection",
@@ -2041,6 +2044,70 @@ func TestHTTPRoutesServerRecordingsDisabledForXtream(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerRecordingsDisabledByAdminFlag(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{
+		Catalog: model.CatalogState{
+			Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+			Channels: []model.Channel{{ID: "ch-1", Name: "News HD"}},
+		},
+	})
+	store.SetAdminSettings([]byte(`{"allowRecordingsByDefault":false}`))
+	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings {
+		return config.Settings{SourceMode: config.SourceModeDirectLogin, DispatcharrURL: "https://dispatcharr.example.com"}
+	})
+
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/api/recordings"})
+	if err != nil {
+		t.Fatalf("recordings route: %v", err)
+	}
+	var payload RecordingsPayload
+	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+		t.Fatalf("unmarshal recordings payload: %v", err)
+	}
+	if payload.Available || !strings.Contains(payload.Reason, "turned off") {
+		t.Fatalf("expected recordings disabled by admin, got %+v", payload)
+	}
+
+	capability, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/api/recordings/capability"})
+	if err != nil {
+		t.Fatalf("capability route: %v", err)
+	}
+	var cap RecordingCapabilityPayload
+	if err := json.Unmarshal(capability.GetBody(), &cap); err != nil {
+		t.Fatalf("unmarshal capability: %v", err)
+	}
+	if cap.Available || cap.CanSchedule {
+		t.Fatalf("expected capability unavailable when admin disables recordings, got %+v", cap)
+	}
+
+	schedule, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method: "POST",
+		Path:   "/dispatcharr/api/recordings",
+		Body:   []byte(`{"channelId":"ch-1","title":"News","startUnix":1700000000,"endUnix":1700003600}`),
+	})
+	if err != nil {
+		t.Fatalf("schedule route: %v", err)
+	}
+	if schedule.GetStatusCode() != 409 {
+		t.Fatalf("expected 409, got %d", schedule.GetStatusCode())
+	}
+
+	app, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/api/app"})
+	if err != nil {
+		t.Fatalf("app route: %v", err)
+	}
+	var appPayload AppPayload
+	if err := json.Unmarshal(app.GetBody(), &appPayload); err != nil {
+		t.Fatalf("unmarshal app: %v", err)
+	}
+	if appPayload.Capabilities.Recordings {
+		t.Fatal("app capabilities must not advertise recordings when admin disables them")
+	}
+}
+
 func TestHTTPRoutesServerRecordingCapabilityRequiresDispatcharrAdmin(t *testing.T) {
 	t.Parallel()
 
@@ -2991,6 +3058,16 @@ func TestPlayerAppUsesBrowserHistoryForNavigation(t *testing.T) {
 	if strings.Contains(functionSource("commitAppRoute"), "Object.assign({}, window.history.state") {
 		t.Fatal("commitAppRoute must not clone host history state")
 	}
+	boot := script
+	if idx := strings.Index(script, "startGuideAutoRefresh();"); idx >= 0 {
+		boot = script[idx:]
+	}
+	if strings.Contains(boot, `snapshot.view === "player" && snapshot.channelID`) {
+		t.Fatal("boot must restore every hash route, not only player")
+	}
+	if !strings.Contains(boot, "restoreAppRoute(snapshot)") {
+		t.Fatal("boot must restore the initial hash route after load")
+	}
 	for functionName := range map[string]bool{
 		"setView":          true,
 		"setCategory":      true,
@@ -3321,6 +3398,17 @@ func TestHTTPRoutesServerStreamM3URoute(t *testing.T) {
 func TestHTTPRoutesServerStreamXtreamRoute(t *testing.T) {
 	t.Parallel()
 
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/seg.ts") {
+			w.Header().Set("Content-Type", "video/mp2t")
+			_, _ = w.Write([]byte("TSSEG"))
+			return
+		}
+		w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+		_, _ = w.Write([]byte("#EXTM3U\n#EXTINF:1,\n" + "http://" + r.Host + "/live/demo/secret/seg.ts\n"))
+	}))
+	t.Cleanup(upstream.Close)
+
 	store := cache.NewStore()
 	store.Replace(cache.Snapshot{
 		Catalog: model.CatalogState{
@@ -3333,7 +3421,7 @@ func TestHTTPRoutesServerStreamXtreamRoute(t *testing.T) {
 	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings {
 		return config.Settings{
 			SourceMode:      config.SourceModeXtream,
-			XtreamBaseURL:   "https://dispatcharr.example.com",
+			XtreamBaseURL:   upstream.URL,
 			XtreamUsername:  "demo",
 			XtreamPassword:  "secret",
 			ChannelRefreshH: config.DefaultChannelRefreshHours,
@@ -3346,16 +3434,43 @@ func TestHTTPRoutesServerStreamXtreamRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stream route: %v", err)
 	}
-	if response.GetStatusCode() != 302 {
-		t.Fatalf("expected 302, got %d", response.GetStatusCode())
+	if response.GetStatusCode() != 200 {
+		t.Fatalf("expected 200 proxied playlist, got %d", response.GetStatusCode())
 	}
-	if !strings.Contains(response.GetHeaders()["location"], "/live/demo/secret/1001") {
-		t.Fatalf("unexpected location header: %q", response.GetHeaders()["location"])
+	location := response.GetHeaders()["location"]
+	body := string(response.GetBody())
+	if strings.Contains(location, "secret") || strings.Contains(body, "secret") {
+		t.Fatalf("Xtream credentials leaked: location=%q body=%q", location, body)
+	}
+	if !strings.Contains(body, "#EXTM3U") || !strings.Contains(body, "/dispatcharr/stream/asset?ticket=") {
+		t.Fatalf("expected rewritten HLS playlist, got %q", body)
+	}
+
+	ticket := strings.TrimSpace(body[strings.LastIndex(body, "ticket=")+len("ticket="):])
+	ticket = strings.TrimSpace(strings.Split(ticket, "\n")[0])
+	assetQuery, _ := structpb.NewStruct(map[string]any{"ticket": ticket})
+	asset, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/stream/asset", Query: assetQuery})
+	if err != nil {
+		t.Fatalf("stream asset route: %v", err)
+	}
+	if asset.GetStatusCode() != 200 || string(asset.GetBody()) != "TSSEG" {
+		t.Fatalf("expected proxied segment, got %d %q", asset.GetStatusCode(), asset.GetBody())
+	}
+	if strings.Contains(string(asset.GetBody()), "secret") || strings.Contains(asset.GetHeaders()["location"], "secret") {
+		t.Fatal("segment proxy leaked credentials")
 	}
 }
 
 func TestHTTPRoutesServerStreamPreservesBrowserPlaybackQuery(t *testing.T) {
 	t.Parallel()
+
+	var gotProfile string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotProfile = r.URL.Query().Get("output_profile")
+		w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+		_, _ = w.Write([]byte("#EXTM3U\n"))
+	}))
+	t.Cleanup(upstream.Close)
 
 	store := cache.NewStore()
 	store.Replace(cache.Snapshot{
@@ -3369,7 +3484,7 @@ func TestHTTPRoutesServerStreamPreservesBrowserPlaybackQuery(t *testing.T) {
 	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings {
 		return config.Settings{
 			SourceMode:      config.SourceModeXtream,
-			XtreamBaseURL:   "https://dispatcharr.example.com",
+			XtreamBaseURL:   upstream.URL,
 			XtreamUsername:  "demo",
 			XtreamPassword:  "secret",
 			ChannelRefreshH: config.DefaultChannelRefreshHours,
@@ -3385,14 +3500,25 @@ func TestHTTPRoutesServerStreamPreservesBrowserPlaybackQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stream route: %v", err)
 	}
-	location := response.GetHeaders()["location"]
-	if !strings.Contains(location, "output_profile=2") {
-		t.Fatalf("expected browser playback query in location header: %q", location)
+	if response.GetStatusCode() != 200 {
+		t.Fatalf("expected 200 proxied playlist, got %d", response.GetStatusCode())
+	}
+	if gotProfile != "2" {
+		t.Fatalf("expected output_profile=2 on upstream fetch, got %q", gotProfile)
+	}
+	if strings.Contains(string(response.GetBody()), "secret") || strings.Contains(response.GetHeaders()["location"], "secret") {
+		t.Fatal("playback query proxy leaked credentials")
 	}
 }
 
 func TestHTTPRoutesServerVODStreamXtreamRoute(t *testing.T) {
 	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "video/mp4")
+		_, _ = w.Write([]byte("MP4DATA"))
+	}))
+	t.Cleanup(upstream.Close)
 
 	store := cache.NewStore()
 	store.Replace(cache.Snapshot{
@@ -3406,7 +3532,7 @@ func TestHTTPRoutesServerVODStreamXtreamRoute(t *testing.T) {
 	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings {
 		return config.Settings{
 			SourceMode:      config.SourceModeXtream,
-			XtreamBaseURL:   "https://dispatcharr.example.com",
+			XtreamBaseURL:   upstream.URL,
 			XtreamUsername:  "demo",
 			XtreamPassword:  "secret",
 			ChannelRefreshH: config.DefaultChannelRefreshHours,
@@ -3419,11 +3545,14 @@ func TestHTTPRoutesServerVODStreamXtreamRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("vod stream route: %v", err)
 	}
-	if response.GetStatusCode() != 302 {
-		t.Fatalf("expected 302, got %d", response.GetStatusCode())
+	if response.GetStatusCode() != 200 {
+		t.Fatalf("expected 200 proxied vod, got %d", response.GetStatusCode())
 	}
-	if !strings.Contains(response.GetHeaders()["location"], "/movie/demo/secret/2001.mp4") {
-		t.Fatalf("unexpected location header: %q", response.GetHeaders()["location"])
+	if string(response.GetBody()) != "MP4DATA" {
+		t.Fatalf("expected proxied vod body, got %q", response.GetBody())
+	}
+	if strings.Contains(string(response.GetBody()), "secret") || strings.Contains(response.GetHeaders()["location"], "secret") {
+		t.Fatal("VOD stream leaked credentials")
 	}
 }
 

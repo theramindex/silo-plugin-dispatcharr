@@ -1675,6 +1675,52 @@ func TestSportsLeagueTeamsRouteMergesFullRosterWithAiringTeams(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerSportsDisabledByAdminFlag(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.SetAdminSettings([]byte(`{"sportsEnabled":false}`))
+	server := NewHTTPRoutesServer(store)
+	server.sportsProvider = staticSportsProvider{events: []SportsEvent{{ID: "game-1", Name: "Hidden"}}}
+	server.sportsPrepared = sportsPreparedCache{
+		Ready:        true,
+		ExpiresAfter: time.Now().Add(time.Hour),
+		Payload:      SportsPayload{Events: []SportsEvent{{ID: "game-1", Name: "Hidden"}}},
+	}
+
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/dispatcharr/api/sports"})
+	if err != nil {
+		t.Fatalf("sports route: %v", err)
+	}
+	var payload SportsPayload
+	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+		t.Fatalf("decode sports: %v", err)
+	}
+	if len(payload.Events) != 0 {
+		t.Fatalf("expected no sports events when admin disables sports, got %+v", payload.Events)
+	}
+
+	query, err := structpb.NewStruct(map[string]any{"league_id": "nfl"})
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	teams, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method: http.MethodGet,
+		Path:   "/dispatcharr/api/sports/league-teams",
+		Query:  query,
+	})
+	if err != nil {
+		t.Fatalf("league teams route: %v", err)
+	}
+	var teamPayload SportsLeagueTeamsPayload
+	if err := json.Unmarshal(teams.GetBody(), &teamPayload); err != nil {
+		t.Fatalf("decode league teams: %v", err)
+	}
+	if len(teamPayload.Teams) != 0 {
+		t.Fatalf("expected no league teams when sports are disabled, got %+v", teamPayload.Teams)
+	}
+}
+
 func TestMergeSportsLeagueRosterTeamsDeduplicatesUniqueTeamNicknameAliases(t *testing.T) {
 	t.Parallel()
 

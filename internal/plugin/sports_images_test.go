@@ -38,7 +38,7 @@ func TestSportsImageCacheValidatesAndCachesRasterArtwork(t *testing.T) {
 
 	cache := newSportsImageCache(t.TempDir(), client)
 	path := cache.register("https://images.example/team.png")
-	key := strings.TrimPrefix(path, "/dispatcharr/api/sports/image/")
+	key := strings.TrimPrefix(path, "/dispatcharr/api/sports/image?key=")
 	for attempt := 0; attempt < 2; attempt++ {
 		payload, contentType, status := cache.load(context.Background(), key)
 		if status != http.StatusOK || contentType != "image/png" || len(payload) == 0 {
@@ -59,7 +59,7 @@ func TestSportsImageCacheNegativeCachesMissingAndCoolsDownRateLimits(t *testing.
 		return http.StatusNotFound, nil
 	})
 	cache := newSportsImageCache(t.TempDir(), missingClient)
-	key := strings.TrimPrefix(cache.register("https://images.example/missing.png"), "/dispatcharr/api/sports/image/")
+	key := strings.TrimPrefix(cache.register("https://images.example/missing.png"), "/dispatcharr/api/sports/image?key=")
 	for attempt := 0; attempt < 2; attempt++ {
 		if _, _, status := cache.load(context.Background(), key); status != http.StatusNotFound {
 			t.Fatalf("missing status = %d, want 404", status)
@@ -75,7 +75,7 @@ func TestSportsImageCacheNegativeCachesMissingAndCoolsDownRateLimits(t *testing.
 		return http.StatusTooManyRequests, nil
 	})
 	limitedCache := newSportsImageCache(t.TempDir(), limitedClient)
-	limitedKey := strings.TrimPrefix(limitedCache.register("https://images.example/limited.png"), "/dispatcharr/api/sports/image/")
+	limitedKey := strings.TrimPrefix(limitedCache.register("https://images.example/limited.png"), "/dispatcharr/api/sports/image?key=")
 	for attempt := 0; attempt < 2; attempt++ {
 		if _, _, status := limitedCache.load(context.Background(), limitedKey); status != http.StatusTooManyRequests {
 			t.Fatalf("rate-limit status = %d, want 429", status)
@@ -103,10 +103,10 @@ func TestSportsImageRouteRejectsNonImagesAndProxiesEventArtwork(t *testing.T) {
 		Home:     SportsTeam{LogoURL: "https://images.example/home.png"},
 		Away:     SportsTeam{LogoURL: "https://images.example/away.svg"},
 	}})
-	if !strings.HasPrefix(events[0].ImageURL, "/dispatcharr/api/sports/image/") || !strings.HasPrefix(events[0].Home.LogoURL, "/dispatcharr/api/sports/image/") {
+	if !strings.HasPrefix(events[0].ImageURL, "/dispatcharr/api/sports/image?key=") || !strings.HasPrefix(events[0].Home.LogoURL, "/dispatcharr/api/sports/image?key=") {
 		t.Fatalf("raster artwork was not proxied: %#v", events[0])
 	}
-	if got := events[0].Away.LogoURL; !strings.HasPrefix(got, "/dispatcharr/api/sports/image/") {
+	if got := events[0].Away.LogoURL; !strings.HasPrefix(got, "/dispatcharr/api/sports/image?key=") {
 		t.Fatalf("SVG URL = %q, want proxied URL", got)
 	}
 	response := server.handleSportsImage(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: events[0].ImageURL})

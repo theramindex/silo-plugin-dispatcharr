@@ -3916,7 +3916,7 @@ function sportsReplayItemTitle(item) {
 }
 function safeSportsMediaURL(value) {
   value = String(value || "").trim();
-  if (value.indexOf("/dispatcharr/api/sports/image/") === 0) return route(value);
+  if (value.indexOf("/dispatcharr/api/sports/image") === 0) return route(value);
   return /^(https?:\/\/|\/)/i.test(value) ? value : "";
 }
 function sportsReplayArtwork(item, kind) {

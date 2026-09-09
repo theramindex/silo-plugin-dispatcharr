@@ -194,6 +194,9 @@ type SportsMatchDiagnostic struct {
 }
 
 func (s *HTTPRoutesServer) handleSports(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if !s.sportsFeatureEnabled() {
+		return s.respondJSON(http.StatusOK, SportsPayload{})
+	}
 	if queryValue(request, "game_stats") != "" {
 		return s.handleSportsGameStats(ctx, request)
 	}
@@ -209,6 +212,9 @@ type SportsLeagueTeamsPayload struct {
 }
 
 func (s *HTTPRoutesServer) handleSportsLeagueTeams(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if !s.sportsFeatureEnabled() {
+		return s.respondJSON(http.StatusOK, SportsLeagueTeamsPayload{Teams: []SportsTeam{}})
+	}
 	if request.GetMethod() != "" && request.GetMethod() != http.MethodGet {
 		return textResponse(http.StatusMethodNotAllowed, "method not allowed"), nil
 	}
