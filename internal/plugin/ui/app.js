@@ -2352,6 +2352,7 @@ function searchResultSections(query) {
     sections.push({ id: "channels", title: "Channels", rows: channels.map(function(channel) {
       return {
         attrs: "data-search-channel=\"" + escapeHTML(channel.id) + "\"",
+        favoriteChannelId: channel.id,
         art: logoHTML(channel),
         title: channel.name || "Untitled",
         meta: ["Channel", channel.categoryName || "Live TV"].filter(Boolean).join(" - "),
@@ -2509,9 +2510,14 @@ function searchResultSections(query) {
   }
   return sections.filter(function(section) { return section.rows.length; });
 }
+function channelFavoriteButton(channelID, name) {
+  const saved = !!favoriteMap()[channelID];
+  const label = (saved ? "Remove " : "Save ") + (name || "channel") + (saved ? " from My TV favorites" : " to My TV favorites");
+  return '<button class="search-channel-favorite' + (saved ? ' active' : '') + '" type="button" data-save-channel="' + escapeHTML(channelID) + '" aria-label="' + escapeHTML(label) + '" title="' + escapeHTML(label) + '" aria-pressed="' + saved + '">' + icon(saved ? "heart-solid" : "heart") + '</button>';
+}
 function renderSearchResultRow(row) {
   const record = row.recordable ? "<button class=\"search-result-record\" type=\"button\" data-schedule-channel=\"" + escapeHTML(row.channelId || "") + "\" data-schedule-program=\"" + escapeHTML(row.programId || "") + "\">Record</button>" : "";
-  return "<div class=\"search-result-row\"><button class=\"search-result\" type=\"button\" " + (row.attrs || "") + (row.disabled ? " disabled" : "") + "><span class=\"search-result-art\">" + row.art + "</span><span class=\"search-result-main\"><strong>" + escapeHTML(row.title) + "</strong><small>" + escapeHTML(row.meta || "") + "</small></span><span class=\"search-result-action\">" + escapeHTML(row.action || "") + "</span></button>" + record + "</div>";
+  return "<div class=\"search-result-row\"><button class=\"search-result\" type=\"button\" " + (row.attrs || "") + (row.disabled ? " disabled" : "") + "><span class=\"search-result-art\">" + row.art + "</span><span class=\"search-result-main\"><strong>" + escapeHTML(row.title) + "</strong><small>" + escapeHTML(row.meta || "") + "</small></span><span class=\"search-result-action\">" + escapeHTML(row.action || "") + "</span></button>" + record + (row.favoriteChannelId ? channelFavoriteButton(row.favoriteChannelId, row.title) : "") + "</div>";
 }
 function renderSearchResultCard(row) {
   const record = row.recordable ? "<button class=\"search-result-record\" type=\"button\" data-schedule-channel=\"" + escapeHTML(row.channelId || "") + "\" data-schedule-program=\"" + escapeHTML(row.programId || "") + "\">Record</button>" : "";
@@ -2965,7 +2971,7 @@ function myTVFollowingHTML() {
 }
 function myTVSearchResults(query) {
   query = String(query || "").trim();
-  if (query.length < 2) return "<p class=\"my-tv-search-note\">Keep typing to search shows, teams, fighters, leagues, and events.</p>";
+  if (query.length < 2) return "<p class=\"my-tv-search-note\">Keep typing to search channels, shows, teams, fighters, leagues, and events.</p>";
   const people = rankedSearchMatches(myTVSportsPeople(), function(team) {
     return searchMatchScore(team.name, [team.abbreviation, team.kind, team.leagueName].join(" "), query);
   }, 12);
@@ -2998,9 +3004,20 @@ function myTVSearchResults(query) {
     const followed = !!(featuredEventMap()[event.id] || adminFeaturedEventMap()[event.id]);
     return "<article class=\"my-tv-result\"><span class=\"my-tv-result-mark\">" + icon("calendar") + "</span><span><strong>" + escapeHTML(event.shortName || event.name || "Event") + "</strong><small>" + escapeHTML([event.categoryName, eventStatusLabel(event)].filter(Boolean).join(" · ")) + "</small></span><button type=\"button\" data-event-feature=\"" + escapeHTML(event.id || "") + "\"" + (adminFeaturedEventMap()[event.id] ? " disabled" : "") + ">" + (followed ? "Following" : "Follow") + "</button></article>";
   });
-  const groups = [["Teams & fighters", personRows], ["Leagues", leagueRows], ["From the guide", titleRows], ["Events", eventRows]].filter(function(group) { return group[1].length; });
+  const channelRows = rankedSearchMatches(searchableChannels(), function(channel) {
+    return searchMatchScore(channel.name, [channel.number, channel.categoryName].join(" "), query);
+  }, 12).map(myTVChannelRow);
+  const groups = [["Channels", channelRows], ["Teams & fighters", personRows], ["Leagues", leagueRows], ["From the guide", titleRows], ["Events", eventRows]].filter(function(group) { return group[1].length; });
   const catalogNote = state.myTVTeamCatalogLoading && !people.length && !leagues.length ? "<p class=\"my-tv-search-note\">Searching team rosters…</p>" : "";
   return "<section class=\"my-tv-search-results\">" + trackQuery + catalogNote + (groups.length ? groups.map(function(group) { return "<div><h3>" + escapeHTML(group[0]) + "</h3><div class=\"my-tv-result-list\">" + group[1].join("") + "</div></div>"; }).join("") : "<p class=\"my-tv-search-note\">No current listings match yet. Track the search and My TV will watch future guide updates.</p>") + "</section>";
+}
+function myTVChannelRow(channel) {
+  const program = currentProgram(channel) || {};
+  return renderSearchResultRow({ attrs: 'data-channel="' + escapeHTML(channel.id) + '"', favoriteChannelId: channel.id, art: logoHTML(channel), title: channel.name || "Channel", meta: program.title || channel.categoryName || "Live channel", action: "Watch" });
+}
+function myTVFavoriteChannelsHTML() {
+  const channels = orderedFavoriteChannels(searchableChannels()).filter(function(channel) { return !!favoriteMap()[channel.id]; });
+  return '<section class="my-tv-section my-tv-favorites" aria-label="Favorite channels"><header><h3>Favorite channels</h3><button class="search-cancel" type="button" data-view="search">Find channels</button></header>' + (channels.length ? '<div class="search-result-list">' + channels.map(myTVChannelRow).join('') + '</div>' : '<p class="my-tv-search-note">Save channels with the heart button and watch them here.</p>') + '</section>';
 }
 function myTVDashboardHTML() {
   const guidePrograms = myTVGuidePrograms();
@@ -3010,7 +3027,7 @@ function myTVDashboardHTML() {
     + (sportsEvents.length ? "<section class=\"my-tv-section\" aria-label=\"Your sports\"><div class=\"sports-event-grid my-tv-sports-grid\">" + sportsEvents.map(renderSportsEventTile).join("") + "</div></section>" : "")
     + (featuredEvents.length ? "<section class=\"my-tv-section\"><header><h3>Your events</h3><span>" + featuredEvents.length + " coming up</span></header><div class=\"event-shelf-rail\">" + featuredEvents.map(renderBroadcastEventCard).join("") + "</div></section>" : "");
   const empty = !upcoming ? "<section class=\"my-tv-empty\"><div><strong>Make this page yours</strong><p>Search for a show, team, fighter, league, or event. My TV will connect what you follow to live and upcoming coverage.</p></div><div class=\"my-tv-empty-actions\"><button type=\"button\" data-view=\"sports\">Browse sports</button><button type=\"button\" data-view=\"events\">Browse events</button></div></section>" : "";
-  return myTVFollowingHTML() + (upcoming ? "<section class=\"my-tv-up-next\"><header><h2>Up next</h2></header>" + upcoming + "</section>" : "") + empty;
+  return myTVFavoriteChannelsHTML() + myTVFollowingHTML() + (upcoming ? "<section class=\"my-tv-up-next\"><header><h2>Up next</h2></header>" + upcoming + "</section>" : "") + empty;
 }
 function updateMyTVSearchSurface() {
   const query = state.myTVQuery || "";
@@ -3018,7 +3035,7 @@ function updateMyTVSearchSurface() {
   const description = byId("my-tv-description");
   const context = byId("my-tv-search-context");
   if (title) title.textContent = query ? "Find & follow" : "My TV";
-  if (description) description.textContent = query ? "Create game passes and follow shows, teams, or events." : "Your saved follows and what’s coming up next.";
+  if (description) description.textContent = query ? "Save channels and follow shows, teams, or events." : "Your favorite channels, saved follows, and what’s coming up next.";
   if (context) context.hidden = !query;
   const results = byId("my-tv-search-results");
   const dashboard = byId("my-tv-dashboard");
@@ -3043,7 +3060,7 @@ function renderMyTVPage() {
   if (!state.sports && !state.sportsLoading) loadSports(false);
   if (!state.events && !state.eventsLoading) loadEvents(false);
   const query = state.myTVQuery || "";
-  root.innerHTML = "<div class=\"my-tv-page\"><header class=\"my-tv-header\"><div class=\"my-tv-heading\"><h2 id=\"my-tv-title\">My TV</h2><p id=\"my-tv-description\">Your saved follows and what’s coming up next.</p></div><label class=\"my-tv-search\"><span>" + icon("search") + "</span><input id=\"my-tv-search\" type=\"search\" value=\"" + escapeHTML(query) + "\" placeholder=\"Find shows, teams, leagues, or events to follow\" aria-label=\"Find something to follow\" autocomplete=\"off\" spellcheck=\"false\"><button id=\"my-tv-search-clear\" type=\"button\" aria-label=\"Clear My TV search\" data-my-tv-search-clear=\"true\"" + (query ? "" : " hidden") + ">" + icon("x") + "</button></label></header>"
+  root.innerHTML = "<div class=\"my-tv-page\"><header class=\"my-tv-header\"><div class=\"my-tv-heading\"><h2 id=\"my-tv-title\">My TV</h2><p id=\"my-tv-description\">Your favorite channels, saved follows, and what’s coming up next.</p></div><label class=\"my-tv-search\"><span>" + icon("search") + "</span><input id=\"my-tv-search\" type=\"search\" value=\"" + escapeHTML(query) + "\" placeholder=\"Find channels, shows, teams, or events\" aria-label=\"Find something to follow\" autocomplete=\"off\" spellcheck=\"false\"><button id=\"my-tv-search-clear\" type=\"button\" aria-label=\"Clear My TV search\" data-my-tv-search-clear=\"true\"" + (query ? "" : " hidden") + ">" + icon("x") + "</button></label></header>"
     + "<div id=\"my-tv-search-context\" class=\"my-tv-search-context\" hidden><h3>Search results</h3><button class=\"my-tv-back\" type=\"button\" data-my-tv-search-clear=\"true\">" + icon("arrow-left") + "Back to My TV</button></div>"
     + "<div id=\"my-tv-search-results\" class=\"my-tv-search-surface\" aria-live=\"polite\"" + (query ? "" : " hidden") + "></div><div id=\"my-tv-dashboard\"" + (query ? " hidden" : "") + "></div></div>";
   updateMyTVSearchSurface();
@@ -7914,6 +7931,19 @@ document.addEventListener("click", function(event) {
   if (virtualCategoryViewTarget) {
     event.preventDefault();
     setVirtualCategoryView(virtualCategoryViewTarget.getAttribute("data-virtual-category-view"));
+    return;
+  }
+  const saveChannel = event.target.closest("[data-save-channel]");
+  if (saveChannel) {
+    event.preventDefault();
+    const id = saveChannel.getAttribute("data-save-channel");
+    const saved = setChannelFavorite(id, !favoriteMap()[id]);
+    showAppToast(saved ? "Channel saved to My TV." : "Channel removed from My TV favorites.");
+    if (state.view === "mytv") updateMyTVSearchSurface();
+    else {
+      const results = byId("search-page-results");
+      if (results) results.innerHTML = renderSearchPageResults();
+    }
     return;
   }
   const favoriteMove = event.target.closest("[data-favorite-move]");
