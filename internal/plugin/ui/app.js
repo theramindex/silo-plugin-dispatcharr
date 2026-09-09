@@ -2519,9 +2519,9 @@ function renderSearchResultCard(row) {
 }
 function renderSearchResults(query) {
   const sections = searchResultSections(query);
-  const savePass = query && !keywordPasses().some(function(pass) { return lower(pass.keyword) === lower(query); }) ? "<button class=\"search-save-pass\" type=\"button\" data-keyword-pass-add=\"" + escapeHTML(query) + "\">Add to My TV</button>" : "";
+  const savePass = query && !keywordPasses().some(function(pass) { return lower(pass.keyword) === lower(query); }) ? "<button class=\"search-save-pass\" type=\"button\" data-keyword-pass-add=\"" + escapeHTML(query) + "\">Follow search</button>" : "";
   if (!sections.length) return "<div class=\"search-empty\"><span>" + icon("search") + "</span><strong>No current matches for &ldquo;" + escapeHTML(query) + "&rdquo;</strong><p>Add it to My TV and we’ll watch future guide listings.</p>" + savePass + "</div>";
-  return (savePass ? "<div class=\"search-pass-action\">" + savePass + "</div>" : "") + "<div class=\"search-results\">" + sections.map(function(section) {
+  return (savePass ? "<div class=\"search-pass-action\"><span class=\"search-pass-copy\"><strong>Follow &ldquo;" + escapeHTML(query) + "&rdquo; in My TV</strong><small>See matching guide listings as they become available.</small></span>" + savePass + "</div>" : "") + "<div class=\"search-results\">" + sections.map(function(section) {
     return "<section class=\"search-result-section\"><header class=\"search-result-section-head\"><h3>" + escapeHTML(section.title) + "</h3><span>" + section.rows.length + (section.rows.length === 1 ? " result" : " results") + "</span></header><div class=\"search-result-list\">" + section.rows.map(renderSearchResultRow).join("") + "</div></section>";
   }).join("") + "</div>";
 }
