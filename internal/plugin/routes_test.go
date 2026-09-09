@@ -287,7 +287,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`data-view="mytv"`,
 		`function renderMyTVPage()`,
 		`function myTVSportsPeople()`,
-		`Find shows, teams, leagues, or events to follow`,
+		`Find channels, shows, teams, or events`,
 		`My TV will watch future guide updates`,
 		`Favorites <small id="favorite-count">0</small>`,
 		`<span>Sports</span>`,
