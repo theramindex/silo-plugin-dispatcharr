@@ -3017,6 +3017,7 @@ function myTVChannelRow(channel) {
 }
 function myTVFavoriteChannelsHTML() {
   const channels = orderedFavoriteChannels(searchableChannels()).filter(function(channel) { return !!favoriteMap()[channel.id]; });
+  if (!channels.length) return "";
   return '<section class="my-tv-section my-tv-favorites" aria-label="Favorite channels"><header><h3>Favorite channels</h3><button class="search-cancel" type="button" data-view="search">Find channels</button></header>' + (channels.length ? '<div class="search-result-list">' + channels.map(myTVChannelRow).join('') + '</div>' : '<p class="my-tv-search-note">Save channels with the heart button and watch them here.</p>') + '</section>';
 }
 function myTVDashboardHTML() {
@@ -3557,7 +3558,7 @@ function renderSportsFeatureScore(event) {
     + "</div>";
 }
 function renderSportsFeatureTeam(team, score, showScore) {
-  return "<span class=\"sports-feature-team\">" + renderSportsTeamLogo(team, "sports-feature-team-logo") + "<span class=\"sports-feature-team-copy\"><strong>" + escapeHTML(sportsTeamName(team)) + "</strong>" + (showScore ? "<b>" + escapeHTML(sportsScoresHidden(false) ? "–" : (score || "0")) + "</b>" : "") + "</span></span>";
+  return "<span class=\"sports-feature-team\">" + renderSportsTeamLogo(team, "sports-feature-team-logo") + "<span class=\"sports-feature-team-copy\"><span class=\"sports-team-name-action\"><strong>" + escapeHTML(sportsTeamName(team)) + "</strong>" + sportsTeamFavoriteButton(team) + "</span>" + (showScore ? "<b>" + escapeHTML(sportsScoresHidden(false) ? "–" : (score || "0")) + "</b>" : "") + "</span></span>";
 }
 function renderSportsLeagueShelf(payload, events) {
   const visibleLeagueIDs = {};
@@ -3602,7 +3603,22 @@ function renderSportsEventTile(event) {
   const fallbackCopy = art ? "" : "<span class=\"sports-event-meta\"><b>" + escapeHTML(event.leagueName || event.leagueId || "Sports") + "</b><small class=\"" + (live ? "live" : "") + "\">" + escapeHTML(sportsStatusLabel(event)) + "</small></span><span class=\"sports-event-title\">" + escapeHTML(sportsEventTitle(event)) + "</span>";
   return "<article class=\"sports-event-tile" + (live ? " live" : "") + (art ? " has-art" : " no-art") + (channelsExpanded ? " channels-expanded" : "") + "\"><button type=\"button\" class=\"sports-event-main\" data-sports-open-event=\"" + escapeHTML(sportsEventStateID(event)) + "\">"
     + thumbnail + fallbackCopy + "</button>"
+    + (!sportsEventIsRace(event) && !sportsEventIsProgram(event) ? '<div class="sports-tile-team-favorites">' + sportsTeamFavoriteButton(event.away || {}) + sportsTeamFavoriteButton(event.home || {}) + '</div>' : '')
     + renderSportsTileAvailability(event) + "</article>";
+}
+function sportsTeamFavoriteButton(team) {
+  if (!team || !team.id || !team.name) return "";
+  const favorite = sportsFavoriteTeamMatches(team);
+  const slug = sportsGamePassSlug(team.name);
+  const known = myTVBuiltInSportsPeople().find(function(person) { return sportsGamePassSlug(person.name) === slug; });
+  const favoriteID = sportsSavedTeamID(team, slug) || (known && known.id) || team.id;
+  const label = (favorite ? "Unfollow " : "Follow ") + team.name;
+  return '<button class="sports-team-favorite sports-team-heart' + (favorite ? ' active' : '') + '" type="button" data-sports-favorite-team="' + escapeHTML(favoriteID) + '" data-sports-favorite-enabled="' + !favorite + '" aria-label="' + escapeHTML(label) + '" title="' + escapeHTML(label) + '" aria-pressed="' + favorite + '">' + icon(favorite ? "heart-solid" : "heart") + '</button>';
+}
+function sportsSavedTeamID(team, slug) {
+  const favorites = sportsFavoriteTeamMap();
+  if (favorites[team.id]) return team.id;
+  return Object.keys(favorites).find(function(id) { return favorites[id] && id.indexOf("gamepass:") === 0 && id.endsWith(":" + slug); });
 }
 function safeSportsTeamColor(value, fallback) {
   const color = String(value || "").trim();
@@ -3789,7 +3805,7 @@ function renderSportsLeagueDetail(payload, league, events) {
 }
 function renderSportsTeamShelfCard(team) {
   const name = sportsTeamName(team);
-  const favorite = !!sportsFavoriteTeamMap()[team.id];
+  const favorite = sportsFavoriteTeamMatches(team);
   return "<article class=\"sports-team-shelf-card\"><span class=\"sports-team-shelf-mark\">" + renderSportsTeamLogo(team, "sports-team-shelf-logo") + "</span><span class=\"sports-team-shelf-copy\"><strong>" + escapeHTML(name) + "</strong><small>" + (favorite ? "Following" : "Team") + "</small></span>" + (team.id ? "<button type=\"button\" class=\"sports-team-favorite" + (favorite ? " active" : "") + "\" data-sports-favorite-team=\"" + escapeHTML(team.id) + "\" data-sports-favorite-enabled=\"" + (favorite ? "false" : "true") + "\" aria-label=\"" + escapeHTML(favorite ? "Unfollow " + name : "Follow " + name) + "\" aria-pressed=\"" + (favorite ? "true" : "false") + "\">" + icon(favorite ? "heart-solid" : "heart") + "</button>" : "") + "</article>";
 }
 function renderSportsEventDetail(payload, event) {
@@ -3832,7 +3848,7 @@ function renderSportsDetailScore(event) {
 }
 function renderSportsDetailTeam(team, score, showScore, possession) {
   const accent = safeSportsTeamColor(team && team.primaryColor);
-  return "<div class=\"sports-detail-team\"" + (accent ? " style=\"--sports-team-accent:" + escapeHTML(accent) + "\"" : "") + ">" + renderSportsTeamLogo(team, "sports-detail-team-logo") + "<span><strong>" + escapeHTML(sportsTeamName(team)) + "</strong>" + (showScore ? "<b>" + escapeHTML(sportsScoresHidden(false) ? "–" : (score || "0")) + "</b>" : "") + "<small class=\"sports-possession\">" + (possession ? "Possession" : "") + "</small></span></div>";
+  return "<div class=\"sports-detail-team\"" + (accent ? " style=\"--sports-team-accent:" + escapeHTML(accent) + "\"" : "") + ">" + renderSportsTeamLogo(team, "sports-detail-team-logo") + "<span><span class=\"sports-team-name-action\"><strong>" + escapeHTML(sportsTeamName(team)) + "</strong>" + sportsTeamFavoriteButton(team) + "</span>" + (showScore ? "<b>" + escapeHTML(sportsScoresHidden(false) ? "–" : (score || "0")) + "</b>" : "") + "<small class=\"sports-possession\">" + (possession ? "Possession" : "") + "</small></span></div>";
 }
 function sportsDetailLeagueLabel(event) {
   const label = String(event.leagueName || event.leagueId || "").trim();
@@ -4223,7 +4239,7 @@ function renderSportsMatchup(event, status) {
 }
 function renderSportsMatchTeam(team, score, showScore) {
   const name = team.name || team.abbreviation || "Team";
-  const favorite = !!sportsFavoriteTeamMap()[team.id];
+  const favorite = sportsFavoriteTeamMatches(team);
   const logo = renderSportsTeamLogo(team, "sports-match-team-logo");
   const favoriteControl = team.id ? "<button class=\"sports-team-favorite" + (favorite ? " active" : "") + "\" type=\"button\" data-sports-favorite-team=\"" + escapeHTML(team.id || "") + "\" data-sports-favorite-enabled=\"" + (favorite ? "false" : "true") + "\" aria-label=\"" + escapeHTML(favorite ? "Unfollow " + name : "Follow " + name) + "\" aria-pressed=\"" + (favorite ? "true" : "false") + "\">" + icon(favorite ? "heart-solid" : "heart") + "<span>" + (favorite ? "Following" : "Follow") + "</span></button>" : "<span class=\"sports-team-favorite placeholder\" aria-hidden=\"true\"></span>";
   const scoreHTML = showScore ? "<span class=\"sports-match-team-score\">" + escapeHTML(sportsScoresHidden(false) ? "–" : (score || "0")) + "</span>" : "";
@@ -4567,7 +4583,15 @@ function toggleSportsTeamFavorite(teamID, enabled) {
   teamID = String(teamID || "");
   if (!teamID) return;
   if (enabled) state.app.preferences.sportsFavoriteTeams[teamID] = true;
-  else delete state.app.preferences.sportsFavoriteTeams[teamID];
+  else {
+    const people = myTVBuiltInSportsPeople().concat(myTVSportsPeople());
+    const team = people.find(function(person) { return person.id === teamID; });
+    delete state.app.preferences.sportsFavoriteTeams[teamID];
+    if (team) {
+      const slug = sportsGamePassSlug(team.name);
+      people.filter(function(person) { return sportsGamePassSlug(person.name) === slug; }).forEach(function(person) { delete state.app.preferences.sportsFavoriteTeams[person.id]; });
+    }
+  }
   applySportsFavoritesToPayload();
   savePrefs();
   if (state.view === "mytv") updateMyTVSearchSurface();
