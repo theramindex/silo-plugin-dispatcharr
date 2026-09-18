@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
+	"github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/capability"
 	configsdk "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/config"
+	publicmanifest "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/manifest"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -249,6 +252,26 @@ func TestManifestExposesAdminNavigationRoute(t *testing.T) {
 	t.Fatalf("expected manifest to expose /dispatcharr/admin as a navigable admin route")
 }
 
+func TestManifestExposesSportsNavigationRoute(t *testing.T) {
+	t.Parallel()
+
+	manifest, err := loadManifest()
+	if err != nil {
+		t.Fatalf("load manifest: %v", err)
+	}
+
+	for _, route := range manifest.GetHttpRoutes() {
+		if route.GetPath() != "/dispatcharr/sports" {
+			continue
+		}
+		if !route.GetNavigable() || route.GetNavigationKind() != "user" || route.GetNavigationLabel() != "Sports" || route.GetAccess() != "authenticated" {
+			t.Fatalf("unexpected sports route metadata: %+v", route)
+		}
+		return
+	}
+	t.Fatalf("expected manifest to expose /dispatcharr/sports as a navigable Sports app")
+}
+
 func TestManifestExposesAdminSettingsAPIRoutes(t *testing.T) {
 	t.Parallel()
 
@@ -285,15 +308,57 @@ func TestManifestExposesRefreshTaskCapabilities(t *testing.T) {
 	}
 
 	scheduledTaskIDs := make([]string, 0)
-	for _, capability := range manifest.GetCapabilities() {
-		if capability.GetType() == "scheduled_task.v1" {
-			scheduledTaskIDs = append(scheduledTaskIDs, capability.GetId())
+	for _, item := range manifest.GetCapabilities() {
+		if item.GetType() == capability.ScheduledTask {
+			scheduledTaskIDs = append(scheduledTaskIDs, item.GetId())
 		}
 	}
-	want := []string{"dispatcharr-sync"}
+	want := []string{"dispatcharr-sync", "dispatcharr-refresh-channels", "dispatcharr-refresh-epg"}
 	if !reflect.DeepEqual(scheduledTaskIDs, want) {
 		t.Fatalf("expected scheduled task capabilities %+v, got %+v", want, scheduledTaskIDs)
 	}
+}
+
+func TestManifestUsesSDKCatalogPresentation(t *testing.T) {
+	t.Parallel()
+
+	manifest, err := loadManifest()
+	if err != nil {
+		t.Fatalf("load manifest: %v", err)
+	}
+	if err := publicmanifest.ValidateCatalogPresentation(manifest, catalogSourceURL); err != nil {
+		t.Fatalf("catalog presentation: %v", err)
+	}
+	presentation := manifest.GetPresentation()
+	if presentation.GetDisplayName() != "Dispatcharr for Silo" {
+		t.Fatalf("display_name = %q", presentation.GetDisplayName())
+	}
+	if presentation.GetPublisherName() != "Ramindex" {
+		t.Fatalf("publisher_name = %q, want Ramindex", presentation.GetPublisherName())
+	}
+	if !strings.Contains(presentation.GetSummary(), "Silo") {
+		t.Fatalf("summary must mention Silo, got %q", presentation.GetSummary())
+	}
+
+	var types []string
+	for _, item := range manifest.GetCapabilities() {
+		types = append(types, item.GetType())
+	}
+	wantTypes := []string{capability.ScheduledTask, capability.ScheduledTask, capability.ScheduledTask, capability.HTTPRoutes}
+	if !reflect.DeepEqual(types, wantTypes) {
+		t.Fatalf("capability types = %+v, want %+v", types, wantTypes)
+	}
+
+	for _, route := range manifest.GetHttpRoutes() {
+		if route.GetPath() != "/dispatcharr" {
+			continue
+		}
+		if route.GetNavigationLabel() != "Live TV" || route.GetNavigationKind() != "user" {
+			t.Fatalf("unexpected user app route: %+v", route)
+		}
+		return
+	}
+	t.Fatal("expected /dispatcharr to use the Live TV navigation label")
 }
 
 func mustStruct(t *testing.T, value map[string]any) *structpb.Struct {

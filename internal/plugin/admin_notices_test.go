@@ -10,7 +10,7 @@ import (
 
 func TestGuideLicenseNoticeOnlyInAdmin(t *testing.T) {
 	server := NewHTTPRoutesServer(cache.NewStore())
-	for _, path := range []string{"/dispatcharr", "/dispatcharr/player", "/dispatcharr/admin"} {
+	for _, path := range []string{"/dispatcharr", "/dispatcharr/player", "/dispatcharr/admin", "/dispatcharr/sports"} {
 		t.Run(path, func(t *testing.T) {
 			body := server.playerPageHTML(&pluginv1.HandleHTTPRequest{Path: path})
 			admin := path == "/dispatcharr/admin"

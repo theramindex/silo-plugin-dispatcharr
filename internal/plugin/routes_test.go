@@ -370,7 +370,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`data-sports-tab=`,
 		`sportsFavoriteTeams`,
 		`const isAdminRoute = path.endsWith("/dispatcharr/admin")`,
-		`if (state.view === "admin" && !isAdminRoute) state.view = "home"`,
+		`if (state.view === "admin" && !isAdminRoute) state.view = defaultBrowseView()`,
 		`delimiter: "pipe"`,
 		`if (!settings.delimiter) settings.delimiter = "pipe"`,
 		`function renderVirtualCategoryGuide(channels)`,
@@ -3588,6 +3588,52 @@ func TestHTTPRoutesServerPlayerRoute(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerSportsRouteUsesSportsShellWhenSeparated(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.SetAdminSettings(json.RawMessage(`{"separateSportsApp":true,"sportsEnabled":true}`))
+	server := NewHTTPRoutesServer(store)
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/sports"})
+	if err != nil {
+		t.Fatalf("sports route: %v", err)
+	}
+	if response.GetStatusCode() != 200 {
+		t.Fatalf("expected 200, got %d", response.GetStatusCode())
+	}
+	body := string(response.GetBody())
+	for _, want := range []string{
+		`<title>Sports</title>`,
+		`<h1>Sports</h1>`,
+		`class="shell is-sports-app"`,
+		`src="dispatcharr/assets/app.js?v=`,
+		`href="dispatcharr/assets/app.css?v=`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected sports shell marker %q", want)
+		}
+	}
+}
+
+func TestHTTPRoutesServerSportsRouteStaysInsideLiveTVWhenCombined(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.SetAdminSettings(json.RawMessage(`{"appDisplayName":"Ramindex TV","separateSportsApp":false}`))
+	server := NewHTTPRoutesServer(store)
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/sports"})
+	if err != nil {
+		t.Fatalf("sports route: %v", err)
+	}
+	body := string(response.GetBody())
+	if strings.Contains(body, `class="shell is-sports-app"`) || strings.Contains(body, `<title>Sports</title>`) {
+		t.Fatal("combined mode must keep the Sports Silo entry inside Live TV")
+	}
+	if !strings.Contains(body, `<title>Ramindex TV</title>`) || !strings.Contains(body, `src="dispatcharr/assets/app.js?v=`) {
+		t.Fatalf("expected Live TV shell on the Sports route when the apps are combined: %s", body)
+	}
+}
+
 func TestHTTPRoutesServerAppRouteUsesConfiguredDisplayName(t *testing.T) {
 	t.Parallel()
 
@@ -4278,8 +4324,13 @@ func TestPlayerAppSportsReplaysUseUserScopedCatalogLibraries(t *testing.T) {
 		`groups: [], sort: "created_at", order: "desc"`,
 		`}, 2);`,
 		`accessibleSportsLibraryIDs(libraries)`,
-		`if (view === "sports" && !sportsNavAvailable()) view = "home"`,
+		`if (view === "sports" && !sportsNavAvailable()) view = defaultBrowseView()`,
 		`data-admin-sports-library-id`,
+		`function separateSportsApp()`,
+		`function isSportsApp()`,
+		`Separate sports Silo app`,
+		`data-admin-sports-field=\"separate\"`,
+		`/\/api\/v\d+\/plugins\/(\d+)/`,
 	} {
 		if !strings.Contains(script, marker) {
 			t.Fatalf("expected user-scoped Sports replay marker %q", marker)

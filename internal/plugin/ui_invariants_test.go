@@ -217,6 +217,21 @@ func TestBootFailureWithoutAppShowsRecoveryMessage(t *testing.T) {
 	}
 }
 
+func TestSeparateSportsAppHidesSportsFromLiveTV(t *testing.T) {
+	t.Parallel()
+
+	result := runUIInvariantScript(t, []string{
+		`state.adminCategorySettings = defaultAdminCategorySettings();`,
+		`normalizeAdminCategorySettings();`,
+		`const inApp = sportsNavAvailable();`,
+		`state.adminCategorySettings.separateSportsApp = true;`,
+		`globalThis.__result = { inApp: inApp, separate: sportsNavAvailable() };`,
+	})
+	if !result.InApp || result.Separate {
+		t.Fatalf("separate sports Silo app must hide Sports from Live TV: %+v", result)
+	}
+}
+
 func TestCommitAppRouteDoesNotCloneHistoryState(t *testing.T) {
 	t.Parallel()
 
@@ -250,6 +265,8 @@ type uiInvariantResult struct {
 	KeptApp               bool `json:"keptApp"`
 	ClonedSilo            bool `json:"clonedSilo"`
 	RouteKeyCount         int  `json:"routeKeyCount"`
+	InApp                 bool `json:"inApp"`
+	Separate              bool `json:"separate"`
 }
 
 func runUIInvariantScript(t *testing.T, statements []string) uiInvariantResult {

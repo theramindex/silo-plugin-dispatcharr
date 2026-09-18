@@ -151,9 +151,13 @@ const categorySettingsJSONSchema = `{
       "maximum": 60,
       "default": 12
     },
-    "sportsEnabled": {
+		"sportsEnabled": {
       "type": "boolean",
       "default": true
+    },
+    "separateSportsApp": {
+      "type": "boolean",
+      "default": false
     },
     "sportsLibraryIds": {
       "type": "array",

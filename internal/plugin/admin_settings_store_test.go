@@ -174,9 +174,20 @@ func TestNormalizeAdminSettingsSportsReplayDefaults(t *testing.T) {
 	if normalized["sportsEnabled"] != true {
 		t.Fatalf("expected sports replay to default to enabled, got %v", normalized["sportsEnabled"])
 	}
+	if normalized["separateSportsApp"] != false {
+		t.Fatalf("expected sports to stay inside Live TV by default, got %v", normalized["separateSportsApp"])
+	}
 	ids, ok := normalized["sportsLibraryIds"].([]int)
 	if !ok || len(ids) != 0 {
 		t.Fatalf("expected sports library IDs to default to an empty array, got %v", normalized["sportsLibraryIds"])
+	}
+}
+
+func TestNormalizeAdminSettingsSeparateSportsAppPreservesTrue(t *testing.T) {
+	t.Parallel()
+
+	if normalized := normalizeAdminSettingsPayload(map[string]any{"separateSportsApp": true})["separateSportsApp"]; normalized != true {
+		t.Fatalf("expected separate sports Silo app setting to remain enabled, got %v", normalized)
 	}
 }
 
