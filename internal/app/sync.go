@@ -340,6 +340,9 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 func requireDispatcharrMinimumVersion(ctx context.Context, client DispatcharrClient) error {
 	version, err := client.Version(ctx)
 	if err != nil {
+		if dispatcharr.IsUnexpectedHTML(err) {
+			return nil
+		}
 		return fmt.Errorf("dispatcharr version check failed: %w", err)
 	}
 	if !dispatcharrVersionAtLeast(version, config.MinimumDispatcharrVersion) {

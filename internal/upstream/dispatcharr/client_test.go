@@ -4,8 +4,75 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
+
+func TestVersionRequestsJSONAndRejectsHTML(t *testing.T) {
+	t.Parallel()
+
+	var accepted string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/accounts/token/":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access":"access-token","refresh":"refresh-token"}`))
+		case "/api/core/version/":
+			accepted = r.Header.Get("Accept")
+			if strings.Contains(accepted, "application/json") {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"version":"0.27.1","timestamp":"2026-09-18T00:00:00Z"}`))
+				return
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_, _ = w.Write([]byte(`<!DOCTYPE html><html><body>Dispatcharr</body></html>`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := NewLoginClient(server.URL, "demo", "secret")
+	version, err := client.Version(t.Context())
+	if err != nil {
+		t.Fatalf("version: %v", err)
+	}
+	if version.Version.String() != "0.27.1" {
+		t.Fatalf("unexpected version: %+v", version)
+	}
+	if !strings.Contains(accepted, "application/json") {
+		t.Fatalf("expected JSON Accept header, got %q", accepted)
+	}
+}
+
+func TestGetJSONReportsHTMLBody(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/accounts/token/":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access":"access-token","refresh":"refresh-token"}`))
+		default:
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<!DOCTYPE html><html><head><title>Silo</title></head><body>App</body></html>`))
+		}
+	}))
+	defer server.Close()
+
+	client := NewLoginClient(server.URL, "demo", "secret")
+	_, err := client.Version(t.Context())
+	if err == nil {
+		t.Fatal("expected HTML version response to fail")
+	}
+	if !IsUnexpectedHTML(err) {
+		t.Fatalf("expected HTML response error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "/api/core/version/") || !strings.Contains(err.Error(), "text/html") {
+		t.Fatalf("expected endpoint and content-type in error, got %v", err)
+	}
+}
 
 func TestEndpointPreservesTrailingSlash(t *testing.T) {
 	t.Parallel()

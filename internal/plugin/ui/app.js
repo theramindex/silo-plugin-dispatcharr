@@ -5,6 +5,7 @@ const isSportsPath = path.endsWith("/dispatcharr/sports");
 const base = isPlayerRoute ? path.slice(0, -"/dispatcharr/player".length) : (isAdminRoute ? path.slice(0, -"/dispatcharr/admin".length) : (isSportsPath ? path.slice(0, -"/dispatcharr/sports".length) : (path.endsWith("/dispatcharr") ? path.slice(0, -"/dispatcharr".length) : "")));
 const adminSettingsKey = "adminCategorySettings";
 const pluginInstallationID = (base.match(/\/api\/v\d+\/plugins\/(\d+)/) || [])[1] || "";
+const siloAPIPrefix = (base.match(/\/api\/v\d+/) || ["/api/v1"])[0];
 const localCacheSuffix = pluginInstallationID || "default";
 const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuffix;
 const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
@@ -36,6 +37,10 @@ function applySiloTheme() {
 applySiloTheme();
 
 function route(url) { return base + url; }
+function siloCoreURL(path) {
+  if (!path) return siloAPIPrefix;
+  return siloAPIPrefix + (path.charAt(0) === "/" ? path : "/" + path);
+}
 function assetURL(filename) {
   return assetPrefix + "/" + filename + (assetVersion ? "?v=" + encodeURIComponent(assetVersion) : "");
 }
@@ -715,7 +720,7 @@ function readAdminSettingsValue(value) {
 }
 async function loadPluginSettingsValues() {
   if (!pluginInstallationID) return null;
-  const payload = await coreGetJSON("/api/v1/settings/plugins/" + encodeURIComponent(pluginInstallationID));
+  const payload = await coreGetJSON(siloCoreURL("/settings/plugins/" + encodeURIComponent(pluginInstallationID)));
   return payload && payload.values ? payload.values : {};
 }
 async function loadUserPrefs() {
@@ -732,11 +737,11 @@ async function savePluginSettingValue(key, value) {
   if (!pluginInstallationID) throw new Error("plugin installation settings unavailable");
   const values = await loadPluginSettingsValues().catch(function() { return {}; }) || {};
   values[key] = value;
-  await corePutNoContent("/api/v1/settings/plugins/" + encodeURIComponent(pluginInstallationID), { values: values });
+  await corePutNoContent(siloCoreURL("/settings/plugins/" + encodeURIComponent(pluginInstallationID)), { values: values });
 }
 async function persistAdminCategorySettingsInSilo(settings) {
   if (!pluginInstallationID) throw new Error("plugin installation settings unavailable");
-  await corePutNoContent("/api/v1/admin/plugins/installations/" + encodeURIComponent(pluginInstallationID) + "/config", {
+  await corePutNoContent(siloCoreURL("/admin/plugins/installations/" + encodeURIComponent(pluginInstallationID) + "/config"), {
     key: "category_settings",
     value: settings
   });
@@ -924,7 +929,7 @@ function applyCoreMediaRequest(xhr, url) {
 async function refreshCoreSession() {
   const refreshToken = coreStoredValue("refresh_token");
   if (!refreshToken) return false;
-  const response = await fetch("/api/v1/auth/refresh", {
+  const response = await fetch(siloCoreURL("/auth/refresh"), {
     method: "POST",
     credentials: "include",
     headers: { "content-type": "application/json" },
@@ -3092,7 +3097,7 @@ function loadSportsLibraries(force) {
   if (state.sportsLibrariesLoading) return state.sportsLibrariesPromise || Promise.resolve(items(state.sportsLibraries));
   if (state.sportsLibraries && !force) return Promise.resolve(items(state.sportsLibraries));
   state.sportsLibrariesLoading = true;
-  state.sportsLibrariesPromise = coreGetJSON("/api/v1/user/libraries").then(function(payload) {
+  state.sportsLibrariesPromise = coreGetJSON(siloCoreURL("/user/libraries")).then(function(payload) {
     state.sportsLibrariesError = "";
     state.sportsLibraries = items(payload).filter(function(library) {
       return library && Number.isInteger(Number(library.id)) && Number(library.id) > 0;
@@ -3123,13 +3128,13 @@ async function loadSportsReplayLibrary(libraryID, catalogWindows) {
   if (!collector || typeof collector.collectCatalogPages !== "function") return { items: [], truncated: false };
   for (const window of catalogWindows) {
     const result = await collector.collectCatalogPages(function(offset) {
-      return corePostJSON("/api/v1/catalog/query", { match: "all", groups: [{ match: "all", rules: [{ field: "release_date", op: "between", value: window }] }], sort: "title", order: "asc", library_id: Number(libraryID), limit: 100, offset: offset });
+      return corePostJSON(siloCoreURL("/catalog/query"), { match: "all", groups: [{ match: "all", rules: [{ field: "release_date", op: "between", value: window }] }], sort: "title", order: "asc", library_id: Number(libraryID), limit: 100, offset: offset });
     }, 5);
     catalogItems.push.apply(catalogItems, result.items);
     truncated = truncated || result.truncated;
   }
   const latest = await collector.collectCatalogPages(function(offset) {
-    return corePostJSON("/api/v1/catalog/query", { match: "all", groups: [], sort: "created_at", order: "desc", library_id: Number(libraryID), limit: 100, offset: offset });
+    return corePostJSON(siloCoreURL("/catalog/query"), { match: "all", groups: [], sort: "created_at", order: "desc", library_id: Number(libraryID), limit: 100, offset: offset });
   }, 2);
   catalogItems.push.apply(catalogItems, latest.items);
   truncated = truncated || latest.truncated;
