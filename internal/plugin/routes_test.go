@@ -963,7 +963,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`/dispatcharr/api/refresh-channels`,
 		`Retry profiles`,
 		`data-admin-profile-refresh`,
-		`/api/v1/admin/plugins/installations/`,
+		`siloCoreURL("/admin/plugins/installations/"`,
 		`key: "category_settings"`,
 		`state.adminCategorySettings = await loadAdminCategorySettings().catch(function()`,
 		`row.keywords.join("\n")`,
@@ -1471,6 +1471,79 @@ vm.runInContext(source, sandbox);
 	}
 	if len(result.Calls) != 2 || result.Calls[0].URL != "/api/v1/auth/refresh" || result.Calls[1].Auth != "Bearer fresh-access" {
 		t.Fatalf("expected proactive token refresh followed by an authorized request; got %+v", result.Calls)
+	}
+	if result.RefreshToken != "fresh-refresh" {
+		t.Fatalf("expected rotated refresh token to be stored, got %q", result.RefreshToken)
+	}
+}
+
+func TestPlayerAppCoreRequestRefreshesExpiredSiloSessionOnAPIV2(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	appScriptPath := filepath.Join(dir, "app.js")
+	runnerPath := filepath.Join(dir, "runner.js")
+	if err := os.WriteFile(appScriptPath, []byte(extractPlayerScript(t)), 0o600); err != nil {
+		t.Fatalf("write app script: %v", err)
+	}
+	nodeScript := fmt.Sprintf(`
+const fs = require("fs");
+const vm = require("vm");
+const source = fs.readFileSync(%q, "utf8").replace(/startGuideAutoRefresh\(\);[\s\S]*$/, "");
+const stored = { refresh_token: "stale-refresh" };
+const calls = [];
+function response(status, body) {
+  return { ok: status >= 200 && status < 300, status, text: async () => body ? JSON.stringify(body) : "", json: async () => body || {} };
+}
+const sandbox = {
+  window: { location: { pathname: "/api/v2/plugins/14/dispatcharr/admin", search: "" }, addEventListener: () => {}, innerHeight: 800, scrollY: 0 },
+  document: { documentElement: { dataset: {} }, body: {}, querySelectorAll: () => [], querySelector: () => null, getElementById: () => null, addEventListener: () => {}, contains: () => true },
+  localStorage: { getItem: (key) => stored[key] || null, setItem: (key, value) => { stored[key] = String(value); } },
+  sessionStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+  navigator: { sendBeacon: () => true },
+  console,
+  URLSearchParams,
+  requestAnimationFrame: (callback) => { callback(); return 1; },
+  cancelAnimationFrame: () => {},
+  getComputedStyle: () => ({ getPropertyValue: () => "", fontSize: "16px" }),
+  setTimeout,
+  clearTimeout,
+  setInterval,
+  clearInterval,
+  fetch: async (url, options = {}) => {
+    const auth = options.headers && (options.headers.Authorization || options.headers.authorization) || "";
+    calls.push({ url: String(url), auth });
+    if (String(url) === "/api/v2/auth/refresh") return response(200, { access_token: "fresh-access", refresh_token: "fresh-refresh" });
+    if (!auth) return response(401, { error: "unauthorized" });
+    return response(204);
+  },
+};
+vm.createContext(sandbox);
+vm.runInContext(source, sandbox);
+(async () => {
+  await vm.runInContext('corePutNoContent(siloCoreURL("/admin/plugins/installations/14/config"), { key: "category_settings", value: {} })', sandbox);
+  process.stdout.write(JSON.stringify({ calls, refreshToken: stored.refresh_token }));
+})().catch((error) => { console.error(error); process.exit(1); });
+`, appScriptPath)
+	if err := os.WriteFile(runnerPath, []byte(nodeScript), 0o600); err != nil {
+		t.Fatalf("write node runner: %v", err)
+	}
+	output, err := exec.Command("node", runnerPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("run core auth v2 regression: %v\n%s", err, output)
+	}
+	var result struct {
+		Calls []struct {
+			URL  string `json:"url"`
+			Auth string `json:"auth"`
+		} `json:"calls"`
+		RefreshToken string `json:"refreshToken"`
+	}
+	if err := json.Unmarshal(output, &result); err != nil {
+		t.Fatalf("decode core auth v2 regression: %v\n%s", err, output)
+	}
+	if len(result.Calls) != 2 || result.Calls[0].URL != "/api/v2/auth/refresh" || result.Calls[1].URL != "/api/v2/admin/plugins/installations/14/config" || result.Calls[1].Auth != "Bearer fresh-access" {
+		t.Fatalf("expected v2 token refresh followed by an authorized v2 request; got %+v", result.Calls)
 	}
 	if result.RefreshToken != "fresh-refresh" {
 		t.Fatalf("expected rotated refresh token to be stored, got %q", result.RefreshToken)
@@ -4318,8 +4391,8 @@ func TestPlayerAppSportsReplaysUseUserScopedCatalogLibraries(t *testing.T) {
 
 	script := playerAppJavaScript()
 	for _, marker := range []string{
-		`coreGetJSON("/api/v1/user/libraries")`,
-		`corePostJSON("/api/v1/catalog/query"`,
+		`coreGetJSON(siloCoreURL("/user/libraries"))`,
+		`corePostJSON(siloCoreURL("/catalog/query"`,
 		`library_id: Number(libraryID)`,
 		`groups: [], sort: "created_at", order: "desc"`,
 		`}, 2);`,

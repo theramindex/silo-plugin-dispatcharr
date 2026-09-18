@@ -60,14 +60,7 @@ func testDispatcharrDirectConnection(ctx context.Context, client DispatcharrClie
 	if err := client.TestConnection(ctx); err != nil {
 		return err
 	}
-	version, err := client.Version(ctx)
-	if err != nil {
-		return fmt.Errorf("dispatcharr version check failed: %w", err)
-	}
-	if !dispatcharrVersionAtLeast(version, config.MinimumDispatcharrVersion) {
-		return fmt.Errorf("dispatcharr %s or newer is required; connected server is %s", config.MinimumDispatcharrVersion, strings.TrimSpace(version.Version.String()))
-	}
-	return nil
+	return requireDispatcharrMinimumVersion(ctx, client)
 }
 
 func dispatcharrVersionAtLeast(version dispatcharr.VersionInfo, minimum string) bool {

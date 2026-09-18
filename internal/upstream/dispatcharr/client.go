@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -48,6 +49,36 @@ func (c *Client) TestConnection(ctx context.Context) error {
 func (c *Client) Version(ctx context.Context) (VersionInfo, error) {
 	var version VersionInfo
 	return version, c.getJSON(ctx, "/api/core/version/", &version)
+}
+
+// UnexpectedHTMLError is returned when Dispatcharr answers with an HTML page
+// (SPA/login/proxy) instead of JSON. Callers can skip optional endpoints.
+type UnexpectedHTMLError struct {
+	Endpoint    string
+	Status      int
+	ContentType string
+	Snippet     string
+}
+
+func (e *UnexpectedHTMLError) Error() string {
+	if e == nil {
+		return "dispatcharr returned HTML instead of JSON"
+	}
+	snippet := strings.TrimSpace(e.Snippet)
+	if len(snippet) > 120 {
+		snippet = snippet[:120]
+	}
+	return fmt.Sprintf("dispatcharr returned HTML instead of JSON from %s (status %d, content-type %s): %s", e.Endpoint, e.Status, e.ContentType, snippet)
+}
+
+func IsUnexpectedHTML(err error) bool {
+	var htmlErr *UnexpectedHTMLError
+	return errors.As(err, &htmlErr)
+}
+
+func looksLikeHTML(raw []byte) bool {
+	trimmed := bytes.TrimSpace(raw)
+	return len(trimmed) > 0 && trimmed[0] == '<'
 }
 
 func (c *Client) Channels(ctx context.Context) ([]Channel, error) {
@@ -266,6 +297,9 @@ func (c *Client) getJSON(ctx context.Context, endpoint string, target any) error
 		return err
 	}
 	if err := json.Unmarshal(raw, target); err != nil {
+		if looksLikeHTML(raw) {
+			return &UnexpectedHTMLError{Endpoint: endpoint, Status: http.StatusOK, Snippet: string(raw)}
+		}
 		return fmt.Errorf("decode response: %w", err)
 	}
 	return nil
@@ -327,6 +361,8 @@ func (c *Client) getRawWithRetry(ctx context.Context, endpoint string, allowRefr
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "Silo Dispatcharr Plugin")
 	c.authorize(req)
 	response, err := c.http.Do(req)
 	if err != nil {
@@ -341,7 +377,19 @@ func (c *Client) getRawWithRetry(ctx context.Context, endpoint string, allowRefr
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return nil, fmt.Errorf("unexpected status %d", response.StatusCode)
 	}
-	return sharedhttp.ReadAllLimit(response.Body, sharedhttp.MaxJSONResponseBytes)
+	raw, err := sharedhttp.ReadAllLimit(response.Body, sharedhttp.MaxJSONResponseBytes)
+	if err != nil {
+		return nil, err
+	}
+	if looksLikeHTML(raw) {
+		return nil, &UnexpectedHTMLError{
+			Endpoint:    endpoint,
+			Status:      response.StatusCode,
+			ContentType: response.Header.Get("Content-Type"),
+			Snippet:     string(raw),
+		}
+	}
+	return raw, nil
 }
 
 func (c *Client) ensureAuth(ctx context.Context) error {
@@ -377,12 +425,24 @@ func (c *Client) login(ctx context.Context) error {
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return fmt.Errorf("dispatcharr login status %d: %s", response.StatusCode, responseSnippet(response.Body))
 	}
+	raw, err := sharedhttp.ReadAllLimit(response.Body, sharedhttp.MaxJSONResponseBytes)
+	if err != nil {
+		return err
+	}
+	if looksLikeHTML(raw) {
+		return &UnexpectedHTMLError{
+			Endpoint:    "/api/accounts/token/",
+			Status:      response.StatusCode,
+			ContentType: response.Header.Get("Content-Type"),
+			Snippet:     string(raw),
+		}
+	}
 	var token struct {
 		Access  string `json:"access"`
 		Refresh string `json:"refresh"`
 	}
-	if err := json.NewDecoder(response.Body).Decode(&token); err != nil {
-		return err
+	if err := json.Unmarshal(raw, &token); err != nil {
+		return fmt.Errorf("decode login response: %w", err)
 	}
 	c.mu.Lock()
 	c.access = token.Access
