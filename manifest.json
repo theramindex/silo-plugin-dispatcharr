@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.dispatcharr",
-  "version": "0.3.172",
+  "version": "0.3.173",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -21,14 +21,26 @@
     {
       "type": "scheduled_task.v1",
       "id": "dispatcharr-sync",
-      "display_name": "Dispatcharr for Silo",
-      "description": "Dispatcharr-backed Live TV, guide, saved lineups, sports, events, playback, and recording integration."
+      "display_name": "Dispatcharr catalog sync",
+      "description": "Syncs Live TV channels, guide, VOD, and series from the configured source."
+    },
+    {
+      "type": "scheduled_task.v1",
+      "id": "dispatcharr-refresh-channels",
+      "display_name": "Dispatcharr channel refresh",
+      "description": "Refreshes the Live TV channel lineup without rebuilding the full catalog."
+    },
+    {
+      "type": "scheduled_task.v1",
+      "id": "dispatcharr-refresh-epg",
+      "display_name": "Dispatcharr guide refresh",
+      "description": "Refreshes guide/EPG data for the current Live TV lineup."
     },
     {
       "type": "http_routes.v1",
       "id": "dispatcharr-routes",
-      "display_name": "Dispatcharr for Silo",
-      "description": "Serves the Dispatcharr IPTV app, API, and playback routes."
+      "display_name": "Live TV app",
+      "description": "Serves the Live TV app, API, and playback routes."
     }
   ],
   "http_routes": [
@@ -38,7 +50,16 @@
       "path": "/dispatcharr",
       "access": "authenticated",
       "navigable": true,
-      "navigation_label": "Live TV (Dispatcharr)",
+      "navigation_label": "Live TV",
+      "navigation_kind": "user"
+    },
+    {
+      "id": "dispatcharr-sports",
+      "method": "GET",
+      "path": "/dispatcharr/sports",
+      "access": "authenticated",
+      "navigable": true,
+      "navigation_label": "Sports",
       "navigation_kind": "user"
     },
     {
@@ -368,8 +389,21 @@
   ],
   "metadata": {
     "display_name": "Dispatcharr for Silo",
-    "summary": "Silo-hosted Dispatcharr IPTV app with Live TV, guide, VOD, and series routes.",
+    "summary": "Live TV, guide, sports, and DVR plugin for Silo, backed by Dispatcharr.",
     "jellyfin_api_integration": false
+  },
+  "presentation": {
+    "display_name": "Dispatcharr for Silo",
+    "summary": "Live TV, guide, sports, and DVR plugin for Silo, backed by Dispatcharr.",
+    "description_markdown": "Dispatcharr plugin for Silo. It presents Live TV, the TV guide, sports, events, VOD, series, and Dispatcharr DVR inside Silo. Playback and recordings stay on the configured Dispatcharr, Xtream Codes, or M3U/XMLTV source.",
+    "setup_markdown": "1. Install the plugin in Silo Server.\n2. Open Dispatcharr Admin and choose Dispatcharr Direct, Xtream Codes, or M3U/XMLTV.\n3. For Dispatcharr Direct, use an Admin API key from System > Users > Edit User > API & XC.\n4. Enable the catalog sync scheduled task after install.",
+    "homepage_url": "https://github.com/theramindex/silo-plugin-dispatcharr",
+    "source_url": "https://github.com/theramindex/silo-plugin-dispatcharr",
+    "support_url": "https://github.com/theramindex/silo-plugin-dispatcharr/issues",
+    "changelog_url": "https://github.com/theramindex/silo-plugin-dispatcharr/releases",
+    "publisher_name": "Ramindex",
+    "publisher_url": "https://github.com/theramindex",
+    "license_spdx": "AGPL-3.0-only"
   },
   "category": "Video/Live TV"
 }

@@ -157,6 +157,10 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	if enabled, ok := payload["sportsEnabled"].(bool); ok {
 		sportsEnabled = enabled
 	}
+	separateSportsApp := false
+	if enabled, ok := payload["separateSportsApp"].(bool); ok {
+		separateSportsApp = enabled
+	}
 	sportsLibraryIDs := normalizeSportsLibraryIDs(payload["sportsLibraryIds"])
 	liveRewindEnabled := false
 	if enabled, ok := payload["liveRewindEnabled"].(bool); ok {
@@ -219,6 +223,7 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 		"onLaterEnabled":                 onLaterEnabled,
 		"sportsFirstPlayerEnabled":       sportsFirstPlayerEnabled,
 		"sportsEnabled":                  sportsEnabled,
+		"separateSportsApp":              separateSportsApp,
 		"sportsLibraryIds":               sportsLibraryIDs,
 		"liveRewindEnabled":              liveRewindEnabled,
 		"liveRewindCacheGB":              liveRewindCacheGB,

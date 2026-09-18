@@ -247,7 +247,7 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return s.handleSportsImage(ctx, request), nil
 	}
 	switch request.GetPath() {
-	case "/dispatcharr", "/dispatcharr/player", "/dispatcharr/admin":
+	case "/dispatcharr", "/dispatcharr/player", "/dispatcharr/admin", "/dispatcharr/sports":
 		return htmlResponse(http.StatusOK, s.playerPageHTML(request)), nil
 	case "/dispatcharr/assets/hls.min.js", "/assets/hls.min.js":
 		return playerLibraryAssetResponse("assets/hls.min.js")
@@ -1246,7 +1246,7 @@ func playerUIAssetResponse(path string, contentType string) (*pluginv1.HandleHTT
 func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) string {
 	body := strings.Replace(playerPageHTMLTemplate, "__SILO_THEME__", html.EscapeString(sanitizeThemeSlug(queryValue(request, "theme"))), 1)
 	assetPrefix := "assets"
-	if request.GetPath() == "/dispatcharr" {
+	if request.GetPath() == "/dispatcharr" || request.GetPath() == "/dispatcharr/sports" {
 		assetPrefix = "dispatcharr/assets"
 	}
 	body = strings.ReplaceAll(body, "__ASSET_PREFIX__", assetPrefix)
@@ -1258,8 +1258,19 @@ func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) s
 		body = strings.ReplaceAll(body, "__APP_TITLE__", "Dispatcharr Admin")
 		return strings.Replace(body, "__ROUTE_CLASS__", "is-admin", 1)
 	}
+	if request.GetPath() == "/dispatcharr/sports" && s.sportsAppEnabled() {
+		body = strings.ReplaceAll(body, "__APP_TITLE__", "Sports")
+		return strings.Replace(body, "__ROUTE_CLASS__", "is-sports-app", 1)
+	}
 	body = strings.ReplaceAll(body, "__APP_TITLE__", html.EscapeString(s.appDisplayName()))
 	return strings.Replace(body, "__ROUTE_CLASS__", "", 1)
+}
+
+func (s *HTTPRoutesServer) sportsAppEnabled() bool {
+	settings := s.normalizedAdminSettings()
+	sportsEnabled, _ := settings["sportsEnabled"].(bool)
+	separate, _ := settings["separateSportsApp"].(bool)
+	return sportsEnabled && separate
 }
 
 func (s *HTTPRoutesServer) appDisplayName() string {

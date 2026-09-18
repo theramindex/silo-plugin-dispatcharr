@@ -1,4 +1,4 @@
-# Dispatcharr Silo Plugin
+# Dispatcharr plugin for Silo
 
 Dispatcharr-specific Silo plugin that runs as a Silo-hosted Live TV app.
 

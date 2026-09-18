@@ -103,6 +103,13 @@ button { cursor: pointer; touch-action: manipulation; }
 .topbar-primary { display: flex; align-items: center; gap: 0.72rem; min-width: 0; overflow: visible; flex: 1 1 min(45rem, 100%); }
 .topbar-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 0.45rem; min-width: max-content; margin-left: auto; flex: 0 0 auto; }
 .sports-topbar-tabs { display: none; order: 3; flex: 1 1 100%; min-width: 0; }
+.shell.is-sports-app .topnav [data-view="home"],
+.shell.is-sports-app .topnav [data-view="guide"],
+.shell.is-sports-app .topnav [data-view="mytv"],
+.shell.is-sports-app .topnav [data-view="events"] { display: none; }
+.shell.is-sports-app .settings-dropdown [data-view="favorites"],
+.shell.is-sports-app .settings-dropdown [data-view="recordings"],
+.shell.is-sports-app .settings-dropdown [data-guide-refresh] { display: none; }
 .shell.is-sports .topbar, .shell.is-events .topbar { justify-content: flex-start; }
 .shell.is-sports .topbar .search, .shell.is-events .topbar .search { display: none; }
 .shell.is-sports .main, .shell.is-events .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; }

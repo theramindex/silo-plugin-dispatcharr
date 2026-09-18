@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
 	_ "embed"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -203,26 +201,15 @@ func main() {
 	})
 }
 
+const catalogSourceURL = "https://github.com/theramindex/silo-plugin-dispatcharr"
+
 func loadManifest() (*pluginv1.PluginManifest, error) {
-	manifest, err := publicmanifest.Load(manifestJSON)
+	manifest, err := publicmanifest.LoadWithChecksum(manifestJSON, buildVersion)
 	if err != nil {
-		return nil, fmt.Errorf("load embedded manifest: %w", err)
+		return nil, err
 	}
-
-	executablePath, err := os.Executable()
-	if err != nil {
-		return nil, fmt.Errorf("resolve executable path: %w", err)
-	}
-
-	binaryData, err := os.ReadFile(executablePath)
-	if err != nil {
-		return nil, fmt.Errorf("read executable %q: %w", executablePath, err)
-	}
-
-	checksum := sha256.Sum256(binaryData)
-	manifest.Checksum = hex.EncodeToString(checksum[:])
-	if buildVersion != "" {
-		manifest.Version = buildVersion
+	if err := publicmanifest.ValidateCatalogPresentation(manifest, catalogSourceURL); err != nil {
+		return nil, err
 	}
 	if len(manifest.GetSupportedPlatforms()) == 0 {
 		manifest.SupportedPlatforms = []*pluginv1.SupportedPlatform{{
