@@ -4,13 +4,13 @@ const isPlayerRoute = path.endsWith("/dispatcharr/player");
 const isSportsPath = path.endsWith("/dispatcharr/sports");
 const base = isPlayerRoute ? path.slice(0, -"/dispatcharr/player".length) : (isAdminRoute ? path.slice(0, -"/dispatcharr/admin".length) : (isSportsPath ? path.slice(0, -"/dispatcharr/sports".length) : (path.endsWith("/dispatcharr") ? path.slice(0, -"/dispatcharr".length) : "")));
 const adminSettingsKey = "adminCategorySettings";
-const pluginInstallationID = (base.match(/\/api\/v\d+\/plugins\/(\d+)/) || [])[1] || "";
+const pluginInstallationID = (base.match(/\/api\/v\d+(?:\/plugin-content)?\/plugins\/(\d+)/) || [])[1] || "";
 const siloAPIPrefix = (base.match(/\/api\/v\d+/) || ["/api/v1"])[0];
 const localCacheSuffix = pluginInstallationID || "default";
 const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuffix;
 const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
-const assetPrefix = path.endsWith("/dispatcharr") || isSportsPath ? "dispatcharr/assets" : "assets";
+const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
 const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : (isSportsPath ? "sports" : "home"), category: "", query: "", folderQuery: "", folderGroupCategoryID: "", folderGroupPickerOpen: false, searchQuery: "", searchType: "all", searchAiringChannel: "", searchReturnView: "home", recentSearches: [], myTVQuery: "", onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsMoreOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsFailedMedia: {}, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLeagueTeams: {}, sportsLeagueTeamsLoading: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "connection", adminConnectionStatus: "idle", adminConnectionMessage: "", adminConnectionLoading: false, adminConnectionLoadError: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 const appHistoryStateKey = "dispatcharrRoute";
 state.onLaterShelfLimits = {};
@@ -1690,9 +1690,9 @@ function restoreAppRoute(snapshot) {
   if (snapshot.view === "admin" && state.app) setAdminTab(snapshot.adminTab || "source", { historyMode: "none" });
 }
 function sportsNavAvailable() {
+  if (isSportsPath) return true;
   if (!sportsEnabled()) return false;
-  if (separateSportsApp() && !isSportsPath) return false;
-  if (isSportsApp()) return true;
+  if (separateSportsApp()) return false;
   if (!state.sports) return true;
   if (state.sportsLoading) return true;
   const sourceEvents = items(state.sports.events).concat(items(state.sportsReplayStandaloneEvents));

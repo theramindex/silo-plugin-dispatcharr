@@ -1246,7 +1246,7 @@ func playerUIAssetResponse(path string, contentType string) (*pluginv1.HandleHTT
 func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) string {
 	body := strings.Replace(playerPageHTMLTemplate, "__SILO_THEME__", html.EscapeString(sanitizeThemeSlug(queryValue(request, "theme"))), 1)
 	assetPrefix := "assets"
-	if request.GetPath() == "/dispatcharr" || request.GetPath() == "/dispatcharr/sports" {
+	if request.GetPath() == "/dispatcharr" {
 		assetPrefix = "dispatcharr/assets"
 	}
 	body = strings.ReplaceAll(body, "__ASSET_PREFIX__", assetPrefix)
@@ -1267,10 +1267,7 @@ func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) s
 }
 
 func (s *HTTPRoutesServer) sportsAppEnabled() bool {
-	settings := s.normalizedAdminSettings()
-	sportsEnabled, _ := settings["sportsEnabled"].(bool)
-	separate, _ := settings["separateSportsApp"].(bool)
-	return sportsEnabled && separate
+	return s.sportsFeatureEnabled() && s.adminFlag("separateSportsApp", false)
 }
 
 func (s *HTTPRoutesServer) appDisplayName() string {

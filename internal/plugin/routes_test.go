@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -3661,6 +3662,44 @@ func TestHTTPRoutesServerPlayerRoute(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerSportsRouteUsesSubpathAssets(t *testing.T) {
+	t.Parallel()
+
+	response, err := NewHTTPRoutesServer(cache.NewStore()).Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/sports"})
+	if err != nil {
+		t.Fatalf("sports route: %v", err)
+	}
+	body := string(response.GetBody())
+	if strings.Contains(body, `src="dispatcharr/assets/`) || strings.Contains(body, `href="dispatcharr/assets/`) {
+		t.Fatalf("sports subpath must not prefix assets with dispatcharr/, got %s", body)
+	}
+	for _, want := range []string{
+		`src="assets/app.js?v=`,
+		`src="assets/sports_replays.js?v=`,
+		`href="assets/app.css?v=`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected sports shell asset %q", want)
+		}
+	}
+
+	page, err := url.Parse("https://silo.example/api/v2/plugin-content/plugins/14/dispatcharr/sports")
+	if err != nil {
+		t.Fatalf("parse sports url: %v", err)
+	}
+	asset, err := url.Parse("assets/app.js")
+	if err != nil {
+		t.Fatalf("parse asset url: %v", err)
+	}
+	if got := page.ResolveReference(asset).String(); got != "https://silo.example/api/v2/plugin-content/plugins/14/dispatcharr/assets/app.js" {
+		t.Fatalf("sports asset resolution = %q", got)
+	}
+	script := playerAppJavaScript()
+	if strings.Contains(script, `path.endsWith("/dispatcharr") || isSportsPath`) {
+		t.Fatal("sports path must use sibling assets/, not dispatcharr/assets")
+	}
+}
+
 func TestHTTPRoutesServerSportsRouteUsesSportsShellWhenSeparated(t *testing.T) {
 	t.Parallel()
 
@@ -3679,12 +3718,28 @@ func TestHTTPRoutesServerSportsRouteUsesSportsShellWhenSeparated(t *testing.T) {
 		`<title>Sports</title>`,
 		`<h1>Sports</h1>`,
 		`class="shell is-sports-app"`,
-		`src="dispatcharr/assets/app.js?v=`,
-		`href="dispatcharr/assets/app.css?v=`,
+		`src="assets/app.js?v=`,
+		`href="assets/app.css?v=`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected sports shell marker %q", want)
 		}
+	}
+}
+
+func TestHTTPRoutesServerSportsRouteUsesSportsShellWhenSportsEnabledOmitted(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.SetAdminSettings(json.RawMessage(`{"separateSportsApp":true}`))
+	server := NewHTTPRoutesServer(store)
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/sports"})
+	if err != nil {
+		t.Fatalf("sports route: %v", err)
+	}
+	body := string(response.GetBody())
+	if !strings.Contains(body, `<title>Sports</title>`) || !strings.Contains(body, `class="shell is-sports-app"`) {
+		t.Fatalf("omitted sportsEnabled must default on so the Sports app shell still renders: %s", body)
 	}
 }
 
@@ -3702,7 +3757,7 @@ func TestHTTPRoutesServerSportsRouteStaysInsideLiveTVWhenCombined(t *testing.T) 
 	if strings.Contains(body, `class="shell is-sports-app"`) || strings.Contains(body, `<title>Sports</title>`) {
 		t.Fatal("combined mode must keep the Sports Silo entry inside Live TV")
 	}
-	if !strings.Contains(body, `<title>Ramindex TV</title>`) || !strings.Contains(body, `src="dispatcharr/assets/app.js?v=`) {
+	if !strings.Contains(body, `<title>Ramindex TV</title>`) || !strings.Contains(body, `src="assets/app.js?v=`) {
 		t.Fatalf("expected Live TV shell on the Sports route when the apps are combined: %s", body)
 	}
 }
@@ -4403,7 +4458,9 @@ func TestPlayerAppSportsReplaysUseUserScopedCatalogLibraries(t *testing.T) {
 		`function isSportsApp()`,
 		`Separate sports Silo app`,
 		`data-admin-sports-field=\"separate\"`,
-		`/\/api\/v\d+\/plugins\/(\d+)/`,
+		`/\/api\/v\d+(?:\/plugin-content)?\/plugins\/(\d+)/`,
+		`const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";`,
+		`if (isSportsPath) return true;`,
 	} {
 		if !strings.Contains(script, marker) {
 			t.Fatalf("expected user-scoped Sports replay marker %q", marker)
