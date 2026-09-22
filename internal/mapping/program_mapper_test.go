@@ -96,6 +96,51 @@ func TestMapXMLTVProgrammePreservesSportsCategories(t *testing.T) {
 	}
 }
 
+func TestMapDispatcharrProgramOmitsPlaceholderTitles(t *testing.T) {
+	t.Parallel()
+
+	program := MapDispatcharrProgram("dispatcharr:news", dispatcharr.Program{
+		ID:        "epg-empty",
+		Title:     "Data not available",
+		StartTime: "2026-09-21T12:00:00Z",
+		EndTime:   "2026-09-21T13:00:00Z",
+	})
+	if program.Title != "" {
+		t.Fatalf("placeholder titles must not be stored as guide data, got %q", program.Title)
+	}
+	if KeepGuideProgram(program) {
+		t.Fatal("placeholder programs must be dropped from the catalog")
+	}
+}
+
+func TestMapDispatcharrProgramUsesSubtitleWhenTitleIsPlaceholder(t *testing.T) {
+	t.Parallel()
+
+	program := MapDispatcharrProgram("dispatcharr:news", dispatcharr.Program{
+		ID:        "epg-subtitle",
+		Title:     "Data not available",
+		SubTitle:  "Nightly News",
+		StartTime: "2026-09-21T12:00:00Z",
+		EndTime:   "2026-09-21T13:00:00Z",
+	})
+	if program.Title != "Nightly News" || !KeepGuideProgram(program) {
+		t.Fatalf("real subtitles must replace placeholder titles, got %+v", program)
+	}
+}
+
+func TestMapXMLTVProgrammeOmitsUntitledEntries(t *testing.T) {
+	t.Parallel()
+
+	doc, err := xmltv.Parse([]byte(`<tv><programme channel="news.hd" start="20260921120000 +0000" stop="20260921130000 +0000"><title></title></programme></tv>`))
+	if err != nil || len(doc.Programmes) != 1 {
+		t.Fatalf("expected one parsed XMLTV programme, got %+v, %v", doc.Programmes, err)
+	}
+	program := MapXMLTVProgramme("m3u:news", doc.Programmes[0])
+	if program.Title != "" || KeepGuideProgram(program) {
+		t.Fatalf("untitled XMLTV programmes must not become fake guide rows, got %+v", program)
+	}
+}
+
 func TestMapXMLTVProgrammePreservesProgramIcon(t *testing.T) {
 	t.Parallel()
 

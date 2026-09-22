@@ -183,6 +183,29 @@ func TestNormalizeAdminSettingsSportsReplayDefaults(t *testing.T) {
 	}
 }
 
+func TestNormalizeAdminSettingsRecordingPaddingAndComskip(t *testing.T) {
+	t.Parallel()
+
+	defaults := normalizeAdminSettingsPayload(map[string]any{})
+	if defaults["recordingPrePadMinutes"] != 0 || defaults["recordingPostPadMinutes"] != 0 || defaults["recordingComskipEnabled"] != false {
+		t.Fatalf("expected Direct recording defaults, got %+v", defaults)
+	}
+	normalized := normalizeAdminSettingsPayload(map[string]any{
+		"recordingPrePadMinutes":  float64(90),
+		"recordingPostPadMinutes": float64(-2),
+		"recordingComskipEnabled": true,
+	})
+	if normalized["recordingPrePadMinutes"] != 60 {
+		t.Fatalf("expected pre-pad clamp of 60, got %v", normalized["recordingPrePadMinutes"])
+	}
+	if normalized["recordingPostPadMinutes"] != 0 {
+		t.Fatalf("expected post-pad clamp of 0, got %v", normalized["recordingPostPadMinutes"])
+	}
+	if normalized["recordingComskipEnabled"] != true {
+		t.Fatalf("expected comskip to remain enabled, got %v", normalized["recordingComskipEnabled"])
+	}
+}
+
 func TestNormalizeAdminSettingsSeparateSportsAppPreservesTrue(t *testing.T) {
 	t.Parallel()
 

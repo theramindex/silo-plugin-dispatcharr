@@ -198,6 +198,8 @@ type RecordingsPayload struct {
 type RecordingCapabilityPayload struct {
 	Available   bool   `json:"available"`
 	CanSchedule bool   `json:"canSchedule"`
+	CanStop     bool   `json:"canStop"`
+	CanDelete   bool   `json:"canDelete"`
 	Reason      string `json:"reason,omitempty"`
 }
 
@@ -208,6 +210,10 @@ type scheduleRecordingRequest struct {
 	Description string `json:"description"`
 	StartUnix   int64  `json:"startUnix"`
 	EndUnix     int64  `json:"endUnix"`
+}
+
+type recordingActionRequest struct {
+	ID string `json:"id"`
 }
 
 type AppCapabilities struct {
@@ -298,6 +304,10 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return s.respondJSON(http.StatusOK, s.seriesPayload())
 	case "/dispatcharr/api/recordings/capability":
 		return s.handleRecordingCapability(ctx)
+	case "/dispatcharr/api/recordings/stop":
+		return s.handleStopRecording(ctx, request)
+	case "/dispatcharr/api/recordings/delete":
+		return s.handleDeleteRecording(ctx, request)
 	case "/dispatcharr/api/recordings":
 		s.ensureCatalogHydrated(ctx)
 		if request.GetMethod() == http.MethodPost {
@@ -781,7 +791,7 @@ func (s *HTTPRoutesServer) handleRecordingCapability(ctx context.Context) (*plug
 			Reason:    "Scheduling requires a Dispatcharr admin account or Admin API Key.",
 		})
 	}
-	return s.respondJSON(http.StatusOK, RecordingCapabilityPayload{Available: true, CanSchedule: true})
+	return s.respondJSON(http.StatusOK, RecordingCapabilityPayload{Available: true, CanSchedule: true, CanStop: true, CanDelete: true})
 }
 
 func (s *HTTPRoutesServer) handleScheduleRecording(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
@@ -817,29 +827,122 @@ func (s *HTTPRoutesServer) handleScheduleRecording(ctx context.Context, request 
 	if title == "" {
 		title = channel.Name
 	}
-	start := time.Unix(payload.StartUnix, 0).UTC()
-	end := time.Unix(payload.EndUnix, 0).UTC()
+	startUnix, endUnix := paddedRecordingWindow(payload.StartUnix, payload.EndUnix, s.recordingPrePadMinutes(), s.recordingPostPadMinutes())
+	start := time.Unix(startUnix, 0).UTC()
+	end := time.Unix(endUnix, 0).UTC()
+	custom := map[string]any{
+		"title":        title,
+		"description":  strings.TrimSpace(payload.Description),
+		"channel_name": channel.Name,
+		"source":       "silo.ramindex.dispatcharr",
+		"program_id":   strings.TrimSpace(payload.ProgramID),
+	}
+	if s.recordingComskipEnabled() {
+		custom["comskip"] = true
+	}
 	recording, err := client.CreateRecording(ctx, map[string]any{
-		"channel":    dispatcharrChannelID,
-		"start_time": start.Format(time.RFC3339),
-		"end_time":   end.Format(time.RFC3339),
-		"custom_properties": map[string]any{
-			"program": map[string]any{
-				"id":          strings.TrimSpace(payload.ProgramID),
-				"title":       title,
-				"description": strings.TrimSpace(payload.Description),
-				"start_time":  start.Format(time.RFC3339),
-				"end_time":    end.Format(time.RFC3339),
-				"tvg_id":      strings.TrimSpace(channel.GuideID),
-			},
-			"channel_name": channel.Name,
-			"source":       "silo.ramindex.dispatcharr",
-		},
+		"channel":           dispatcharrChannelID,
+		"start_time":        start.Format(time.RFC3339),
+		"end_time":          end.Format(time.RFC3339),
+		"custom_properties": custom,
 	})
 	if err != nil {
 		return scheduleRecordingErrorResponse(err), nil
 	}
 	return s.respondJSON(http.StatusOK, map[string]any{"ok": true, "recording": enrichRecording(client, recording)})
+}
+
+func (s *HTTPRoutesServer) handleStopRecording(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if !s.recordingsEnabled() {
+		return textResponse(http.StatusConflict, recordingsUnavailableReason(s)), nil
+	}
+	id, err := recordingActionID(request)
+	if err != nil {
+		return textResponse(http.StatusBadRequest, err.Error()), nil
+	}
+	client, err := s.dispatcharrClient()
+	if err != nil {
+		return textResponse(http.StatusBadGateway, err.Error()), nil
+	}
+	recording, err := client.StopRecording(ctx, id)
+	if err != nil {
+		return scheduleRecordingErrorResponse(err), nil
+	}
+	return s.respondJSON(http.StatusOK, map[string]any{"ok": true, "recording": enrichRecording(client, recording)})
+}
+
+func (s *HTTPRoutesServer) handleDeleteRecording(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if !s.recordingsEnabled() {
+		return textResponse(http.StatusConflict, recordingsUnavailableReason(s)), nil
+	}
+	id, err := recordingActionID(request)
+	if err != nil {
+		return textResponse(http.StatusBadRequest, err.Error()), nil
+	}
+	client, err := s.dispatcharrClient()
+	if err != nil {
+		return textResponse(http.StatusBadGateway, err.Error()), nil
+	}
+	if err := client.DeleteRecording(ctx, id); err != nil {
+		return scheduleRecordingErrorResponse(err), nil
+	}
+	return s.respondJSON(http.StatusOK, map[string]any{"ok": true})
+}
+
+func recordingActionID(request *pluginv1.HandleHTTPRequest) (string, error) {
+	var payload recordingActionRequest
+	if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
+		return "", fmt.Errorf("invalid recording payload")
+	}
+	id := strings.TrimSpace(payload.ID)
+	if id == "" {
+		return "", fmt.Errorf("missing recording id")
+	}
+	return id, nil
+}
+
+func paddedRecordingWindow(startUnix, endUnix int64, prePadMinutes, postPadMinutes int) (int64, int64) {
+	if startUnix > 0 {
+		startUnix -= int64(prePadMinutes) * 60
+	}
+	if endUnix > 0 {
+		endUnix += int64(postPadMinutes) * 60
+	}
+	if endUnix <= startUnix {
+		endUnix = startUnix + 60
+	}
+	return startUnix, endUnix
+}
+
+func (s *HTTPRoutesServer) recordingPrePadMinutes() int {
+	return adminIntSetting(s.normalizedAdminSettings()["recordingPrePadMinutes"], 0, 0, 60)
+}
+
+func (s *HTTPRoutesServer) recordingPostPadMinutes() int {
+	return adminIntSetting(s.normalizedAdminSettings()["recordingPostPadMinutes"], 0, 0, 60)
+}
+
+func adminIntSetting(value any, fallback, minimum, maximum int) int {
+	minutes := fallback
+	switch typed := value.(type) {
+	case int:
+		minutes = typed
+	case int64:
+		minutes = int(typed)
+	case float64:
+		minutes = int(typed)
+	}
+	if minutes < minimum {
+		return minimum
+	}
+	if minutes > maximum {
+		return maximum
+	}
+	return minutes
+}
+
+func (s *HTTPRoutesServer) recordingComskipEnabled() bool {
+	return s.adminFlag("recordingComskipEnabled", false)
 }
 
 func scheduleRecordingErrorResponse(err error) *pluginv1.HandleHTTPResponse {
@@ -1258,7 +1361,7 @@ func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) s
 		body = strings.ReplaceAll(body, "__APP_TITLE__", "Dispatcharr Admin")
 		return strings.Replace(body, "__ROUTE_CLASS__", "is-admin", 1)
 	}
-	if request.GetPath() == "/dispatcharr/sports" && s.sportsAppEnabled() {
+	if request.GetPath() == "/dispatcharr/sports" && s.sportsFeatureEnabled() {
 		body = strings.ReplaceAll(body, "__APP_TITLE__", "Sports")
 		return strings.Replace(body, "__ROUTE_CLASS__", "is-sports-app", 1)
 	}
@@ -1517,8 +1620,11 @@ func enrichRecording(client *dispatcharr.Client, recording json.RawMessage) json
 	id := fmt.Sprint(object["id"])
 	playbackURL := recordingPlaybackURL(client, id, object)
 	object["_silo"] = map[string]any{
+		"recording_id":   id,
 		"playback_url":   playbackURL,
 		"playback_owner": "dispatcharr",
+		"can_stop":       recordingStatusAllowsStop(object),
+		"can_delete":     true,
 	}
 	out, err := json.Marshal(object)
 	if err != nil {
@@ -1539,6 +1645,16 @@ func recordingPlaybackURL(client *dispatcharr.Client, id string, object map[stri
 		return ""
 	}
 	return client.AbsoluteURL("/api/channels/recordings/" + strings.TrimSpace(id) + "/file/")
+}
+
+func recordingStatusAllowsStop(object map[string]any) bool {
+	status := strings.ToLower(strings.TrimSpace(fmt.Sprint(object["status"])))
+	if custom, ok := object["custom_properties"].(map[string]any); ok {
+		if raw := strings.ToLower(strings.TrimSpace(fmt.Sprint(custom["status"]))); raw != "" && raw != "<nil>" {
+			status = raw
+		}
+	}
+	return status == "pending" || status == "scheduled" || status == "recording"
 }
 
 func xtreamConnectionSettings(settings config.Settings) (string, string, string) {

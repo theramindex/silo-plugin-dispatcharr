@@ -235,7 +235,7 @@ func TestUserConfigSchema_DeclaresAdminCategorySettingsShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected admin category settings schema properties, got %q", adminSettings.GetJsonSchema())
 	}
-	for _, key := range []string{"mode", "delimiter", "virtualGroupLabel", "appDisplayName", "virtualGroupSource", "ecmEnabled", "ecmURL", "allowRecordingsByDefault", "onLaterEnabled", "sportsFirstPlayerEnabled", "hlsBufferSeconds", "sportsEnabled", "separateSportsApp", "sportsLibraryIds", "liveRewindEnabled", "liveRewindCacheGB", "liveRewindWindowMinutes", "liveRewindMinFreeGB", "liveRewindMaxChannels", "collapseDuplicateVirtualGroups", "flattenRedundantGroupWrappers", "inferChannelNameGroups", "categoryRenames", "categoryAliases", "featuredEventIds", "eventKeywords"} {
+	for _, key := range []string{"mode", "delimiter", "virtualGroupLabel", "appDisplayName", "virtualGroupSource", "ecmEnabled", "ecmURL", "allowRecordingsByDefault", "recordingPrePadMinutes", "recordingPostPadMinutes", "recordingComskipEnabled", "onLaterEnabled", "sportsFirstPlayerEnabled", "hlsBufferSeconds", "sportsEnabled", "separateSportsApp", "sportsLibraryIds", "liveRewindEnabled", "liveRewindCacheGB", "liveRewindWindowMinutes", "liveRewindMinFreeGB", "liveRewindMaxChannels", "collapseDuplicateVirtualGroups", "flattenRedundantGroupWrappers", "inferChannelNameGroups", "categoryRenames", "categoryAliases", "featuredEventIds", "eventKeywords"} {
 		if _, ok := properties[key]; !ok {
 			t.Fatalf("expected admin category settings schema to declare %q", key)
 		}

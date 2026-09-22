@@ -334,9 +334,14 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`data-keyword-pass-add=`,
 		`keywordPasses`,
 		`allowRecordingsByDefault`,
+		`recordingPrePadMinutes: 0`,
 		`recordingCapability: null`,
 		`function recordingSchedulingEnabled()`,
 		`/dispatcharr/api/recordings/capability`,
+		`/dispatcharr/api/recordings/stop`,
+		`data-recording-stop=`,
+		`data-recording-delete=`,
+		`Start padding`,
 		`Scheduling requires a Dispatcharr admin account or Admin API Key.`,
 		`Channels, shows, teams, fighters, leagues, and events`,
 		`function renderSportsPage()`,
@@ -2391,6 +2396,116 @@ func TestScheduleRecordingErrorResponseMapsDispatcharrAuthFailures(t *testing.T)
 	}
 }
 
+func TestHTTPRoutesServerScheduleRecordingAppliesPaddingWithoutProgramObject(t *testing.T) {
+	t.Parallel()
+
+	const channelUUID = "dispatcharr-channel-1"
+	var posted map[string]any
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("content-type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/accounts/token/":
+			_, _ = w.Write([]byte(`{"access":"token","refresh":"refresh"}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/channels/channels/":
+			_, _ = w.Write([]byte(`[{"id":4131,"uuid":"` + channelUUID + `","name":"News HD","effective_name":"News HD","effective_tvg_id":"news.hd"}]`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/channels/recordings/":
+			_ = json.NewDecoder(r.Body).Decode(&posted)
+			_, _ = w.Write([]byte(`{"id":88,"status":"pending"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"detail":"not found"}`))
+		}
+	}))
+	defer upstream.Close()
+
+	channel := model.Channel{
+		ID:        model.StableChannelID(model.SourceModeDirectLogin, model.ChannelIdentity{UpstreamID: channelUUID, GuideID: "news.hd", Name: "News HD", StreamURL: upstream.URL + "/proxy/ts/stream/" + channelUUID}),
+		Name:      "News HD",
+		GuideID:   "news.hd",
+		StreamURL: upstream.URL + "/proxy/ts/stream/" + channelUUID,
+	}
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{Source: model.LiveTVSource(model.SourceModeDirectLogin), Channels: []model.Channel{channel}}})
+	store.SetAdminSettings(json.RawMessage(`{"recordingPrePadMinutes":3,"recordingPostPadMinutes":5,"recordingComskipEnabled":true}`))
+	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings {
+		return config.Settings{SourceMode: config.SourceModeDirectLogin, DispatcharrURL: upstream.URL, DispatcharrUser: "demo", DispatcharrPass: "secret", ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}
+	})
+
+	start := time.Unix(1900000000, 0).UTC()
+	end := time.Unix(1900003600, 0).UTC()
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/dispatcharr/api/recordings",
+		Body:   []byte(fmt.Sprintf(`{"channelId":%q,"programId":"program:news","title":"News","startUnix":%d,"endUnix":%d}`, channel.ID, start.Unix(), end.Unix())),
+	})
+	if err != nil {
+		t.Fatalf("schedule route: %v", err)
+	}
+	if response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", response.GetStatusCode(), response.GetBody())
+	}
+	if posted["channel"] != float64(4131) {
+		t.Fatalf("expected Dispatcharr channel id, got %#v", posted)
+	}
+	if posted["start_time"] != start.Add(-3*time.Minute).Format(time.RFC3339) || posted["end_time"] != end.Add(5*time.Minute).Format(time.RFC3339) {
+		t.Fatalf("expected padded times without a nested program object, got %#v", posted)
+	}
+	custom, _ := posted["custom_properties"].(map[string]any)
+	if _, ok := custom["program"]; ok {
+		t.Fatalf("must not send program object that double-applies Dispatcharr offsets, got %#v", custom)
+	}
+	if custom["comskip"] != true || custom["title"] != "News" {
+		t.Fatalf("expected comskip and title in custom properties, got %#v", custom)
+	}
+}
+
+func TestHTTPRoutesServerStopAndDeleteRecording(t *testing.T) {
+	t.Parallel()
+
+	var methods []string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("content-type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/accounts/token/":
+			_, _ = w.Write([]byte(`{"access":"token","refresh":"refresh"}`))
+		case r.Method == http.MethodPatch && r.URL.Path == "/api/channels/recordings/88/":
+			methods = append(methods, "PATCH")
+			_, _ = w.Write([]byte(`{"id":88,"status":"cancelled"}`))
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/channels/recordings/88/":
+			methods = append(methods, "DELETE")
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"detail":"not found"}`))
+		}
+	}))
+	defer upstream.Close()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{Source: model.LiveTVSource(model.SourceModeDirectLogin)}})
+	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings {
+		return config.Settings{SourceMode: config.SourceModeDirectLogin, DispatcharrURL: upstream.URL, DispatcharrUser: "demo", DispatcharrPass: "secret", ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}
+	})
+
+	stop, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodPost, Path: "/dispatcharr/api/recordings/stop", Body: []byte(`{"id":"88"}`)})
+	if err != nil {
+		t.Fatalf("stop route: %v", err)
+	}
+	if stop.GetStatusCode() != http.StatusOK {
+		t.Fatalf("expected stop 200, got %d: %s", stop.GetStatusCode(), stop.GetBody())
+	}
+	del, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodPost, Path: "/dispatcharr/api/recordings/delete", Body: []byte(`{"id":"88"}`)})
+	if err != nil {
+		t.Fatalf("delete route: %v", err)
+	}
+	if del.GetStatusCode() != http.StatusOK {
+		t.Fatalf("expected delete 200, got %d: %s", del.GetStatusCode(), del.GetBody())
+	}
+	if strings.Join(methods, ",") != "PATCH,DELETE" {
+		t.Fatalf("expected PATCH then DELETE against Dispatcharr, got %v", methods)
+	}
+}
+
 func TestHTTPRoutesServerAppRouteHydratesColdCatalog(t *testing.T) {
 	t.Parallel()
 
@@ -3743,7 +3858,7 @@ func TestHTTPRoutesServerSportsRouteUsesSportsShellWhenSportsEnabledOmitted(t *t
 	}
 }
 
-func TestHTTPRoutesServerSportsRouteStaysInsideLiveTVWhenCombined(t *testing.T) {
+func TestHTTPRoutesServerSportsRouteUsesSportsShellWhenCombined(t *testing.T) {
 	t.Parallel()
 
 	store := cache.NewStore()
@@ -3754,11 +3869,34 @@ func TestHTTPRoutesServerSportsRouteStaysInsideLiveTVWhenCombined(t *testing.T) 
 		t.Fatalf("sports route: %v", err)
 	}
 	body := string(response.GetBody())
-	if strings.Contains(body, `class="shell is-sports-app"`) || strings.Contains(body, `<title>Sports</title>`) {
-		t.Fatal("combined mode must keep the Sports Silo entry inside Live TV")
+	for _, want := range []string{
+		`<title>Sports</title>`,
+		`<h1>Sports</h1>`,
+		`class="shell is-sports-app"`,
+		`src="assets/app.js?v=`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("Sports Silo URL must use the Sports shell even when Live TV still shows Sports: missing %q", want)
+		}
 	}
-	if !strings.Contains(body, `<title>Ramindex TV</title>`) || !strings.Contains(body, `src="assets/app.js?v=`) {
-		t.Fatalf("expected Live TV shell on the Sports route when the apps are combined: %s", body)
+}
+
+func TestHTTPRoutesServerSportsRouteUsesLiveTVWhenSportsDisabled(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.SetAdminSettings(json.RawMessage(`{"appDisplayName":"Ramindex TV","sportsEnabled":false}`))
+	server := NewHTTPRoutesServer(store)
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/sports"})
+	if err != nil {
+		t.Fatalf("sports route: %v", err)
+	}
+	body := string(response.GetBody())
+	if strings.Contains(body, `class="shell is-sports-app"`) || strings.Contains(body, `<title>Sports</title>`) {
+		t.Fatal("disabled Sports must not render the Sports shell")
+	}
+	if !strings.Contains(body, `<title>Ramindex TV</title>`) {
+		t.Fatalf("expected Live TV shell when Sports is disabled: %s", body)
 	}
 }
 

@@ -207,6 +207,9 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 				continue
 			}
 			program := mapDispatcharrProgram(client, channelID, upstream)
+			if !mapping.KeepGuideProgram(program) {
+				continue
+			}
 			programs = append(programs, program)
 			programIDs[program.ID] = struct{}{}
 		}
@@ -314,7 +317,7 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 				return err
 			}
 			for _, listing := range epg.EPGListings {
-				programs = append(programs, mapping.MapXtreamProgram(channel.ID, listing))
+				programs = appendGuideProgram(programs, mapping.MapXtreamProgram(channel.ID, listing))
 			}
 		}
 	}
@@ -519,19 +522,28 @@ func (s *Service) xmltvProgramsForChannels(ctx context.Context, rawURL string, c
 }
 
 func programsFromXMLTVDocument(channels []model.Channel, doc xmltv.Document) []model.Program {
+	matcher := matching.NewIndex(doc)
 	channelByGuideID := map[string]string{}
 	for _, channel := range channels {
 		if channel.GuideID != "" {
 			channelByGuideID[channel.GuideID] = channel.ID
+			channelByGuideID[strings.ToLower(strings.TrimSpace(channel.GuideID))] = channel.ID
+		}
+		if matched, ok := matcher.Match(m3u.Entry{GuideID: channel.GuideID, Name: channel.Name}); ok {
+			channelByGuideID[matched.ID] = channel.ID
+			channelByGuideID[strings.ToLower(strings.TrimSpace(matched.ID))] = channel.ID
 		}
 	}
 	programs := make([]model.Program, 0, len(doc.Programmes))
 	for _, programme := range doc.Programmes {
 		channelID := channelByGuideID[programme.Channel]
 		if channelID == "" {
+			channelID = channelByGuideID[strings.ToLower(strings.TrimSpace(programme.Channel))]
+		}
+		if channelID == "" {
 			continue
 		}
-		programs = append(programs, mapping.MapXMLTVProgramme(channelID, programme))
+		programs = appendGuideProgram(programs, mapping.MapXMLTVProgramme(channelID, programme))
 	}
 	return programs
 }
@@ -554,7 +566,7 @@ func programsForM3UEntries(entries []m3u.Entry, channels []model.Channel, doc xm
 			continue
 		}
 		for _, programme := range programsByGuideID[strings.ToLower(strings.TrimSpace(matchedChannel.ID))] {
-			programs = append(programs, mapping.MapXMLTVProgramme(channels[index].ID, programme))
+			programs = appendGuideProgram(programs, mapping.MapXMLTVProgramme(channels[index].ID, programme))
 		}
 	}
 	return programs
@@ -813,6 +825,9 @@ func (s *Service) dispatcharrGuidePrograms(ctx context.Context, settings config.
 				continue
 			}
 			program := mapDispatcharrProgram(client, channelID, upstream)
+			if !mapping.KeepGuideProgram(program) {
+				continue
+			}
 			programs = append(programs, program)
 			programIDs[program.ID] = struct{}{}
 		}
@@ -856,6 +871,9 @@ func appendDispatcharrSearchPrograms(client DispatcharrClient, programs []model.
 			if _, exists := programIDs[program.ID]; exists {
 				continue
 			}
+			if !mapping.KeepGuideProgram(program) {
+				continue
+			}
 			programs = append(programs, program)
 			programIDs[program.ID] = struct{}{}
 		}
@@ -866,6 +884,13 @@ func appendDispatcharrSearchPrograms(client DispatcharrClient, programs []model.
 func usesDispatcharrAPI(settings config.Settings) bool {
 	mode := settings.EffectiveSourceMode()
 	return mode == config.SourceModeDirectLogin || mode == config.SourceModeAPIKey
+}
+
+func appendGuideProgram(programs []model.Program, program model.Program) []model.Program {
+	if !mapping.KeepGuideProgram(program) {
+		return programs
+	}
+	return append(programs, program)
 }
 
 func syncHealth(nowUnix int64, programCount int) model.SyncHealth {

@@ -430,7 +430,10 @@ func normalizeSportsEventFreshness(event SportsEvent, now time.Time) SportsEvent
 	if !event.Live {
 		return event
 	}
-	stale := event.EndUnix > 0 && event.EndUnix < now.Add(-2*time.Hour).Unix()
+	stale := event.StartUnix <= 0 && event.EndUnix <= 0
+	if !stale && event.EndUnix > 0 && event.EndUnix < now.Add(-2*time.Hour).Unix() {
+		stale = true
+	}
 	if !stale && event.StartUnix > 0 && event.StartUnix < now.Add(-18*time.Hour).Unix() {
 		stale = true
 	}
@@ -1379,8 +1382,8 @@ func newSportsChannelIndex(snapshot cache.Snapshot) sportsChannelIndex {
 	for _, program := range snapshot.Catalog.Programs {
 		programsByChannel[program.ChannelID] = append(programsByChannel[program.ChannelID], sportsIndexedProgram{
 			Program:  program,
-			Text:     normalizeMatchText(strings.Join([]string{program.Title, program.Summary}, " ")),
-			Segments: sportsMatchSegments(program.Title, program.Summary),
+			Text:     normalizeMatchText(program.Title),
+			Segments: sportsMatchSegments(program.Title),
 		})
 	}
 	channels := make([]sportsIndexedChannel, 0, len(snapshot.Catalog.Channels))
@@ -1504,8 +1507,8 @@ func scoreSportsChannel(channel model.Channel, categoryName string, programs []m
 	for _, program := range programs {
 		indexedPrograms = append(indexedPrograms, sportsIndexedProgram{
 			Program:  program,
-			Text:     normalizeMatchText(strings.Join([]string{program.Title, program.Summary}, " ")),
-			Segments: sportsMatchSegments(program.Title, program.Summary),
+			Text:     normalizeMatchText(program.Title),
+			Segments: sportsMatchSegments(program.Title),
 		})
 	}
 	return scoreIndexedSportsChannel(sportsIndexedChannel{
@@ -1566,13 +1569,16 @@ func scoreIndexedSportsChannelResult(channel sportsIndexedChannel, event SportsE
 		if !programNearSportsEvent(program.Program, event) {
 			continue
 		}
-		programText := program.Text
-		programBothSides := sportsSegmentsContainBothSides(program.Segments, event)
-		if strongSportsGuideMatch(programText, event) && programBothSides {
+		titleText := normalizeMatchText(program.Program.Title)
+		if titleText == "" {
+			continue
+		}
+		programBothSides := sportsSegmentsContainBothSides(sportsMatchSegments(program.Program.Title), event)
+		if strongSportsGuideMatch(titleText, event) && programBothSides {
 			strongGuideMatch = true
 		}
 		for _, term := range terms {
-			if containsMatchTerm(programText, term.Text) {
+			if containsMatchTerm(titleText, term.Text) {
 				score += term.Weight + 20
 				reasons["guide: "+term.Reason] = true
 			}

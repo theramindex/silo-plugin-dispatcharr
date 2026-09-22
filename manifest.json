@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.dispatcharr",
-  "version": "0.3.175",
+  "version": "0.3.176",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -250,6 +250,20 @@
       "id": "dispatcharr-api-recordings-schedule",
       "method": "POST",
       "path": "/dispatcharr/api/recordings",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-recordings-stop",
+      "method": "POST",
+      "path": "/dispatcharr/api/recordings/stop",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-recordings-delete",
+      "method": "POST",
+      "path": "/dispatcharr/api/recordings/delete",
       "access": "authenticated",
       "navigable": false
     },

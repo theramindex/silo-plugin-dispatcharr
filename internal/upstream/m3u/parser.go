@@ -7,6 +7,7 @@ import (
 
 type Entry struct {
 	GuideID   string
+	TvgName   string
 	Name      string
 	LogoURL   string
 	StreamURL string
@@ -38,6 +39,9 @@ func parseEXTINF(line string) Entry {
 	entry := Entry{}
 	if idx := strings.Index(line, "tvg-id="); idx >= 0 {
 		entry.GuideID = quotedValue(line[idx+7:])
+	}
+	if idx := strings.Index(line, "tvg-name="); idx >= 0 {
+		entry.TvgName = quotedValue(line[idx+9:])
 	}
 	if idx := strings.Index(line, "tvg-logo="); idx >= 0 {
 		entry.LogoURL = quotedValue(line[idx+9:])

@@ -308,6 +308,25 @@ func TestNormalizeSportsEventFreshnessExpiresStaleLiveGames(t *testing.T) {
 			},
 			completed: true,
 		},
+		{
+			name: "live without timestamps is not live",
+			event: SportsEvent{
+				Live:       true,
+				Status:     "live",
+				StatusText: "Live",
+			},
+			completed: true,
+		},
+		{
+			name: "months-old live event is final",
+			event: SportsEvent{
+				Live:       true,
+				Status:     "live",
+				StatusText: "Live",
+				StartUnix:  now.AddDate(0, -3, 0).Unix(),
+			},
+			completed: true,
+		},
 	}
 	for _, test := range tests {
 		test := test
@@ -2306,6 +2325,29 @@ func TestSportsPayloadOmitsUnmatchedAndLowConfidenceEvents(t *testing.T) {
 	assertSportsMatch(t, payload.Events[0].Channels, "exact")
 	assertNoSportsMatch(t, payload.Events[0].Channels, "preview")
 	assertNoSportsMatch(t, payload.Events[0].Channels, "music")
+}
+
+func TestSportsChannelMatchingIgnoresSummaryOnlyKeywords(t *testing.T) {
+	t.Parallel()
+
+	start := time.Date(2026, time.September, 2, 20, 0, 0, 0, time.UTC).Unix()
+	event := SportsEvent{
+		LeagueID: "ufc", LeagueName: "UFC", Name: "UFC 300", StartUnix: start,
+		Away: SportsTeam{Name: "Alex Pereira", Abbreviation: "PER"},
+		Home: SportsTeam{Name: "Jamahal Hill", Abbreviation: "HIL"},
+	}
+	snapshot := cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{{ID: "comedy", Name: "Comedy Central", CategoryID: "entertainment", CategoryName: "Entertainment"}},
+		Programs: []model.Program{{
+			ID: "p:comedy", ChannelID: "comedy", Title: "Evening Mix",
+			Summary:   "Watch UFC 300 with Alex Pereira vs Jamahal Hill tonight.",
+			StartUnix: start, EndUnix: start + 3600,
+		}},
+		Content: model.ContentState{LiveCategories: []model.Category{{ID: "entertainment", Name: "Entertainment", Kind: "live"}}},
+	}}
+
+	matches := matchSportsChannels(event, snapshot)
+	assertNoSportsMatch(t, matches, "comedy")
 }
 
 func TestSportsWeakTeamAliasRejectsGenericNames(t *testing.T) {
