@@ -145,6 +145,12 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	if enabled, ok := payload["allowRecordingsByDefault"].(bool); ok {
 		allowRecordingsByDefault = enabled
 	}
+	recordingPrePadMinutes := int(clampNumber(payload["recordingPrePadMinutes"], 0, 0, 60))
+	recordingPostPadMinutes := int(clampNumber(payload["recordingPostPadMinutes"], 0, 0, 60))
+	recordingComskipEnabled := false
+	if enabled, ok := payload["recordingComskipEnabled"].(bool); ok {
+		recordingComskipEnabled = enabled
+	}
 	onLaterEnabled := true
 	if enabled, ok := payload["onLaterEnabled"].(bool); ok {
 		onLaterEnabled = enabled
@@ -220,6 +226,9 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 		"ecmEnabled":                     ecmEnabled,
 		"ecmURL":                         ecmURL,
 		"allowRecordingsByDefault":       allowRecordingsByDefault,
+		"recordingPrePadMinutes":         recordingPrePadMinutes,
+		"recordingPostPadMinutes":        recordingPostPadMinutes,
+		"recordingComskipEnabled":        recordingComskipEnabled,
 		"onLaterEnabled":                 onLaterEnabled,
 		"sportsFirstPlayerEnabled":       sportsFirstPlayerEnabled,
 		"sportsEnabled":                  sportsEnabled,

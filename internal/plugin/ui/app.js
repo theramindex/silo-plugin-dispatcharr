@@ -106,6 +106,8 @@ function icon(name) {
     "ellipsis": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z'/></svg>",
     "play": "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><path d='M8 5.6v12.8c0 .55.6.9 1.08.62l10.1-6.4a.73.73 0 0 0 0-1.24L9.08 4.98A.72.72 0 0 0 8 5.6Z'/></svg>",
     "record": "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><path d='M12 20.25a8.25 8.25 0 1 0 0-16.5 8.25 8.25 0 0 0 0 16.5Zm0-4a4.25 4.25 0 1 1 0-8.5 4.25 4.25 0 0 1 0 8.5Z'/></svg>",
+    "stop": "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><path d='M6.75 6.75h10.5v10.5H6.75z'/></svg>",
+    "trash": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M6 7.5h12M9.5 7.5V6.25A1.25 1.25 0 0 1 10.75 5h2.5A1.25 1.25 0 0 1 14.5 6.25V7.5M8.5 7.5v10.25A1.25 1.25 0 0 0 9.75 19h4.5a1.25 1.25 0 0 0 1.25-1.25V7.5'/></svg>",
     "pause": "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><path d='M7.25 5.25h3.25v13.5H7.25zM13.5 5.25h3.25v13.5H13.5z'/></svg>",
     "loader": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' d='M12 3a9 9 0 1 1-8.3 5.5'/></svg>",
     "speaker": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M19.1 8.9a7 7 0 0 1 0 6.2M16.2 10.9a3 3 0 0 1 0 2.2M4.5 14.25h3l4.25 3.25V6.5L7.5 9.75h-3v4.5Z'/></svg>",
@@ -214,7 +216,7 @@ function defaultEventKeywordRules() {
   ];
 }
 function defaultAdminCategorySettings() {
-  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", appDisplayName: "Live TV (Dispatcharr)", sideMenuMode: "guide", onLaterEnabled: true, virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, flattenRedundantGroupWrappers: true, allowRecordingsByDefault: true, sportsEnabled: true, separateSportsApp: false, sportsLibraryIds: [], sportsFirstPlayerEnabled: false, hlsBufferSeconds: 12, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], featuredEventIds: [], eventKeywords: defaultEventKeywordRules() };
+  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", appDisplayName: "Live TV (Dispatcharr)", sideMenuMode: "guide", onLaterEnabled: true, virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, flattenRedundantGroupWrappers: true, allowRecordingsByDefault: true, recordingPrePadMinutes: 0, recordingPostPadMinutes: 0, recordingComskipEnabled: false, sportsEnabled: true, separateSportsApp: false, sportsLibraryIds: [], sportsFirstPlayerEnabled: false, hlsBufferSeconds: 12, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], featuredEventIds: [], eventKeywords: defaultEventKeywordRules() };
 }
 function cloneAdminCategorySettings(settings) {
   try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -267,7 +269,7 @@ function sportsFirstPlayerEnabled() {
 }
 function sportsEnabled() { return adminSettings().sportsEnabled !== false; }
 function separateSportsApp() { return sportsEnabled() && adminSettings().separateSportsApp === true; }
-function isSportsApp() { return isSportsPath && separateSportsApp(); }
+function isSportsApp() { return isSportsPath && sportsEnabled(); }
 function sportsInLiveTVApp() { return sportsEnabled() && !separateSportsApp(); }
 function defaultBrowseView() { return isSportsApp() ? "sports" : "home"; }
 function liveTVOnlyView(view) {
@@ -429,6 +431,9 @@ function normalizeAdminCategorySettings() {
   if (state.adminCategorySettings.delimiter !== "pipe" && state.adminCategorySettings.delimiter !== "dash") state.adminCategorySettings.delimiter = "pipe";
   state.adminCategorySettings.virtualGroupLabel = virtualGroupLabelSuffix(state.adminCategorySettings.virtualGroupLabel);
   state.adminCategorySettings.allowRecordingsByDefault = state.adminCategorySettings.allowRecordingsByDefault !== false;
+  state.adminCategorySettings.recordingPrePadMinutes = Math.max(0, Math.min(60, Math.round(Number(state.adminCategorySettings.recordingPrePadMinutes) || 0)));
+  state.adminCategorySettings.recordingPostPadMinutes = Math.max(0, Math.min(60, Math.round(Number(state.adminCategorySettings.recordingPostPadMinutes) || 0)));
+  state.adminCategorySettings.recordingComskipEnabled = state.adminCategorySettings.recordingComskipEnabled === true;
   state.adminCategorySettings.sportsEnabled = state.adminCategorySettings.sportsEnabled !== false;
   state.adminCategorySettings.separateSportsApp = state.adminCategorySettings.separateSportsApp === true;
   state.adminCategorySettings.sportsLibraryIds = uniqueIDs(items(state.adminCategorySettings.sportsLibraryIds).map(function(value) {
@@ -1690,8 +1695,8 @@ function restoreAppRoute(snapshot) {
   if (snapshot.view === "admin" && state.app) setAdminTab(snapshot.adminTab || "source", { historyMode: "none" });
 }
 function sportsNavAvailable() {
-  if (isSportsPath) return true;
   if (!sportsEnabled()) return false;
+  if (isSportsPath) return true;
   if (separateSportsApp()) return false;
   if (!state.sports) return true;
   if (state.sportsLoading) return true;
@@ -5353,8 +5358,17 @@ function recordingMatchesQuery(recording) {
 function renderRecordingCard(recording) {
   const status = recordingStatus(recording).toLowerCase();
   const playbackURL = recordingPlaybackURL(recording);
-  const action = playbackURL ? "<button class=\"recording-action\" data-recording-playback=\"" + escapeHTML(playbackURL) + "\">" + icon("play") + "<span>Playback</span></button>" : "";
-  return "<div class=\"recording-card\"><span><strong>" + escapeHTML(recordingTitle(recording)) + "</strong><span class=\"recording-meta\">" + escapeHTML(recordingChannelName(recording) + " - " + recordingWindow(recording)) + "</span></span><div class=\"recording-actions\">" + action + "<span class=\"recording-badge " + escapeHTML(status) + "\">" + escapeHTML(status.split("_").join(" ")) + "</span></div></div>";
+  const silo = recording && recording._silo ? recording._silo : {};
+  const recordingID = String(silo.recording_id || recording.id || "");
+  const actions = [];
+  if (playbackURL) actions.push("<button class=\"recording-action\" data-recording-playback=\"" + escapeHTML(playbackURL) + "\">" + icon("play") + "<span>Playback</span></button>");
+  if (recordingID && (silo.can_stop || status === "pending" || status === "scheduled" || status === "recording")) {
+    actions.push("<button class=\"recording-action\" data-recording-stop=\"" + escapeHTML(recordingID) + "\">" + icon("stop") + "<span>Stop</span></button>");
+  }
+  if (recordingID && silo.can_delete !== false) {
+    actions.push("<button class=\"recording-action\" data-recording-delete=\"" + escapeHTML(recordingID) + "\">" + icon("trash") + "<span>Delete</span></button>");
+  }
+  return "<div class=\"recording-card\"><span><strong>" + escapeHTML(recordingTitle(recording)) + "</strong><span class=\"recording-meta\">" + escapeHTML(recordingChannelName(recording) + " - " + recordingWindow(recording)) + "</span></span><div class=\"recording-actions\">" + actions.join("") + "<span class=\"recording-badge " + escapeHTML(status) + "\">" + escapeHTML(status.split("_").join(" ")) + "</span></div></div>";
 }
 function renderRecordingSection(title, recordings) {
   if (!recordings.length) return "";
@@ -5428,6 +5442,32 @@ function scheduleProgram(channelID, programID, button) {
       return;
     }
     showAppToast("Dispatcharr could not schedule that recording.");
+  }).finally(function() {
+    if (button) button.disabled = false;
+  });
+}
+function stopRecording(recordingID, button) {
+  if (!dvrEnabled() || !recordingID) return;
+  if (button) button.disabled = true;
+  postJSON("/dispatcharr/api/recordings/stop", { id: recordingID }).then(function() {
+    state.recordings = null;
+    loadRecordings(true);
+    showAppToast("Recording stopped in Dispatcharr.");
+  }).catch(function(error) {
+    showAppToast(readableError(error) || "Dispatcharr could not stop that recording.");
+  }).finally(function() {
+    if (button) button.disabled = false;
+  });
+}
+function deleteRecording(recordingID, button) {
+  if (!dvrEnabled() || !recordingID) return;
+  if (button) button.disabled = true;
+  postJSON("/dispatcharr/api/recordings/delete", { id: recordingID }).then(function() {
+    state.recordings = null;
+    loadRecordings(true);
+    showAppToast("Recording deleted in Dispatcharr.");
+  }).catch(function(error) {
+    showAppToast(readableError(error) || "Dispatcharr could not delete that recording.");
   }).finally(function() {
     if (button) button.disabled = false;
   });
@@ -6115,6 +6155,9 @@ function updateAdminECMField(field, target) {
 function updateAdminRecordingField(field, target) {
   const settings = state.adminCategorySettings || defaultAdminCategorySettings();
   if (field === "default") settings.allowRecordingsByDefault = !!target.checked;
+  if (field === "prepad") settings.recordingPrePadMinutes = Math.max(0, Math.min(60, Math.round(Number(target.value || 0))));
+  if (field === "postpad") settings.recordingPostPadMinutes = Math.max(0, Math.min(60, Math.round(Number(target.value || 0))));
+  if (field === "comskip") settings.recordingComskipEnabled = !!target.checked;
   state.adminCategorySettings = settings;
   normalizeAdminCategorySettings();
   markAdminSettingsDraft();
@@ -6555,7 +6598,10 @@ function renderAdminRecordingSettings() {
   const available = !!(state.app && state.app.capabilities && state.app.capabilities.recordings && isDispatcharrDirectSource());
   const canSchedule = recordingSchedulingEnabled();
   const description = !available ? "Recordings require Dispatcharr Direct Connect." : (canSchedule ? "Show recording controls for Dispatcharr Direct users." : recordingScheduleReason());
-  root.innerHTML = "<label class=\"settings-row compact-row\"><span><strong>Allow recordings by default</strong><small>" + escapeHTML(description) + "</small></span><input type=\"checkbox\" data-admin-recording-field=\"default\"" + (settings.allowRecordingsByDefault !== false ? " checked" : "") + (canSchedule ? "" : " disabled") + "></label>";
+  root.innerHTML = "<label class=\"settings-row compact-row\"><span><strong>Allow recordings by default</strong><small>" + escapeHTML(description) + "</small></span><input type=\"checkbox\" data-admin-recording-field=\"default\"" + (settings.allowRecordingsByDefault !== false ? " checked" : "") + (canSchedule ? "" : " disabled") + "></label>"
+    + "<label class=\"settings-row compact-row\"><span><strong>Start padding</strong><small>Minutes to begin recording before the guide start time.</small></span><input type=\"number\" min=\"0\" max=\"60\" data-admin-recording-field=\"prepad\" value=\"" + Number(settings.recordingPrePadMinutes || 0) + "\"" + (canSchedule ? "" : " disabled") + "></label>"
+    + "<label class=\"settings-row compact-row\"><span><strong>End padding</strong><small>Minutes to keep recording after the guide end time.</small></span><input type=\"number\" min=\"0\" max=\"60\" data-admin-recording-field=\"postpad\" value=\"" + Number(settings.recordingPostPadMinutes || 0) + "\"" + (canSchedule ? "" : " disabled") + "></label>"
+    + "<label class=\"settings-row compact-row\"><span><strong>Comskip</strong><small>Ask Dispatcharr to mark commercials when the server supports it.</small></span><input type=\"checkbox\" data-admin-recording-field=\"comskip\"" + (settings.recordingComskipEnabled ? " checked" : "") + (canSchedule ? "" : " disabled") + "></label>";
 }
 function renderAdminPlayerSettings() {
   const root = byId("admin-player-settings");
@@ -7858,6 +7904,18 @@ document.addEventListener("click", function(event) {
     event.preventDefault();
     const url = recordingPlayback.getAttribute("data-recording-playback");
     if (url) window.open(url, "_blank", "noopener");
+    return;
+  }
+  const recordingStop = event.target.closest("[data-recording-stop]");
+  if (recordingStop) {
+    event.preventDefault();
+    stopRecording(recordingStop.getAttribute("data-recording-stop"), recordingStop);
+    return;
+  }
+  const recordingDelete = event.target.closest("[data-recording-delete]");
+  if (recordingDelete) {
+    event.preventDefault();
+    deleteRecording(recordingDelete.getAttribute("data-recording-delete"), recordingDelete);
     return;
   }
   const scheduleTarget = event.target.closest("[data-schedule-channel]");

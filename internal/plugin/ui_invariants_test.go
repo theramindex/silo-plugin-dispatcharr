@@ -251,6 +251,22 @@ func TestCommitAppRouteDoesNotCloneHistoryState(t *testing.T) {
 	}
 }
 
+func TestRecordingCardExposesDirectStopDeleteAndPadding(t *testing.T) {
+	t.Parallel()
+	result := runUIInvariantScript(t, []string{
+		`state.app = { capabilities: { recordings: true }, source: { mode: "direct_login" }, preferences: defaultPrefs() };`,
+		`state.recordingCapability = { available: true, canSchedule: true, canStop: true, canDelete: true };`,
+		`state.adminCategorySettings = defaultAdminCategorySettings();`,
+		`const card = renderRecordingCard({ id: 88, status: "recording", custom_properties: { title: "News at 6" }, _silo: { recording_id: "88", can_stop: true, can_delete: true } });`,
+		`renderAdminRecordingSettings();`,
+		`const admin = document.getElementById("admin-recording-settings").innerHTML;`,
+		`globalThis.__result = { stableResults: card.includes("data-recording-stop") && card.includes("data-recording-delete") && admin.includes("Start padding") && admin.includes("Comskip") && admin.includes("data-admin-recording-field") };`,
+	})
+	if !result.StableResults {
+		t.Fatal("Direct recordings must expose stop/delete and padding/Comskip controls")
+	}
+}
+
 type uiInvariantResult struct {
 	StableResults         bool `json:"stableResults"`
 	MenuWorks             bool `json:"menuWorks"`

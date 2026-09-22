@@ -171,6 +171,23 @@ func (c *Client) CreateRecording(ctx context.Context, payload any) (json.RawMess
 	return c.postJSON(ctx, "/api/channels/recordings/", payload)
 }
 
+func (c *Client) StopRecording(ctx context.Context, id string) (json.RawMessage, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil, fmt.Errorf("missing recording id")
+	}
+	return c.patchJSON(ctx, "/api/channels/recordings/"+id+"/", map[string]any{"status": "cancelled"})
+}
+
+func (c *Client) DeleteRecording(ctx context.Context, id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return fmt.Errorf("missing recording id")
+	}
+	_, err := c.deleteJSON(ctx, "/api/channels/recordings/"+id+"/")
+	return err
+}
+
 func (c *Client) LiveStreamURL(channelUUID string) string {
 	return c.absolutePath(path.Join("/proxy/ts/stream", strings.TrimSpace(channelUUID)))
 }
@@ -315,6 +332,61 @@ func (c *Client) postJSON(ctx context.Context, endpoint string, payload any) ([]
 		return nil, err
 	}
 	return c.postRawWithRetry(ctx, endpoint, body, true)
+}
+
+func (c *Client) patchJSON(ctx context.Context, endpoint string, payload any) ([]byte, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	return c.methodRawWithRetry(ctx, http.MethodPatch, endpoint, body, true)
+}
+
+func (c *Client) deleteJSON(ctx context.Context, endpoint string) ([]byte, error) {
+	return c.methodRawWithRetry(ctx, http.MethodDelete, endpoint, nil, true)
+}
+
+func (c *Client) methodRawWithRetry(ctx context.Context, method, endpoint string, body []byte, allowRefresh bool) ([]byte, error) {
+	if err := c.ensureAuth(ctx); err != nil {
+		return nil, err
+	}
+	target, err := c.requestEndpoint(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	var reader *bytes.Reader
+	if body != nil {
+		reader = bytes.NewReader(body)
+	} else {
+		reader = bytes.NewReader(nil)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, target, reader)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "Silo Dispatcharr Plugin")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	c.authorize(req)
+	response, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("execute request: %w", sharedhttp.RedactErrorURL(err))
+	}
+	defer response.Body.Close()
+	if allowRefresh && response.StatusCode == http.StatusUnauthorized && c.canRecoverAuth() {
+		if err := c.recoverAuth(ctx); err == nil {
+			return c.methodRawWithRetry(ctx, method, endpoint, body, false)
+		}
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, fmt.Errorf("unexpected status %d: %s", response.StatusCode, responseSnippet(response.Body))
+	}
+	if response.StatusCode == http.StatusNoContent {
+		return nil, nil
+	}
+	return sharedhttp.ReadAllLimit(response.Body, sharedhttp.MaxJSONResponseBytes)
 }
 
 func (c *Client) postRawWithRetry(ctx context.Context, endpoint string, body []byte, allowRefresh bool) ([]byte, error) {

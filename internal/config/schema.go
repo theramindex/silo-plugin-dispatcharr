@@ -141,6 +141,22 @@ const categorySettingsJSONSchema = `{
       "type": "boolean",
       "default": true
     },
+    "recordingPrePadMinutes": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 60,
+      "default": 0
+    },
+    "recordingPostPadMinutes": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 60,
+      "default": 0
+    },
+    "recordingComskipEnabled": {
+      "type": "boolean",
+      "default": false
+    },
     "sportsFirstPlayerEnabled": {
       "type": "boolean",
       "default": false

@@ -7,6 +7,20 @@ import (
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xmltv"
 )
 
+func TestMatchUsesTvgNameAndStripsQualitySuffix(t *testing.T) {
+	t.Parallel()
+
+	doc := xmltv.Document{Channels: []xmltv.Channel{{ID: "espn.us", DisplayNames: []string{"ESPN"}}}}
+	match, ok := Match(m3u.Entry{Name: "ESPN HD", TvgName: "ESPN"}, doc)
+	if !ok || match.ID != "espn.us" {
+		t.Fatalf("expected tvg-name/quality-stripped match, got %+v ok=%t", match, ok)
+	}
+	match, ok = Match(m3u.Entry{Name: "ESPN 4K"}, doc)
+	if !ok || match.ID != "espn.us" {
+		t.Fatalf("expected trailing quality suffix to match display name, got %+v ok=%t", match, ok)
+	}
+}
+
 func TestMatchGuideIDPreferred(t *testing.T) {
 	t.Parallel()
 
