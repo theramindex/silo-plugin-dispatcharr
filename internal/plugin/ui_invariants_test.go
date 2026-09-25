@@ -26,6 +26,52 @@ func TestSportsScoresVisibleWithStaleProviderStatus(t *testing.T) {
 	}
 }
 
+func TestSportsReplayEmptyStateExplainsLibrarySource(t *testing.T) {
+	t.Parallel()
+	result := runUIInvariantScript(t, []string{
+		`const detail = sportsEmptyDetail("replays");`,
+		`globalThis.__result = { stableResults: detail.indexOf("Silo Sports library") !== -1 && detail.indexOf("not live TV") !== -1 && detail.indexOf("your channels carry") === -1 };`,
+	})
+	if !result.StableResults {
+		t.Fatal("Replays empty state must say library VOD, not live-channel matching")
+	}
+}
+
+func TestMyTVFollowedSportsEventsCollapsesSwappedCollegeListings(t *testing.T) {
+	t.Parallel()
+	result := runUIInvariantScript(t, []string{
+		`state.app = { preferences: defaultPrefs() };`,
+		`state.app.preferences.sportsFavoriteTeams["gamepass:college-football:michigan"] = true;`,
+		`state.sports = { events: [
+		  { id:"epg-cfb", leagueId:"sports", leagueName:"NCAA Division 1", startUnix: 1790355600, status:"scheduled", name:"Michigan at Iowa", away:{name:"Michigan"}, home:{name:"Iowa"} },
+		  { id:"sportarr-cfb", leagueId:"college-football", leagueName:"College Football", startUnix: 1790451000, status:"scheduled", name:"Iowa at Michigan", away:{name:"Iowa", logoUrl:"https://example/iowa.png"}, home:{name:"Michigan", logoUrl:"https://example/michigan.png"} }
+		] };`,
+		`const events = myTVFollowedSportsEvents();`,
+		`globalThis.__result = { stableResults: events.length === 1 && events[0].away.name === "Iowa" && events[0].home.name === "Michigan" && events[0].startUnix === 1790451000 };`,
+	})
+	if !result.StableResults {
+		t.Fatal("My TV must show one Iowa/Michigan tile when EPG flips home and away")
+	}
+}
+
+func TestSportsYourTeamsCollapsesSameClubAcrossLeagues(t *testing.T) {
+	t.Parallel()
+	result := runUIInvariantScript(t, []string{
+		`state.app = { preferences: defaultPrefs() };`,
+		`state.app.preferences.sportsFavoriteTeams["gamepass:mlb:new-york-yankees"] = true;`,
+		`const payload = { events: [
+		  { leagueId:"sports", leagueName:"Sports", startUnix: 100, live:true, status:"live", channels:[{id:"yes"}], away:{name:"Tampa Bay"}, home:{name:"New York Yankees"} },
+		  { leagueId:"mlb", leagueName:"MLB", startUnix: 200, status:"scheduled", away:{name:"Baltimore Orioles"}, home:{name:"New York Yankees", logoUrl:"https://example/nyy.png"} }
+		] };`,
+		`const followed = sportsFollowedHubTeams(payload);`,
+		`const html = renderSportsYourTeams(payload);`,
+		`globalThis.__result = { stableResults: followed.length === 1 && sportsTeamName(followed[0].team) === "New York Yankees" && followed[0].events.length === 2 && html.indexOf("New York Yankees") === html.lastIndexOf("New York Yankees") };`,
+	})
+	if !result.StableResults {
+		t.Fatal("Your teams must show one Yankees card when EPG and provider use different league IDs")
+	}
+}
+
 func TestMyTVCollegePassesShowSeparateCompetitions(t *testing.T) {
 	t.Parallel()
 	result := runUIInvariantScript(t, []string{

@@ -413,6 +413,27 @@ func mergeSportsTeamIdentity(primary, supplemental SportsTeam) SportsTeam {
 	return primary
 }
 
+func preferSportsTeamIdentity(left, right SportsTeam) (SportsTeam, SportsTeam) {
+	if sportsTeamIdentityRank(right) > sportsTeamIdentityRank(left) {
+		return right, left
+	}
+	return left, right
+}
+
+func sportsTeamIdentityRank(team SportsTeam) int {
+	rank := len(normalizeMatchText(team.Name))
+	if team.ID != "" {
+		rank++
+	}
+	if team.Abbreviation != "" {
+		rank += 2
+	}
+	if team.LogoURL != "" {
+		rank += 2
+	}
+	return rank
+}
+
 func (s *HTTPRoutesServer) handleSportsFavorite(request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
 	return userStateUnavailableResponse(), nil
 }
@@ -426,7 +447,7 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 	cancelProvider()
 	if len(guideEvents) > 0 {
 		if len(events) == 0 {
-			events = guideEvents
+			events = collapseEquivalentSportsEvents(guideEvents)
 			source = "EPG fallback"
 			err = nil
 		} else {
@@ -440,7 +461,7 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 			}
 		}
 	}
-	events = inferGuideSportsLeagues(events)
+	events = collapseEquivalentSportsEvents(inferGuideSportsLeagues(events))
 	channelIndex := newSportsChannelIndex(snapshot)
 	for index := range events {
 		events[index] = normalizeSportsEventFreshness(events[index], now)
@@ -650,23 +671,7 @@ func mergeSportsGuideEvents(events, guideEvents []SportsEvent) []SportsEvent {
 			if !sportsEventsSameMatchup(merged[index], guideEvent) {
 				continue
 			}
-			merged[index].Channels = mergeSportsChannelMatches(guideEvent.Channels, merged[index].Channels)
-			if guideEvent.SportName != "" && guideEvent.SportName != "Sports" {
-				merged[index].LeagueID = guideEvent.LeagueID
-				merged[index].LeagueName = guideEvent.LeagueName
-				merged[index].SportName = guideEvent.SportName
-				merged[index].LeagueLogoURL = firstNonEmpty(guideEvent.LeagueLogoURL, merged[index].LeagueLogoURL)
-			}
-			for _, pair := range [][2]*SportsTeam{{&merged[index].Home, &guideEvent.Home}, {&merged[index].Away, &guideEvent.Away}} {
-				if normalizeMatchText(pair[0].Name) == normalizeMatchText(pair[1].Name) {
-					*pair[0] = mergeSportsTeamIdentity(*pair[1], *pair[0])
-				}
-			}
-			if guideEvent.Live && merged[index].Status == "scheduled" {
-				merged[index].Live = true
-				merged[index].Status = "airing"
-				merged[index].StatusText = "On now"
-			}
+			overlaySportsGuideEvent(&merged[index], guideEvent)
 			matched = true
 			break
 		}
@@ -684,7 +689,78 @@ func mergeSportsGuideEvents(events, guideEvents []SportsEvent) []SportsEvent {
 			merged = append(merged, guideEvent)
 		}
 	}
-	return merged
+	return collapseEquivalentSportsEvents(merged)
+}
+
+func collapseEquivalentSportsEvents(events []SportsEvent) []SportsEvent {
+	collapsed := make([]SportsEvent, 0, len(events))
+	for _, event := range events {
+		merged := false
+		for index := range collapsed {
+			if !sportsEventsSameMatchup(collapsed[index], event) {
+				continue
+			}
+			overlaySportsGuideEvent(&collapsed[index], event)
+			merged = true
+			break
+		}
+		if !merged {
+			collapsed = append(collapsed, event)
+		}
+	}
+	return collapsed
+}
+
+func overlaySportsGuideEvent(base *SportsEvent, extra SportsEvent) {
+	if sportsEventListingRank(extra) > sportsEventListingRank(*base) {
+		kept := *base
+		*base = extra
+		extra = kept
+	}
+	base.Channels = mergeSportsChannelMatches(extra.Channels, base.Channels)
+	if (base.LeagueID == "" || base.LeagueID == "sports") && extra.LeagueID != "" && extra.LeagueID != "sports" {
+		base.LeagueID = extra.LeagueID
+		base.LeagueName = extra.LeagueName
+		base.SportName = firstNonEmpty(extra.SportName, base.SportName)
+		base.LeagueLogoURL = firstNonEmpty(extra.LeagueLogoURL, base.LeagueLogoURL)
+	} else if extra.SportName != "" && extra.SportName != "Sports" {
+		base.LeagueID = extra.LeagueID
+		base.LeagueName = extra.LeagueName
+		base.SportName = extra.SportName
+		base.LeagueLogoURL = firstNonEmpty(extra.LeagueLogoURL, base.LeagueLogoURL)
+	}
+	home, away := extra.Home, extra.Away
+	sameSides := sportsTeamNameMatch(base.Home.Name, extra.Home.Name).ok && sportsTeamNameMatch(base.Away.Name, extra.Away.Name).ok
+	swappedSides := sportsTeamNameMatch(base.Home.Name, extra.Away.Name).ok && sportsTeamNameMatch(base.Away.Name, extra.Home.Name).ok
+	if swappedSides && !sameSides {
+		home, away = extra.Away, extra.Home
+		extra.HomeScore, extra.AwayScore = extra.AwayScore, extra.HomeScore
+	}
+	if sportsTeamNameMatch(base.Home.Name, home.Name).ok {
+		primary, supplemental := preferSportsTeamIdentity(base.Home, home)
+		base.Home = mergeSportsTeamIdentity(primary, supplemental)
+	}
+	if sportsTeamNameMatch(base.Away.Name, away.Name).ok {
+		primary, supplemental := preferSportsTeamIdentity(base.Away, away)
+		base.Away = mergeSportsTeamIdentity(primary, supplemental)
+	}
+	if extra.Live && base.Status == "scheduled" {
+		base.Live = true
+		base.Status = "airing"
+		base.StatusText = "On now"
+	}
+	if base.HomeScore == "" {
+		base.HomeScore = extra.HomeScore
+	}
+	if base.AwayScore == "" {
+		base.AwayScore = extra.AwayScore
+	}
+	if base.Period == "" {
+		base.Period = extra.Period
+	}
+	if base.Clock == "" {
+		base.Clock = extra.Clock
+	}
 }
 
 func sportsEventsSameMatchup(left, right SportsEvent) bool {
@@ -693,17 +769,116 @@ func sportsEventsSameMatchup(left, right SportsEvent) bool {
 		if difference < 0 {
 			difference = -difference
 		}
-		if difference > int64(6*time.Hour/time.Second) {
+		window := int64(6 * time.Hour / time.Second)
+		if sportsTeamPairsSwapped(left, right) {
+			window = int64(36 * time.Hour / time.Second)
+		}
+		if difference > window {
 			return false
 		}
 	}
 	return sportsEventsSameIdentity(left, right)
 }
 
+func sportsEventListingRank(event SportsEvent) int {
+	rank := 0
+	if event.LeagueID != "" && event.LeagueID != "sports" {
+		rank += 4
+	}
+	if event.Home.LogoURL != "" {
+		rank += 2
+	}
+	if event.Away.LogoURL != "" {
+		rank += 2
+	}
+	rank += len(normalizeMatchText(event.Home.Name)) + len(normalizeMatchText(event.Away.Name))
+	if event.ImageURL != "" || event.Artwork != nil {
+		rank += 3
+	}
+	return rank
+}
+
+func sportsTeamPairsSwapped(left, right SportsEvent) bool {
+	sameSides := sportsTeamNameMatch(left.Home.Name, right.Home.Name).ok && sportsTeamNameMatch(left.Away.Name, right.Away.Name).ok
+	if sameSides {
+		return false
+	}
+	homeAway := sportsTeamNameMatch(left.Home.Name, right.Away.Name)
+	awayHome := sportsTeamNameMatch(left.Away.Name, right.Home.Name)
+	return homeAway.ok && awayHome.ok && (homeAway.strong || awayHome.strong)
+}
+
 func sportsEventsSameIdentity(left, right SportsEvent) bool {
+	if sportsTeamPairsEquivalent(left, right) {
+		return true
+	}
 	leftText := normalizeMatchText(strings.Join([]string{left.Name, left.ShortName, left.Away.Name, left.Home.Name}, " "))
 	rightText := normalizeMatchText(strings.Join([]string{right.Name, right.ShortName, right.Away.Name, right.Home.Name}, " "))
 	return strongSportsGuideMatch(leftText, right) && strongSportsGuideMatch(rightText, left)
+}
+
+type sportsTeamNameRelation struct {
+	ok     bool
+	strong bool
+}
+
+func sportsTeamNameMatch(left, right string) sportsTeamNameRelation {
+	leftNorm := normalizeMatchText(left)
+	rightNorm := normalizeMatchText(right)
+	if leftNorm == "" || rightNorm == "" {
+		return sportsTeamNameRelation{}
+	}
+	if leftNorm == rightNorm {
+		return sportsTeamNameRelation{ok: true, strong: true}
+	}
+	leftWords := strings.Fields(leftNorm)
+	rightWords := strings.Fields(rightNorm)
+	if sportsWordListsPrefix(leftWords, rightWords) || sportsWordListsPrefix(rightWords, leftWords) {
+		shorter := leftWords
+		if len(rightWords) < len(leftWords) {
+			shorter = rightWords
+		}
+		if len(shorter) == 1 && len([]rune(shorter[0])) >= 4 {
+			return sportsTeamNameRelation{ok: true, strong: true}
+		}
+		if len(shorter) >= 2 {
+			return sportsTeamNameRelation{ok: true, strong: false}
+		}
+	}
+	leftNick := leftWords[len(leftWords)-1]
+	rightNick := rightWords[len(rightWords)-1]
+	if len([]rune(leftNick)) >= 4 && leftNick == rightNick {
+		return sportsTeamNameRelation{ok: true, strong: true}
+	}
+	return sportsTeamNameRelation{}
+}
+
+func sportsWordListsPrefix(short, long []string) bool {
+	if len(short) == 0 || len(short) >= len(long) {
+		return false
+	}
+	for index, word := range short {
+		if word != long[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func sportsTeamPairsEquivalent(left, right SportsEvent) bool {
+	pairs := [][2]sportsTeamNameRelation{
+		{sportsTeamNameMatch(left.Home.Name, right.Home.Name), sportsTeamNameMatch(left.Away.Name, right.Away.Name)},
+		{sportsTeamNameMatch(left.Home.Name, right.Away.Name), sportsTeamNameMatch(left.Away.Name, right.Home.Name)},
+	}
+	for _, pair := range pairs {
+		if !pair[0].ok || !pair[1].ok {
+			continue
+		}
+		if pair[0].strong || pair[1].strong {
+			return true
+		}
+	}
+	return false
 }
 
 func sportsEventsFromGuide(snapshot cache.Snapshot, now time.Time) []SportsEvent {
@@ -831,7 +1006,7 @@ func sportsEventsFromGuideWithScoreHints(snapshot cache.Snapshot, now time.Time)
 	for _, event := range byKey {
 		events = append(events, *event)
 	}
-	events = normalizeSportsEvents(events)
+	events = collapseEquivalentSportsEvents(normalizeSportsEvents(events))
 	sort.Slice(events, func(i, j int) bool {
 		if events[i].Live != events[j].Live {
 			return events[i].Live
@@ -1066,11 +1241,13 @@ func inferGuideSportsLeagues(events []SportsEvent) []SportsEvent {
 	}
 	known := map[string]sportsLeagueRef{}
 	ambiguous := map[string]bool{}
+	leagueTeams := map[string][]string{}
 	for _, event := range events {
 		if event.LeagueID == "" || event.LeagueID == "sports" || event.EventType != "" {
 			continue
 		}
 		ref := sportsLeagueRef{ID: event.LeagueID, Name: event.LeagueName, Sport: event.SportName}
+		leagueTeams[event.LeagueID] = append(leagueTeams[event.LeagueID], event.Home.Name, event.Away.Name)
 		for _, team := range []SportsTeam{event.Home, event.Away} {
 			for _, key := range sportsTeamNameKeys(team.Name) {
 				if existing, ok := known[key]; ok && existing.ID != ref.ID {
@@ -1089,20 +1266,46 @@ func inferGuideSportsLeagues(events []SportsEvent) []SportsEvent {
 		}
 		return sportsLeagueRef{}, false
 	}
+	assign := func(index int, ref sportsLeagueRef) {
+		events[index].LeagueID = ref.ID
+		events[index].LeagueName = ref.Name
+		events[index].SportName = firstNonEmpty(ref.Sport, events[index].SportName)
+	}
 	for index, event := range events {
 		if (event.LeagueID != "" && event.LeagueID != "sports") || event.EventType != "" {
 			continue
 		}
 		away, awayOK := resolve(event.Away.Name)
 		home, homeOK := resolve(event.Home.Name)
-		if !awayOK || !homeOK || away.ID != home.ID {
+		if awayOK && homeOK && away.ID == home.ID {
+			assign(index, home)
 			continue
 		}
-		events[index].LeagueID = home.ID
-		events[index].LeagueName = home.Name
-		events[index].SportName = firstNonEmpty(home.Sport, event.SportName)
+		if homeOK && uniqueCompatibleTeamInLeague(event.Away.Name, home.ID, leagueTeams, ambiguous) {
+			assign(index, home)
+			continue
+		}
+		if awayOK && uniqueCompatibleTeamInLeague(event.Home.Name, away.ID, leagueTeams, ambiguous) {
+			assign(index, away)
+		}
 	}
 	return events
+}
+
+func uniqueCompatibleTeamInLeague(name, leagueID string, leagueTeams map[string][]string, ambiguous map[string]bool) bool {
+	for _, key := range sportsTeamNameKeys(name) {
+		if ambiguous[key] {
+			return false
+		}
+	}
+	canonical := map[string]bool{}
+	for _, known := range leagueTeams[leagueID] {
+		if !sportsTeamNameMatch(name, known).ok {
+			continue
+		}
+		canonical[normalizeMatchText(known)] = true
+	}
+	return len(canonical) == 1
 }
 
 func sportsTeamNameKeys(name string) []string {
