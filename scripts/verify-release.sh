@@ -25,6 +25,7 @@ node --check internal/plugin/ui/sports_replays.js
 node --check internal/plugin/ui/app.js
 node --check internal/plugin/ui/guide.js
 node --check internal/plugin/ui/player.js
+node --check internal/plugin/ui/sports_hub.js
 node --test scripts/sports-replays.test.mjs
 node --test scripts/player-sports.test.mjs
 node --test scripts/player-controls.test.mjs
@@ -32,5 +33,6 @@ node --test scripts/mytv-favorites.test.mjs
 node --test scripts/sports-display.test.mjs
 node --test scripts/sports-artwork.test.mjs
 node --test scripts/guide-navigation.test.mjs
+node --test scripts/sports-hub.test.mjs
 node --test scripts/update-catalog.test.mjs
 go run . manifest >/dev/null

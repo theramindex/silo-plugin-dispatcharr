@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.dispatcharr",
-  "version": "0.3.177",
+  "version": "0.3.178",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -131,6 +131,13 @@
       "id": "dispatcharr-asset-sports-replays-js",
       "method": "GET",
       "path": "/dispatcharr/assets/sports_replays.js",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-asset-sports-hub-js",
+      "method": "GET",
+      "path": "/dispatcharr/assets/sports_hub.js",
       "access": "authenticated",
       "navigable": false
     },
@@ -334,6 +341,27 @@
       "id": "dispatcharr-api-sports-league-teams",
       "method": "GET",
       "path": "/dispatcharr/api/sports/league-teams",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-sports-news",
+      "method": "GET",
+      "path": "/dispatcharr/api/sports/news",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-sports-team",
+      "method": "GET",
+      "path": "/dispatcharr/api/sports/team",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-sports-standings",
+      "method": "GET",
+      "path": "/dispatcharr/api/sports/standings",
       "access": "authenticated",
       "navigable": false
     },

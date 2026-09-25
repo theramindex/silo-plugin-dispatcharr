@@ -399,7 +399,8 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 		}
 		return events[i].Name < events[j].Name
 	})
-	events = filterPlayableSportsEvents(events)
+	events = applySportsTeamChannels(events, snapshot, s.sportsTeamChannelPins(), now)
+	events = selectSportsEvents(events, now)
 	if enricher, ok := s.sportsProvider.(sportsEventEnricher); ok {
 		events = enricher.EnrichEvents(ctx, events, 8)
 	}
@@ -458,22 +459,109 @@ func sportsPlayableChannelMatch(match SportsChannelMatch) bool {
 	}
 }
 
-func filterPlayableSportsEvents(events []SportsEvent) []SportsEvent {
-	playable := make([]SportsEvent, 0, len(events))
-	for _, event := range events {
+type sportsTeamChannelPin struct {
+	LeagueID  string
+	TeamName  string
+	ChannelID string
+}
+
+func (s *HTTPRoutesServer) sportsTeamChannelPins() []sportsTeamChannelPin {
+	rows, _ := s.normalizedAdminSettings()["sportsTeamChannels"].([]map[string]any)
+	pins := make([]sportsTeamChannelPin, 0, len(rows))
+	for _, row := range rows {
+		pins = append(pins, sportsTeamChannelPin{LeagueID: asStringValue(row["leagueId"]), TeamName: normalizeMatchText(asStringValue(row["teamName"])), ChannelID: asStringValue(row["channelId"])})
+	}
+	return pins
+}
+
+// applySportsTeamChannels puts an admin-pinned team channel first on that
+// team's live and upcoming games, ahead of guide-text matches.
+func applySportsTeamChannels(events []SportsEvent, snapshot cache.Snapshot, pins []sportsTeamChannelPin, now time.Time) []SportsEvent {
+	if len(pins) == 0 {
+		return events
+	}
+	for index := range events {
+		event := &events[index]
+		if event.Completed || (event.StartUnix > 0 && event.StartUnix > now.Add(36*time.Hour).Unix()) {
+			continue
+		}
+		home, away := normalizeMatchText(event.Home.Name), normalizeMatchText(event.Away.Name)
+		for _, pin := range pins {
+			if pin.LeagueID != event.LeagueID || (pin.TeamName != home && pin.TeamName != away) {
+				continue
+			}
+			channel, ok := channelByIDFromSnapshot(snapshot, pin.ChannelID)
+			if !ok {
+				continue
+			}
+			pinned := SportsChannelMatch{ID: channel.ID, Name: channel.Name, CategoryName: channel.CategoryName, LogoURL: channel.LogoURL, Reason: "Team channel", Evidence: "admin", Confidence: "high", Score: 100}
+			rest := make([]SportsChannelMatch, 0, len(event.Channels))
+			for _, match := range event.Channels {
+				if match.ID != channel.ID {
+					rest = append(rest, match)
+				}
+			}
+			event.Channels = append([]SportsChannelMatch{pinned}, rest...)
+		}
+	}
+	return events
+}
+
+const sportsUnwatchableEventLimit = 250
+
+// selectSportsEvents keeps every game a channel carries. Games without a
+// channel are kept for scores and schedules when they are close in time and in
+// a league the lineup covers or that has news coverage.
+func selectSportsEvents(events []SportsEvent, now time.Time) []SportsEvent {
+	coveredLeagues := map[string]bool{}
+	trimmed := make([]SportsEvent, len(events))
+	for index, event := range events {
 		channels := make([]SportsChannelMatch, 0, len(event.Channels))
 		for _, match := range event.Channels {
 			if sportsPlayableChannelMatch(match) {
 				channels = append(channels, match)
 			}
 		}
-		if len(channels) == 0 {
+		event.Channels = channels
+		if len(channels) > 0 && event.LeagueID != "" {
+			coveredLeagues[event.LeagueID] = true
+		}
+		trimmed[index] = event
+	}
+	selected := make([]SportsEvent, 0, len(trimmed))
+	unwatchable := 0
+	for _, event := range trimmed {
+		if len(event.Channels) > 0 {
+			selected = append(selected, event)
 			continue
 		}
-		event.Channels = channels
-		playable = append(playable, event)
+		if unwatchable >= sportsUnwatchableEventLimit || event.LeagueID == "" || event.LeagueID == "sports" {
+			continue
+		}
+		if _, hasNews := espnLeagueFor(event.LeagueID); !coveredLeagues[event.LeagueID] && !hasNews {
+			continue
+		}
+		if !sportsEventInScoreWindow(event, now) {
+			continue
+		}
+		event.MatchDiagnostics = nil
+		selected = append(selected, event)
+		unwatchable++
 	}
-	return playable
+	return selected
+}
+
+func sportsEventInScoreWindow(event SportsEvent, now time.Time) bool {
+	if event.Live {
+		return true
+	}
+	if event.StartUnix <= 0 {
+		return false
+	}
+	if event.Completed {
+		return event.StartUnix >= now.Add(-30*time.Hour).Unix()
+	}
+	return event.StartUnix >= now.Add(-6*time.Hour).Unix() && event.StartUnix <= now.Add(36*time.Hour).Unix()
 }
 
 func mergeSportsGuideEvents(events, guideEvents []SportsEvent) []SportsEvent {
