@@ -154,6 +154,18 @@ func TestMergeSportsGuideEventsMarksNextDayRebroadcastsAsReplays(t *testing.T) {
 	}
 }
 
+func TestSportsTeamFollowIDsCoverGuideOnlyIdentities(t *testing.T) {
+	t.Parallel()
+	team := SportsTeam{ID: "36248520-provider", Name: "Washington Nationals", Abbreviation: "WSH"}
+	ids := strings.Join(sportsTeamFollowIDs(team), ",")
+	if !strings.Contains(ids, "sports-team:6d655deb3b0a8d9e") {
+		t.Fatalf("a follow saved from the guide-only team must still match the provider team, got %s", ids)
+	}
+	if sportsTeamFollowIDs(SportsTeam{}) != nil {
+		t.Fatal("unnamed teams have no follow identities")
+	}
+}
+
 func TestMatchESPNTeamPrefersExactNames(t *testing.T) {
 	t.Parallel()
 	teams := []espnTeam{
