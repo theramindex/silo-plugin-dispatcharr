@@ -290,7 +290,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`function myTVSportsPeople()`,
 		`Find channels, shows, teams, or events`,
 		`My TV will watch future guide updates`,
-		`Favorites <small id="favorite-count">0</small>`,
+		`<span>Recordings</span>`,
 		`<span>Sports</span>`,
 		`<span>Events</span>`,
 		`id="settings-menu-button"`,
@@ -435,7 +435,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`function renderEPGGapCell(channel, startUnix, endUnix, windowInfo)`,
 		`class=\"epg-cell program epg-gap\"`,
 		`program" + (isLive ? " live" : "")`,
-		`function epgProgramTitleParts(title)`,
+		`function epgProgramTitleParts(title, program)`,
 		`class=\"epg-live-marker\" aria-hidden=\"true\"`,
 		`.epg-live-marker { margin-left: 0.24rem;`,
 		`data-program-detail-channel=`,
@@ -505,12 +505,13 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		t.Fatalf("expected home guide preview to be capped at 5 channels")
 	}
 	if !strings.Contains(body, `const watched = recent.length ? recent : visibleChannels(false).slice(0, 5);`) ||
-		!strings.Contains(body, `root.innerHTML = renderSavedLineupsHome()`) ||
+		!strings.Contains(body, `root.innerHTML = sectionHeader("Recently watched")`) ||
+		!strings.Contains(body, `+ renderSavedLineupsHome()`) ||
 		!strings.Contains(body, `+ (favorites.length ? sectionHeader("Favorites") + favoriteHomeCards(favorites) : "")`) ||
 		!strings.Contains(body, `+ sectionHeaderWithActions("TV Guide", "<button type=\"button\" class=\"section-action\" data-view=\"guide\">Open Full Guide</button>" + guideFreshnessHTML())`) ||
 		!strings.Contains(body, `+ renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true })`) ||
 		!strings.Contains(body, `+ (channelGroupsInSideMenu() ? "" : categoryGrid());`) {
-		t.Fatalf("expected home page order to be saved lineups, continue watching, favorites, guide grid, then optional group sections")
+		t.Fatalf("expected home page order to be continue watching, favorites, guide grid, saved lineups, then optional group sections")
 	}
 	virtualWorkspaceIndex := strings.Index(body, `const browseOnly = !useGroupSelector && children.length > 0;`)
 	virtualHeaderIndex := strings.Index(body, `const folderHeader = virtualFolderHeader(path, featured, !browseOnly)`)
@@ -1599,7 +1600,7 @@ const testSource = source + "\n" + [
   'renderSportsPage();',
   'const rendered = document.getElementById("view").innerHTML;',
   'const standaloneWarning = rendered.indexOf("class=\\"sports-error\\"") !== -1;',
-  'const warningSharesSourceLine = rendered.indexOf("Data by sportarr + EPG <span class=\\"sports-replay-status\\">· Replays temporarily unavailable</span>") !== -1;',
+  'const warningSharesSourceLine = rendered.indexOf("Data by Sportarr + EPG <span class=\\"sports-replay-status\\">· Replays temporarily unavailable</span>") !== -1;',
   'state.sportsReplayKey = "";',
   'state.sportsReplaysError = "1 replay library is temporarily unavailable.";',
   'loadSportsLibraries = function() { return new Promise(function() {}); };',
@@ -3165,8 +3166,7 @@ func TestPlayerUIMyTVSearchBuildsTeamGamePassesFromLeagueRosters(t *testing.T) {
 		`Math.min(3, pending.length)`,
 		`function myTVSportsPassLabel(team)`,
 		`"mlb", "nfl", "nba", "nhl", "wnba", "mls"`,
-		`Create game pass`,
-		`Game pass active`,
+		`(followed ? "Following" : "Follow")`,
 		`Searching team rosters…`,
 	} {
 		if !strings.Contains(script, want) {
@@ -3881,6 +3881,37 @@ func TestHTTPRoutesServerSportsRouteUsesSportsShellWhenCombined(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerRendersStableNavTabs(t *testing.T) {
+	t.Parallel()
+
+	render := func(settings, path string) string {
+		store := cache.NewStore()
+		store.SetAdminSettings(json.RawMessage(settings))
+		response, err := NewHTTPRoutesServer(store).Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: path})
+		if err != nil {
+			t.Fatalf("render %s: %v", path, err)
+		}
+		return string(response.GetBody())
+	}
+	body := render(`{"sideMenuMode":"channels"}`, "/dispatcharr")
+	for _, want := range []string{`data-view="channels"><svg`, `<span>Channels</span>`, `data-view="sports"><svg`, `data-view="recordings" hidden>`} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("Live TV shell must render final nav state, missing %q", want)
+		}
+	}
+	if strings.Contains(body, "_HIDDEN__") || strings.Contains(body, "__BROWSE_") {
+		t.Fatal("nav placeholders must be replaced")
+	}
+	body = render(`{"separateSportsApp":true}`, "/dispatcharr")
+	if !strings.Contains(body, `<span>Guide</span>`) || !strings.Contains(body, `data-view="sports" hidden>`) {
+		t.Fatal("separate Sports app must hide Sports from the Live TV header on first paint")
+	}
+	body = render(`{"separateSportsApp":true}`, "/dispatcharr/sports")
+	if !strings.Contains(body, `data-view="sports"><svg`) || !strings.Contains(body, `data-view="mytv" hidden>`) {
+		t.Fatal("Sports app must show Sports and hide Live TV tabs on first paint")
+	}
+}
+
 func TestHTTPRoutesServerSportsRouteUsesLiveTVWhenSportsDisabled(t *testing.T) {
 	t.Parallel()
 
@@ -3973,8 +4004,8 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		t.Fatal("opening program details must not directly play a fallback channel")
 	}
 	requireScript(`Program details unavailable`)
-	recentCards := functionBody("rowCards")
-	if !strings.Contains(recentCards, "currentProgram(channel)") || !strings.Contains(recentCards, `class=\"continue-card recent-channel-card\"`) || strings.Contains(recentCards, "channel.categoryName") {
+	recentCards := functionBody("rowCards") + functionBody("channelCardHTML") + functionBody("channelProgramLine")
+	if !strings.Contains(recentCards, "currentProgram(channel)") || !strings.Contains(recentCards, `channelCardHTML(channel, "recent-channel-card")`) || strings.Contains(recentCards, "channel.categoryName") {
 		t.Fatal("recently watched cards must show current programming instead of internal channel groups")
 	}
 	virtualFolder := functionBody("renderLivePage")
@@ -4435,7 +4466,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.filter-sections`,
 		`.filter-section`,
 		`.search-commandbar {`,
-		`.search-result-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));`,
+		`.search-result-list { display: grid; grid-template-columns: minmax(0, 1fr);`,
 		`.organization-preview`,
 		`.events-board {`,
 		`.on-later-shelf-rail, .event-shelf-rail {`,
@@ -4509,8 +4540,11 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	if !strings.Contains(compactStyles, `.sports-card{`) || !strings.Contains(compactStyles, `.admin-status-strip{`) || !strings.Contains(compactStyles, `.custom-group-browser,.custom-group-members{`) || !strings.Contains(compactStyles, `border-radius:0.5rem;`) {
 		t.Fatal("non-pill sports cards must keep an 8px-or-smaller radius")
 	}
-	if !strings.Contains(styles, `.time-head span:not(:first-child) { position: sticky; left: var(--epg-logo-col);`) {
-		t.Fatal("guide time panes must remain frozen while scrolling horizontally")
+	if !strings.Contains(styles, `.time-head span:not(:first-child) > b { position: sticky; left: var(--epg-logo-col);`) {
+		t.Fatal("guide time labels must stay frozen within their own slot while scrolling horizontally")
+	}
+	if strings.Contains(styles, `.time-head span:not(:first-child) { position: sticky;`) {
+		t.Fatal("guide time slots must not all pin to the same left edge")
 	}
 	multiviewAudio := functionBody("syncMultiviewAudio")
 	for _, want := range []string{`aria-pressed`, `multiview-audio-status`, `Audio playing from`} {

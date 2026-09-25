@@ -15,6 +15,7 @@ function setup() {
     escapeHTML: value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;'),
     icon: name => '<svg data-icon="' + name + '"></svg>', logoHTML: () => '<span>TV</span>',
     currentProgram: () => ({ title: 'Live tennis' }), normalizePreferences: () => {},
+    realProgram: program => !!(program && program.title), channelProgramLine: () => 'No guide listing',
     savePrefs: () => { ctx.saves = (ctx.saves || 0) + 1; }, showAppToast: () => {},
     updateMyTVSearchSurface: () => { ctx.refreshes = (ctx.refreshes || 0) + 1; }
   });
@@ -60,11 +61,13 @@ test('search rows have a distinct favorite action and the empty favorites sectio
 function teamSetup() {
   const ctx = setup();
   ctx.prefs().sportsFavoriteTeams = {};
+  ctx.prefs().sportsFavoriteTeamLabels = {};
   ctx.lower = value => String(value || '').toLowerCase();
+  ctx.sportsTeamAbbreviation = team => String((team && (team.abbreviation || team.name)) || '').slice(0, 3).toUpperCase();
   ctx.sportsFavoriteTeamMap = () => ctx.prefs().sportsFavoriteTeams;
   ctx.myTVSportsPeople = () => [{ id: 'epg-yankees', name: 'New York Yankees' }];
   ctx.applySportsFavoritesToPayload = () => {};
-  for (const name of ['sportsGamePassSlug', 'myTVBuiltInSportsPeople', 'sportsFavoriteTeamMatches', 'sportsSavedTeamID', 'sportsTeamFavoriteButton', 'toggleSportsTeamFavorite']) {
+  for (const name of ['sportsGamePassSlug', 'myTVBuiltInSportsPeople', 'sportsFavoriteTeamMatches', 'sportsSavedTeamID', 'sportsTeamLabelAttrs', 'sportsTeamFavoriteButton', 'toggleSportsTeamFavorite']) {
     const start = source.indexOf('function ' + name + '(');
     vm.runInContext(source.slice(start, source.indexOf('\nfunction ', start + 1)), ctx);
   }
@@ -74,7 +77,9 @@ test('team hearts save a stable game pass and reflect existing follows', () => {
   const ctx = teamSetup(), team = { id: 'epg-yankees', name: 'New York Yankees' };
   const key = 'gamepass:mlb:new-york-yankees';
   assert.match(ctx.sportsTeamFavoriteButton(team), /data-sports-favorite-team="gamepass:mlb:new-york-yankees"/);
-  ctx.toggleSportsTeamFavorite(key, true);
+  assert.match(ctx.sportsTeamFavoriteButton(team), /data-sports-favorite-name="New York Yankees"/);
+  ctx.toggleSportsTeamFavorite(key, true, { name: 'New York Yankees', abbreviation: 'NYY' });
+  assert.deepEqual({ ...ctx.prefs().sportsFavoriteTeamLabels[key] }, { name: 'New York Yankees', abbreviation: 'NYY' });
   assert.match(ctx.sportsTeamFavoriteButton(team), /aria-pressed="true"/);
   assert.match(ctx.sportsTeamFavoriteButton(team), /data-icon="heart-solid"/);
   ctx.prefs().sportsFavoriteTeams[team.id] = true;

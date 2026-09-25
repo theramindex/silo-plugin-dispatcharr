@@ -33,6 +33,27 @@ func TestStateOfTheUnionDoesNotMatchWeeklyShow(t *testing.T) {
 	}
 }
 
+func TestProgramLooksArchival(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.September, 24, 20, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		title   string
+		summary string
+		want    bool
+	}{
+		{"1960 Presidential Debate - Kennedy vs. Nixon", "", true},
+		{"Jack Johnson - Main Square Festival 2014", "", true},
+		{"Presidential Debate", "On Road to the White House Rewind, from the 1960 campaign.", true},
+		{"2026 MTV Video Music Awards", "", false},
+		{"2025 Rose Parade Highlights", "", false},
+		{"Presidential Debate", "Live coverage from Philadelphia.", false},
+	} {
+		if got := programLooksArchival(model.Program{Title: tc.title, Summary: tc.summary}, now); got != tc.want {
+			t.Errorf("%q: archival=%v, want %v", tc.title, got, tc.want)
+		}
+	}
+}
+
 func TestHTTPRoutesServerEventsDetectsGuidePrograms(t *testing.T) {
 	t.Parallel()
 

@@ -18,7 +18,7 @@ function renderGuidePage() {
   state.guideLastSlotStart = guideSlotStart();
   const searchHTML = '<div class="guide-search-wrap"><label class="guide-search-field"><span>' + icon("search") + '</span><input id="guide-search" class="search" placeholder="Search programs or channels" value="' + escapeHTML(state.query) + '" aria-label="Search programs or channels" aria-controls="guide-search-results" autocomplete="off"></label><section id="guide-search-results" class="guide-search-results" aria-label="Matching programs" hidden></section></div>';
   const actionsHTML = '<div class="guide-commandbar-actions"><button type="button" class="section-action" data-guide-now aria-keyshortcuts="N" title="Return to now (N). Use arrow keys to move through the guide; Enter opens a program.">Now</button>' + renderSaveChannelListButton(state.category) + '</div>';
-  byId("view").innerHTML = '<div class="guide-page"><div class="guide-commandbar"><div class="guide-commandbar-title"><strong>TV Guide</strong>' + guideFreshnessHTML() + '</div>' + renderGuideCategoryPicker(categories) + searchHTML + actionsHTML + '</div><div id="guide-scroll" class="guide-scroll"><div class="guide-timeline" style="' + guideTimelineStyle(slots) + '"><div class="time-head"><span>Today</span>' + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("") + '</div><div id="epg" class="guide-window-spacer" style="height:0px"><div class="guide-window" style="transform:translateY(0px)"></div></div></div></div></div>';
+  byId("view").innerHTML = '<div class="guide-page"><div class="guide-commandbar"><div class="guide-commandbar-title"><strong>TV Guide</strong>' + guideFreshnessHTML() + '</div>' + renderGuideCategoryPicker(categories) + searchHTML + actionsHTML + '</div><div id="guide-scroll" class="guide-scroll"><div class="guide-timeline" style="' + guideTimelineStyle(slots) + '">' + guideTimeHeadHTML(slots) + '<div id="epg" class="guide-window-spacer" style="height:0px"><div class="guide-window" style="transform:translateY(0px)"></div></div></div></div></div>';
   const search = byId("guide-search");
   search.oninput = function(event) { if (!event.isComposing) scheduleGuideSearch(event.target); };
   search.oncompositionend = function(event) { scheduleGuideSearch(event.target); };
@@ -110,23 +110,25 @@ function renderEPGCells(channel, channelIndex) {
     if (start > cursor) cells.push(renderEPGGapCell(channel, cursor, start, windowInfo));
     const canSchedule = recordingSchedulingEnabled() && (program.endUnix || 0) > now;
     const isLive = start <= now && end > now;
-    const programTitle = programIsGuidePlaceholder(program) ? guideUnavailableLabel() : program.title || guideUnavailableLabel();
-    const titleParts = epgProgramTitleParts(programTitle);
+    const placeholder = programIsGuidePlaceholder(program) || programEchoesChannel(program, channel);
+    const programTitle = placeholder ? guideUnavailableLabel() : program.title || guideUnavailableLabel();
+    const titleParts = epgProgramTitleParts(programTitle, placeholder ? null : program);
     const accessibleTitle = titleParts.live ? titleParts.title + " Live" : titleParts.title;
     const programTime = epgVisibleTime(start, windowStart);
-    cells.push("<div class=\"epg-cell program" + (isLive ? " live" : "") + "\" style=\"" + epgCellStyle(start, end, windowInfo) + "\"><button class=\"epg-play\" data-guide-focus=\"program\" data-guide-start=\"" + start + "\" data-guide-end=\"" + end + "\" data-program-detail-channel=\"" + escapeHTML(channel.id) + "\" data-program-detail=\"" + escapeHTML(program.id || "") + "\" aria-label=\"" + escapeHTML(programTime + " " + accessibleTitle) + "\"><time>" + escapeHTML(programTime) + "</time><strong>" + escapeHTML(titleParts.title) + (titleParts.live ? "<span class=\"epg-live-marker\" aria-hidden=\"true\">" + escapeHTML(titleParts.marker) + "</span>" : "") + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>");
+    cells.push("<div class=\"epg-cell program" + (isLive ? " live" : "") + (placeholder ? " is-placeholder" : "") + "\" style=\"" + epgCellStyle(start, end, windowInfo) + "\"><button class=\"epg-play\" data-guide-focus=\"program\" data-guide-start=\"" + start + "\" data-guide-end=\"" + end + "\" data-program-detail-channel=\"" + escapeHTML(channel.id) + "\" data-program-detail=\"" + escapeHTML(program.id || "") + "\" aria-label=\"" + escapeHTML(programTime + " " + accessibleTitle) + "\"><time>" + escapeHTML(programTime) + "</time><strong>" + escapeHTML(titleParts.title) + (titleParts.live ? "<span class=\"epg-live-marker\" aria-hidden=\"true\">Live</span>" : "") + "</strong></button>" + (canSchedule ? "<button class=\"epg-schedule\" data-schedule-channel=\"" + escapeHTML(channel.id) + "\" data-schedule-program=\"" + escapeHTML(program.id || "") + "\" aria-label=\"Schedule recording\">" + icon("record") + "</button>" : "") + "</div>");
     cursor = end;
   });
   if (cursor < windowEnd) cells.push(renderEPGGapCell(channel, cursor, windowEnd, windowInfo));
   return cells.join("");
 }
 
-function epgProgramTitleParts(title) {
-  const marker = "\u1d38\u1da6\u1d5b\u1d49";
+function epgProgramTitleParts(title, program) {
+  const marker = providerLiveMarker;
   const value = String(title || "");
   const trimmed = value.trimEnd();
-  if (!trimmed.endsWith(marker)) return { title: value, live: false, marker: "" };
-  return { title: trimmed.slice(0, -marker.length).trimEnd(), live: true, marker: marker };
+  if (trimmed.endsWith(marker)) return { title: trimmed.slice(0, -marker.length).trimEnd(), live: true, marker: marker };
+  if (program && program.liveMarker) return { title: value, live: true, marker: marker };
+  return { title: value, live: false, marker: "" };
 }
 
 function epgVisibleTime(startUnix, windowStart) {
@@ -351,7 +353,8 @@ function refreshGuideTimeline() {
   const timeline = scroll.querySelector(".guide-timeline");
   const header = scroll.querySelector(".time-head");
   if (timeline) timeline.setAttribute("style", guideTimelineStyle(slots));
-  if (header) header.innerHTML = "<span>Today</span>" + slots.map(function(slot) { return "<span>" + escapeHTML(timeLabel(slot)) + "</span>"; }).join("");
+  if (header) header.innerHTML = guideTimeHeadInnerHTML(slots);
+  updateGuideNowLines();
   state.guideLastSlotStart = guideSlotStart();
 }
 

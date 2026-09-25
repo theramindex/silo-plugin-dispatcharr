@@ -47,6 +47,7 @@ function playerFavoriteButtonHTML(channel) {
 }
 
 function renderPlayerPage() {
+  state.playerErrorMessage = "";
   const channel = state.currentChannel || visibleChannels(false)[0] || null;
   const program = currentProgram(channel) || {};
   const channelName = channel ? channel.name || "Untitled channel" : "Choose a channel";
@@ -75,6 +76,7 @@ function renderPlayerPage() {
     + "<video id=\"player\" class=\"playback-video\"" + videoAttributes + "></video><div class=\"playback-scrim\"></div>"
     + "<button id=\"player-center-button\" class=\"player-center-button hidden\" data-player-action=\"play-toggle\" aria-label=\"Play\">" + icon("play") + "</button>"
     + "<div class=\"player-top\"><button class=\"player-exit player-icon\" data-player-action=\"back\" aria-label=\"Back to Live TV browse\">" + icon("arrow-left") + "</button>" + topActions + "</div>"
+    + "<div id=\"player-error\" class=\"player-error hidden\" role=\"alert\"></div>"
     + "<div id=\"player-toast\" class=\"player-toast\" role=\"status\"></div><div id=\"player-guide-panel\" class=\"player-guide-panel\"></div>"
     + "<div id=\"player-sports-status\" class=\"sr-only\" role=\"status\"></div><div id=\"player-sports-drawer\" class=\"player-sports-drawer\"></div>"
     + "<div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel)
@@ -103,10 +105,45 @@ function playerChromeHasFocus() {
   return !!(active && active.closest && active.closest(".player-top, .player-bottom, .player-guide-panel"));
 }
 
+function playerChromeHeld() {
+  const video = byId("player");
+  return !!state.playerErrorMessage || !video || video.paused || video.ended;
+}
+
 function updatePlayerChrome() {
   const shell = document.querySelector(".playback-shell");
   if (!shell) return;
-  shell.classList.toggle("is-idle", state.playerChromeIdle && !hasOpenPlayerOverlay() && !playerChromeHasFocus());
+  shell.classList.toggle("is-idle", state.playerChromeIdle && !hasOpenPlayerOverlay() && !playerChromeHasFocus() && !playerChromeHeld());
+}
+
+function showPlayerError(message) {
+  const panel = byId("player-error");
+  if (!panel) {
+    showPlayerToast(message);
+    return;
+  }
+  const channel = state.currentChannel;
+  state.playerErrorMessage = message;
+  state.playerWaiting = false;
+  panel.innerHTML = playerLogoHTML(channel)
+    + "<strong>" + escapeHTML((channel && channel.name) || "This channel") + "</strong>"
+    + "<p>" + escapeHTML(message) + "</p>"
+    + "<div class=\"player-error-actions\"><button type=\"button\" class=\"player-error-primary\" data-player-action=\"retry\">" + icon("play") + "<span>Try again</span></button>"
+    + "<button type=\"button\" data-player-action=\"back\">" + icon("arrow-left") + "<span>Back</span></button></div>";
+  panel.classList.remove("hidden");
+  updateCenterPlayButton();
+  wakePlayerChrome();
+}
+
+function clearPlayerError() {
+  if (!state.playerErrorMessage) return;
+  state.playerErrorMessage = "";
+  const panel = byId("player-error");
+  if (panel) {
+    panel.classList.add("hidden");
+    panel.innerHTML = "";
+  }
+  updateCenterPlayButton();
 }
 
 function wakePlayerChrome(delay) {
@@ -357,7 +394,7 @@ function updateCenterPlayButton() {
   updateTimeShiftUI();
   if (!button) return;
   const loading = !!state.playerWaiting && !video.paused;
-  const show = loading || video.paused;
+  const show = !state.playerErrorMessage && (loading || video.paused);
   button.classList.toggle("hidden", !show);
   button.classList.toggle("loading", loading);
   button.innerHTML = loading ? icon("loader") : icon(video.paused ? "play" : "pause");
@@ -401,8 +438,8 @@ function setVideoSource(url, options) {
   video.addEventListener("waiting", function() { state.playerWaiting = true; updateCenterPlayButton(); });
   video.addEventListener("stalled", function() { state.playerWaiting = true; updateCenterPlayButton(); });
   video.addEventListener("canplay", function() { state.playerWaiting = false; updateCenterPlayButton(); });
-  video.addEventListener("playing", function() { state.playerWaiting = false; updateCenterPlayButton(); });
-  video.addEventListener("pause", updateCenterPlayButton);
+  video.addEventListener("playing", function() { state.playerWaiting = false; clearPlayerError(); updateCenterPlayButton(); wakePlayerChrome(); });
+  video.addEventListener("pause", function() { updateCenterPlayButton(); wakePlayerChrome(); });
   video.addEventListener("play", updateCenterPlayButton);
   video.addEventListener("ended", updateCenterPlayButton);
   video.addEventListener("error", function() { state.playerWaiting = false; updateCenterPlayButton(); });
@@ -455,7 +492,7 @@ async function playChannel(channel, options) {
   try {
     await ensurePlayerLibraries(liveRewindEnabled() && channel.streamFormat !== "hls" ? "" : channel.streamFormat);
   } catch (_) {
-    showPlayerToast("Playback components could not be loaded.");
+    showPlayerError("Playback components could not be loaded.");
     return;
   }
   if (timeShiftAttempt !== state.timeShiftAttempt || !state.currentChannel || state.currentChannel.id !== channel.id) return;
