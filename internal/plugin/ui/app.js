@@ -6116,13 +6116,21 @@ function handlePlaybackFatalError(error) {
   }
   showPlayerError("The stream could not be loaded. The channel may be offline or out of connections.");
 }
+function isPluginStreamRoute(url) {
+  return String(url || "").indexOf("/dispatcharr/stream?") !== -1;
+}
+async function resolvePlayableStreamURL(url) {
+  const payload = await coreGetJSON(url + "&resolve=json");
+  const resolved = payload && typeof payload.url === "string" ? payload.url.trim() : "";
+  return /^https:\/\//i.test(resolved) || (/^http:\/\//i.test(resolved) && window.location.protocol === "http:") ? resolved : url;
+}
 function attachVideoSource(video, url, options) {
-  const rewindable = !!(options && options.rewindable);
-  const managedTimeShift = !!(options && options.managedTimeShift);
   const attachment = {
     hls: null,
     tsPlayer: null,
+    cancelled: false,
     destroy: function() {
+      attachment.cancelled = true;
       if (attachment.hls) { attachment.hls.destroy(); attachment.hls = null; }
       if (attachment.tsPlayer) { attachment.tsPlayer.destroy(); attachment.tsPlayer = null; }
       if (video) {
@@ -6132,6 +6140,19 @@ function attachVideoSource(video, url, options) {
       }
     }
   };
+  if (!isPluginStreamRoute(url)) return startVideoSource(video, url, options, attachment);
+  resolvePlayableStreamURL(url).then(function(playableURL) {
+    if (!attachment.cancelled) startVideoSource(video, playableURL, options, attachment);
+  }, function(error) {
+    if (attachment.cancelled) return;
+    if (options && typeof options.onFatal === "function") options.onFatal(error);
+    else startVideoSource(video, url, options, attachment);
+  });
+  return attachment;
+}
+function startVideoSource(video, url, options, attachment) {
+  const rewindable = !!(options && options.rewindable);
+  const managedTimeShift = !!(options && options.managedTimeShift);
   const isHLS = (options && options.format === "hls") || url.indexOf(".m3u8") !== -1;
   if (window.Hls && Hls.isSupported() && isHLS) {
     // Managed rewind must not jump back to live after a pause or seek.

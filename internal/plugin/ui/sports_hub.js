@@ -353,10 +353,10 @@ function renderSportsTeamsTab(payload) {
   const followedHTML = followed.length ? "<div class=\"sports-team-grid\">" + followed.map(function(entry) {
     const status = sportsTeamStatusLine(entry);
     return "<button type=\"button\" class=\"sports-team-tile" + (status.live ? " live" : "") + "\" data-sports-team-open=\"" + escapeHTML(entry.key) + "\">" + renderSportsTeamLogo(entry.team, "sports-team-tile-logo") + "<strong>" + escapeHTML(sportsTeamName(entry.team)) + "</strong><small>" + escapeHTML(entry.leagueName) + "</small><span>" + escapeHTML(status.text) + "</span></button>";
-  }).join("") + "</div>" : emptyStateHTML("You aren't following any teams yet.", "Search below to follow a team.");
-  return sportsSectionHTML("Following", "", followedHTML, "sports-following-section")
-    + renderSportsUpcomingForTeams(payload)
-    + "<section class=\"sports-section sports-team-search\"><div class=\"sports-section-head\"><h2>Find a team</h2></div><label class=\"sports-team-search-field\"><span>" + icon("search") + "</span><input id=\"sports-team-search\" type=\"search\" value=\"" + escapeHTML(query) + "\" placeholder=\"Search teams\" autocomplete=\"off\" aria-label=\"Search teams\"></label><div id=\"sports-team-search-results\">" + renderSportsTeamSearchResults(payload, query) + "</div></section>";
+  }).join("") + "</div>" : emptyStateHTML("You aren't following any teams yet.", "Search above to follow a team.");
+  return "<section class=\"sports-section sports-team-search\"><label class=\"sports-team-search-field\"><span>" + icon("search") + "</span><input id=\"sports-team-search\" type=\"search\" value=\"" + escapeHTML(query) + "\" placeholder=\"Find a team\" autocomplete=\"off\" aria-label=\"Find a team\"></label><div id=\"sports-team-search-results\">" + renderSportsTeamSearchResults(payload, query) + "</div></section>"
+    + sportsSectionHTML("Following", "", followedHTML, "sports-following-section")
+    + renderSportsUpcomingForTeams(payload);
 }
 
 function renderSportsTeamSearchResults(payload, query) {
