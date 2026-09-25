@@ -204,8 +204,7 @@ function sportsScoreboardEventOrder(left, right) {
   return leftRank === 2 ? rightStart - leftStart : leftStart - rightStart;
 }
 
-function renderSportsScoreboard(events, options) {
-  options = options || {};
+function sportsScoreboardGroups(events) {
   const groups = {};
   events.forEach(function(event) {
     if (sportsEventIsProgram(event)) return;
@@ -215,16 +214,24 @@ function renderSportsScoreboard(events, options) {
     if (sportsEventIsLive(event)) groups[id].live = true;
     if (sportsEventIsFollowed(event)) groups[id].followed = true;
   });
+  return groups;
+}
+
+function renderSportsScoreboard(events, options) {
+  options = options || {};
+  const groups = sportsScoreboardGroups(events);
   let order = sportsScoreboardLeagueOrder(groups);
+  if (options.leagueID) order = order.filter(function(id) { return id === options.leagueID; });
   if (options.maxLeagues) order = order.slice(0, options.maxLeagues);
   if (!order.length) return emptyStateHTML("No games right now.", "Scores show up here as games start.");
   return "<div class=\"sports-scoreboard\">" + order.map(function(id) {
     const group = groups[id];
     const rows = group.events.slice().sort(sportsScoreboardEventOrder);
     const visible = options.perLeague ? rows.slice(0, options.perLeague) : rows;
-    const collapsed = !!(state.sportsCollapsedLeagues && state.sportsCollapsedLeagues[id]);
+    const collapsed = !options.leagueID && !!(state.sportsCollapsedLeagues && state.sportsCollapsedLeagues[id]);
     const toggleLabel = (collapsed ? "Expand " : "Collapse ") + group.name;
-    return "<section class=\"sports-scoreboard-league" + (collapsed ? " collapsed" : "") + "\"><header><button type=\"button\" class=\"sports-scoreboard-toggle\" data-sports-league-toggle=\"" + escapeHTML(id) + "\" aria-expanded=\"" + (collapsed ? "false" : "true") + "\" aria-label=\"" + escapeHTML(toggleLabel) + "\" title=\"" + escapeHTML(toggleLabel) + "\">" + icon("chevron-down") + "</button><button type=\"button\" data-sports-open-league=\"" + escapeHTML(id) + "\">" + escapeHTML(group.name) + icon("chevron-right") + "</button><span>" + escapeHTML(pluralLabel(rows.length, "game")) + "</span></header>"
+    const toggle = options.leagueID ? "" : "<button type=\"button\" class=\"sports-scoreboard-toggle\" data-sports-league-toggle=\"" + escapeHTML(id) + "\" aria-expanded=\"" + (collapsed ? "false" : "true") + "\" aria-label=\"" + escapeHTML(toggleLabel) + "\" title=\"" + escapeHTML(toggleLabel) + "\">" + icon("chevron-down") + "</button>";
+    return "<section class=\"sports-scoreboard-league" + (collapsed ? " collapsed" : "") + "\"><header>" + toggle + "<button type=\"button\" data-sports-open-league=\"" + escapeHTML(id) + "\">" + escapeHTML(group.name) + icon("chevron-right") + "</button><span>" + escapeHTML(pluralLabel(rows.length, "game")) + "</span></header>"
       + (collapsed ? "" : "<div class=\"sports-scoreboard-rows\">" + visible.map(renderSportsScoreRow).join("") + "</div>") + "</section>";
   }).join("") + "</div>";
 }
@@ -243,7 +250,10 @@ function renderSportsScoreRow(event) {
     ? "<span class=\"sports-score-program\">" + escapeHTML(sportsEventTitle(event)) + "</span>"
     : team(event.away, event.awayScore) + team(event.home, event.homeScore);
   const watchLabel = "Watch " + sportsEventTitle(event) + " on " + ((channel && channel.name) || "channel");
-  const watch = channel
+  const onNow = sportsEventIsOnNow(event);
+  const watch = channel && !onNow
+    ? (event.completed ? "" : "<span class=\"sports-score-channel\" title=\"" + escapeHTML(channel.name || "") + "\">" + escapeHTML(channel.name || "") + "</span>")
+    : channel
     ? "<button type=\"button\" class=\"sports-score-watch\" data-channel=\"" + escapeHTML(channel.id || "") + "\" aria-label=\"" + escapeHTML(watchLabel) + "\" title=\"" + escapeHTML(channel.name || "Watch") + "\">" + icon("play") + "<span>Watch</span></button>"
     : "<span class=\"sports-score-unavailable\">Not on your channels</span>";
   const recording = !live && !event.completed ? sportsEventRecordingTarget(event) : null;
@@ -348,7 +358,16 @@ function renderSportsScoresTab(payload) {
     return "<button type=\"button\" data-sports-scores-filter=\"" + option[0] + "\" class=\"" + (filter === option[0] ? "active" : "") + "\" aria-pressed=\"" + (filter === option[0] ? "true" : "false") + "\">" + option[1] + "</button>";
   }).join("") + "</div>";
   if (state.sportsLoading && !events.length) return toggle + "<div class=\"empty\">Loading scores...</div>";
-  return toggle + renderSportsScoreboard(events, {});
+  const groups = sportsScoreboardGroups(events);
+  const order = sportsScoreboardLeagueOrder(groups);
+  if (!order.length) return toggle + emptyStateHTML("No games right now.", "Scores show up here as games start.");
+  const selected = groups[state.sportsScoresLeague] ? state.sportsScoresLeague : order[0];
+  const picker = "<div class=\"sports-league-picker\" role=\"group\" aria-label=\"Leagues\">" + order.map(function(id) {
+    const group = groups[id];
+    const active = id === selected;
+    return "<button type=\"button\" class=\"chip" + (active ? " active" : "") + "\" data-sports-scores-league=\"" + escapeHTML(id) + "\" aria-pressed=\"" + (active ? "true" : "false") + "\">" + (group.live ? "<span class=\"sports-league-live\" aria-label=\"Live\"></span>" : "") + escapeHTML(group.name) + "<small>" + escapeHTML(String(group.events.length)) + "</small></button>";
+  }).join("") + "</div>";
+  return "<div class=\"sports-scores-controls\">" + toggle + picker + "</div>" + "<div class=\"sports-scores-league\">" + renderSportsScoreboard(events, { leagueID: selected }) + "</div>";
 }
 
 function renderSportsTeamsTab(payload) {
@@ -621,6 +640,15 @@ document.addEventListener("click", function(event) {
   if (highlightClose) {
     event.preventDefault();
     closeSportsHighlight();
+    return;
+  }
+  const scoresLeague = event.target.closest && event.target.closest("[data-sports-scores-league]");
+  if (scoresLeague) {
+    event.preventDefault();
+    state.sportsScoresLeague = scoresLeague.getAttribute("data-sports-scores-league");
+    renderSportsPage();
+    const scroller = document.querySelector(".sports-score-scroll");
+    if (scroller) scroller.scrollTop = 0;
     return;
   }
   const leagueToggle = event.target.closest && event.target.closest("[data-sports-league-toggle]");
