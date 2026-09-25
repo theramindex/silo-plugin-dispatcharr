@@ -4462,8 +4462,8 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 			t.Fatalf("media-first event cards must preserve available event data and interaction %q", want)
 		}
 	}
-	if !strings.Contains(eventCard, `const media = artwork ?`) || !strings.Contains(eventCard, `: ""`) {
-		t.Fatal("event cards without real artwork must omit the media region")
+	if !strings.Contains(eventCard, `event-card-media`) || !strings.Contains(eventCard, `event-card-media-fallback`) {
+		t.Fatal("event cards must keep a poster region for artwork and no-art fallbacks")
 	}
 	eventShelf := functionBody("renderBroadcastEventShelf")
 	for _, want := range []string{`countLabel`, `events.length === 1`, `event-shelf-rail`} {

@@ -429,7 +429,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .on-later-shelf > header span, .event-shelf > header span { color: var(--muted); font-size: 0.72rem; font-weight: 700; }
 .on-later-shelf-rail, .event-shelf-rail { display: grid; grid-auto-flow: column; gap: 0.7rem; min-width: 0; overflow-x: auto; overscroll-behavior-inline: contain; scroll-snap-type: inline proximity; scrollbar-width: thin; padding: 0.05rem 0 0.35rem; }
 .on-later-shelf-rail { grid-auto-columns: clamp(16.5rem, 25vw, 21rem); }
-.event-shelf-rail { grid-auto-flow: row; grid-template-columns: repeat(auto-fill, minmax(min(18rem, 100%), 1fr)); align-items: start; overflow: visible; scroll-snap-type: none; padding-bottom: 0; }
+.event-shelf-rail { grid-auto-flow: row; grid-template-columns: repeat(auto-fill, minmax(min(18rem, 100%), 1fr)); align-items: stretch; overflow: visible; scroll-snap-type: none; padding-bottom: 0; }
 .on-later-program-card { min-width: 0; overflow: hidden; scroll-snap-align: start; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--panel); color: var(--text); }
 .on-later-program-open { width: 100%; min-width: 0; display: grid; border: 0; background: transparent; color: inherit; padding: 0; text-align: left; }
 .on-later-card-media { position: relative; aspect-ratio: 4 / 3; min-width: 0; display: grid; place-items: center; overflow: hidden; border-bottom: 1px solid var(--line); background: #11141a; }
@@ -577,9 +577,13 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-card.final { background: color-mix(in srgb, var(--panel) 90%, var(--rail-2)); }
 .sports-channel small { color: var(--muted); font-size: 0.7rem; font-weight: 700; }
 .sports-league-pill { width: max-content; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.38rem; background: var(--rail-2); }
-.event-card { grid-template-areas: "visual" "body" "channels"; gap: 0; padding: 0; overflow: hidden; }
+.event-card { grid-template-areas: "visual" "body" "channels"; grid-template-rows: auto minmax(0, 1fr) auto; gap: 0; padding: 0; overflow: hidden; height: 100%; }
 .event-card-visual { grid-area: visual; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent); background: #171b22; }
 .event-card-media { aspect-ratio: 16 / 9; min-width: 0; min-height: 0; display: grid; place-items: center; overflow: hidden; border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent); background: #11141a; color: var(--muted); }
+.event-card-media.no-art { background:
+  radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 58%),
+  linear-gradient(180deg, #1b2028 0%, #11141a 100%); }
+.event-card-media > img[hidden] { display: none; }
 .event-card-media > img { width: 100%; height: 100%; object-fit: cover; }
 .event-card-media-fallback { width: 100%; height: 100%; display: grid; place-items: center; padding: 1rem; }
 .event-card-media-fallback[hidden] { display: none; }
@@ -587,8 +591,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .event-card-media-fallback .logo-fallback { display: grid; place-items: center; color: rgba(255,255,255,0.76); font-size: 1.05rem; font-weight: 700; }
 .event-card-media-fallback .logo-fallback[hidden] { display: none; }
 .event-card-media-fallback > svg { width: 2.4rem; height: 2.4rem; opacity: 0.72; }
-.event-card.no-art .event-card-visual { background: var(--rail-2); }
-.event-card.no-art .event-card-head { padding-top: 0.85rem; }
+.event-card.no-art .event-card-visual { background: #171b22; }
 .event-card-head { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "category status feature" "title title title"; align-content: start; align-items: center; column-gap: 0.55rem; row-gap: 0.42rem; padding: 0.75rem 0.85rem 0.85rem; }
 .event-card-category { grid-area: category; width: max-content; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 0.68rem; font-weight: 700; text-transform: uppercase; }
 .event-card-status { grid-area: status; color: var(--muted); font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
@@ -604,12 +607,11 @@ button { cursor: pointer; touch-action: manipulation; }
 .event-card-body.no-art { grid-template-columns: minmax(0, 1fr); }
 .event-card .event-card-body { grid-area: body; padding: 0.75rem 0.85rem; }
 .event-details { min-width: 0; display: grid; align-content: start; gap: 0.5rem; }
-.event-details p { margin: 0; color: var(--muted); font-size: 0.82rem; font-weight: 700; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.event-details p { margin: 0; color: var(--muted); font-size: 0.82rem; font-weight: 600; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.7em; }
 .event-meta { display: flex; flex-wrap: wrap; gap: 0.35rem; min-width: 0; }
 .event-later-airings { margin: 0.45rem 0 0; color: var(--muted); font-size: 0.75rem; }
-.event-filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; min-width: 0; }
-.event-filter-bar .sports-leagues { padding-left: 0.9rem; border-left: 1px solid var(--line); }
-@media (max-width: 720px) { .event-filter-bar .sports-leagues { padding-left: 0; border-left: 0; } }
+.event-filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem 0.7rem; min-width: 0; }
+.event-filter-bar .sports-leagues { padding: 0; border: 0; }
 .event-meta span { border: 1px solid var(--line); border-radius: 999px; background: var(--rail-2); color: var(--muted); padding: 0.16rem 0.44rem; font-size: 0.68rem; font-weight: 700; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .event-meta .event-keyword { color: var(--text); }
 .event-card > .sports-channels { justify-content: stretch; padding: 0; border-top: 1px solid color-mix(in srgb, var(--line) 72%, transparent); }
