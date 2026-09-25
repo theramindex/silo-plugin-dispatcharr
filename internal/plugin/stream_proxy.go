@@ -29,13 +29,27 @@ type streamTicket struct {
 	ExpiresAt time.Time
 }
 
+// Browsers must load public provider URLs without Silo credentials: a
+// credentialed request that follows a redirect to a provider answering
+// Access-Control-Allow-Origin "*" is rejected by CORS.
+type resolvedStream struct {
+	URL string `json:"url"`
+}
+
 func (s *HTTPRoutesServer) serveProviderStream(ctx context.Context, streamURL string, request *pluginv1.HandleHTTPRequest) *pluginv1.HandleHTTPResponse {
 	streamURL = appendPlaybackQuery(streamURL, request)
 	settings := config.Settings{}
 	if s.settingsProvider != nil {
 		settings = s.settingsProvider()
 	}
-	if streamURLExposesSecrets(streamURL, settings) {
+	exposesSecrets := streamURLExposesSecrets(streamURL, settings)
+	if strings.EqualFold(strings.TrimSpace(queryValue(request, "resolve")), "json") {
+		if exposesSecrets {
+			return jsonHTTPResponse(http.StatusOK, resolvedStream{})
+		}
+		return jsonHTTPResponse(http.StatusOK, resolvedStream{URL: streamURL})
+	}
+	if exposesSecrets {
 		return s.proxyProviderMedia(ctx, streamURL)
 	}
 	return redirectResponse(streamURL)

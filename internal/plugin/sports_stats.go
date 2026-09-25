@@ -83,6 +83,7 @@ type SportsGameVideo struct {
 	Title     string `json:"title"`
 	Thumbnail string `json:"thumbnail,omitempty"`
 	URL       string `json:"url"`
+	Stream    string `json:"stream,omitempty"`
 }
 
 type espnAthleteRef struct {
@@ -643,16 +644,23 @@ func espnGameStats(event SportsEvent, summary espnStatsSummary) SportsGameStats 
 		result.Plays = append(result.Plays, SportsGamePlay{Text: text, Period: strings.TrimSpace(play.Period.DisplayValue), Clock: strings.TrimSpace(play.Clock.DisplayValue), Scoring: play.ScoringPlay})
 	}
 	for _, video := range summary.Videos {
-		link := firstNonEmpty(video.Links.Source.Href, video.Links.Web.Href)
+		stream := strings.TrimSpace(video.Links.Source.Href)
+		if !strings.HasPrefix(stream, "https://") {
+			stream = ""
+		}
+		link := strings.TrimSpace(video.Links.Web.Href)
+		if !strings.HasPrefix(link, "https://") {
+			link = stream
+		}
 		title := strings.TrimSpace(video.Headline)
-		if title == "" || !strings.HasPrefix(link, "https://") || len(result.Videos) >= 8 {
+		if title == "" || link == "" || len(result.Videos) >= 8 {
 			continue
 		}
 		thumbnail := video.Thumbnail
 		if !strings.HasPrefix(thumbnail, "https://") {
 			thumbnail = ""
 		}
-		result.Videos = append(result.Videos, SportsGameVideo{Title: title, Thumbnail: thumbnail, URL: link})
+		result.Videos = append(result.Videos, SportsGameVideo{Title: title, Thumbnail: thumbnail, URL: link, Stream: stream})
 	}
 	result.Available = (len(result.Rows) > 0 && (!baseball || result.Live || result.Completed)) || len(result.Plays) > 0 || len(result.Videos) > 0
 	if !result.Available {

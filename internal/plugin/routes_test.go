@@ -3588,6 +3588,43 @@ func TestHTTPRoutesServerStreamM3URoute(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerStreamResolveReturnsPublicURLAndHidesSecrets(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{
+		Catalog: model.CatalogState{
+			Source: model.LiveTVSource(model.SourceModeDirectLogin),
+			Channels: []model.Channel{
+				{ID: "direct:1", Name: "News HD", StreamURL: "https://dispatcharr.example.com/proxy/ts/stream/abc"},
+				{ID: "direct:2", Name: "Secret", StreamURL: "https://dispatcharr.example.com/live/demo/secret/2.ts"},
+			},
+		},
+	})
+	server := NewHTTPRoutesServer(store)
+	resolve := func(channelID string) string {
+		t.Helper()
+		query, _ := structpb.NewStruct(map[string]any{"channel_id": channelID, "resolve": "json"})
+		response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/stream", Query: query})
+		if err != nil || response.GetStatusCode() != http.StatusOK {
+			t.Fatalf("resolve %s: status %d err %v", channelID, response.GetStatusCode(), err)
+		}
+		var payload struct {
+			URL string `json:"url"`
+		}
+		if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+			t.Fatalf("decode resolve payload: %v", err)
+		}
+		return payload.URL
+	}
+	if got := resolve("direct:1"); got != "https://dispatcharr.example.com/proxy/ts/stream/abc" {
+		t.Fatalf("public stream must resolve to the provider URL, got %q", got)
+	}
+	if got := resolve("direct:2"); got != "" {
+		t.Fatalf("credential-bearing stream must stay behind the proxy, got %q", got)
+	}
+}
+
 func TestHTTPRoutesServerStreamXtreamRoute(t *testing.T) {
 	t.Parallel()
 
@@ -4319,8 +4356,14 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		t.Fatal("Xtream output profiles must not be applied to Dispatcharr Direct streams")
 	}
 	attachVideoSource := functionBody("attachVideoSource")
-	for _, want := range []string{`liveHLSOptions`, `Hls.ErrorTypes.NETWORK_ERROR`, `startLoad()`, `Hls.ErrorTypes.MEDIA_ERROR`, `recoverMediaError()`, `managedTimeShift`, `xhrSetup`, `coreMediaRequestHeaders`, `mpegts.Events.ERROR`} {
+	for _, want := range []string{`isPluginStreamRoute(url)`, `resolvePlayableStreamURL(url)`, `attachment.cancelled`} {
 		if !strings.Contains(attachVideoSource, want) {
+			t.Fatalf("plugin stream routes must be resolved before loading, missing %q", want)
+		}
+	}
+	startVideoSource := functionBody("startVideoSource")
+	for _, want := range []string{`liveHLSOptions`, `Hls.ErrorTypes.NETWORK_ERROR`, `startLoad()`, `Hls.ErrorTypes.MEDIA_ERROR`, `recoverMediaError()`, `managedTimeShift`, `xhrSetup`, `coreMediaRequestHeaders`, `mpegts.Events.ERROR`} {
+		if !strings.Contains(startVideoSource, want) {
 			t.Fatalf("HLS playback resilience must include %q", want)
 		}
 	}
