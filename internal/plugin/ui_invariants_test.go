@@ -65,6 +65,26 @@ func TestMyTVFollowedSportsEventsCollapsesSwappedCollegeListings(t *testing.T) {
 	}
 }
 
+func TestSportsYourTeamsPutsLiveTeamsFirst(t *testing.T) {
+	t.Parallel()
+	result := runUIInvariantScript(t, []string{
+		`state.app = { preferences: defaultPrefs() };`,
+		`state.app.preferences.sportsFavoriteTeams["gamepass:nba:new-york-knicks"] = true;`,
+		`state.app.preferences.sportsFavoriteTeams["gamepass:mlb:washington-nationals"] = true;`,
+		`const now = Math.floor(Date.now() / 1000);`,
+		`const payload = { events: [
+		  { leagueId:"nba", leagueName:"NBA", startUnix: now + 86400, status:"scheduled", away:{name:"Boston Celtics"}, home:{name:"New York Knicks"} },
+		  { leagueId:"mlb", leagueName:"MLB", startUnix: now - 600, live:true, status:"live", channels:[{id:"masn"}], away:{name:"New York Mets"}, home:{name:"Washington Nationals"} }
+		] };`,
+		`const names = sportsFollowedHubTeams(payload).map(function(entry) { return sportsTeamName(entry.team); });`,
+		`const html = renderSportsYourTeams(payload);`,
+		`globalThis.__result = { stableResults: names[0] === "Washington Nationals" && names[1] === "New York Knicks" && html.indexOf("Washington Nationals") < html.indexOf("New York Knicks") };`,
+	})
+	if !result.StableResults {
+		t.Fatal("Your teams must list a live club ahead of teams that are not playing")
+	}
+}
+
 func TestSportsYourTeamsCollapsesSameClubAcrossLeagues(t *testing.T) {
 	t.Parallel()
 	result := runUIInvariantScript(t, []string{
