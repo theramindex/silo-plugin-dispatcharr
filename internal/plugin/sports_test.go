@@ -51,8 +51,9 @@ func TestSportsPayloadKeepsGuideMatchedScoresAfterDeadline(t *testing.T) {
 	if withImages[0].Home.LogoURL != payload.Events[0].Home.LogoURL {
 		t.Fatal("public college identity logos must stay usable when provider scores arrive")
 	}
-	if payload.Events[0].LeagueName != "College Football" || payload.Events[0].Home.ID != stableSportsTeamID(SportsTeam{Name: "Michigan", Abbreviation: "M"}) || payload.Events[0].Home.LogoURL == "" {
-		t.Fatal("provider scores must preserve guide college identity and saved passes")
+	wantID := stableSportsTeamID(SportsTeam{Name: "Michigan", Abbreviation: "M"})
+	if payload.Events[0].LeagueName != "College Football" || payload.Events[0].Home.ID != wantID || payload.Events[0].Home.LogoURL == "" {
+		t.Fatalf("provider scores must preserve guide college identity and saved passes: league=%q id=%q wantID=%q logo=%q", payload.Events[0].LeagueName, payload.Events[0].Home.ID, wantID, payload.Events[0].Home.LogoURL)
 	}
 	matches, _ := index.MatchDetailedContext(ctx, payload.Events[0])
 	if len(matches) != 0 {
@@ -1272,6 +1273,100 @@ func TestMergeSportsGuideEventsMarksLaterCompletedMatchupAiringAsReplay(t *testi
 	}
 	if merged[1].Status != "replay" || merged[1].StatusText != "Replay" || !merged[1].Live {
 		t.Fatalf("expected later same-matchup airing to be identified as replay, got %+v", merged[1])
+	}
+}
+
+func TestMergeSportsGuideEventsCollapsesCityOnlyTeamNames(t *testing.T) {
+	t.Parallel()
+
+	start := time.Date(2026, time.September, 25, 15, 0, 0, 0, time.UTC).Unix()
+	provider := SportsEvent{
+		ID: "sportarr:mlb", LeagueID: "mlb", LeagueName: "MLB", SportName: "Baseball",
+		Name: "Tampa Bay Rays at New York Yankees",
+		Away: SportsTeam{Name: "Tampa Bay Rays"}, Home: SportsTeam{Name: "New York Yankees"},
+		StartUnix: start, Status: "scheduled",
+	}
+	guide := SportsEvent{
+		ID: "epg:mlb", LeagueID: "sports", LeagueName: "Sports",
+		Name: "Tampa Bay @ New York Yankees",
+		Away: SportsTeam{Name: "Tampa Bay"}, Home: SportsTeam{Name: "New York Yankees"},
+		StartUnix: start + 60, Live: true, Status: "airing", StatusText: "On now",
+		Channels: []SportsChannelMatch{{ID: "channel:yes", Name: "YES"}},
+	}
+
+	merged := mergeSportsGuideEvents([]SportsEvent{provider}, []SportsEvent{guide})
+	if len(merged) != 1 {
+		t.Fatalf("expected one Yankees/Rays game, got %+v", merged)
+	}
+	if merged[0].Away.Name != "Tampa Bay Rays" || merged[0].Home.Name != "New York Yankees" {
+		t.Fatalf("expected canonical Rays and Yankees names, got %+v", merged[0])
+	}
+	if len(merged[0].Channels) != 1 || merged[0].Channels[0].ID != "channel:yes" {
+		t.Fatalf("expected the EPG channel to attach to the provider game, got %+v", merged[0].Channels)
+	}
+
+	ambiguous := mergeSportsGuideEvents([]SportsEvent{{
+		ID: "sportarr:nhl", LeagueID: "nhl", Name: "Tampa Bay Lightning at New York Rangers",
+		Away: SportsTeam{Name: "Tampa Bay Lightning"}, Home: SportsTeam{Name: "New York Rangers"},
+		StartUnix: start,
+	}}, []SportsEvent{guide})
+	if len(ambiguous) != 2 {
+		t.Fatalf("city-only New York/Tampa Bay must not absorb a different New York/Tampa Bay club, got %+v", ambiguous)
+	}
+}
+
+func TestMergeSportsGuideEventsCollapsesSwappedCollegeListings(t *testing.T) {
+	t.Parallel()
+
+	kickoff := time.Date(2026, time.September, 26, 19, 30, 0, 0, time.UTC).Unix()
+	epgBlock := time.Date(2026, time.September, 25, 17, 0, 0, 0, time.UTC).Unix()
+	provider := SportsEvent{
+		ID: "sportarr:cfb", LeagueID: "college-football", LeagueName: "College Football", SportName: "Football",
+		Name:      "Iowa at Michigan",
+		Away:      SportsTeam{Name: "Iowa", LogoURL: "https://example/iowa.png"},
+		Home:      SportsTeam{Name: "Michigan", LogoURL: "https://example/michigan.png"},
+		StartUnix: kickoff, Status: "scheduled",
+	}
+	guide := SportsEvent{
+		ID: "epg:cfb", LeagueID: "sports", LeagueName: "NCAA Division 1",
+		Name: "Michigan at Iowa",
+		Away: SportsTeam{Name: "Michigan"}, Home: SportsTeam{Name: "Iowa"},
+		StartUnix: epgBlock, Status: "scheduled",
+		Channels: []SportsChannelMatch{{ID: "channel:espn", Name: "ESPN"}},
+	}
+
+	merged := mergeSportsGuideEvents([]SportsEvent{provider}, []SportsEvent{guide})
+	if len(merged) != 1 {
+		t.Fatalf("Iowa at Michigan and Michigan at Iowa are the same game, got %+v", merged)
+	}
+	if merged[0].Away.Name != "Iowa" || merged[0].Home.Name != "Michigan" {
+		t.Fatalf("expected Iowa at Michigan, got away=%q home=%q", merged[0].Away.Name, merged[0].Home.Name)
+	}
+	if merged[0].StartUnix != kickoff {
+		t.Fatalf("expected Saturday kickoff %d, got %d", kickoff, merged[0].StartUnix)
+	}
+	if len(merged[0].Channels) != 1 || merged[0].Channels[0].ID != "channel:espn" {
+		t.Fatalf("expected the EPG channel to attach, got %+v", merged[0].Channels)
+	}
+
+	guideFirst := collapseEquivalentSportsEvents([]SportsEvent{guide, provider})
+	if len(guideFirst) != 1 || guideFirst[0].Away.Name != "Iowa" || guideFirst[0].Home.Name != "Michigan" || guideFirst[0].StartUnix != kickoff {
+		t.Fatalf("the richer listing must win even when the EPG row arrives first, got %+v", guideFirst)
+	}
+
+	friday := SportsEvent{
+		ID: "sportarr:mlb-fri", LeagueID: "mlb", Name: "Tampa Bay Rays at New York Yankees",
+		Away: SportsTeam{Name: "Tampa Bay Rays"}, Home: SportsTeam{Name: "New York Yankees"},
+		StartUnix: epgBlock, Status: "scheduled",
+	}
+	saturday := SportsEvent{
+		ID: "sportarr:mlb-sat", LeagueID: "mlb", Name: "Tampa Bay Rays at New York Yankees",
+		Away: SportsTeam{Name: "Tampa Bay Rays"}, Home: SportsTeam{Name: "New York Yankees"},
+		StartUnix: kickoff, Status: "scheduled",
+	}
+	series := mergeSportsGuideEvents([]SportsEvent{friday}, []SportsEvent{saturday})
+	if len(series) != 2 {
+		t.Fatalf("same-home MLB series games on consecutive days must stay separate, got %+v", series)
 	}
 }
 

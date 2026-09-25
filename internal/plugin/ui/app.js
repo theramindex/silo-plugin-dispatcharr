@@ -3074,9 +3074,72 @@ function myTVFollowedLeagues() {
 }
 function myTVFollowedSportsEvents() {
   const now = Math.floor(Date.now() / 1000);
-  return items(state.sports && state.sports.events).filter(function(event) {
+  return collapseEquivalentSportsEvents(items(state.sports && state.sports.events).filter(function(event) {
     return sportsEventIsFollowed(event) && (!event.completed || Number(event.endUnix || 0) >= now - 3 * 3600);
-  }).sort(compareSportsEventsForTab).slice(0, 18);
+  })).sort(compareSportsEventsForTab).slice(0, 18);
+}
+function sportsTeamNameWords(name) {
+  return String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean);
+}
+function sportsTeamNameMatch(left, right) {
+  const leftWords = sportsTeamNameWords(left);
+  const rightWords = sportsTeamNameWords(right);
+  if (!leftWords.length || !rightWords.length) return { ok: false, strong: false };
+  if (leftWords.join(" ") === rightWords.join(" ")) return { ok: true, strong: true };
+  const prefix = function(shortWords, longWords) {
+    return shortWords.length < longWords.length && shortWords.every(function(word, index) { return word === longWords[index]; });
+  };
+  if (prefix(leftWords, rightWords) || prefix(rightWords, leftWords)) {
+    const shorter = leftWords.length < rightWords.length ? leftWords : rightWords;
+    if (shorter.length === 1 && shorter[0].length >= 4) return { ok: true, strong: true };
+    if (shorter.length >= 2) return { ok: true, strong: false };
+  }
+  const leftNick = leftWords[leftWords.length - 1];
+  const rightNick = rightWords[rightWords.length - 1];
+  if (leftNick.length >= 4 && leftNick === rightNick) return { ok: true, strong: true };
+  return { ok: false, strong: false };
+}
+function sportsTeamPairsSwapped(left, right) {
+  const sameSides = sportsTeamNameMatch((left.home || {}).name, (right.home || {}).name).ok && sportsTeamNameMatch((left.away || {}).name, (right.away || {}).name).ok;
+  if (sameSides) return false;
+  const homeAway = sportsTeamNameMatch((left.home || {}).name, (right.away || {}).name);
+  const awayHome = sportsTeamNameMatch((left.away || {}).name, (right.home || {}).name);
+  return homeAway.ok && awayHome.ok && (homeAway.strong || awayHome.strong);
+}
+function sportsEventsSameMatchup(left, right) {
+  const leftStart = Number(left && left.startUnix || 0);
+  const rightStart = Number(right && right.startUnix || 0);
+  if (leftStart && rightStart) {
+    const window = sportsTeamPairsSwapped(left, right) ? 36 * 3600 : 6 * 3600;
+    if (Math.abs(leftStart - rightStart) > window) return false;
+  }
+  return sportsTeamPairsSwapped(left, right) || (
+    sportsTeamNameMatch((left.home || {}).name, (right.home || {}).name).ok && sportsTeamNameMatch((left.away || {}).name, (right.away || {}).name).ok &&
+    (sportsTeamNameMatch((left.home || {}).name, (right.home || {}).name).strong || sportsTeamNameMatch((left.away || {}).name, (right.away || {}).name).strong)
+  );
+}
+function sportsEventListingRank(event) {
+  let rank = 0;
+  if (event.leagueId && event.leagueId !== "sports") rank += 4;
+  if ((event.home || {}).logoUrl) rank += 2;
+  if ((event.away || {}).logoUrl) rank += 2;
+  rank += sportsTeamNameWords((event.home || {}).name).join("").length + sportsTeamNameWords((event.away || {}).name).join("").length;
+  if ((event.artwork && (event.artwork.backdrop || event.artwork.poster)) || event.imageUrl) rank += 3;
+  return rank;
+}
+function collapseEquivalentSportsEvents(events) {
+  const collapsed = [];
+  items(events).forEach(function(event) {
+    const index = collapsed.findIndex(function(existing) { return sportsEventsSameMatchup(existing, event); });
+    if (index === -1) {
+      collapsed.push(event);
+      return;
+    }
+    const extra = collapsed[index];
+    collapsed[index] = sportsEventListingRank(event) > sportsEventListingRank(extra) ? event : extra;
+    collapsed[index].channels = uniqueEventChannels([].concat(items(collapsed[index].channels), items(event.channels), items(extra.channels)));
+  });
+  return collapsed;
 }
 function myTVFeaturedEvents() {
   const followed = Object.assign({}, adminFeaturedEventMap(), featuredEventMap());
@@ -3661,7 +3724,7 @@ function renderSportsBrowse(payload, events) {
   topMatchups.forEach(function(event) { topIDs[sportsEventStateID(event)] = true; });
   const remaining = events.filter(function(event) { return (!featured || sportsEventStateID(event) !== sportsEventStateID(featured)) && !topIDs[sportsEventStateID(event)]; });
   const loading = state.sportsLoading || !!(payload && payload.refreshing) || (state.sportsTab === "replays" && state.sportsReplaysLoading);
-  const eventBody = remaining.length ? "<div class=\"sports-event-grid\">" + remaining.map(renderSportsEventTile).join("") + "</div>" : (!featured ? (loading ? "<div class=\"empty\">Loading sports...</div>" : emptyStateHTML(sportsEmptyTitle(state.sportsTab), "Sports appear here when your channels carry a matching game.")) : "");
+  const eventBody = remaining.length ? "<div class=\"sports-event-grid\">" + remaining.map(renderSportsEventTile).join("") + "</div>" : (!featured ? (loading ? "<div class=\"empty\">Loading sports...</div>" : emptyStateHTML(sportsEmptyTitle(state.sportsTab), sportsEmptyDetail(state.sportsTab))) : "");
   return "<div class=\"sports-pinned\">" + renderSportsTabFilters(payload) + "</div>"
     + "<div class=\"sports-score-scroll sports-browse\">"
     + (featured ? renderSportsFeature(featured) : "")
@@ -3672,6 +3735,14 @@ function renderSportsBrowse(payload, events) {
 }
 function sportsEmptyTitle(tab) {
   return ({ live: "Nothing live right now.", upcoming: "No upcoming games on your channels.", replays: "No replays yet.", favorites: "Nothing on for the teams you follow." })[tab] || "No games on your channels.";
+}
+function sportsEmptyDetail(tab) {
+  return ({
+    live: "Live games show up here when one of your channels is carrying them.",
+    upcoming: "Upcoming games show up here when they're listed on your live channels.",
+    replays: "Replays come from your Silo Sports library, not live TV or replay channels.",
+    favorites: "Games for teams you follow show up here when they're on your channels."
+  })[tab] || "Games show up here when they're on your live channels.";
 }
 function sportsMoreEventsTitle(tab) {
   return ({ live: "More live games", upcoming: "More upcoming games", replays: "More replays", favorites: "More from your teams" })[tab] || "More games";
@@ -4253,13 +4324,13 @@ function filteredSportsEvents(payload) {
   const now = Math.floor(Date.now() / 1000);
   const tab = sportsHubTab(state.sportsTab);
   const sourceEvents = items(payload && payload.events).concat(tab === "replays" ? items(state.sportsReplayStandaloneEvents) : []);
-  return sourceEvents.filter(function(event) {
+  return collapseEquivalentSportsEvents(sourceEvents.filter(function(event) {
     if (state.sportsLeague && event.leagueId !== state.sportsLeague) return false;
     if (tab === "replays") return sportsReplayMatchesForEvent(event).length > 0;
     if (tab === "teams") return sportsEventIsFollowed(event);
     const startUnix = Number(event.startUnix || 0);
     return !event.completed || startUnix >= now - 30 * 3600;
-  }).sort(compareSportsEventsForTab);
+  })).sort(compareSportsEventsForTab);
 }
 function sportsEventHasPlayableAccess(event) {
   return uniqueEventChannels(event && event.channels).length > 0 || sportsReplayMatchesForEvent(event).length > 0;
