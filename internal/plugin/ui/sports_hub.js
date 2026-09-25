@@ -133,7 +133,8 @@ function renderSportsHub(payload) {
   else if (tab === "teams") body = renderSportsTeamsTab(payload);
   else if (tab === "news") body = renderSportsNewsTab(payload);
   else body = renderSportsTodayTab(payload);
-  return "<div class=\"sports-pinned\">" + renderSportsTabFilters(payload) + "</div><div class=\"sports-score-scroll sports-browse sports-hub\">" + body + "</div>";
+  const filters = renderSportsTabFilters(payload);
+  return (filters ? "<div class=\"sports-pinned\">" + filters + "</div>" : "") + "<div class=\"sports-score-scroll sports-browse sports-hub\">" + body + "</div>";
 }
 
 function renderSportsTodayTab(payload) {
@@ -404,11 +405,14 @@ function renderSportsTeamPage(payload, key) {
   const newsBody = !summary ? "<div class=\"empty\">Loading news...</div>" : (summary.articles && summary.articles.length ? renderSportsNewsList(summary.articles, 8) : emptyStateHTML("No recent news.", summary.message || ""));
   return "<div class=\"sports-pinned sports-detail-toolbar\"><button type=\"button\" class=\"sports-back\" data-sports-back=\"browse\">" + icon("arrow-left") + "<span>Sports</span></button></div>"
     + "<div class=\"sports-score-scroll sports-team-page\">" + header
+    + "<div class=\"sports-split\"><div class=\"sports-split-main\">"
     + sportsSectionHTML(next && sportsEventIsLive(next) ? "Live now" : "Next game", "", nextBody, "sports-team-next-section")
-    + sportsSectionHTML("Recent results", "", games.recent.length ? "<div class=\"sports-scoreboard-rows\">" + games.recent.slice(0, 5).map(renderSportsScoreRow).join("") + "</div>" : "", "sports-team-results-section")
     + sportsSectionHTML("Coming up", "", scheduleRows ? "<div class=\"sports-scoreboard-rows\">" + scheduleRows + "</div>" : "", "sports-team-schedule-section")
+    + sportsSectionHTML("Recent results", "", games.recent.length ? "<div class=\"sports-scoreboard-rows\">" + games.recent.slice(0, 5).map(renderSportsScoreRow).join("") + "</div>" : "", "sports-team-results-section")
+    + "</div><aside class=\"sports-split-side\">"
     + renderSportsStandings(entry.leagueID, { team: sportsTeamName(team), groupOnly: true })
-    + sportsSectionHTML("News", "", newsBody, "sports-news-section") + "</div>";
+    + sportsSectionHTML("News", "", newsBody, "sports-news-section compact")
+    + "</aside></div></div>";
 }
 
 function sportsTeamSummaryFor(entry) {
@@ -547,7 +551,12 @@ function renderSportsAppHeader() {
     return "<button type=\"button\" class=\"sports-header-team" + (status.live ? " live" : "") + (active ? " active" : "") + "\" data-sports-team-open=\"" + escapeHTML(entry.key) + "\" aria-label=\"" + escapeHTML(label) + "\" title=\"" + escapeHTML(label) + "\"" + (active ? " aria-current=\"page\"" : "") + ">" + renderSportsTeamLogo(entry.team, "sports-header-team-logo") + "</button>";
   }).join("");
   const add = "<button type=\"button\" class=\"sports-header-team sports-header-add\" data-sports-tab=\"teams\" aria-label=\"Follow teams\" title=\"Follow teams\">" + icon("plus") + "</button>";
-  return "<nav class=\"nav topnav sports-app-nav\" aria-label=\"Sports sections\">" + tabs + "</nav><div class=\"sports-header-teams\" role=\"group\" aria-label=\"Your teams\">" + teams + add + "</div>";
+  const payload = state.sports || {};
+  const refreshing = state.sportsLoading || !!payload.refreshing || state.sportsReplaysLoading;
+  const replayStatus = sportsReplayStatusLabel();
+  const refreshLabel = (refreshing ? "Refreshing scores" : "Refresh scores") + " · Data by " + sportsDataSourceLabel(payload) + (replayStatus ? " · " + replayStatus : "");
+  const refresh = "<button type=\"button\" class=\"topbar-icon sports-header-refresh" + (refreshing ? " is-loading" : "") + "\" data-sports-refresh=\"true\" aria-label=\"" + escapeHTML(refreshLabel) + "\" title=\"" + escapeHTML(refreshLabel) + "\"" + (refreshing ? " disabled aria-busy=\"true\"" : "") + ">" + icon(refreshing ? "loader" : "refresh") + "</button>";
+  return "<nav class=\"nav topnav sports-app-nav\" aria-label=\"Sports sections\">" + tabs + "</nav><div class=\"sports-header-teams\" role=\"group\" aria-label=\"Your teams\">" + teams + add + "</div>" + refresh;
 }
 
 function openSportsTeam(key) {

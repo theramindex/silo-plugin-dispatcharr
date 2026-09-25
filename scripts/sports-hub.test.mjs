@@ -69,13 +69,14 @@ test('team pages group a team\'s games and describe results from its side', () =
 });
 
 test('the standalone Sports header carries sections and followed team shortcuts', () => {
-  const ctx = context({ myTVFollowedPeople: () => [{ id: 'gamepass:mlb:new-york-mets', name: 'New York Mets', leagueName: 'MLB' }] });
+  const ctx = context({ myTVFollowedPeople: () => [{ id: 'gamepass:mlb:new-york-mets', name: 'New York Mets', leagueName: 'MLB' }], sportsReplayStatusLabel: () => '', sportsDataSourceLabel: () => 'Sportarr' });
   ctx.state.sports = { leagues: [], events: [] };
   ctx.state.sportsTab = 'scores';
   const html = ctx.renderSportsAppHeader();
   assert.match(html, /data-sports-tab="scores" class="active" aria-current="page">Scores/);
   assert.match(html, /data-sports-team-open="mlb~new-york-mets"/);
   assert.match(html, /aria-label="Follow teams"/);
+  assert.match(html, /data-sports-refresh="true" aria-label="Refresh scores · Data by Sportarr"/);
   ctx.state.sportsTeam = 'mlb~new-york-mets';
   const onTeam = ctx.renderSportsAppHeader();
   assert.doesNotMatch(onTeam, /class="active" aria-current="page">Scores/);

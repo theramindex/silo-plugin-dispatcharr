@@ -122,6 +122,8 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-header-team.active { box-shadow: 0 0 0 2px var(--text); border-color: transparent; }
 .sports-header-team-logo { width: 100%; height: 100%; object-fit: contain; display: grid; place-items: center; font-size: 0.55rem; font-weight: 700; color: var(--text); }
 .sports-header-add svg { width: 1rem; height: 1rem; }
+.sports-header-refresh { flex: 0 0 auto; margin-left: auto; }
+.sports-header-refresh.is-loading svg { animation: spin 880ms linear infinite; }
 @media (max-width: 760px) {
   .shell.is-sports-app .sports-topbar-tabs { order: 3; flex-basis: 100%; overflow-x: auto; }
 }
@@ -631,8 +633,6 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-team-favorite.placeholder { opacity: 0; pointer-events: none; }
 .sports-team-heart { width: 2.75rem; min-width: 2.75rem; height: 2.75rem; min-height: 2.75rem; opacity: 1; flex: 0 0 auto; }
 .sports-team-heart svg { width: 1.1rem; height: 1.1rem; }
-.sports-tile-team-favorites .sports-team-heart:has(.sports-team-heart-label) { width: auto; gap: 0.3rem; padding: 0 0.7rem 0 0.6rem; border-radius: 999px; }
-.sports-team-heart .sports-team-heart-label { display: inline; font-size: 0.68rem; font-weight: 700; line-height: 1; }
 .sports-event-tile { position: relative; }
 .sports-tile-team-favorites { position: absolute; top: 0.35rem; left: 0.35rem; right: 0.35rem; display: flex; justify-content: space-between; pointer-events: none; }
 .sports-tile-team-favorites .sports-team-heart { pointer-events: auto; color: white; background: rgba(15,17,23,0.8); }
@@ -1051,6 +1051,24 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-team-channel-form button, .sports-team-channel-list button { min-height: 2.4rem; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2); color: var(--text); padding: 0 0.9rem; font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
 .sports-team-channel-list button { min-height: 2rem; width: 2rem; padding: 0; display: grid; place-items: center; }
 .sports-team-channel-list button svg { width: 0.9rem; height: 0.9rem; }
+.sports-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(19rem, 25rem); align-items: start; gap: 1.5rem 2rem; }
+.sports-split.single { grid-template-columns: minmax(0, 1fr); }
+.sports-split-main, .sports-split-side { min-width: 0; display: grid; align-content: start; gap: 1.5rem; }
+.sports-stats-section .sports-split-main, .sports-stats-section .sports-split-side { gap: 0.9rem; }
+.sports-split .sports-probables, .sports-split .sports-leaders, .sports-split .sports-plays, .sports-split .sports-situation { margin: 0; }
+.sports-split-side .sports-probables, .sports-split-side .sports-leaders > div, .sports-split-side .sports-standings-grid, .sports-split-side .sports-news-list { grid-template-columns: minmax(0, 1fr); }
+.sports-split-side .sports-leader { grid-template-columns: minmax(0, 1fr) auto; column-gap: 0.75rem; align-items: baseline; }
+.sports-split-side .sports-leader small { grid-column: 1 / -1; }
+.sports-split-side .sports-leader em { text-align: right; }
+.sports-split-side .sports-news-item img { width: 5.5rem; }
+.sports-split-side .sports-news-item p { display: none; }
+.sports-team-page .sports-split-main .sports-event-grid { grid-template-columns: minmax(0, 34rem); }
+.sports-stats-section .sports-split-main .sports-stats-table { max-width: 44rem; }
+.sports-scoreboard { display: block; columns: 23rem; column-gap: 0.75rem; }
+.sports-scoreboard-league { break-inside: avoid; margin-bottom: 0.75rem; }
+@media (max-width: 1100px) {
+  .sports-split { grid-template-columns: minmax(0, 1fr); }
+}
 @media (max-width: 700px) {
   .sports-score-record span { display: none; }
   .sports-your-teams-empty { flex-direction: column; align-items: flex-start; }
