@@ -838,8 +838,8 @@ func TestSportsEventsFromGuideCleansPromoMetadataAndRejectsNonSportsShows(t *tes
 		t.Fatalf("expected live annotation removed from the event and team names, got %+v", soccer)
 	}
 
-	nextGame := byName[programs[3].Title]
-	if nextGame.Away.Name != "Boston Red Sox" || nextGame.Home.Name != "Miami Marlins" || nextGame.Live || nextGame.Status != "scheduled" || nextGame.StatusText != "Upcoming" {
+	nextGame := byName["Boston Red Sox @ Miami Marlins"]
+	if nextGame.Away.Name != "Boston Red Sox" || nextGame.Home.Name != "Miami Marlins" || nextGame.Live || nextGame.Status != "scheduled" || nextGame.StatusText != "Upcoming" || time.Unix(nextGame.StartUnix, 0).UTC().Format("15:04") != "22:40" {
 		t.Fatalf("expected Next Game promo to parse as an upcoming matchup, got %+v", nextGame)
 	}
 

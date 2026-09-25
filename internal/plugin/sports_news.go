@@ -159,19 +159,23 @@ func sportsStandingsColumns(path string) [][2]string {
 	}
 }
 
-func (cache *sportsNewsCache) standings(ctx context.Context, leagueID string, league espnSportsLeague) SportsStandingsPayload {
+func (cache *sportsNewsCache) standings(ctx context.Context, leagueID string, league espnSportsLeague, divisions bool) SportsStandingsPayload {
 	payload := SportsStandingsPayload{LeagueID: leagueID, LeagueName: league.Name, Columns: []string{}, Groups: []SportsStandingsGroup{}}
 	columns := sportsStandingsColumns(league.Path)
 	if columns == nil {
 		payload.Message = "Standings aren't available for this league."
 		return payload
 	}
-	key := "standings|" + league.Path
+	path := league.Path + "/standings"
+	if divisions {
+		path += "?level=3"
+	}
+	key := "standings|" + path
 	if value, ok := cache.cached(key); ok {
 		return value.(SportsStandingsPayload)
 	}
 	var root espnStandingsNode
-	if err := cache.getStandings(ctx, league.Path+"/standings", &root); err != nil {
+	if err := cache.getStandings(ctx, path, &root); err != nil {
 		payload.Message = "Standings are unavailable right now."
 		return payload
 	}
@@ -297,7 +301,12 @@ func (s *HTTPRoutesServer) handleSportsStandings(ctx context.Context, request *p
 	if !s.sportsFeatureEnabled() || !ok {
 		return s.respondJSON(http.StatusOK, SportsStandingsPayload{LeagueID: leagueID, Columns: []string{}, Groups: []SportsStandingsGroup{}, Message: "Standings aren't available for this league."})
 	}
-	return s.respondJSON(http.StatusOK, s.sportsNews.standings(ctx, leagueID, league))
+	divisions := queryValue(request, "level") == "division"
+	payload := s.sportsNews.standings(ctx, leagueID, league, divisions)
+	if divisions && len(payload.Groups) == 0 {
+		payload = s.sportsNews.standings(ctx, leagueID, league, false)
+	}
+	return s.respondJSON(http.StatusOK, payload)
 }
 
 type espnTeam struct {

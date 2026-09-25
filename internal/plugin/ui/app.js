@@ -3822,7 +3822,7 @@ function renderSportsEventTile(event) {
 }
 function sportsTeamLabelAttrs(team) {
   team = team || {};
-  return ' data-sports-favorite-name="' + escapeHTML(team.name || "") + '" data-sports-favorite-abbr="' + escapeHTML(sportsTeamAbbreviation(team) || "") + '" data-sports-favorite-logo="' + escapeHTML(team.logoUrl || "") + '" data-sports-favorite-league-name="' + escapeHTML(team.leagueName || "") + '"';
+  return ' data-sports-favorite-name="' + escapeHTML(team.name || "") + '" data-sports-favorite-abbr="' + escapeHTML(sportsTeamAbbreviation(team) || "") + '" data-sports-favorite-logo="' + escapeHTML(/^https:\/\//.test(team.logoUrl || "") ? team.logoUrl : "") + '" data-sports-favorite-league-name="' + escapeHTML(team.leagueName || "") + '"';
 }
 function sportsTeamLabelFromButton(button) {
   const name = String(button.getAttribute("data-sports-favorite-name") || "").trim();
