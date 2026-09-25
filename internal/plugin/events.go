@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -320,6 +322,9 @@ func detectGuideBroadcastEvents(snapshot cache.Snapshot, now time.Time, rules []
 		if !ok {
 			continue
 		}
+		if programLooksArchival(program, now) {
+			continue
+		}
 		channel, ok := channelByIDFromSnapshot(snapshot, program.ChannelID)
 		if !ok {
 			continue
@@ -390,6 +395,27 @@ func matchEventKeyword(program model.Program, rules []EventKeywordRule) (EventKe
 		}
 	}
 	return EventKeywordRule{}, "", false
+}
+
+var archivalYearPattern = regexp.MustCompile(`\b(19|20)\d{2}\b`)
+
+var archivalTerms = []string{"rewind", "encore", "encore presentation", "flashback", "retrospective", "throwback", "from the archive", "from the archives", "revisited"}
+
+// programLooksArchival rejects reruns of past events, which EPG data does not flag.
+func programLooksArchival(program model.Program, now time.Time) bool {
+	for _, match := range archivalYearPattern.FindAllString(program.Title, -1) {
+		year, err := strconv.Atoi(match)
+		if err == nil && year < now.Year()-1 {
+			return true
+		}
+	}
+	text := normalizeMatchText(program.Title + " " + program.Summary)
+	for _, term := range archivalTerms {
+		if strings.Contains(" "+text+" ", " "+term+" ") {
+			return true
+		}
+	}
+	return false
 }
 
 func eventChannelPlausible(categoryID string, channel model.Channel, categoryName string) bool {

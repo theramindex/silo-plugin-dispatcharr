@@ -8,6 +8,8 @@ function context(extra = {}) {
   const ctx = vm.createContext({
     state: {view: 'guide'}, items: value => Array.isArray(value) ? value : [],
     programIsGuidePlaceholder: program => program.title === 'Data not available',
+    programEchoesChannel: (program, channel) => !!channel && program.title === channel.name,
+    providerLiveMarker: '\u1d38\u1da6\u1d5b\u1d49',
     ...extra
   });
   vm.runInContext(source, ctx);
@@ -106,4 +108,7 @@ test('program and gap markup expose time boundaries for navigation', () => {
   const markup = ctx.renderEPGCells({id: 'channel'}, 0);
   assert.match(markup, /data-guide-focus="program" data-guide-start="120" data-guide-end="240"/);
   assert.match(markup, /data-guide-focus="gap" data-guide-start="100" data-guide-end="120"/);
+  const echo = ctx.renderEPGCells({id: 'channel', name: 'News'}, 0);
+  assert.match(echo, /epg-cell program is-placeholder/);
+  assert.match(echo, /Unavailable/);
 });

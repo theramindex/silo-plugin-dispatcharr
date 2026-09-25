@@ -53,7 +53,7 @@ func TestSavedGamePassKeepsIdentityWhenLiveTeamArrives(t *testing.T) {
 		`state.sports = { events: [{ leagueName:"MLB", home: { id:"live-yankees", name:"New York Yankees" } }], leagues: [{id:"mlb", name:"MLB"}] };`,
 		`state.app.preferences.sportsFavoriteLeagues.mlb = true;`,
 		`const html = myTVFollowingHTML();`,
-		`globalThis.__result = { stableResults: html.includes("New York Yankees") && html.includes("MLB game pass") && html.includes(id) && html.includes("teamlogo.png") && html.includes("Remove MLB pass") && !html.includes("Saved team") };`,
+		`globalThis.__result = { stableResults: html.includes("New York Yankees") && html.includes("MLB team") && html.includes(id) && html.includes("teamlogo.png") && html.includes("Unfollow MLB") && !html.includes("Followed team") };`,
 	})
 	if !result.StableResults {
 		t.Fatal("saved game passes must retain their team identity when search deduplicates a live roster entry")
@@ -142,7 +142,7 @@ func TestSportsPollPreservesViewScroll(t *testing.T) {
 	}
 }
 
-func TestSportsAndEventsNavHideWhenEmpty(t *testing.T) {
+func TestSportsAndEventsNavStayVisibleWhenEmpty(t *testing.T) {
 	t.Parallel()
 
 	result := runUIInvariantScript(t, []string{
@@ -158,8 +158,8 @@ func TestSportsAndEventsNavHideWhenEmpty(t *testing.T) {
 		`renderRail();`,
 		`globalThis.__result = { sportsHidden: !!buttons.sports.hidden, eventsHidden: !!buttons.events.hidden };`,
 	})
-	if !result.SportsHidden || !result.EventsHidden {
-		t.Fatalf("empty Sports and Events must leave the nav, got %+v", result)
+	if result.SportsHidden || result.EventsHidden {
+		t.Fatalf("empty Sports and Events must stay in the nav so the header does not shift, got %+v", result)
 	}
 }
 

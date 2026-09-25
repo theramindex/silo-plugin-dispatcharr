@@ -1354,6 +1354,7 @@ func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) s
 	}
 	body = strings.ReplaceAll(body, "__ASSET_PREFIX__", assetPrefix)
 	body = strings.ReplaceAll(body, "__ASSET_VERSION__", pluginAssetVersion())
+	body = s.applyUserNavTemplate(body, request.GetPath() == "/dispatcharr/sports" && s.sportsFeatureEnabled())
 	if request.GetPath() == "/dispatcharr/admin" {
 		body = strings.Replace(body, "</body>", adminLicenseNoticesHTML()+"</body>", 1)
 		body = removeTemplateBlock(body, "<!-- USER_NAV_START -->", "<!-- USER_NAV_END -->")
@@ -1367,6 +1368,26 @@ func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) s
 	}
 	body = strings.ReplaceAll(body, "__APP_TITLE__", html.EscapeString(s.appDisplayName()))
 	return strings.Replace(body, "__ROUTE_CLASS__", "", 1)
+}
+
+// applyUserNavTemplate decides tab labels and visibility on the server so the
+// header does not change once the app data loads.
+func (s *HTTPRoutesServer) applyUserNavTemplate(body string, sportsApp bool) string {
+	browseView, browseLabel := "guide", "Guide"
+	if asStringValue(s.normalizedAdminSettings()["sideMenuMode"]) == "channels" {
+		browseView, browseLabel = "channels", "Channels"
+	}
+	hidden := func(hide bool) string {
+		if hide {
+			return " hidden"
+		}
+		return ""
+	}
+	body = strings.ReplaceAll(body, "__BROWSE_VIEW__", browseView)
+	body = strings.ReplaceAll(body, "__BROWSE_LABEL__", browseLabel)
+	body = strings.ReplaceAll(body, "__LIVE_TAB_HIDDEN__", hidden(sportsApp))
+	body = strings.ReplaceAll(body, "__SPORTS_TAB_HIDDEN__", hidden(!sportsApp && (!s.sportsFeatureEnabled() || s.sportsAppEnabled())))
+	return strings.ReplaceAll(body, "__RECORDINGS_TAB_HIDDEN__", hidden(sportsApp || !s.recordingsEnabled()))
 }
 
 func (s *HTTPRoutesServer) sportsAppEnabled() bool {
