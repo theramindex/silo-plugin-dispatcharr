@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-//go:embed ui/page.html ui/styles.css ui/lineup.js ui/sports_replays.js ui/app.js ui/guide.js ui/player.js
+//go:embed ui/page.html ui/styles.css ui/lineup.js ui/sports_replays.js ui/sports_hub.js ui/app.js ui/guide.js ui/player.js
 var playerUIAssets embed.FS
 
 var playerPageHTMLTemplate string
@@ -24,8 +24,8 @@ func mustLoadPlayerPageHTMLTemplate() string {
 }
 
 func playerAppJavaScript() string {
-	parts := make([]string, 0, 5)
-	for _, name := range []string{"ui/lineup.js", "ui/sports_replays.js", "ui/app.js", "ui/guide.js", "ui/player.js"} {
+	parts := make([]string, 0, 6)
+	for _, name := range []string{"ui/lineup.js", "ui/sports_replays.js", "ui/app.js", "ui/guide.js", "ui/sports_hub.js", "ui/player.js"} {
 		payload, err := playerUIAssets.ReadFile(name)
 		if err != nil {
 			return ""

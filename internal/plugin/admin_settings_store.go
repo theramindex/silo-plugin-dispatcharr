@@ -168,6 +168,7 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 		separateSportsApp = enabled
 	}
 	sportsLibraryIDs := normalizeSportsLibraryIDs(payload["sportsLibraryIds"])
+	sportsTeamChannels := normalizeSportsTeamChannels(payload["sportsTeamChannels"])
 	liveRewindEnabled := false
 	if enabled, ok := payload["liveRewindEnabled"].(bool); ok {
 		liveRewindEnabled = enabled
@@ -234,6 +235,7 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 		"sportsEnabled":                  sportsEnabled,
 		"separateSportsApp":              separateSportsApp,
 		"sportsLibraryIds":               sportsLibraryIDs,
+		"sportsTeamChannels":             sportsTeamChannels,
 		"liveRewindEnabled":              liveRewindEnabled,
 		"liveRewindCacheGB":              liveRewindCacheGB,
 		"liveRewindWindowMinutes":        liveRewindWindowMinutes,
@@ -276,6 +278,32 @@ func normalizeAdminStringIDs(value any, limit int) []string {
 		}
 	}
 	return ids
+}
+
+// normalizeSportsTeamChannels keeps one pinned channel per league and team.
+func normalizeSportsTeamChannels(value any) []map[string]any {
+	rows, ok := value.([]any)
+	if !ok {
+		return []map[string]any{}
+	}
+	seen := map[string]bool{}
+	pins := []map[string]any{}
+	for _, row := range rows {
+		object, ok := row.(map[string]any)
+		if !ok || len(pins) >= 200 {
+			continue
+		}
+		leagueID := strings.TrimSpace(asStringValue(object["leagueId"]))
+		teamName := strings.TrimSpace(asStringValue(object["teamName"]))
+		channelID := strings.TrimSpace(asStringValue(object["channelId"]))
+		key := leagueID + "|" + normalizeMatchText(teamName)
+		if leagueID == "" || teamName == "" || channelID == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		pins = append(pins, map[string]any{"leagueId": leagueID, "teamName": teamName, "channelId": channelID, "channelName": strings.TrimSpace(asStringValue(object["channelName"]))})
+	}
+	return pins
 }
 
 func normalizeSportsLibraryIDs(value any) []int {

@@ -183,6 +183,22 @@ const categorySettingsJSONSchema = `{
       },
       "default": []
     },
+    "sportsTeamChannels": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "properties": {
+          "leagueId": {"type": "string", "minLength": 1},
+          "teamName": {"type": "string", "minLength": 1},
+          "channelId": {"type": "string", "minLength": 1},
+          "channelName": {"type": "string"}
+        },
+        "required": ["leagueId", "teamName", "channelId"],
+        "additionalProperties": false
+      },
+      "default": []
+    },
     "liveRewindEnabled": {
       "type": "boolean",
       "default": false

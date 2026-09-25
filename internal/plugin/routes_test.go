@@ -597,6 +597,10 @@ func TestManifestDeclaresPublicApplicationRoutesOnly(t *testing.T) {
 	for _, route := range []string{
 		"GET /dispatcharr/api/sports",
 		"GET /dispatcharr/api/sports/league-teams",
+		"GET /dispatcharr/api/sports/news",
+		"GET /dispatcharr/api/sports/team",
+		"GET /dispatcharr/api/sports/standings",
+		"GET /dispatcharr/assets/sports_hub.js",
 		"GET /dispatcharr/api/sports/image",
 		"GET /dispatcharr/stream/asset",
 		"GET /dispatcharr/api/events",
@@ -4092,12 +4096,6 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	for _, want := range []string{`sportsEffectiveRanking`, `compareSportsEventsForTab`, `score >= 4`, `slice(0, 6)`} {
 		if !strings.Contains(sportsTopMatchups, want) {
 			t.Fatalf("top matchups must use bounded deterministic ranking via %q", want)
-		}
-	}
-	rankedPlaceholder := functionBody("sportsEventIsRankedPlaceholder")
-	for _, want := range []string{`sportsEventHasPlayableAccess`, `48 * 3600`, `sportsEffectiveRanking`, `score >= 4`} {
-		if !strings.Contains(rankedPlaceholder, want) {
-			t.Fatalf("ranked unmatched fixtures must use a bounded honest placeholder via %q", want)
 		}
 	}
 	sportsFeature := functionBody("renderSportsFeature")

@@ -25,20 +25,95 @@ type footballStatsCache struct {
 }
 
 type SportsGameStats struct {
-	Available     bool               `json:"available"`
-	Message       string             `json:"message,omitempty"`
-	UpdatedAtUnix int64              `json:"updatedAtUnix"`
-	SourceURL     string             `json:"sourceUrl,omitempty"`
-	StatusText    string             `json:"statusText,omitempty"`
-	Live          bool               `json:"live"`
-	Completed     bool               `json:"completed"`
-	HomeScore     string             `json:"homeScore,omitempty"`
-	AwayScore     string             `json:"awayScore,omitempty"`
-	LastPlay      string             `json:"lastPlay,omitempty"`
-	Possession    string             `json:"possession,omitempty"`
-	FieldPosition string             `json:"fieldPosition,omitempty"`
-	Rows          []SportsGameStat   `json:"rows"`
-	Innings       []SportsGameInning `json:"innings,omitempty"`
+	Available     bool                 `json:"available"`
+	Message       string               `json:"message,omitempty"`
+	UpdatedAtUnix int64                `json:"updatedAtUnix"`
+	SourceURL     string               `json:"sourceUrl,omitempty"`
+	StatusText    string               `json:"statusText,omitempty"`
+	Live          bool                 `json:"live"`
+	Completed     bool                 `json:"completed"`
+	HomeScore     string               `json:"homeScore,omitempty"`
+	AwayScore     string               `json:"awayScore,omitempty"`
+	LastPlay      string               `json:"lastPlay,omitempty"`
+	Possession    string               `json:"possession,omitempty"`
+	FieldPosition string               `json:"fieldPosition,omitempty"`
+	Rows          []SportsGameStat     `json:"rows"`
+	Innings       []SportsGameInning   `json:"innings,omitempty"`
+	Situation     *SportsGameSituation `json:"situation,omitempty"`
+	Probables     []SportsGamePlayer   `json:"probables,omitempty"`
+	Leaders       []SportsGameLeader   `json:"leaders,omitempty"`
+	Plays         []SportsGamePlay     `json:"plays,omitempty"`
+	Videos        []SportsGameVideo    `json:"videos,omitempty"`
+}
+
+type SportsGameSituation struct {
+	Balls    int               `json:"balls"`
+	Strikes  int               `json:"strikes"`
+	Outs     int               `json:"outs"`
+	OnFirst  bool              `json:"onFirst"`
+	OnSecond bool              `json:"onSecond"`
+	OnThird  bool              `json:"onThird"`
+	Batter   *SportsGamePlayer `json:"batter,omitempty"`
+	Pitcher  *SportsGamePlayer `json:"pitcher,omitempty"`
+}
+
+type SportsGamePlayer struct {
+	Name     string `json:"name"`
+	Headshot string `json:"headshot,omitempty"`
+	Summary  string `json:"summary,omitempty"`
+	Side     string `json:"side,omitempty"`
+}
+
+type SportsGameLeader struct {
+	Label string `json:"label"`
+	Name  string `json:"name"`
+	Value string `json:"value"`
+	Side  string `json:"side,omitempty"`
+	Photo string `json:"photo,omitempty"`
+}
+
+type SportsGamePlay struct {
+	Text    string `json:"text"`
+	Period  string `json:"period,omitempty"`
+	Clock   string `json:"clock,omitempty"`
+	Scoring bool   `json:"scoring,omitempty"`
+}
+
+type SportsGameVideo struct {
+	Title     string `json:"title"`
+	Thumbnail string `json:"thumbnail,omitempty"`
+	URL       string `json:"url"`
+}
+
+type espnAthleteRef struct {
+	Athlete struct {
+		DisplayName string `json:"displayName"`
+		Headshot    any    `json:"headshot"`
+	} `json:"athlete"`
+	Summary string `json:"summary"`
+}
+
+func espnHeadshot(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	case map[string]any:
+		if href, ok := typed["href"].(string); ok {
+			return href
+		}
+	}
+	return ""
+}
+
+func espnPlayer(ref *espnAthleteRef, side string) *SportsGamePlayer {
+	if ref == nil || strings.TrimSpace(ref.Athlete.DisplayName) == "" {
+		return nil
+	}
+	headshot := espnHeadshot(ref.Athlete.Headshot)
+	if !strings.HasPrefix(headshot, "https://") {
+		headshot = ""
+	}
+	return &SportsGamePlayer{Name: strings.TrimSpace(ref.Athlete.DisplayName), Headshot: headshot, Summary: strings.TrimSpace(ref.Summary), Side: side}
 }
 
 type SportsGameInning struct {
@@ -61,8 +136,16 @@ type espnStatsTeam struct {
 
 type espnStatsCompetition struct {
 	Situation struct {
-		Possession       string `json:"possession"`
-		DownDistanceText string `json:"downDistanceText"`
+		Possession       string          `json:"possession"`
+		DownDistanceText string          `json:"downDistanceText"`
+		Balls            int             `json:"balls"`
+		Strikes          int             `json:"strikes"`
+		Outs             int             `json:"outs"`
+		OnFirst          bool            `json:"onFirst"`
+		OnSecond         bool            `json:"onSecond"`
+		OnThird          bool            `json:"onThird"`
+		Batter           *espnAthleteRef `json:"batter"`
+		Pitcher          *espnAthleteRef `json:"pitcher"`
 	} `json:"situation"`
 	Date        string `json:"date"`
 	Competitors []struct {
@@ -72,16 +155,40 @@ type espnStatsCompetition struct {
 		Linescores []struct {
 			DisplayValue string `json:"displayValue"`
 		} `json:"linescores"`
-		Hits   *int `json:"hits"`
-		Errors *int `json:"errors"`
+		Hits      *int `json:"hits"`
+		Errors    *int `json:"errors"`
+		Probables []struct {
+			espnAthleteRef
+			Record     string `json:"record"`
+			Statistics []struct {
+				Abbreviation string `json:"abbreviation"`
+				DisplayValue string `json:"displayValue"`
+			} `json:"statistics"`
+		} `json:"probables"`
+		Leaders []espnLeaderCategory `json:"leaders"`
 	} `json:"competitors"`
-	Status struct {
+	Leaders []espnLeaderCategory `json:"leaders"`
+	Status  struct {
 		Type struct {
 			State     string `json:"state"`
 			Completed bool   `json:"completed"`
 			Detail    string `json:"detail"`
 		} `json:"type"`
 	} `json:"status"`
+}
+
+type espnLeaderCategory struct {
+	DisplayName string `json:"displayName"`
+	Leaders     []struct {
+		DisplayValue string `json:"displayValue"`
+		Athlete      struct {
+			DisplayName string `json:"displayName"`
+			Headshot    any    `json:"headshot"`
+		} `json:"athlete"`
+		Team struct {
+			ID string `json:"id"`
+		} `json:"team"`
+	} `json:"leaders"`
 }
 
 type espnStatsEvent struct {
@@ -96,6 +203,7 @@ type espnStatsSummary struct {
 			Team       espnStatsTeam `json:"team"`
 			Statistics []struct {
 				Name         string `json:"name"`
+				Label        string `json:"label"`
 				DisplayValue string `json:"displayValue"`
 				Stats        []struct {
 					Name         string `json:"name"`
@@ -112,19 +220,60 @@ type espnStatsSummary struct {
 		} `json:"current"`
 	} `json:"drives"`
 	Plays []struct {
-		Text string `json:"text"`
+		Text   string `json:"text"`
+		Period struct {
+			DisplayValue string `json:"displayValue"`
+		} `json:"period"`
+		Clock struct {
+			DisplayValue string `json:"displayValue"`
+		} `json:"clock"`
+		ScoringPlay bool `json:"scoringPlay"`
+		Type        struct {
+			Text string `json:"text"`
+		} `json:"type"`
 	} `json:"plays"`
+	Videos []struct {
+		Headline  string `json:"headline"`
+		Thumbnail string `json:"thumbnail"`
+		Links     struct {
+			Source struct {
+				Href string `json:"href"`
+			} `json:"source"`
+			Web struct {
+				Href string `json:"href"`
+			} `json:"web"`
+		} `json:"links"`
+	} `json:"videos"`
 }
+
+// Team-vs-team leagues where ESPN box scores and play-by-play are available.
+var sportsStatsLeagueIDs = map[string]bool{"mlb": true, "nfl": true, "nba": true, "wnba": true, "nhl": true, "mls": true, "premier-league": true, "uefa-champions-league": true, "college-football": true, "mens-college-basketball": true, "womens-college-basketball": true}
 
 func sportsStatsLeaguePath(event SportsEvent) string {
 	id, _, _, _ := guideSportsLeague(event.LeagueName)
-	if event.LeagueID == "college-football" || id == "college-football" {
-		return "football/college-football"
-	}
-	if event.LeagueID == "mlb" || id == "mlb" {
-		return "baseball/mlb"
+	for _, candidate := range []string{event.LeagueID, id} {
+		if !sportsStatsLeagueIDs[candidate] {
+			continue
+		}
+		if league, ok := espnLeagueFor(candidate); ok {
+			return league.Path
+		}
 	}
 	return ""
+}
+
+func sportsStatsSourceURL(leaguePath, eventID string) string {
+	id := url.PathEscape(eventID)
+	switch {
+	case leaguePath == "baseball/mlb":
+		return "https://www.espn.com/mlb/boxscore/_/gameId/" + id
+	case leaguePath == "football/college-football":
+		return "https://www.espn.com/college-football/boxscore/_/gameId/" + id
+	case strings.HasPrefix(leaguePath, "soccer/"):
+		return "https://www.espn.com/soccer/match/_/gameId/" + id
+	default:
+		return "https://www.espn.com/" + leaguePath[strings.LastIndex(leaguePath, "/")+1:] + "/game/_/gameId/" + id
+	}
 }
 
 func (s *HTTPRoutesServer) handleSportsGameStats(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
@@ -223,6 +372,9 @@ func (cache *footballStatsCache) fetch(ctx context.Context, event SportsEvent) (
 	if leaguePath == "football/college-football" {
 		boardPath += "&groups=80"
 	}
+	if strings.HasSuffix(leaguePath, "college-basketball") {
+		boardPath += "&groups=50"
+	}
 	if err := cache.get(ctx, leaguePath, boardPath, &board); err != nil {
 		return missing, err
 	}
@@ -249,18 +401,78 @@ func (cache *footballStatsCache) fetch(ctx context.Context, event SportsEvent) (
 		return missing, nil
 	}
 	result := espnGameStats(event, summary)
-	if leaguePath == "baseball/mlb" {
-		return result, nil
+	result.SourceURL = sportsStatsSourceURL(leaguePath, summary.Header.ID)
+	applyESPNCompetitionDetail(&result, matchedCompetition, leaguePath)
+	return result, nil
+}
+
+func applyESPNCompetitionDetail(result *SportsGameStats, competition espnStatsCompetition, leaguePath string) {
+	live := result.Live && !result.Completed && competition.Status.Type.State == "in"
+	sideByTeam := map[string]string{}
+	for _, side := range competition.Competitors {
+		sideByTeam[side.Team.ID] = side.HomeAway
 	}
-	if result.Live && !result.Completed && matchedCompetition.Status.Type.State == "in" {
-		for _, side := range matchedCompetition.Competitors {
-			if side.Team.ID != "" && side.Team.ID == matchedCompetition.Situation.Possession {
-				result.Possession = side.HomeAway
-				result.FieldPosition = matchedCompetition.Situation.DownDistanceText
+	if live && strings.HasPrefix(leaguePath, "football/") {
+		if side := sideByTeam[competition.Situation.Possession]; side != "" && competition.Situation.Possession != "" {
+			result.Possession = side
+			result.FieldPosition = competition.Situation.DownDistanceText
+		}
+	}
+	if live && leaguePath == "baseball/mlb" {
+		situation := competition.Situation
+		result.Situation = &SportsGameSituation{
+			Balls: situation.Balls, Strikes: situation.Strikes, Outs: situation.Outs,
+			OnFirst: situation.OnFirst, OnSecond: situation.OnSecond, OnThird: situation.OnThird,
+			Batter: espnPlayer(situation.Batter, ""), Pitcher: espnPlayer(situation.Pitcher, ""),
+		}
+	}
+	if competition.Status.Type.State == "pre" {
+		for _, side := range competition.Competitors {
+			for _, probable := range side.Probables {
+				player := espnPlayer(&probable.espnAthleteRef, side.HomeAway)
+				if player == nil {
+					continue
+				}
+				stats := []string{}
+				if probable.Record != "" {
+					stats = append(stats, probable.Record)
+				}
+				for _, stat := range probable.Statistics {
+					if stat.Abbreviation == "ERA" && stat.DisplayValue != "" {
+						stats = append(stats, stat.DisplayValue+" ERA")
+					}
+				}
+				player.Summary = strings.Join(stats, ", ")
+				result.Probables = append(result.Probables, *player)
+				break
 			}
 		}
 	}
-	return result, nil
+	categories := competition.Leaders
+	for _, side := range competition.Competitors {
+		categories = append(categories, side.Leaders...)
+	}
+	seen := map[string]bool{}
+	for _, category := range categories {
+		for _, leader := range category.Leaders {
+			name := strings.TrimSpace(leader.Athlete.DisplayName)
+			key := category.DisplayName + "|" + name
+			if name == "" || category.DisplayName == "" || seen[key] || len(result.Leaders) >= 8 {
+				continue
+			}
+			seen[key] = true
+			photo := espnHeadshot(leader.Athlete.Headshot)
+			if !strings.HasPrefix(photo, "https://") {
+				photo = ""
+			}
+			result.Leaders = append(result.Leaders, SportsGameLeader{Label: category.DisplayName, Name: name, Value: strings.TrimSpace(leader.DisplayValue), Side: sideByTeam[leader.Team.ID], Photo: photo})
+			break
+		}
+	}
+	if len(result.Leaders) > 0 || result.Situation != nil || len(result.Probables) > 0 {
+		result.Available = true
+		result.Message = ""
+	}
 }
 
 func espnStatsTeamMatches(team SportsTeam, candidate espnStatsTeam) bool {
@@ -301,11 +513,12 @@ func espnStatsMatches(event SportsEvent, competition espnStatsCompetition) bool 
 
 func espnGameStats(event SportsEvent, summary espnStatsSummary) SportsGameStats {
 	competition := summary.Header.Competitions[0]
-	result := SportsGameStats{SourceURL: "https://www.espn.com/college-football/boxscore/_/gameId/" + url.PathEscape(summary.Header.ID), StatusText: competition.Status.Type.Detail, Live: competition.Status.Type.State == "in", Completed: competition.Status.Type.Completed}
-	baseball := sportsStatsLeaguePath(event) == "baseball/mlb"
-	if baseball {
-		result.SourceURL = "https://www.espn.com/mlb/boxscore/_/gameId/" + url.PathEscape(summary.Header.ID)
-	}
+	leaguePath := sportsStatsLeaguePath(event)
+	result := SportsGameStats{SourceURL: sportsStatsSourceURL(leaguePath, summary.Header.ID), StatusText: competition.Status.Type.Detail, Live: competition.Status.Type.State == "in", Completed: competition.Status.Type.Completed}
+	baseball := leaguePath == "baseball/mlb"
+	football := strings.HasPrefix(leaguePath, "football/")
+	labels := map[string]string{}
+	order := []string{}
 	for _, side := range competition.Competitors {
 		if side.HomeAway == "home" {
 			result.HomeScore = side.Score
@@ -334,10 +547,23 @@ func espnGameStats(event SportsEvent, summary espnStatsSummary) SportsGameStats 
 				}
 			} else {
 				target[stat.Name] = strings.TrimSpace(stat.DisplayValue)
+				if _, known := labels[stat.Name]; !known && strings.TrimSpace(stat.Label) != "" {
+					labels[stat.Name] = strings.TrimSpace(stat.Label)
+					order = append(order, stat.Name)
+				}
 			}
 		}
 	}
 	rowNames := [][2]string{{"totalYards", "Total yards"}, {"netPassingYards", "Passing yards"}, {"rushingYards", "Rushing yards"}, {"firstDowns", "First downs"}, {"thirdDownEff", "Third down"}, {"fourthDownEff", "Fourth down"}, {"turnovers", "Turnovers"}, {"totalPenaltiesYards", "Penalties–yards"}, {"possessionTime", "Possession"}}
+	if !football && !baseball {
+		rowNames = [][2]string{}
+		for _, name := range order {
+			if len(rowNames) >= 10 {
+				break
+			}
+			rowNames = append(rowNames, [2]string{name, labels[name]})
+		}
+	}
 	if baseball {
 		rowNames = [][2]string{{"runs", "Runs"}, {"hits", "Hits"}, {"errors", "Errors"}, {"homeRuns", "Home runs"}, {"walks", "Walks"}, {"strikeouts", "Strikeouts"}, {"stolenBases", "Stolen bases"}, {"avg", "Batting average"}, {"onBasePct", "On-base percentage"}}
 		for _, side := range competition.Competitors {
@@ -379,7 +605,35 @@ func espnGameStats(event SportsEvent, summary espnStatsSummary) SportsGameStats 
 	if !baseball && len(plays) > 0 {
 		result.LastPlay = strings.TrimSpace(plays[len(plays)-1].Text)
 	}
-	result.Available = len(result.Rows) > 0 && (!baseball || result.Live || result.Completed)
+	if !baseball && !football && result.LastPlay == "" {
+		for i := len(summary.Plays) - 1; i >= 0; i-- {
+			if text := strings.TrimSpace(summary.Plays[i].Text); text != "" {
+				result.LastPlay = text
+				break
+			}
+		}
+	}
+	for i := len(summary.Plays) - 1; i >= 0 && len(result.Plays) < 12; i-- {
+		play := summary.Plays[i]
+		text := strings.TrimSpace(play.Text)
+		if text == "" || (baseball && !play.ScoringPlay && play.Type.Text != "Play Result") {
+			continue
+		}
+		result.Plays = append(result.Plays, SportsGamePlay{Text: text, Period: strings.TrimSpace(play.Period.DisplayValue), Clock: strings.TrimSpace(play.Clock.DisplayValue), Scoring: play.ScoringPlay})
+	}
+	for _, video := range summary.Videos {
+		link := firstNonEmpty(video.Links.Source.Href, video.Links.Web.Href)
+		title := strings.TrimSpace(video.Headline)
+		if title == "" || !strings.HasPrefix(link, "https://") || len(result.Videos) >= 8 {
+			continue
+		}
+		thumbnail := video.Thumbnail
+		if !strings.HasPrefix(thumbnail, "https://") {
+			thumbnail = ""
+		}
+		result.Videos = append(result.Videos, SportsGameVideo{Title: title, Thumbnail: thumbnail, URL: link})
+	}
+	result.Available = (len(result.Rows) > 0 && (!baseball || result.Live || result.Completed)) || len(result.Plays) > 0 || len(result.Videos) > 0
 	if !result.Available {
 		result.Message = "No live box score is available for this game yet."
 	}

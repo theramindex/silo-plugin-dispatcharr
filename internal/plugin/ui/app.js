@@ -11,7 +11,7 @@ const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuff
 const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : (isSportsPath ? "sports" : "home"), category: "", query: "", folderQuery: "", folderGroupCategoryID: "", folderGroupPickerOpen: false, searchQuery: "", searchType: "all", searchAiringChannel: "", searchReturnView: "home", recentSearches: [], myTVQuery: "", onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsMoreOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsFailedMedia: {}, sportsTab: "live", sportsLeague: "", sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLeagueTeams: {}, sportsLeagueTeamsLoading: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "connection", adminConnectionStatus: "idle", adminConnectionMessage: "", adminConnectionLoading: false, adminConnectionLoadError: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : (isSportsPath ? "sports" : "home"), category: "", query: "", folderQuery: "", folderGroupCategoryID: "", folderGroupPickerOpen: false, searchQuery: "", searchType: "all", searchAiringChannel: "", searchReturnView: "home", recentSearches: [], myTVQuery: "", onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsMode: false, playerSportsOpen: false, playerSportsMoreOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsPollTimer: null, sportsPollAttempts: 0, sportsFailedMedia: {}, sportsTab: "today", sportsLeague: "", sportsTeam: "", sportsScoresFilter: "all", sportsNewsLeague: "", sportsTeamQuery: "", sportsNews: {}, sportsTeamSummaries: {}, sportsSelectedEventID: "", sportsExpandedEvents: {}, sportsLeagueTeams: {}, sportsLeagueTeamsLoading: {}, sportsLibraries: null, sportsLibrariesLoading: false, sportsLibrariesPromise: null, sportsLibrariesError: "", sportsReplayItems: [], sportsReplayMatches: {}, sportsReplaysLoading: false, sportsReplaysError: "", sportsReplayKey: "", events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, savedLineupEditor: null, activeSavedLineupID: "", savedLineupGroupCategoryID: "", refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: isAdminRoute ? "source" : "settings", adminConnection: null, savedAdminConnection: null, adminConnectionEditorOpen: false, adminConnectionEditorStep: "connection", adminConnectionStatus: "idle", adminConnectionMessage: "", adminConnectionLoading: false, adminConnectionLoadError: "", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, adminSourceGroupsLoaded: false, adminSourceGroupsLoading: false, adminSourceGroupsError: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 const appHistoryStateKey = "dispatcharrRoute";
 state.onLaterShelfLimits = {};
 state.myTVTeamCatalogLoading = null;
@@ -217,7 +217,7 @@ function defaultEventKeywordRules() {
   ];
 }
 function defaultAdminCategorySettings() {
-  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", appDisplayName: "Live TV (Dispatcharr)", sideMenuMode: "guide", onLaterEnabled: true, virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, flattenRedundantGroupWrappers: true, allowRecordingsByDefault: true, recordingPrePadMinutes: 0, recordingPostPadMinutes: 0, recordingComskipEnabled: false, sportsEnabled: true, separateSportsApp: false, sportsLibraryIds: [], sportsFirstPlayerEnabled: false, hlsBufferSeconds: 12, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], featuredEventIds: [], eventKeywords: defaultEventKeywordRules() };
+  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", appDisplayName: "Live TV (Dispatcharr)", sideMenuMode: "guide", onLaterEnabled: true, virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, flattenRedundantGroupWrappers: true, allowRecordingsByDefault: true, recordingPrePadMinutes: 0, recordingPostPadMinutes: 0, recordingComskipEnabled: false, sportsEnabled: true, separateSportsApp: false, sportsLibraryIds: [], sportsTeamChannels: [], sportsFirstPlayerEnabled: false, hlsBufferSeconds: 12, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], featuredEventIds: [], eventKeywords: defaultEventKeywordRules() };
 }
 function cloneAdminCategorySettings(settings) {
   try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -443,6 +443,15 @@ function normalizeAdminCategorySettings() {
     const id = Number(value);
     return Number.isInteger(id) && id > 0 ? String(id) : "";
   }).filter(Boolean)).map(function(value) { return Number(value); });
+  const seenTeamPins = {};
+  state.adminCategorySettings.sportsTeamChannels = items(state.adminCategorySettings.sportsTeamChannels).map(function(pin) {
+    return { leagueId: String((pin && pin.leagueId) || "").trim(), teamName: String((pin && pin.teamName) || "").trim(), channelId: String((pin && pin.channelId) || "").trim(), channelName: String((pin && pin.channelName) || "").trim() };
+  }).filter(function(pin) {
+    const key = pin.leagueId + "|" + lower(pin.teamName);
+    if (!pin.leagueId || !pin.teamName || !pin.channelId || seenTeamPins[key]) return false;
+    seenTeamPins[key] = true;
+    return true;
+  }).slice(0, 200);
   state.adminCategorySettings.sportsFirstPlayerEnabled = state.adminCategorySettings.sportsFirstPlayerEnabled === true;
   state.adminCategorySettings.featuredEventIds = uniqueIDs(items(state.adminCategorySettings.featuredEventIds).map(function(id) {
     return String(id || "").trim();
@@ -1661,8 +1670,9 @@ function appRouteSnapshot() {
   return {
     view: isAdminRoute ? "admin" : state.view,
     category: state.category || "",
-    sportsTab: state.sportsTab || "live",
+    sportsTab: state.sportsTab || "today",
     sportsLeague: state.sportsLeague || "",
+    sportsTeam: state.sportsTeam || "",
     sportsEvent: state.sportsSelectedEventID || "",
     eventsTab: state.eventsTab || "upcoming",
     eventCategory: state.eventCategory || "",
@@ -1675,8 +1685,9 @@ function appRouteHash(snapshot) {
   if (snapshot.view === "admin") return "#/admin/" + appRoutePart(snapshot.adminTab || "source");
   if (snapshot.view === "player" && snapshot.channelID) return "#/watch/" + appRoutePart(snapshot.channelID);
   if (snapshot.view === "sports") {
-    let route = "#/sports/" + appRoutePart(snapshot.sportsTab || "live");
+    let route = "#/sports/" + appRoutePart(snapshot.sportsTab || "today");
     if (snapshot.sportsEvent) route += "/event/" + appRoutePart(snapshot.sportsEvent);
+    else if (snapshot.sportsTeam) route += "/team/" + appRoutePart(snapshot.sportsTeam);
     else if (snapshot.sportsLeague) route += "/league/" + appRoutePart(snapshot.sportsLeague);
     return route;
   }
@@ -1697,8 +1708,9 @@ function readAppRouteHash() {
   if (parts[0] === "watch") return { view: "player", channelID: parts[1] || "" };
   if (parts[0] === "channels" && parts[1]) return { view: "live", category: parts[1] };
   if (parts[0] === "sports") {
-    const route = { view: "sports", sportsTab: parts[1] || "live" };
+    const route = { view: "sports", sportsTab: parts[1] || "today" };
     if (parts[2] === "event") route.sportsEvent = parts[3] || "";
+    if (parts[2] === "team") route.sportsTeam = parts[3] || "";
     if (parts[2] === "league") route.sportsLeague = parts[3] || "";
     return route;
   }
@@ -1720,8 +1732,9 @@ function commitAppRoute(mode) {
 function applyAppRouteSnapshot(snapshot) {
   snapshot = snapshot || {};
   state.category = snapshot.category || "";
-  state.sportsTab = snapshot.sportsTab || "live";
+  state.sportsTab = snapshot.sportsTab || "today";
   state.sportsLeague = snapshot.sportsLeague || "";
+  state.sportsTeam = snapshot.sportsTeam || "";
   state.sportsSelectedEventID = snapshot.sportsEvent || "";
   state.eventsTab = snapshot.eventsTab || "upcoming";
   state.eventCategory = snapshot.eventCategory || "";
@@ -3384,6 +3397,7 @@ function loadSports(force, preparedOnly) {
     state.sportsLoading = false;
     renderRail();
     if (state.view === "sports") renderSportsPage();
+    if (state.view === "admin" && state.adminTab === "sports") renderAdminSportsSettings();
     if (state.view === "mytv") {
       updateMyTVSearchSurface();
       ensureMyTVTeamCatalog(state.myTVQuery);
@@ -3423,27 +3437,26 @@ function applySportsFavoritesToPayload() {
   });
 }
 function sportsTabLabel(tab) {
-  return ({ live: "Live", upcoming: "Upcoming", replays: "Replays", favorites: "Favorites", all: "All" })[tab] || "Live";
+  return sportsHubTabLabel(sportsHubTab(tab));
 }
 function sportsTabButtonsHTML() {
-  const tabs = ["live", "upcoming"];
-  if (configuredSportsLibraryIDs().length) tabs.push("replays");
-  tabs.push("favorites", "all");
-  return tabs.map(function(tab) {
-    return "<button type=\"button\" data-sports-tab=\"" + tab + "\" class=\"" + (state.sportsTab === tab ? "active" : "") + "\" aria-pressed=\"" + (state.sportsTab === tab ? "true" : "false") + "\">" + escapeHTML(sportsTabLabel(tab)) + "</button>";
+  const current = sportsHubTab(state.sportsTab);
+  return sportsHubTabs().map(function(tab) {
+    return "<button type=\"button\" data-sports-tab=\"" + tab + "\" class=\"" + (current === tab ? "active" : "") + "\" aria-pressed=\"" + (current === tab ? "true" : "false") + "\">" + escapeHTML(sportsTabLabel(tab)) + "</button>";
   }).join("");
 }
 function renderSportsTopbarTabs() {
   const root = byId("sports-topbar-tabs");
   if (!root) return;
-  root.innerHTML = "";
+  root.innerHTML = isSportsApp() ? renderSportsAppHeader() : "";
 }
 function renderSportsTabFilters(payload) {
   const refreshing = state.sportsLoading || !!(payload && payload.refreshing) || state.sportsReplaysLoading;
   const refreshClass = "sports-refresh" + (refreshing ? " is-loading" : "");
   const refreshDisabled = refreshing ? " disabled aria-busy=\"true\"" : "";
   const replayStatus = sportsReplayStatusLabel();
-  return "<div class=\"sports-filter-row\"><div class=\"view-toggle\" aria-label=\"Sports filter\">" + sportsTabButtonsHTML() + "</div>"
+  const tabs = isSportsApp() ? "" : "<div class=\"view-toggle\" aria-label=\"Sports filter\">" + sportsTabButtonsHTML() + "</div>";
+  return "<div class=\"sports-filter-row\">" + tabs
     + "<span class=\"sports-data-source\">Data by " + escapeHTML(sportsDataSourceLabel(payload)) + (replayStatus ? " <span class=\"sports-replay-status\">· " + escapeHTML(replayStatus) + "</span>" : "") + "</span>"
     + "<button type=\"button\" class=\"" + refreshClass + "\" data-sports-refresh=\"true\"" + refreshDisabled + ">" + icon(refreshing ? "loader" : "refresh") + "<span>Refresh scores</span></button></div>";
 }
@@ -3456,7 +3469,8 @@ function sportsDataSourceLabel(payload) {
 }
 const sportsGameStatsState = { id: "", data: null, loading: false, fetchedAt: 0, timer: null };
 function sportsHasGameStats(event) {
-  return event && (event.leagueId === "college-football" || event.leagueId === "mlb" || /^(college football|ncaa football|mlb|major league baseball)$/i.test(event.leagueName || ""));
+  const leagues = ["mlb", "nfl", "nba", "wnba", "nhl", "mls", "premier-league", "uefa-champions-league", "college-football", "mens-college-basketball", "womens-college-basketball"];
+  return !!event && (leagues.indexOf(String(event.leagueId || "")) !== -1 || /^(college football|ncaa football|mlb|major league baseball)$/i.test(event.leagueName || ""));
 }
 function syncSportsGameStats(event) {
   const id = sportsHasGameStats(event) ? sportsEventStateID(event) : "";
@@ -3495,12 +3509,67 @@ function renderSportsGameStats(event) {
   const data = sportsGameStatsState.id === sportsEventStateID(event) ? sportsGameStatsState.data : null;
   if (!data || !data.available) return sportsSectionHTML("Game stats", "", "<p class=\"sports-stats-note\">" + escapeHTML(data ? data.message : "Loading live stats…") + "</p>", "sports-stats-section");
   const source = "<a class=\"sports-section-count\" title=\"" + (data.completed ? "Final game statistics" : "Refreshes every 30 seconds while this page is visible") + "\" href=\"" + escapeHTML(data.sourceUrl) + "\" target=\"_blank\" rel=\"noopener noreferrer\">ESPN · Updated " + escapeHTML(new Date(data.updatedAtUnix * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })) + "</a>";
+  const rows = items(data.rows);
   const body = (data.message ? "<p class=\"sports-stats-note\">" + escapeHTML(data.message) + " Showing the last successful update.</p>" : "")
+    + renderSportsBaseballSituation(data.situation)
     + renderSportsInnings(event, data)
     + (data.lastPlay ? "<p class=\"sports-stats-play\"><strong>Latest play</strong><span>" + escapeHTML(data.lastPlay) + "</span></p>" : "")
-    + "<table class=\"sports-stats-table\"><thead><tr><th scope=\"col\">" + escapeHTML(sportsTeamName(event.away)) + "</th><th scope=\"col\">Team stats</th><th scope=\"col\">" + escapeHTML(sportsTeamName(event.home)) + "</th></tr></thead><tbody>"
-    + items(data.rows).map(function(row) { return "<tr><td>" + escapeHTML(row.away) + "</td><th scope=\"row\">" + escapeHTML(row.label) + "</th><td>" + escapeHTML(row.home) + "</td></tr>"; }).join("") + "</tbody></table>";
-  return sportsSectionHTML(data.completed ? "Final stats" : (data.live ? "Live stats" : "Game stats"), source, body, "sports-stats-section");
+    + renderSportsProbables(event, data.probables)
+    + renderSportsLeaders(event, data.leaders)
+    + (rows.length ? "<table class=\"sports-stats-table\"><thead><tr><th scope=\"col\">" + escapeHTML(sportsTeamName(event.away)) + "</th><th scope=\"col\">Team stats</th><th scope=\"col\">" + escapeHTML(sportsTeamName(event.home)) + "</th></tr></thead><tbody>"
+      + rows.map(function(row) { return "<tr><td>" + escapeHTML(row.away) + "</td><th scope=\"row\">" + escapeHTML(row.label) + "</th><td>" + escapeHTML(row.home) + "</td></tr>"; }).join("") + "</tbody></table>" : "")
+    + renderSportsPlays(data.plays);
+  return sportsSectionHTML(data.completed ? "Final stats" : (data.live ? "Live stats" : "Game stats"), source, body, "sports-stats-section")
+    + renderSportsHighlights(data.videos);
+}
+function renderSportsBaseballSituation(situation) {
+  if (!situation) return "";
+  const dots = function(count, total, label) {
+    let html = "";
+    for (let index = 0; index < total; index++) html += "<i class=\"" + (index < count ? "on" : "") + "\"></i>";
+    return "<span class=\"sports-count\"><b>" + label + "</b>" + html + "</span>";
+  };
+  const base = function(on, name) { return "<span class=\"sports-base sports-base-" + name + (on ? " on" : "") + "\"></span>"; };
+  const player = function(role, value) {
+    if (!value) return "";
+    return "<span class=\"sports-situation-player\">" + (value.headshot ? "<img src=\"" + escapeHTML(value.headshot) + "\" alt=\"\" loading=\"lazy\" onerror=\"this.remove()\">" : "") + "<span><small>" + role + "</small><strong>" + escapeHTML(value.name) + "</strong>" + (value.summary ? "<em>" + escapeHTML(value.summary) + "</em>" : "") + "</span></span>";
+  };
+  const runners = [situation.onFirst ? "first" : "", situation.onSecond ? "second" : "", situation.onThird ? "third" : ""].filter(Boolean);
+  const label = "Balls " + situation.balls + ", strikes " + situation.strikes + ", " + situation.outs + " out" + (situation.outs === 1 ? "" : "s") + ", " + (runners.length ? "runners on " + runners.join(" and ") : "bases empty");
+  return "<div class=\"sports-situation\" role=\"img\" aria-label=\"" + escapeHTML(label) + "\"><span class=\"sports-diamond\" aria-hidden=\"true\">" + base(situation.onSecond, "second") + base(situation.onThird, "third") + base(situation.onFirst, "first") + "</span>"
+    + "<span class=\"sports-counts\" aria-hidden=\"true\">" + dots(situation.balls, 4, "B") + dots(situation.strikes, 3, "S") + dots(situation.outs, 3, "O") + "</span>"
+    + player("At bat", situation.batter) + player("Pitching", situation.pitcher) + "</div>";
+}
+function renderSportsProbables(event, probables) {
+  const list = items(probables);
+  if (!list.length) return "";
+  return "<div class=\"sports-probables\"><h3>Probable pitchers</h3>" + list.map(function(player) {
+    const team = player.side === "home" ? event.home : event.away;
+    return "<span class=\"sports-situation-player\">" + (player.headshot ? "<img src=\"" + escapeHTML(player.headshot) + "\" alt=\"\" loading=\"lazy\" onerror=\"this.remove()\">" : "") + "<span><small>" + escapeHTML(sportsTeamName(team || {})) + "</small><strong>" + escapeHTML(player.name) + "</strong>" + (player.summary ? "<em>" + escapeHTML(player.summary) + "</em>" : "") + "</span></span>";
+  }).join("") + "</div>";
+}
+function renderSportsLeaders(event, leaders) {
+  const list = items(leaders);
+  if (!list.length) return "";
+  return "<div class=\"sports-leaders\"><h3>Game leaders</h3><div>" + list.map(function(leader) {
+    const team = leader.side === "home" ? event.home : (leader.side === "away" ? event.away : null);
+    return "<span class=\"sports-leader\"><small>" + escapeHTML(leader.label) + "</small><strong>" + escapeHTML(leader.name) + "</strong><em>" + escapeHTML([leader.value, team ? sportsTeamAbbreviation(team) : ""].filter(Boolean).join(" · ")) + "</em></span>";
+  }).join("") + "</div></div>";
+}
+function renderSportsPlays(plays) {
+  const list = items(plays);
+  if (!list.length) return "";
+  return "<div class=\"sports-plays\"><h3>Recent plays</h3><ol>" + list.map(function(play) {
+    const when = [play.period, play.clock].filter(Boolean).join(" · ");
+    return "<li class=\"" + (play.scoring ? "scoring" : "") + "\">" + (when ? "<small>" + escapeHTML(when) + "</small>" : "") + "<span>" + escapeHTML(play.text) + "</span></li>";
+  }).join("") + "</ol></div>";
+}
+function renderSportsHighlights(videos) {
+  const list = items(videos);
+  if (!list.length) return "";
+  return sportsSectionHTML("Highlights", "", "<div class=\"sports-highlights\">" + list.map(function(video) {
+    return "<a class=\"sports-highlight\" href=\"" + escapeHTML(video.url) + "\" target=\"_blank\" rel=\"noopener noreferrer\"><span class=\"sports-highlight-thumb\">" + (video.thumbnail ? "<img src=\"" + escapeHTML(video.thumbnail) + "\" alt=\"\" loading=\"lazy\" onerror=\"this.remove()\">" : "") + icon("play") + "</span><strong>" + escapeHTML(video.title) + "</strong></a>";
+  }).join("") + "</div>", "sports-highlights-section");
 }
 function renderSportsInnings(event, data) {
   const innings = items(data.innings);
@@ -3532,8 +3601,10 @@ function renderSportsPage() {
   const status = recoveryPanelHTML(payload.error, "sports");
   let content = "";
   if (selectedEvent) content = renderSportsEventDetail(payload, selectedEvent);
+  else if (state.sportsTeam) content = renderSportsTeamPage(payload, state.sportsTeam);
   else if (league) content = renderSportsLeagueDetail(payload, league, events);
-  else content = renderSportsBrowse(payload, events);
+  else if (sportsHubTab(state.sportsTab) === "replays") content = renderSportsBrowse(payload, events);
+  else content = renderSportsHub(payload);
   root.innerHTML = "<div class=\"sports-page sports-experience\">" + status + content + "</div>";
   if (root) root.scrollTop = scrollTop;
   const updatedSportsScroll = root && root.querySelector(".sports-score-scroll");
@@ -3922,7 +3993,7 @@ function renderSportsTileAvailability(event) {
   const trayID = sportsEventChannelTrayID(event);
   const control = channels.length > 1 ? "<button type=\"button\" data-sports-expand-event=\"" + escapeHTML(event.id || "") + "\" aria-expanded=\"" + (expanded ? "true" : "false") + "\" aria-controls=\"" + escapeHTML(trayID) + "\" aria-label=\"" + escapeHTML((expanded ? "Hide" : "Show") + " channels for " + title) + "\">" + icon("chevron-right") + "</button>" : "<button type=\"button\" data-sports-open-event=\"" + escapeHTML(sportsEventStateID(event)) + "\" aria-label=\"Open " + escapeHTML(title) + "\">" + icon("chevron-right") + "</button>";
   const tray = channels.length > 1 ? "<div class=\"sports-event-channel-reveal" + (expanded ? " expanded" : "") + "\" id=\"" + escapeHTML(trayID) + "\" aria-hidden=\"" + (expanded ? "false" : "true") + "\"" + (expanded ? "" : " inert") + "><div><div class=\"sports-event-channel-list\">" + channels.map(renderSportsChannelChip).join("") + "</div></div></div>" : "";
-  return "<div class=\"sports-event-availability" + (expanded ? " expanded" : "") + "\"><span>" + escapeHTML(parts.join(" · ") || (sportsEventIsRankedPlaceholder(event) ? "Broadcast not matched yet" : "Coverage unavailable")) + "</span>" + control + "</div>" + tray;
+  return "<div class=\"sports-event-availability" + (expanded ? " expanded" : "") + "\"><span>" + escapeHTML(parts.join(" · ") || "Not on your channels") + "</span>" + control + "</div>" + tray;
 }
 function sportsEventChannelTrayID(event) {
   const eventID = String(event && event.id || "event").replace(/[^a-z0-9_-]+/gi, "-");
@@ -3956,12 +4027,14 @@ function renderSportsLeagueDetail(payload, league, events) {
   const teams = sportsLeagueTeams(leagueEvents, league.teams);
   const replayCount = leagueEvents.reduce(function(total, event) { return total + sportsReplayMatchesForEvent(event).length; }, 0);
   const teamBody = teams.length ? "<div class=\"sports-team-rail\">" + teams.map(renderSportsTeamShelfCard).join("") + "</div>" : "";
-  const eventBody = events.length ? "<div class=\"sports-event-grid\">" + events.map(renderSportsEventTile).join("") + "</div>" : "<div class=\"empty\">No " + escapeHTML(sportsTabLabel(state.sportsTab).toLowerCase()) + " events in this league.</div>";
+  const eventBody = events.length ? "<div class=\"sports-event-grid\">" + events.map(renderSportsEventTile).join("") + "</div>" : "<div class=\"empty\">No games in this league right now.</div>";
   const leagueSummary = [league.sportName, pluralLabel(teams.length, "team"), pluralLabel(leagueEvents.length, "event"), replayCount ? pluralLabel(replayCount, "replay") : ""].filter(Boolean).join(" · ");
   return "<div class=\"sports-pinned sports-detail-toolbar\"><button type=\"button\" class=\"sports-back\" data-sports-back=\"browse\">" + icon("arrow-left") + "<span>All sports</span></button>" + renderSportsTabFilters(payload) + "</div>"
     + "<div class=\"sports-score-scroll sports-league-detail\"><header class=\"sports-league-hero\">" + renderSportsLeagueMark(league) + "<div><span class=\"sports-eyebrow\">League</span><h1>" + escapeHTML(league.name || league.id || "League") + "</h1><p>" + escapeHTML(leagueSummary) + "</p>" + (league.description ? "<small>" + escapeHTML(league.description) + "</small>" : "") + "</div></header>"
     + sportsSectionHTML("Teams", "", teamBody, "sports-team-section")
-    + sportsSectionHTML(sportsTabLabel(state.sportsTab) + " events", "", eventBody, "sports-events-section") + "</div>";
+    + sportsSectionHTML("Games", "", eventBody, "sports-events-section")
+    + renderSportsStandings(league.id)
+    + sportsLeagueNewsHTML(league.id) + "</div>";
 }
 function renderSportsTeamShelfCard(team) {
   const name = sportsTeamName(team);
@@ -4167,30 +4240,18 @@ function renderSportsLeagueFilters(payload) {
 }
 function filteredSportsEvents(payload) {
   const now = Math.floor(Date.now() / 1000);
-  const sourceEvents = items(payload && payload.events).concat(state.sportsTab === "replays" ? items(state.sportsReplayStandaloneEvents) : []);
+  const tab = sportsHubTab(state.sportsTab);
+  const sourceEvents = items(payload && payload.events).concat(tab === "replays" ? items(state.sportsReplayStandaloneEvents) : []);
   return sourceEvents.filter(function(event) {
-    const channelCount = uniqueEventChannels(event.channels).length;
-    const replayCount = sportsReplayMatchesForEvent(event).length;
-    if (!sportsEventHasPlayableAccess(event)) return false;
     if (state.sportsLeague && event.leagueId !== state.sportsLeague) return false;
-    const onNow = sportsEventIsOnNow(event);
-    if (state.sportsTab === "live" && (!onNow || !channelCount)) return false;
+    if (tab === "replays") return sportsReplayMatchesForEvent(event).length > 0;
+    if (tab === "teams") return sportsEventIsFollowed(event);
     const startUnix = Number(event.startUnix || 0);
-    if (state.sportsTab === "upcoming" && (!channelCount || event.completed || onNow || (startUnix > 0 && startUnix < now - 3600))) return false;
-    if (state.sportsTab === "replays" && !replayCount) return false;
-    if (state.sportsTab === "favorites" && !sportsEventIsFollowed(event)) return false;
-    return true;
+    return !event.completed || startUnix >= now - 30 * 3600;
   }).sort(compareSportsEventsForTab);
 }
 function sportsEventHasPlayableAccess(event) {
   return uniqueEventChannels(event && event.channels).length > 0 || sportsReplayMatchesForEvent(event).length > 0;
-}
-function sportsEventIsRankedPlaceholder(event, now) {
-  if (!event || event.completed || event.replayOnly || sportsEventHasPlayableAccess(event)) return false;
-  const startUnix = Number(event.startUnix || 0);
-  const clock = Number(now || Math.floor(Date.now() / 1000));
-  if (!startUnix || startUnix < clock - 3600 || startUnix > clock + 48 * 3600) return false;
-  return sportsEffectiveRanking(event).score >= 4;
 }
 function compareSportsEventsForTab(left, right) {
   const tab = state.sportsTab || "live";
@@ -4671,13 +4732,17 @@ function togglePlayerSports(open) {
   }
 }
 function setSportsTab(tab) {
-  state.sportsTab = tab || "live";
+  state.sportsTab = sportsHubTab(tab);
+  state.sportsTeam = "";
+  state.sportsLeague = "";
+  state.sportsSelectedEventID = "";
   state.sportsExpandedEvents = {};
   renderSportsPage();
   commitAppRoute("push");
 }
 function setSportsLeague(leagueID) {
   state.sportsLeague = leagueID || "";
+  state.sportsTeam = "";
   state.sportsSelectedEventID = "";
   state.sportsExpandedEvents = {};
   renderSportsPage();
@@ -4686,6 +4751,7 @@ function setSportsLeague(leagueID) {
 }
 function openSportsLeague(leagueID) {
   state.sportsLeague = String(leagueID || "");
+  state.sportsTeam = "";
   state.sportsSelectedEventID = "";
   state.sportsExpandedEvents = {};
   renderSportsPage();
@@ -4709,9 +4775,11 @@ function backFromSportsDetail() {
   }
   if (state.sportsSelectedEventID) {
     state.sportsSelectedEventID = "";
+  } else if (state.sportsTeam) {
+    state.sportsTeam = "";
   } else {
     state.sportsLeague = "";
-    state.sportsTab = "live";
+    state.sportsTab = "today";
   }
   renderSportsPage();
 }
@@ -6764,8 +6832,76 @@ function renderAdminSportsSettings() {
     + "<label class=\"settings-row compact-row\"><span><strong>Separate sports Silo app</strong><small>Show Sports as its own Silo Apps entry and hide it from Live TV. Turn this off to keep Sports inside Live TV.</small></span><input type=\"checkbox\" data-admin-sports-field=\"separate\"" + (settings.separateSportsApp ? " checked" : "") + (settings.sportsEnabled ? "" : " disabled") + "></label>"
     + "<label class=\"settings-row compact-row\"><span><strong>Sports-first player</strong><small>Use the score and matched-channel player when a channel is launched from Sports.</small></span><input type=\"checkbox\" data-admin-player-field=\"sports\"" + (settings.sportsFirstPlayerEnabled ? " checked" : "") + (settings.sportsEnabled ? "" : " disabled") + "></label>"
     + "<div class=\"settings-card-head sports-library-head\"><div><h3>Replay libraries</h3><p>Select only dedicated Sports libraries. Each user still sees only libraries their Silo profile can access.</p></div><span class=\"profile-selection-summary\">" + configuredSportsLibraryIDs().length + " selected</span></div>"
-    + libraryHTML;
+    + libraryHTML
+    + renderAdminSportsTeamChannels(settings);
   if (!state.sportsLibraries && !state.sportsLibrariesLoading) loadSportsLibraries(false);
+  if (!state.sports && !state.sportsLoading && settings.sportsEnabled) loadSports(false);
+}
+function adminSportsTeamOptions() {
+  const teams = sportsHubTeams(state.sports || {});
+  return Object.keys(teams).map(function(key) { return teams[key]; }).sort(function(left, right) {
+    return String(left.leagueName).localeCompare(String(right.leagueName)) || sportsTeamName(left.team).localeCompare(sportsTeamName(right.team));
+  });
+}
+function ensureAdminChannelsLoaded() {
+  if (!isAdminRoute || state.adminChannelsRequested) return;
+  state.adminChannelsRequested = true;
+  getJSON("/dispatcharr/api/channels").then(function(payload) {
+    if (state.app) state.app.channels = items(payload && payload.channels);
+  }).catch(function() {}).then(function() {
+    if (state.view === "admin" && state.adminTab === "sports") renderAdminSportsSettings();
+  });
+}
+function renderAdminSportsTeamChannels(settings) {
+  ensureAdminChannelsLoaded();
+  const pins = items(settings.sportsTeamChannels);
+  const teams = adminSportsTeamOptions();
+  const channels = items(state.app && state.app.channels).slice().sort(function(left, right) { return String(left.name || "").localeCompare(String(right.name || "")); });
+  const leagueName = function(id) {
+    const league = sportsLeagueByID(state.sports, id);
+    return (league && league.name) || id;
+  };
+  const list = pins.length ? "<div class=\"profile-selection-list sports-team-channel-list\">" + pins.map(function(pin, index) {
+    const channel = channelByID(pin.channelId);
+    return "<div class=\"profile-selection-row\"><span><strong>" + escapeHTML(pin.teamName) + "</strong><small>" + escapeHTML(leagueName(pin.leagueId) + " → " + ((channel && channel.name) || pin.channelName || pin.channelId) + (channel ? "" : " (channel not found)")) + "</small></span><button type=\"button\" data-admin-sports-action=\"remove-team-channel\" data-admin-team-channel-index=\"" + index + "\" aria-label=\"Remove channel for " + escapeHTML(pin.teamName) + "\">" + icon("x") + "</button></div>";
+  }).join("") + "</div>" : "<div class=\"settings-note\">No team channels yet. Pin a team to its regional or team network so its games always get a Watch button.</div>";
+  const teamOptions = "<option value=\"\">Choose a team</option>" + teams.map(function(entry) {
+    return "<option value=\"" + escapeHTML(entry.leagueID + "|" + sportsTeamName(entry.team)) + "\">" + escapeHTML(sportsTeamName(entry.team) + " · " + entry.leagueName) + "</option>";
+  }).join("");
+  const channelOptions = "<option value=\"\">Choose a channel</option>" + channels.map(function(channel) {
+    return "<option value=\"" + escapeHTML(channel.id) + "\">" + escapeHTML(channel.name || channel.id) + "</option>";
+  }).join("");
+  return "<div class=\"settings-card-head sports-library-head\"><div><h3>Team channels</h3><p>Pin a team to one channel, such as a regional sports network. Its live and upcoming games list that channel first.</p></div><span class=\"profile-selection-summary\">" + pins.length + " pinned</span></div>"
+    + list
+    + "<div class=\"sports-team-channel-form\"><label><span>Team</span><select id=\"admin-team-channel-team\"" + (teams.length ? "" : " disabled") + ">" + teamOptions + "</select></label><label><span>Channel</span><select id=\"admin-team-channel-channel\">" + channelOptions + "</select></label><button type=\"button\" data-admin-sports-action=\"add-team-channel\">Pin channel</button></div>"
+    + (teams.length ? "" : "<div class=\"settings-note\">Teams appear here once Sports data has loaded.</div>");
+}
+function updateAdminSportsTeamChannels(action, button) {
+  const settings = state.adminCategorySettings || defaultAdminCategorySettings();
+  const pins = items(settings.sportsTeamChannels).slice();
+  if (action === "remove-team-channel") {
+    pins.splice(Number(button.getAttribute("data-admin-team-channel-index")), 1);
+  } else {
+    const team = String((byId("admin-team-channel-team") || {}).value || "");
+    const channelID = String((byId("admin-team-channel-channel") || {}).value || "");
+    const split = team.indexOf("|");
+    if (split < 1 || !channelID) {
+      showAppToast("Choose a team and a channel.");
+      return;
+    }
+    const leagueId = team.slice(0, split);
+    const teamName = team.slice(split + 1);
+    const channel = channelByID(channelID);
+    const existing = pins.findIndex(function(pin) { return pin.leagueId === leagueId && lower(pin.teamName) === lower(teamName); });
+    const pin = { leagueId: leagueId, teamName: teamName, channelId: channelID, channelName: (channel && channel.name) || "" };
+    if (existing >= 0) pins[existing] = pin;
+    else pins.push(pin);
+  }
+  settings.sportsTeamChannels = pins;
+  state.adminCategorySettings = settings;
+  normalizeAdminCategorySettings();
+  markAdminSettingsDraft();
+  renderAdminPage();
 }
 function byteSizeLabel(value) {
   const bytes = Number(value || 0);
@@ -7686,7 +7822,9 @@ document.addEventListener("click", function(event) {
   const adminSportsAction = event.target.closest("[data-admin-sports-action]");
   if (adminSportsAction) {
     event.preventDefault();
-    if (adminSportsAction.getAttribute("data-admin-sports-action") === "refresh-libraries") loadSportsLibraries(true);
+    const sportsAction = adminSportsAction.getAttribute("data-admin-sports-action");
+    if (sportsAction === "refresh-libraries") loadSportsLibraries(true);
+    if (sportsAction === "add-team-channel" || sportsAction === "remove-team-channel") updateAdminSportsTeamChannels(sportsAction, adminSportsAction);
     return;
   }
   const settingsMenuButton = event.target.closest("#settings-menu-button");

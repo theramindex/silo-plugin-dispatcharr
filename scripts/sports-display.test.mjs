@@ -22,6 +22,8 @@ test('event details use browse breadcrumbs and sport art without generic league 
     assert.ok(start >= 0 && end > start, name);
     vm.runInContext(source.slice(start, end), ctx);
   }
+  const hub = fs.readFileSync(new URL('../internal/plugin/ui/sports_hub.js', import.meta.url), 'utf8');
+  vm.runInContext(hub.slice(hub.indexOf('const SPORTS_HUB_TABS'), hub.indexOf('function sportsHubTabs(')), ctx);
   const event = {leagueId: 'sports', leagueName: 'Sports', sportName: 'Sports', name: 'NWSL Soccer: Palmeiras vs Chicago Stars', away: {name: 'Palmeiras'}, home: {name: 'Chicago Stars'}};
   const html = ctx.renderSportsEventDetail({}, event);
   assert.match(html, /aria-label="Breadcrumb"/);
@@ -56,8 +58,8 @@ test('MLB details render innings, final stats, and honor hidden scores', () => {
   const source = fs.readFileSync(new URL('../internal/plugin/ui/app.js', import.meta.url), 'utf8');
   const event = {id: 'mlb', leagueId: 'mlb', away: {name: 'Reds'}, home: {name: 'Dodgers'}};
   const data = {available: true, completed: true, homeScore: '6', awayScore: '3', updatedAtUnix: 1, sourceUrl: 'https://www.espn.com/mlb/boxscore/', innings: [{number: 1, away: '0', home: '0'}, {number: 9, away: '0', home: ''}], rows: [{label: 'Hits', away: '7', home: '10'}]};
-  const ctx = vm.createContext({sportsGameStatsState: {id: 'mlb', data}, items: value => value || [], escapeHTML: value => String(value ?? ''), sportsScoresHidden: () => false, sportsEventStateID: e => e.id, sportsTeamName: t => t.name, sportsSectionHTML: (title, source, body) => title + source + body});
-  for (const name of ['sportsHasGameStats', 'renderSportsGameStats', 'renderSportsInnings']) {
+  const ctx = vm.createContext({sportsGameStatsState: {id: 'mlb', data}, items: value => value || [], escapeHTML: value => String(value ?? ''), sportsScoresHidden: () => false, sportsEventStateID: e => e.id, sportsTeamName: t => t.name, sportsTeamAbbreviation: t => t.name.slice(0, 3).toUpperCase(), icon: () => '', sportsSectionHTML: (title, source, body) => title ? title + source + body : ''});
+  for (const name of ['sportsHasGameStats', 'renderSportsGameStats', 'renderSportsInnings', 'renderSportsBaseballSituation', 'renderSportsProbables', 'renderSportsLeaders', 'renderSportsPlays', 'renderSportsHighlights']) {
     const start = source.indexOf('function ' + name + '('), end = source.indexOf('\nfunction ', start + 1);
     vm.runInContext(source.slice(start, end), ctx);
   }
@@ -67,10 +69,20 @@ test('MLB details render innings, final stats, and honor hidden scores', () => {
   assert.match(html, /<td>0<\/td><td>–<\/td>/);
   assert.match(html, /Hits/);
   data.completed = false; data.live = true;
-  assert.match(ctx.renderSportsGameStats(event), /^Live stats/);
+  data.situation = {balls: 3, strikes: 2, outs: 1, onFirst: true, onSecond: false, onThird: true, batter: {name: 'Elly De La Cruz', summary: '1-3'}};
+  data.plays = [{text: 'Stewart homered to right.', period: '8th Inning', scoring: true}];
+  data.videos = [{title: 'De La Cruz steals home', url: 'https://example.com/clip.mp4'}];
+  const live = ctx.renderSportsGameStats(event);
+  assert.match(live, /^Live stats/);
+  assert.match(live, /aria-label="Balls 3, strikes 2, 1 out, runners on first and third"/);
+  assert.match(live, /sports-base-first on/);
+  assert.match(live, /Elly De La Cruz/);
+  assert.match(live, /<li class="scoring">.*Stewart homered/);
+  assert.match(live, /Highlights.*href="https:\/\/example.com\/clip.mp4"/);
   ctx.sportsScoresHidden = () => true;
   assert.equal(ctx.renderSportsGameStats(event), '');
-  assert.equal(ctx.sportsHasGameStats({leagueId: 'nhl'}), false);
+  assert.equal(ctx.sportsHasGameStats({leagueId: 'nhl'}), true);
+  assert.equal(ctx.sportsHasGameStats({leagueId: 'cebl'}), false);
 });
 
 test('game-thumbs failures fall back once and retain the local layout', () => {

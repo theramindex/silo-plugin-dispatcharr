@@ -53,6 +53,7 @@ type HTTPRoutesServer struct {
 	sportsCache         sportsEventCache
 	sportsMu            sync.Mutex
 	sportsStats         footballStatsCache
+	sportsNews          sportsNewsCache
 	sportsPrepared      sportsPreparedCache
 	sportsPreparedMu    sync.Mutex
 	sportsImages        *sportsImageCache
@@ -269,6 +270,8 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return playerUIAssetResponse("ui/lineup.js", "application/javascript; charset=utf-8")
 	case "/dispatcharr/assets/sports_replays.js", "/assets/sports_replays.js":
 		return playerUIAssetResponse("ui/sports_replays.js", "application/javascript; charset=utf-8")
+	case "/dispatcharr/assets/sports_hub.js", "/assets/sports_hub.js":
+		return playerUIAssetResponse("ui/sports_hub.js", "application/javascript; charset=utf-8")
 	case "/dispatcharr/assets/app.css", "/assets/app.css":
 		return playerUIAssetResponse("ui/styles.css", "text/css; charset=utf-8")
 	case "/dispatcharr/status", "/dispatcharr/api/status":
@@ -331,6 +334,12 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return s.handleSports(ctx, request)
 	case "/dispatcharr/api/sports/league-teams":
 		return s.handleSportsLeagueTeams(ctx, request)
+	case "/dispatcharr/api/sports/news":
+		return s.handleSportsNews(ctx, request)
+	case "/dispatcharr/api/sports/team":
+		return s.handleSportsTeam(ctx, request)
+	case "/dispatcharr/api/sports/standings":
+		return s.handleSportsStandings(ctx, request)
 	case "/dispatcharr/api/sports/favorites":
 		return s.handleSportsFavorite(request)
 	case "/dispatcharr/api/events":
@@ -1444,6 +1453,7 @@ func pluginAssetVersion() string {
 			{playerUIAssets, "ui/styles.css"},
 			{playerUIAssets, "ui/lineup.js"},
 			{playerUIAssets, "ui/sports_replays.js"},
+			{playerUIAssets, "ui/sports_hub.js"},
 			{playerUIAssets, "ui/app.js"},
 			{playerUIAssets, "ui/guide.js"},
 			{playerUIAssets, "ui/player.js"},
