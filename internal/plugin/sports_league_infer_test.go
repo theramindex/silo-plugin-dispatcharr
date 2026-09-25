@@ -30,3 +30,11 @@ func TestInferGuideSportsLeaguesUsesProviderTeamNicknames(t *testing.T) {
 		t.Fatalf("studio programs must not be reassigned, got %q", got)
 	}
 }
+
+func TestInferGuideSportsLeaguesSeparatesGLeagueExhibitions(t *testing.T) {
+	t.Parallel()
+	events := inferGuideSportsLeagues([]SportsEvent{{ID: "sportarr:1", LeagueID: "nba", LeagueName: "NBA", ProviderLeagueID: "nba", Away: SportsTeam{Name: "NBA G League United"}, Home: SportsTeam{Name: "Boca Juniors"}}})
+	if events[0].LeagueID != "nba-g-league" || events[0].LeagueName != "NBA G League" || events[0].ProviderLeagueID != "nba" {
+		t.Fatalf("G League exhibitions must list under NBA G League, got %+v", events[0])
+	}
+}

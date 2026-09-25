@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
@@ -84,7 +85,7 @@ var guideSportsMatchNumberSuffix = regexp.MustCompile(`(?i)\s*(?:,\s*match\s+\d+
 var guideSportsStageSuffix = regexp.MustCompile(`(?i)\s+[-–—]\s+(?:qualifier|eliminator|play[- ]?offs?|quarter[- ]?final|semi[- ]?final|final)(?:\s+\d+)?\s*$`)
 
 // Country codes such as "(NOR)" stay on the team; only network tags are dropped.
-var guideSportsNetworkSuffix = regexp.MustCompile(`(?i)\s*\((?:accnx|accn|secn\+?|espn[2u+]?|espnews|btn\+?|b1g\+|fs[12]|cbssn|nbcsn|peacock|paramount\+|dazn|tsn\+?\d*|sn\d*|flo\w*|nfhs)\)\s*$`)
+var guideSportsNetworkSuffix = regexp.MustCompile(`(?i)\s*\((?:accnx|accn|secn\+?|secplus|sec\s*\+|sec\s+network\s*\+?|espn[2u+]?|espnews|btn\+?|b1g\+|fs[12]|cbssn|nbcsn|peacock|paramount\+|dazn|tsn\+?\d*|sn\d*|flo\w*|nfhs)\)\s*$`)
 
 // Provider event channels append the air time ("@ 24 Sep 07:50 AM ET",
 // "SEP 25 06:00 PM"); it is not the second half of a matchup.
@@ -93,6 +94,12 @@ var guideSportsAirTimeSuffix = regexp.MustCompile(`(?i)\s*(?:@\s*)?(?:\d{1,2}\s+
 var guideSportsDottedDateSuffix = regexp.MustCompile(`(?i)\s*\(\d{1,2}[./]\d{1,2}(?:[./]\d{2,4})?\s+\d{1,2}:\d{2}(?:\s*[ap]\.?m\.?)?(?:\s+[a-z]{2,12})?\)\s*$`)
 
 var guideSportsGameNumberSuffix = regexp.MustCompile(`\s+[-–—]\s+#\d+\s*$`)
+
+var guideSportsClockAtSuffix = regexp.MustCompile(`(?i)\s*@\s*\d{1,2}:\d{2}(?:\s*[ap]\.?m\.?)?(?:\s+[a-z]{2,12})?\s*$`)
+
+var guideSportsFeedSuffix = regexp.MustCompile(`(?i)\s*\(\s*[^()]*\bfeed\s*\)\s*$`)
+
+var guideSportsStagePrefix = regexp.MustCompile(`(?i)^(?:grand\s+|quarter[- ]?|semi[- ]?)?(?:finals?|play[- ]?offs?|qualifiers?|eliminators?)\s*[-–—:]\s+`)
 
 // Tennis listings put the tournament before the first player without a colon.
 var guideSportsTournamentPrefix = regexp.MustCompile(`^(?:(?i:atp|wta|itf)\b|.*\s(?i:at\s+the)\s).*\b(?:Open|Cup|Championships?|Masters|Classic|Finals)\s+`)
@@ -766,6 +773,9 @@ func sportsEventsFromGuideWithScoreHints(snapshot cache.Snapshot, now time.Time)
 		}
 		startBucket := program.StartUnix / (15 * 60)
 		key := normalizeMatchText(displayTitle) + "|" + fmt.Sprintf("%d", startBucket)
+		if matchup && eventType == "" {
+			key = normalizeMatchText(awayName) + "|" + normalizeMatchText(homeName) + "|" + fmt.Sprintf("%d", startBucket)
+		}
 		event := byKey[key]
 		if event == nil {
 			endUnix := program.EndUnix
@@ -1003,6 +1013,8 @@ func guideSportsMatchup(title string) (string, string, bool) {
 	title = guideSportsTimestampSuffix.ReplaceAllString(title, "")
 	title = guideSportsAirTimeSuffix.ReplaceAllString(title, "")
 	title = guideSportsDottedDateSuffix.ReplaceAllString(title, "")
+	title = guideSportsClockAtSuffix.ReplaceAllString(title, "")
+	title = guideSportsFeedSuffix.ReplaceAllString(title, "")
 	locations := sportsMatchupSeparator.FindAllStringIndex(title, -1)
 	if len(locations) == 0 {
 		return "", "", false
@@ -1017,6 +1029,9 @@ func guideSportsMatchup(title string) (string, string, bool) {
 		left = strings.TrimSpace(left[pipe+1:])
 	}
 	if trimmed := strings.TrimSpace(guideSportsTournamentPrefix.ReplaceAllString(left, "")); trimmed != "" {
+		left = trimmed
+	}
+	if trimmed := strings.TrimSpace(guideSportsStagePrefix.ReplaceAllString(left, "")); trimmed != "" {
 		left = trimmed
 	}
 	if colon := strings.Index(right, ":"); colon >= 0 {
@@ -1043,6 +1058,12 @@ type sportsLeagueRef struct {
 // Guide listings like "Padres vs Dodgers" never name their league. Both teams
 // must resolve to the same league through names the provider already knows.
 func inferGuideSportsLeagues(events []SportsEvent) []SportsEvent {
+	for index, event := range events {
+		if event.LeagueID == "nba" && (strings.HasPrefix(event.Home.Name, "NBA G League") || strings.HasPrefix(event.Away.Name, "NBA G League")) {
+			events[index].LeagueID = "nba-g-league"
+			events[index].LeagueName = "NBA G League"
+		}
+	}
 	known := map[string]sportsLeagueRef{}
 	ambiguous := map[string]bool{}
 	for _, event := range events {
@@ -1130,15 +1151,52 @@ func cleanGuideSportsTeamName(value string) string {
 	value = guideSportsCompetitionSuffix.ReplaceAllString(value, "")
 	value = guideSportsNetworkSuffix.ReplaceAllString(value, "")
 	value = guideSportsGameNumberSuffix.ReplaceAllString(value, "")
+	value = guideSportsSeasonPrefix.ReplaceAllString(value, "")
 	value = strings.TrimSpace(value)
 	if open := strings.LastIndex(value, " ("); open > 0 && strings.HasSuffix(value, ")") {
 		base := strings.TrimSpace(value[:open])
 		parenthetical := strings.TrimSpace(value[open+2 : len(value)-1])
 		if normalizeMatchText(base) == normalizeMatchText(parenthetical) {
-			return base
+			return titleCaseShoutedName(base)
 		}
 	}
-	return strings.TrimSpace(value)
+	return titleCaseShoutedName(strings.TrimSpace(value))
+}
+
+var guideSportsSeasonPrefix = regexp.MustCompile(`^(?:19|20)\d{2}(?:[-/]\d{2,4})?\s+`)
+
+// Some providers shout team names ("NORTH BAY BATTALION"); short tokens such
+// as "LSU" or "NYM" are abbreviations and stay uppercase.
+func titleCaseShoutedName(value string) string {
+	if value == "" || strings.ToUpper(value) != value || strings.ToLower(value) == value {
+		return value
+	}
+	words := strings.Fields(value)
+	for index, word := range words {
+		letters := 0
+		for _, r := range word {
+			if unicode.IsLetter(r) {
+				letters++
+			}
+		}
+		if letters <= 3 {
+			continue
+		}
+		lower := []rune(strings.ToLower(word))
+		capitalize := true
+		for position, r := range lower {
+			if capitalize && unicode.IsLetter(r) {
+				lower[position] = unicode.ToUpper(r)
+				capitalize = false
+				continue
+			}
+			if r == '-' || r == '\'' || r == '/' {
+				capitalize = true
+			}
+		}
+		words[index] = string(lower)
+	}
+	return strings.Join(words, " ")
 }
 
 func guideSportsVenue(title string) string {

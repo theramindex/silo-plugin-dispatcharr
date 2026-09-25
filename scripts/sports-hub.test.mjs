@@ -17,7 +17,7 @@ function context(extra = {}) {
     sportsTeamName: team => (team && team.name) || '',
     sportsGamePassSlug: name => String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
     sportsEventIsRace: () => false, sportsEventIsProgram: () => false,
-    sportsEventIsLive: event => !!event.live, sportsEventHasScores: event => !!(event.homeScore || event.awayScore),
+    sportsEventIsLive: event => !!event.live, sportsEventIsOnNow: event => !!event.live && !event.completed, sportsEventHasScores: event => !!(event.homeScore || event.awayScore),
     sportsScoresHidden: () => false, sportsStatusLabel: () => 'Live', sportsDateLabel: unix => 'at ' + unix,
     sportsEventTitle: event => event.away.name + ' at ' + event.home.name, sportsEventStateID: event => event.id,
     renderSportsTeamLogo: () => '<i></i>', sportsEventIsFollowed: () => false, sportsFavoriteLeagueMap: () => ({}),
@@ -52,6 +52,9 @@ test('score rows offer Watch only when a channel carries the game', () => {
   assert.doesNotMatch(unavailable, /data-channel=/);
   assert.match(unavailable, /Not on your channels/);
   assert.match(unavailable, /data-sports-open-event="b"/);
+  const later = ctx.renderSportsScoreRow({ id: 'c', startUnix: 200, away: mets, home: braves, channels: [{ id: 'channel:espn', name: 'ESPN' }] });
+  assert.doesNotMatch(later, /class="sports-score-watch"/);
+  assert.match(later, /class="sports-score-channel"[^>]*>ESPN</);
 });
 
 test('team pages group a team\'s games and describe results from its side', () => {
