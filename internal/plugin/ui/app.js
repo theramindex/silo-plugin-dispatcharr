@@ -4046,7 +4046,7 @@ function renderSportsLeagueDetail(payload, league, events) {
   const teamBody = teams.length ? "<div class=\"sports-team-rail\">" + teams.map(renderSportsTeamShelfCard).join("") + "</div>" : "";
   const eventBody = events.length ? "<div class=\"sports-event-grid\">" + events.map(renderSportsEventTile).join("") + "</div>" : "<div class=\"empty\">No games in this league right now.</div>";
   const leagueSummary = [league.sportName, pluralLabel(teams.length, "team"), pluralLabel(leagueEvents.length, "event"), replayCount ? pluralLabel(replayCount, "replay") : ""].filter(Boolean).join(" · ");
-  return "<div class=\"sports-pinned sports-detail-toolbar\"><button type=\"button\" class=\"sports-back\" data-sports-back=\"browse\">" + icon("arrow-left") + "<span>All sports</span></button>" + renderSportsTabFilters(payload) + "</div>"
+  return "<div class=\"sports-pinned sports-detail-toolbar\"><button type=\"button\" class=\"sports-back\" data-sports-back=\"browse\">" + icon("arrow-left") + "<span>" + escapeHTML(sportsTabLabel(state.sportsTab)) + "</span></button>" + renderSportsTabFilters(payload) + "</div>"
     + "<div class=\"sports-score-scroll sports-league-detail\"><header class=\"sports-league-hero\">" + renderSportsLeagueMark(league) + "<div><span class=\"sports-eyebrow\">League</span><h1>" + escapeHTML(league.name || league.id || "League") + "</h1><p>" + escapeHTML(leagueSummary) + "</p>" + (league.description ? "<small>" + escapeHTML(league.description) + "</small>" : "") + "</div></header>"
     + sportsSectionHTML("Teams", "", teamBody, "sports-team-section")
     + sportsSectionHTML("Games", "", eventBody, "sports-events-section")
@@ -4834,15 +4834,26 @@ function toggleSportsTeamFavorite(teamID, enabled, label) {
   } else {
     const people = myTVBuiltInSportsPeople().concat(myTVSportsPeople());
     const team = people.find(function(person) { return person.id === teamID; });
-    delete state.app.preferences.sportsFavoriteTeams[teamID];
-    delete labels[teamID];
-    if (team) {
-      const slug = sportsGamePassSlug(team.name);
-      people.filter(function(person) { return sportsGamePassSlug(person.name) === slug; }).forEach(function(person) {
-        delete state.app.preferences.sportsFavoriteTeams[person.id];
-        delete labels[person.id];
-      });
-    }
+    const slugs = {};
+    [team && team.name, label && label.name, labels[teamID] && labels[teamID].name].forEach(function(name) {
+      const slug = name ? sportsGamePassSlug(name) : "";
+      if (slug) slugs[slug] = true;
+    });
+    const related = [teamID];
+    people.forEach(function(person) { if (slugs[sportsGamePassSlug(person.name)]) related.push(person.id); });
+    const hubTeams = typeof sportsHubTeams === "function" ? sportsHubTeams(state.sports) : {};
+    Object.keys(hubTeams).forEach(function(key) {
+      const hubTeam = hubTeams[key].team || {};
+      const ids = [hubTeam.id].concat(items(hubTeam.followIds)).filter(Boolean).map(String);
+      if (ids.indexOf(teamID) !== -1 || slugs[sportsGamePassSlug(hubTeam.name)]) ids.forEach(function(id) { related.push(id); });
+    });
+    Object.keys(labels).forEach(function(id) {
+      if (labels[id] && slugs[sportsGamePassSlug(labels[id].name)]) related.push(id);
+    });
+    related.forEach(function(id) {
+      delete state.app.preferences.sportsFavoriteTeams[id];
+      delete labels[id];
+    });
   }
   applySportsFavoritesToPayload();
   savePrefs();

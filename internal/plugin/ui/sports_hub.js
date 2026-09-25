@@ -208,6 +208,7 @@ function renderSportsScoreboard(events, options) {
   options = options || {};
   const groups = {};
   events.forEach(function(event) {
+    if (sportsEventIsProgram(event)) return;
     const id = String(event.leagueId || "sports");
     if (!groups[id]) groups[id] = { name: id === "sports" ? "Other sports" : (event.leagueName || id), events: [], live: false, followed: false };
     groups[id].events.push(event);
@@ -221,8 +222,10 @@ function renderSportsScoreboard(events, options) {
     const group = groups[id];
     const rows = group.events.slice().sort(sportsScoreboardEventOrder);
     const visible = options.perLeague ? rows.slice(0, options.perLeague) : rows;
-    return "<section class=\"sports-scoreboard-league\"><header><button type=\"button\" data-sports-open-league=\"" + escapeHTML(id) + "\">" + escapeHTML(group.name) + icon("chevron-right") + "</button><span>" + escapeHTML(pluralLabel(rows.length, "game")) + "</span></header>"
-      + "<div class=\"sports-scoreboard-rows\">" + visible.map(renderSportsScoreRow).join("") + "</div></section>";
+    const collapsed = !!(state.sportsCollapsedLeagues && state.sportsCollapsedLeagues[id]);
+    const toggleLabel = (collapsed ? "Expand " : "Collapse ") + group.name;
+    return "<section class=\"sports-scoreboard-league" + (collapsed ? " collapsed" : "") + "\"><header><button type=\"button\" class=\"sports-scoreboard-toggle\" data-sports-league-toggle=\"" + escapeHTML(id) + "\" aria-expanded=\"" + (collapsed ? "false" : "true") + "\" aria-label=\"" + escapeHTML(toggleLabel) + "\" title=\"" + escapeHTML(toggleLabel) + "\">" + icon("chevron-down") + "</button><button type=\"button\" data-sports-open-league=\"" + escapeHTML(id) + "\">" + escapeHTML(group.name) + icon("chevron-right") + "</button><span>" + escapeHTML(pluralLabel(rows.length, "game")) + "</span></header>"
+      + (collapsed ? "" : "<div class=\"sports-scoreboard-rows\">" + visible.map(renderSportsScoreRow).join("") + "</div>") + "</section>";
   }).join("") + "</div>";
 }
 
@@ -235,7 +238,8 @@ function renderSportsScoreRow(event) {
     const value = side || {};
     return "<span class=\"sports-score-team" + (value.favorite ? " followed" : "") + "\">" + renderSportsTeamLogo(value, "sports-score-logo") + "<span>" + escapeHTML(sportsTeamName(value) || "TBD") + "</span>" + (showScore ? "<b>" + escapeHTML(score || "0") + "</b>" : "") + "</span>";
   };
-  const matchup = sportsEventIsRace(event) || sportsEventIsProgram(event)
+  const hasTeams = !!(sportsTeamName(event.away || {}) || sportsTeamName(event.home || {}));
+  const matchup = sportsEventIsRace(event) || sportsEventIsProgram(event) || !hasTeams
     ? "<span class=\"sports-score-program\">" + escapeHTML(sportsEventTitle(event)) + "</span>"
     : team(event.away, event.awayScore) + team(event.home, event.homeScore);
   const watchLabel = "Watch " + sportsEventTitle(event) + " on " + ((channel && channel.name) || "channel");
@@ -403,7 +407,7 @@ function renderSportsTeamPage(payload, key) {
   const schedule = games.upcoming.slice(next === games.upcoming[0] ? 1 : 0, 8);
   const scheduleRows = sportsScheduleRowsHTML(entry, summary, schedule);
   const newsBody = !summary ? "<div class=\"empty\">Loading news...</div>" : (summary.articles && summary.articles.length ? renderSportsNewsList(summary.articles, 8) : emptyStateHTML("No recent news.", summary.message || ""));
-  return "<div class=\"sports-pinned sports-detail-toolbar\"><button type=\"button\" class=\"sports-back\" data-sports-back=\"browse\">" + icon("arrow-left") + "<span>Sports</span></button></div>"
+  return "<div class=\"sports-pinned sports-detail-toolbar\"><button type=\"button\" class=\"sports-back\" data-sports-back=\"browse\">" + icon("arrow-left") + "<span>" + escapeHTML(sportsTabLabel(state.sportsTab)) + "</span></button></div>"
     + "<div class=\"sports-score-scroll sports-team-page\">" + header
     + "<div class=\"sports-split\"><div class=\"sports-split-main\">"
     + sportsSectionHTML(next && sportsEventIsLive(next) ? "Live now" : "Next game", "", nextBody, "sports-team-next-section")
@@ -617,6 +621,18 @@ document.addEventListener("click", function(event) {
   if (highlightClose) {
     event.preventDefault();
     closeSportsHighlight();
+    return;
+  }
+  const leagueToggle = event.target.closest && event.target.closest("[data-sports-league-toggle]");
+  if (leagueToggle) {
+    event.preventDefault();
+    const id = leagueToggle.getAttribute("data-sports-league-toggle");
+    state.sportsCollapsedLeagues = Object.assign({}, state.sportsCollapsedLeagues);
+    if (state.sportsCollapsedLeagues[id]) delete state.sportsCollapsedLeagues[id];
+    else state.sportsCollapsedLeagues[id] = true;
+    renderSportsPage();
+    const restored = document.querySelector("[data-sports-league-toggle=\"" + cssEscape(id) + "\"]");
+    if (restored) restored.focus();
     return;
   }
   const highlight = event.target.closest && event.target.closest("[data-sports-highlight-src]");
