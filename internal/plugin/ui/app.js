@@ -2197,9 +2197,9 @@ function renderHome() {
     + rowCards(watched)
     + (favorites.length ? sectionHeader("Favorites") + favoriteHomeCards(favorites) : "")
     + (!favorites.length && watchedOften.length ? sectionHeader("Watched often") + favoriteHomeCards(watchedOften) : "")
+    + renderSavedLineupsHome()
     + sectionHeaderWithActions("TV Guide", "<button type=\"button\" class=\"section-action\" data-view=\"guide\">Open Full Guide</button>" + guideFreshnessHTML())
     + renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true })
-    + renderSavedLineupsHome()
     + (channelGroupsInSideMenu() ? "" : categoryGrid());
   const openGuide = root.querySelector("[data-view=\"guide\"]");
   if (openGuide) openGuide.onclick = function() { setView("guide"); };
@@ -3057,6 +3057,13 @@ function myTVFollowedPeople() {
   const labels = prefs().sportsFavoriteTeamLabels || {};
   myTVBuiltInSportsPeople().forEach(function(team) { people[team.id] = team; });
   myTVSportsPeople().forEach(function(team) { people[team.id] = team; });
+  const hubTeams = typeof sportsHubTeams === "function" ? sportsHubTeams(state.sports) : {};
+  Object.keys(hubTeams).forEach(function(key) {
+    const entry = hubTeams[key];
+    items(entry.team && entry.team.followIds).forEach(function(followID) {
+      if (!people[followID]) people[followID] = Object.assign({ kind: "Team", leagueName: entry.leagueName }, entry.team, { id: followID });
+    });
+  });
   return Object.keys(sportsFavoriteTeamMap()).filter(function(id) { return !!sportsFavoriteTeamMap()[id]; }).map(function(id) {
     if (people[id]) return people[id];
     const label = labels[id];
@@ -3101,7 +3108,13 @@ function myTVFollowingHTML() {
   const searches = passes.map(function(pass) {
     return "<article class=\"my-tv-follow-card query\"><span class=\"my-tv-follow-mark\">" + icon("search") + "</span><span><strong>" + escapeHTML(pass.keyword) + "</strong><small>Title or event</small></span><button type=\"button\" data-keyword-pass-remove=\"" + escapeHTML(pass.id) + "\" aria-label=\"Stop tracking " + escapeHTML(pass.keyword) + "\">" + icon("x") + "</button></article>";
   });
-  return "<section class=\"my-tv-section\" aria-label=\"Following\"><div class=\"my-tv-following\">" + searches.concat(people.map(function(team) { return myTVFollowingCard("team", team); }), leagues.map(function(league) { return myTVFollowingCard("league", league); })).join("") + "</div></section>";
+  const named = people.filter(function(team) { return !team.unresolved; });
+  const unnamed = people.length - named.length;
+  const cards = searches.concat(named.map(function(team) { return myTVFollowingCard("team", team); }), leagues.map(function(league) { return myTVFollowingCard("league", league); }));
+  const total = cards.length + unnamed;
+  const unnamedNote = unnamed ? "<p class=\"my-tv-follow-note\">" + escapeHTML(pluralLabel(unnamed, "more team") + " will appear when they're back on the schedule.") + "</p>" : "";
+  if (!cards.length && !unnamedNote) return "";
+  return "<section class=\"my-tv-section\" aria-label=\"Following\"><header><h3>Following</h3><span>" + escapeHTML(pluralLabel(total, "follow")) + "</span></header>" + (cards.length ? "<div class=\"my-tv-following\">" + cards.join("") + "</div>" : "") + unnamedNote + "</section>";
 }
 function myTVSearchResults(query) {
   query = String(query || "").trim();
@@ -3158,7 +3171,7 @@ function myTVFavoriteChannelsHTML() {
 function myTVWatchedOftenHTML() {
   const channels = searchableChannels().filter(function(channel) { return !!autoFavoriteMap()[channel.id] && !favoriteMap()[channel.id]; }).slice(0, 12);
   if (!channels.length) return "";
-  return '<section class="my-tv-section my-tv-favorites" aria-label="Channels you watch often"><header><h3>Watched often</h3><span>Save with the heart to keep them as favorites</span></header><div class="search-result-list">' + channels.map(myTVChannelRow).join('') + '</div></section>';
+  return '<section class="my-tv-section my-tv-favorites" aria-label="Channels you watch often"><header><h3>Watched often</h3><span>Tap the heart to keep one as a favorite</span></header><div class="search-result-list">' + channels.map(myTVChannelRow).join('') + '</div></section>';
 }
 function myTVDashboardHTML() {
   const guidePrograms = myTVGuidePrograms();
@@ -3168,7 +3181,7 @@ function myTVDashboardHTML() {
     + (sportsEvents.length ? "<section class=\"my-tv-section\" aria-label=\"Your sports\"><div class=\"sports-event-grid my-tv-sports-grid\">" + sportsEvents.map(renderSportsEventTile).join("") + "</div></section>" : "")
     + (featuredEvents.length ? "<section class=\"my-tv-section\"><header><h3>Your events</h3><span>" + featuredEvents.length + " coming up</span></header><div class=\"event-shelf-rail\">" + featuredEvents.map(renderBroadcastEventCard).join("") + "</div></section>" : "");
   const empty = !upcoming ? "<section class=\"my-tv-empty\"><div><strong>Make this page yours</strong><p>Search for a show, team, fighter, league, or event. My TV will connect what you follow to live and upcoming coverage.</p></div><div class=\"my-tv-empty-actions\">" + (sportsInLiveTVApp() ? "<button type=\"button\" data-view=\"sports\">Browse sports</button>" : "") + "<button type=\"button\" data-view=\"events\">Browse events</button></div></section>" : "";
-  return myTVFavoriteChannelsHTML() + myTVWatchedOftenHTML() + myTVFollowingHTML() + (upcoming ? "<section class=\"my-tv-up-next\"><header><h2>Up next</h2></header>" + upcoming + "</section>" : "") + empty;
+  return myTVFavoriteChannelsHTML() + myTVWatchedOftenHTML() + myTVFollowingHTML() + (upcoming ? "<section class=\"my-tv-up-next\"><header><h3>Up next</h3></header>" + upcoming + "</section>" : "") + empty;
 }
 function updateMyTVSearchSurface() {
   const query = state.myTVQuery || "";
@@ -3569,7 +3582,11 @@ function renderSportsHighlights(videos) {
   const list = items(videos);
   if (!list.length) return "";
   return sportsSectionHTML("Highlights", "", "<div class=\"sports-highlights\">" + list.map(function(video) {
-    return "<a class=\"sports-highlight\" href=\"" + escapeHTML(video.url) + "\" target=\"_blank\" rel=\"noopener noreferrer\"><span class=\"sports-highlight-thumb\">" + (video.thumbnail ? "<img src=\"" + escapeHTML(video.thumbnail) + "\" alt=\"\" loading=\"lazy\" onerror=\"this.remove()\">" : "") + icon("play") + "</span><strong>" + escapeHTML(video.title) + "</strong></a>";
+    const thumb = "<span class=\"sports-highlight-thumb\">" + (video.thumbnail ? "<img src=\"" + escapeHTML(video.thumbnail) + "\" alt=\"\" loading=\"lazy\" onerror=\"this.remove()\">" : "") + icon("play") + "</span><strong>" + escapeHTML(video.title) + "</strong>";
+    if (/^https:\/\//i.test(String(video.stream || ""))) {
+      return "<button type=\"button\" class=\"sports-highlight\" data-sports-highlight-src=\"" + escapeHTML(video.stream) + "\" data-sports-highlight-title=\"" + escapeHTML(video.title) + "\" data-sports-highlight-page=\"" + escapeHTML(video.url || "") + "\">" + thumb + "</button>";
+    }
+    return "<a class=\"sports-highlight\" href=\"" + escapeHTML(video.url) + "\" target=\"_blank\" rel=\"noopener noreferrer\">" + thumb + "</a>";
   }).join("") + "</div>", "sports-highlights-section");
 }
 function renderSportsInnings(event, data) {
@@ -4909,8 +4926,8 @@ function renderEventsPage() {
   if (!state.events && !state.eventsLoading) loadEvents(false);
   renderSportsTopbarTabs();
   const payload = state.events || { events: [], categories: [] };
-  const events = filteredBroadcastEvents(payload);
-  root.innerHTML = "<div class=\"sports-page\"><div class=\"sports-pinned\">" + renderEventTabFilters() + renderEventCategoryFilters(payload)
+  const events = collapseRepeatAirings(filteredBroadcastEvents(payload));
+  root.innerHTML = "<div class=\"sports-page\"><div class=\"sports-pinned\"><div class=\"event-filter-bar\">" + renderEventTabFilters() + renderEventCategoryFilters(payload) + "</div>"
     + recoveryPanelHTML(payload.error, "events")
     + (state.eventsLoading && !events.length ? "<div class=\"empty\">Loading events...</div>" : "")
     + "</div><div class=\"sports-score-scroll\">"
@@ -4964,10 +4981,37 @@ function filteredBroadcastEvents(payload) {
     return Number(left.startUnix || Number.MAX_SAFE_INTEGER) - Number(right.startUnix || Number.MAX_SAFE_INTEGER);
   });
 }
+function collapseRepeatAirings(events) {
+  const byKey = {};
+  const result = [];
+  items(events).forEach(function(event) {
+    const channel = uniqueEventChannels(event.channels)[0];
+    const key = lower(event.name || event.shortName) + "|" + (channel ? channel.id : "") + "|" + (event.completed ? "ended" : "open");
+    const first = byKey[key];
+    if (first && !sportsEventIsLive(event)) {
+      first.laterAirings.push(Number(event.startUnix || 0));
+      return;
+    }
+    const copy = Object.assign({}, event, { laterAirings: [] });
+    if (!first) byKey[key] = copy;
+    result.push(copy);
+  });
+  return result;
+}
 function broadcastEventMatchesQuery(event) {
   const channels = items(event.channels).map(function(channel) { return [channel.name, channel.categoryName, channel.reason].join(" "); }).join(" ");
   const text = [event.name, event.shortName, event.categoryName, event.keyword, event.description, channels].join(" ");
   return lower(text).indexOf(lower(state.query)) !== -1;
+}
+function eventArtworkLoaded(image) {
+  if (image && image.naturalWidth <= 2) eventArtworkFailed(image);
+}
+function eventArtworkFailed(image) {
+  const media = image && image.parentElement;
+  const card = media && media.closest ? media.closest(".event-card") : null;
+  if (!media || !card) return;
+  media.remove();
+  card.classList.add("no-art");
 }
 function renderBroadcastEventCard(event) {
   const status = eventStatusLabel(event);
@@ -4981,11 +5025,13 @@ function renderBroadcastEventCard(event) {
   const featureLabel = globallyFeatured ? "Featured by admin" : (personallyFeatured ? "Remove from featured" : "Feature event");
   const featureControl = "<button type=\"button\" class=\"event-feature-button" + (featured ? " active" : "") + "\" data-event-feature=\"" + escapeHTML(event.id || "") + "\"" + (globallyFeatured ? " disabled" : "") + " aria-label=\"" + escapeHTML(featureLabel) + "\" aria-pressed=\"" + (featured ? "true" : "false") + "\">" + icon(featured ? "heart-solid" : "heart") + "</button>";
   const windows = items(event.windows);
-  const meta = [event.keyword || "", windows.length > 1 ? windows.length + " coverage windows" : "", uniqueChannels.length ? uniqueChannels.length + " channel" + (uniqueChannels.length === 1 ? "" : "s") : ""].filter(Boolean).map(function(value, index) { return "<span" + (index === 0 && event.keyword ? " class=\"event-keyword\"" : "") + ">" + escapeHTML(value) + "</span>"; }).join("");
+  const laterAirings = items(event.laterAirings).filter(function(startUnix) { return startUnix > 0; });
+  const meta = [event.keyword || "", windows.length > 1 ? windows.length + " coverage windows" : "", uniqueChannels.length ? uniqueChannels.length + " channel" + (uniqueChannels.length === 1 ? "" : "s") : "", laterAirings.length ? pluralLabel(laterAirings.length, "more airing") : ""].filter(Boolean).map(function(value, index) { return "<span" + (index === 0 && event.keyword ? " class=\"event-keyword\"" : "") + ">" + escapeHTML(value) + "</span>"; }).join("");
+  const laterHTML = laterAirings.length ? "<p class=\"event-later-airings\">Also airs " + escapeHTML(laterAirings.slice(0, 3).map(dateTimeLabel).join(" · ")) + (laterAirings.length > 3 ? " and more" : "") + "</p>" : "";
   const fallbackMedia = uniqueChannels[0] ? logoHTML(uniqueChannels[0]) : icon("calendar");
-  const media = artwork ? "<span class=\"event-card-media has-art\"><img src=\"" + escapeHTML(artwork) + "\" alt=\"\" onerror=\"this.hidden=true;this.nextElementSibling.hidden=false;this.parentElement.classList.remove('has-art');\"><span class=\"event-card-media-fallback\" hidden>" + fallbackMedia + "</span></span>" : "";
+  const media = artwork ? "<span class=\"event-card-media has-art\"><img src=\"" + escapeHTML(artwork) + "\" alt=\"\" onload=\"eventArtworkLoaded(this)\" onerror=\"eventArtworkFailed(this)\"><span class=\"event-card-media-fallback\" hidden>" + fallbackMedia + "</span></span>" : "";
   return "<article " + cardClass + (sportsEventIsLive(event) ? " live" : "") + (featured ? " featured" : "") + '"><div class="event-card-visual">' + media + '<header class="event-card-head"><span class="event-card-category">' + escapeHTML(event.categoryName || "Events") + "</span><span class=\"event-card-status\">" + escapeHTML(status) + "</span>" + featureControl + "<strong class=\"event-card-title\" data-overflow-tooltip=\"" + escapeHTML(event.name || title) + "\">" + escapeHTML(title) + "</strong></header></div>"
-    + "<div class=\"event-card-body" + (artwork ? "" : " no-art") + "\"><div class=\"event-details\">" + (event.description ? "<p data-overflow-description=\"true\">" + escapeHTML(event.description) + "</p>" : "") + "<div class=\"event-meta\">" + meta + "</div>" + renderEventBroadcastWindows(event) + "</div></div>"
+    + "<div class=\"event-card-body" + (artwork ? "" : " no-art") + "\"><div class=\"event-details\">" + (event.description ? "<p data-overflow-description=\"true\">" + escapeHTML(event.description) + "</p>" : "") + "<div class=\"event-meta\">" + meta + "</div>" + laterHTML + renderEventBroadcastWindows(event) + "</div></div>"
     + renderBroadcastEventChannels(event)
     + "</article>";
 }
@@ -5096,17 +5142,47 @@ function categoryGrid(options) {
 }
 function categoryGridSection(title, categories, includeAllGuide) {
   const allGuide = includeAllGuide ? allChannelsGuideTileHTML() : "";
-  return sectionHeader(title) + "<div class=\"category-grid\">" + allGuide + categories.map(categoryTileHTML).join("") + "</div>";
+  const grouped = categoryPrefixGroups(categories);
+  if (!grouped.groups.length) return sectionHeader(title) + "<div class=\"category-grid\">" + allGuide + categories.map(function(category) { return categoryTileHTML(category); }).join("") + "</div>";
+  const loose = allGuide + grouped.loose.map(function(category) { return categoryTileHTML(category); }).join("");
+  return sectionHeader(title)
+    + (loose ? "<div class=\"category-grid\">" + loose + "</div>" : "")
+    + "<div class=\"category-groups\">" + grouped.groups.map(function(group) {
+      const total = group.categories.reduce(function(sum, category) { return sum + (Number(category.count) || 0); }, 0);
+      return "<section class=\"category-group\" aria-label=\"" + escapeHTML(group.prefix) + "\"><header><h3>" + escapeHTML(group.prefix) + "</h3>" + (total ? "<span>" + escapeHTML(total + " " + (total === 1 ? "channel" : "channels")) + "</span>" : "") + "</header><div class=\"category-group-list\">"
+        + group.categories.map(function(category) { return categoryTileHTML(category, group.names[category.id]); }).join("") + "</div></section>";
+    }).join("") + "</div>";
+}
+function categoryPrefixSplit(name) {
+  const match = String(name || "").trim().match(/^([^\s|:/]{2,})\s*[|:/]?\s+(.+)$/);
+  return match ? { prefix: match[1], rest: match[2].trim() } : null;
+}
+function categoryPrefixGroups(categories) {
+  const byPrefix = {};
+  const order = [];
+  (categories || []).forEach(function(category) {
+    const split = categoryPrefixSplit(category && (category.name || category.id));
+    if (!split) return;
+    const key = split.prefix.toLowerCase();
+    if (!byPrefix[key]) { byPrefix[key] = { prefix: split.prefix, categories: [], names: {} }; order.push(key); }
+    byPrefix[key].categories.push(category);
+    byPrefix[key].names[category.id] = split.rest;
+  });
+  const groups = order.map(function(key) { return byPrefix[key]; }).filter(function(group) { return group.categories.length >= 2; });
+  const groupedIDs = {};
+  groups.forEach(function(group) { group.categories.forEach(function(category) { groupedIDs[category.id] = true; }); });
+  return { groups: groups, loose: (categories || []).filter(function(category) { return !groupedIDs[category.id]; }) };
 }
 function allChannelsGuideTileHTML() {
   const count = visibleChannels(true).length;
   const meta = count + " " + (count === 1 ? "channel" : "channels");
   return "<button class=\"tile\" type=\"button\" data-all-channels-guide=\"true\" aria-label=\"All channels, " + escapeHTML(meta) + "\"><span class=\"tile-glyph\" aria-hidden=\"true\">" + icon("guide") + "</span><span class=\"tile-copy\"><strong>All</strong><span>" + escapeHTML(meta) + "</span></span><span class=\"tile-disclosure\" aria-hidden=\"true\">" + icon("chevron-right") + "</span></button>";
 }
-function categoryTileHTML(category) {
+function categoryTileHTML(category, displayName) {
   const name = String((category && (category.name || category.id)) || "");
+  const shown = String(displayName || name);
   const meta = String((category && category.count ? category.count + " channels" : (category && category.kind) || "") || "");
-  return "<button class=\"tile" + (state.category === category.id ? " active" : "") + "\" data-category=\"" + escapeHTML(category.id) + "\" aria-label=\"" + escapeHTML(meta ? name + ", " + meta : name) + "\"><span class=\"tile-glyph\" aria-hidden=\"true\">" + icon(categoryGlyphName(category)) + "</span><span class=\"tile-copy\"><strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(name) + "</strong><span>" + escapeHTML(meta) + "</span></span><span class=\"tile-disclosure\" aria-hidden=\"true\">" + icon("chevron-right") + "</span></button>";
+  return "<button class=\"tile" + (state.category === category.id ? " active" : "") + "\" data-category=\"" + escapeHTML(category.id) + "\" aria-label=\"" + escapeHTML(meta ? name + ", " + meta : name) + "\"><span class=\"tile-glyph\" aria-hidden=\"true\">" + icon(categoryGlyphName(category)) + "</span><span class=\"tile-copy\"><strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(shown) + "</strong><span>" + escapeHTML(meta) + "</span></span><span class=\"tile-disclosure\" aria-hidden=\"true\">" + icon("chevron-right") + "</span></button>";
 }
 function categoryGlyphName(category) {
   const name = lower(category && (category.name || category.id));
@@ -5474,7 +5550,7 @@ function renderLivePage() {
     const guideWorkspace = !browseOnly && virtualCategoryView() === "guide";
     const childFolders = browseOnly
       ? (filteredChildren.length
-        ? "<div class=\"category-grid\" aria-label=\"Browse folders\">" + filteredChildren.map(categoryTileHTML).join("") + "</div>"
+        ? "<div class=\"category-grid\" aria-label=\"Browse folders\">" + filteredChildren.map(function(category) { return categoryTileHTML(category); }).join("") + "</div>"
         : emptyStateHTML("No matching folders.", "Try a different filter."))
       : "";
     const filterActions = browseOnly ? "" : (compactGroups ? renderSavedLineupGroupSelect(children) : (useGroupSelector ? renderNestedFolderGroupSelect(children) : ""));
