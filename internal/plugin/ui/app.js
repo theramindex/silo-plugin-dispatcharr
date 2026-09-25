@@ -5015,7 +5015,7 @@ function eventArtworkFailed(image) {
 }
 function renderBroadcastEventCard(event) {
   const status = eventStatusLabel(event);
-  const title = event.shortName || event.name || "Event";
+  const title = cleanProviderText(event.shortName || event.name) || "Event";
   const artwork = safeSportsMediaURL(event.artworkUrl || event.imageUrl || event.posterUrl || event.thumbnailUrl || "");
   const cardClass = artwork ? 'class="event-card sports-card' : 'class="event-card no-art sports-card';
   const uniqueChannels = uniqueEventChannels(event.channels);

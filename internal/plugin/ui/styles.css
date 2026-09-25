@@ -496,7 +496,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .my-tv-section > header, .my-tv-up-next > header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
 .my-tv-section h3, .my-tv-up-next h3 { margin: 0; color: var(--text); font-size: 1.05rem; font-weight: 700; }
 .my-tv-section > header span { color: var(--muted); font-size: 0.75rem; font-weight: 600; }
-.my-tv-favorites .search-result-list { grid-template-columns: repeat(auto-fill, minmax(min(21rem, 100%), 1fr)); gap: 0.5rem; }
+.my-tv-favorites .search-result-list { max-width: none; grid-template-columns: repeat(auto-fill, minmax(min(21rem, 100%), 1fr)); gap: 0.5rem; }
 .my-tv-following { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(14rem, 100%), 1fr)); gap: 0.5rem; }
 .my-tv-follow-note { margin: 0; color: var(--muted); font-size: 0.75rem; }
 .my-tv-follow-card { min-width: 0; min-height: 3.55rem; display: grid; grid-template-columns: 2.15rem minmax(0, 1fr) 2rem; align-items: center; gap: 0.55rem; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--panel); padding: 0.45rem 0.5rem; }
