@@ -771,6 +771,27 @@ func TestGuideSportsMatchupParsesQualifiedBroadcastTitles(t *testing.T) {
 			wantMatch: true,
 		},
 		{
+			name:      "tennis tournament prefix and city time zone are stripped",
+			title:     "Sky Sports + 01: WTA Tour Quarter-Finals at the Korea Open K. Volynets v K. Birrell @ 25 Sep 03:55 AM London",
+			wantAway:  "K. Volynets",
+			wantHome:  "K. Birrell",
+			wantMatch: true,
+		},
+		{
+			name:      "tennis tour prefix without initials",
+			title:     "Sky Sports + 02: ATP World Tour Chengdu Open Shang Juncheng v A. Mannarino @ 24 Sep 07:25 AM London",
+			wantAway:  "Shang Juncheng",
+			wantHome:  "A. Mannarino",
+			wantMatch: true,
+		},
+		{
+			name:      "team cup final prefix",
+			title:     "Final at the Laver Cup C. Ruud v F. Cerundolo @ 25 Sep 12:00 PM London",
+			wantAway:  "C. Ruud",
+			wantHome:  "F. Cerundolo",
+			wantMatch: true,
+		},
+		{
 			name:      "nations league match day is competition metadata",
 			title:     "Norway vs Denmark - UEFA Nations League 2026/27 - Match Day 1",
 			wantAway:  "Norway",
