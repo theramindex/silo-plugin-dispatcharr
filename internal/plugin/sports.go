@@ -90,9 +90,13 @@ var guideSportsNetworkSuffix = regexp.MustCompile(`(?i)\s*\((?:accnx|accn|secn\+
 // "SEP 25 06:00 PM"); it is not the second half of a matchup.
 var guideSportsAirTimeSuffix = regexp.MustCompile(`(?i)\s*(?:@\s*)?(?:\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{1,2})\s+\d{1,2}:\d{2}(?:\s*[ap]\.?m\.?)?(?:\s+[a-z]{2,12})?\s*$`)
 
+var guideSportsDottedDateSuffix = regexp.MustCompile(`(?i)\s*\(\d{1,2}[./]\d{1,2}(?:[./]\d{2,4})?\s+\d{1,2}:\d{2}(?:\s*[ap]\.?m\.?)?(?:\s+[a-z]{2,12})?\)\s*$`)
+
+var guideSportsGameNumberSuffix = regexp.MustCompile(`\s+[-–—]\s+#\d+\s*$`)
+
 // Tennis listings put the tournament before the first player without a colon.
 var guideSportsTournamentPrefix = regexp.MustCompile(`^(?:(?i:atp|wta|itf)\b|.*\s(?i:at\s+the)\s).*\b(?:Open|Cup|Championships?|Masters|Classic|Finals)\s+`)
-var guideSportsCompetitionSuffix = regexp.MustCompile(`(?i)\s+[-–—]\s+(?:[^-–—]*\b(?:league|cup|championships?|tournament|trophy|qualif\w*|series)\b|(?:match\s*day|matchday|round|week|leg|group)\s+\w+).*$`)
+var guideSportsCompetitionSuffix = regexp.MustCompile(`(?i)\s+[-–—]\s+(?:.*?\b(?:league|cup|championships?|tournament|trophy|qualif\w*|series|games|olympics?)\b|(?:match\s*day|matchday|round|week|leg|group)\s+\w+).*$`)
 var guideSportsClockName = regexp.MustCompile(`(?i)^\d{1,2}(?::\d{2})?\s*(?:am|pm)(?:\s+[a-z]{2,5})?$`)
 var guideSportsNonMatchTitle = regexp.MustCompile(`(?i)\b(?:good morning|outdoor magazine|the verdict|the case for)\b`)
 
@@ -998,6 +1002,7 @@ func guideSportsMatchup(title string) (string, string, bool) {
 	title = guideSportsNextGameSuffix.ReplaceAllString(title, "")
 	title = guideSportsTimestampSuffix.ReplaceAllString(title, "")
 	title = guideSportsAirTimeSuffix.ReplaceAllString(title, "")
+	title = guideSportsDottedDateSuffix.ReplaceAllString(title, "")
 	locations := sportsMatchupSeparator.FindAllStringIndex(title, -1)
 	if len(locations) == 0 {
 		return "", "", false
@@ -1124,6 +1129,7 @@ func cleanGuideSportsTeamName(value string) string {
 	value = guideSportsStageSuffix.ReplaceAllString(value, "")
 	value = guideSportsCompetitionSuffix.ReplaceAllString(value, "")
 	value = guideSportsNetworkSuffix.ReplaceAllString(value, "")
+	value = guideSportsGameNumberSuffix.ReplaceAllString(value, "")
 	value = strings.TrimSpace(value)
 	if open := strings.LastIndex(value, " ("); open > 0 && strings.HasSuffix(value, ")") {
 		base := strings.TrimSpace(value[:open])
