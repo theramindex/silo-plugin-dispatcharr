@@ -28,14 +28,6 @@ state.sportsReplayPromise = null;
 state.sportsReplayGeneration = 0;
 state.sportsReplayRefreshQueued = false;
 
-function applySiloTheme() {
-  const params = new URLSearchParams(window.location.search);
-  const theme = String(params.get("theme") || document.documentElement.dataset.siloTheme || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
-  if (theme) document.documentElement.dataset.siloTheme = theme;
-}
-
-applySiloTheme();
-
 function route(url) { return base + url; }
 function siloCoreURL(path) {
   if (!path) return siloAPIPrefix;
@@ -1685,7 +1677,7 @@ function appRouteHash(snapshot) {
   if (snapshot.view === "admin") return "#/admin/" + appRoutePart(snapshot.adminTab || "source");
   if (snapshot.view === "player" && snapshot.channelID) return "#/watch/" + appRoutePart(snapshot.channelID);
   if (snapshot.view === "sports") {
-    let route = "#/sports/" + appRoutePart(snapshot.sportsTab || "today");
+    let route = (isSportsPath ? "#/" : "#/sports/") + appRoutePart(snapshot.sportsTab || "today");
     if (snapshot.sportsEvent) route += "/event/" + appRoutePart(snapshot.sportsEvent);
     else if (snapshot.sportsTeam) route += "/team/" + appRoutePart(snapshot.sportsTeam);
     else if (snapshot.sportsLeague) route += "/league/" + appRoutePart(snapshot.sportsLeague);
@@ -1707,11 +1699,13 @@ function readAppRouteHash() {
   if (!parts.length) return { view: defaultBrowseView() };
   if (parts[0] === "watch") return { view: "player", channelID: parts[1] || "" };
   if (parts[0] === "channels" && parts[1]) return { view: "live", category: parts[1] };
-  if (parts[0] === "sports") {
-    const route = { view: "sports", sportsTab: parts[1] || "today" };
-    if (parts[2] === "event") route.sportsEvent = parts[3] || "";
-    if (parts[2] === "team") route.sportsTeam = parts[3] || "";
-    if (parts[2] === "league") route.sportsLeague = parts[3] || "";
+  const otherViews = ["home", "channels", "live", "favorites", "guide", "mytv", "onlater", "search", "recordings", "settings", "multiview", "events"];
+  const sportsParts = isSportsPath ? (otherViews.indexOf(parts[0]) === -1 ? parts : null) : (parts[0] === "sports" ? parts.slice(1) : null);
+  if (sportsParts) {
+    const route = { view: "sports", sportsTab: sportsParts[0] || "today" };
+    if (sportsParts[1] === "event") route.sportsEvent = sportsParts[2] || "";
+    if (sportsParts[1] === "team") route.sportsTeam = sportsParts[2] || "";
+    if (sportsParts[1] === "league") route.sportsLeague = sportsParts[2] || "";
     return route;
   }
   if (parts[0] === "events") return { view: "events", eventsTab: parts[1] || "upcoming", eventCategory: parts[2] === "category" ? (parts[3] || "") : "" };
@@ -4107,7 +4101,7 @@ function sportsDetailLeagueLabel(event) {
 function renderSportsEventNavigation(payload, event) {
   const tab = state.sportsTab || "live";
   const route = function(league) { return appRouteHash({view: "sports", sportsTab: tab, sportsLeague: league || ""}); };
-  const crumbs = ['<li><a href="#/sports/all">Sports</a></li>', '<li><a href="' + escapeHTML(route("")) + '">' + escapeHTML(sportsTabLabel(tab)) + '</a></li>'];
+  const crumbs = ['<li><a href="' + escapeHTML(appRouteHash({ view: "sports", sportsTab: "today" })) + '">Sports</a></li>', '<li><a href="' + escapeHTML(route("")) + '">' + escapeHTML(sportsTabLabel(tab)) + '</a></li>'];
   const leagueLabel = sportsDetailLeagueLabel(event);
   if (leagueLabel && event.leagueId) crumbs.push('<li><a href="' + escapeHTML(route(event.leagueId)) + '">' + escapeHTML(leagueLabel) + '</a></li>');
   const current = event.away && event.away.name && event.home && event.home.name ? sportsTeamName(event.away) + " vs " + sportsTeamName(event.home) : sportsEventTitle(event);

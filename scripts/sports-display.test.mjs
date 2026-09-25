@@ -6,7 +6,7 @@ import vm from 'node:vm';
 test('event details use browse breadcrumbs and sport art without generic league copy', () => {
   const source = fs.readFileSync(new URL('../internal/plugin/ui/app.js', import.meta.url), 'utf8');
   const ctx = vm.createContext({
-    state: {sportsTab: 'live', sportsFailedMedia: {}},
+    state: {sportsTab: 'live', sportsFailedMedia: {}}, isSportsPath: false,
     escapeHTML: value => String(value || ''), safeSportsMediaURL: value => String(value || ''),
     appRoutePart: encodeURIComponent, sportsTeamName: team => team?.name || '',
     sportsEventTitle: event => event.name, icon: () => '', sportsScoresHidden: () => false,
@@ -28,6 +28,10 @@ test('event details use browse breadcrumbs and sport art without generic league 
   const html = ctx.renderSportsEventDetail({}, event);
   assert.match(html, /aria-label="Breadcrumb"/);
   assert.match(html, /href="#\/sports\/live"/);
+  ctx.isSportsPath = true;
+  assert.equal(ctx.appRouteHash({view: 'sports', sportsTab: 'news'}), '#/news');
+  assert.equal(ctx.appRouteHash({view: 'sports', sportsTab: 'scores', sportsEvent: 'e1'}), '#/scores/event/e1');
+  ctx.isSportsPath = false;
   assert.match(html, /aria-current="page"[^>]*>Palmeiras vs Chicago Stars/);
   assert.doesNotMatch(html, />Previous<|>Next<|sports-eyebrow|data-sports-favorite-league/);
   assert.match(html, /sports-event-hero-art.*images\.unsplash\.com/);
