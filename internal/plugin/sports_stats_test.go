@@ -55,8 +55,8 @@ func TestCollegeFootballStatsFetchAndCache(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/scoreboard":
-			if r.URL.Query().Get("dates") != "20260905-20260906" {
-				t.Error("wrong date window")
+			if day := r.URL.Query().Get("dates"); day != "20260905" && day != "20260906" {
+				t.Errorf("scoreboards must be queried one day at a time, got %q", day)
 			}
 			ioJSON := `{"events":[{"id":"401860879","competitions":[` + statsFixtureCompetition + `]}]}`
 			_, _ = w.Write([]byte(ioJSON))
@@ -82,8 +82,8 @@ func TestCollegeFootballStatsFetchAndCache(t *testing.T) {
 		t.Fatalf("possession must use ESPN's current situation: %+v", value)
 	}
 	_ = cache.load(context.Background(), statsFixtureEvent())
-	if requests != 2 {
-		t.Fatalf("expected cached scoreboard and summary, got %d requests", requests)
+	if requests != 3 {
+		t.Fatalf("expected two day scoreboards and one summary, then cache hits; got %d requests", requests)
 	}
 }
 
