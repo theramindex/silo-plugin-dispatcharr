@@ -3452,12 +3452,12 @@ function renderSportsTopbarTabs() {
   root.innerHTML = isSportsApp() ? renderSportsAppHeader() : "";
 }
 function renderSportsTabFilters(payload) {
+  if (isSportsApp()) return "";
   const refreshing = state.sportsLoading || !!(payload && payload.refreshing) || state.sportsReplaysLoading;
   const refreshClass = "sports-refresh" + (refreshing ? " is-loading" : "");
   const refreshDisabled = refreshing ? " disabled aria-busy=\"true\"" : "";
   const replayStatus = sportsReplayStatusLabel();
-  const tabs = isSportsApp() ? "" : "<div class=\"view-toggle\" aria-label=\"Sports filter\">" + sportsTabButtonsHTML() + "</div>";
-  return "<div class=\"sports-filter-row\">" + tabs
+  return "<div class=\"sports-filter-row\"><div class=\"view-toggle\" aria-label=\"Sports filter\">" + sportsTabButtonsHTML() + "</div>"
     + "<span class=\"sports-data-source\">Data by " + escapeHTML(sportsDataSourceLabel(payload)) + (replayStatus ? " <span class=\"sports-replay-status\">· " + escapeHTML(replayStatus) + "</span>" : "") + "</span>"
     + "<button type=\"button\" class=\"" + refreshClass + "\" data-sports-refresh=\"true\"" + refreshDisabled + ">" + icon(refreshing ? "loader" : "refresh") + "<span>Refresh scores</span></button></div>";
 }
@@ -3511,15 +3511,15 @@ function renderSportsGameStats(event) {
   if (!data || !data.available) return sportsSectionHTML("Game stats", "", "<p class=\"sports-stats-note\">" + escapeHTML(data ? data.message : "Loading live stats…") + "</p>", "sports-stats-section");
   const source = "<a class=\"sports-section-count\" title=\"" + (data.completed ? "Final game statistics" : "Refreshes every 30 seconds while this page is visible") + "\" href=\"" + escapeHTML(data.sourceUrl) + "\" target=\"_blank\" rel=\"noopener noreferrer\">ESPN · Updated " + escapeHTML(new Date(data.updatedAtUnix * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })) + "</a>";
   const rows = items(data.rows);
-  const body = (data.message ? "<p class=\"sports-stats-note\">" + escapeHTML(data.message) + " Showing the last successful update.</p>" : "")
-    + renderSportsBaseballSituation(data.situation)
+  const main = renderSportsBaseballSituation(data.situation)
     + renderSportsInnings(event, data)
     + (data.lastPlay ? "<p class=\"sports-stats-play\"><strong>Latest play</strong><span>" + escapeHTML(data.lastPlay) + "</span></p>" : "")
-    + renderSportsProbables(event, data.probables)
-    + renderSportsLeaders(event, data.leaders)
     + (rows.length ? "<table class=\"sports-stats-table\"><thead><tr><th scope=\"col\">" + escapeHTML(sportsTeamName(event.away)) + "</th><th scope=\"col\">Team stats</th><th scope=\"col\">" + escapeHTML(sportsTeamName(event.home)) + "</th></tr></thead><tbody>"
       + rows.map(function(row) { return "<tr><td>" + escapeHTML(row.away) + "</td><th scope=\"row\">" + escapeHTML(row.label) + "</th><td>" + escapeHTML(row.home) + "</td></tr>"; }).join("") + "</tbody></table>" : "")
     + renderSportsPlays(data.plays);
+  const side = renderSportsProbables(event, data.probables) + renderSportsLeaders(event, data.leaders);
+  const body = (data.message ? "<p class=\"sports-stats-note\">" + escapeHTML(data.message) + " Showing the last successful update.</p>" : "")
+    + "<div class=\"sports-split" + (side ? "" : " single") + "\"><div class=\"sports-split-main\">" + main + "</div>" + (side ? "<aside class=\"sports-split-side\">" + side + "</aside>" : "") + "</div>";
   return sportsSectionHTML(data.completed ? "Final stats" : (data.live ? "Live stats" : "Game stats"), source, body, "sports-stats-section")
     + renderSportsHighlights(data.videos);
 }
@@ -3844,8 +3844,7 @@ function sportsTeamFavoriteButton(team) {
   const known = myTVBuiltInSportsPeople().find(function(person) { return sportsGamePassSlug(person.name) === slug; });
   const favoriteID = sportsSavedTeamID(team, slug) || (known && known.id) || team.id;
   const label = (favorite ? "Unfollow " : "Follow ") + team.name;
-  const shortName = sportsTeamAbbreviation(team).slice(0, 4);
-  return '<button class="sports-team-favorite sports-team-heart' + (favorite ? ' active' : '') + '" type="button" data-sports-favorite-team="' + escapeHTML(favoriteID) + '"' + sportsTeamLabelAttrs(team) + ' data-sports-favorite-enabled="' + !favorite + '" aria-label="' + escapeHTML(label) + '" title="' + escapeHTML(label) + '" aria-pressed="' + favorite + '">' + icon(favorite ? "heart-solid" : "heart") + (shortName ? '<span class="sports-team-heart-label" aria-hidden="true">' + escapeHTML(shortName) + '</span>' : '') + '</button>';
+  return '<button class="sports-team-favorite sports-team-heart' + (favorite ? ' active' : '') + '" type="button" data-sports-favorite-team="' + escapeHTML(favoriteID) + '"' + sportsTeamLabelAttrs(team) + ' data-sports-favorite-enabled="' + !favorite + '" aria-label="' + escapeHTML(label) + '" title="' + escapeHTML(label) + '" aria-pressed="' + favorite + '">' + icon(favorite ? "heart-solid" : "heart") + '</button>';
 }
 function sportsSavedTeamID(team, slug) {
   const favorites = sportsFavoriteTeamMap();
