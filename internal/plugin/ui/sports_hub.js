@@ -24,6 +24,10 @@ function sportsEventWatchable(event) {
   return uniqueEventChannels(event && event.channels).length > 0;
 }
 
+function sportsEventIsGame(event) {
+  return lower(event && event.status) !== "replay";
+}
+
 function sportsTeamKey(leagueID, team) {
   const name = sportsTeamName(team || {});
   if (!leagueID || !name) return "";
@@ -39,7 +43,7 @@ function sportsTeamKeyParts(key) {
 function sportsHubTeams(payload) {
   const teams = {};
   items(payload && payload.events).forEach(function(event) {
-    if (sportsEventIsRace(event) || sportsEventIsProgram(event)) return;
+    if (sportsEventIsRace(event) || sportsEventIsProgram(event) || !sportsEventIsGame(event)) return;
     [event.away, event.home].forEach(function(team) {
       const key = sportsTeamKey(event.leagueId, team);
       if (!key) return;
@@ -116,7 +120,10 @@ function sportsTeamStatusLine(entry) {
     return { text: sportsDateLabel(event.startUnix) + " " + sportsTeamOpponentLine(entry, event), live: false, event: event };
   }
   if (games.recent.length) return { text: sportsTeamResultLine(entry, games.recent[0]), live: false, event: games.recent[0] };
-  return { text: entry.leagueName || "No games scheduled", live: false, event: null };
+  const cached = state.sportsTeamSummaries && state.sportsTeamSummaries[entry.key];
+  const next = cached && cached.loaded && cached.value && items(cached.value.upcoming)[0];
+  if (next) return { text: sportsDateLabel(next.startUnix) + (next.home ? " vs " : " at ") + next.opponent, live: false, event: null };
+  return { text: "No games this week", live: false, event: null };
 }
 
 function renderSportsHub(payload) {
@@ -150,6 +157,7 @@ function sportsTodayEvents(events) {
   const dayStart = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000);
   const dayEnd = dayStart + 86400;
   return events.filter(function(event) {
+    if (!sportsEventIsGame(event)) return false;
     if (sportsEventIsLive(event)) return true;
     const start = Number(event.startUnix || 0);
     return start >= dayStart - 6 * 3600 && start < dayEnd;
@@ -177,8 +185,8 @@ function sportsScoreboardLeagueOrder(groups) {
   return Object.keys(groups).sort(function(left, right) {
     const leftGroup = groups[left];
     const rightGroup = groups[right];
-    const leftScore = (favorites[left] ? 100 : 0) + (leftGroup.followed ? 50 : 0) + (leftGroup.live ? 20 : 0) + Math.min(leftGroup.events.length, 10);
-    const rightScore = (favorites[right] ? 100 : 0) + (rightGroup.followed ? 50 : 0) + (rightGroup.live ? 20 : 0) + Math.min(rightGroup.events.length, 10);
+    const leftScore = (favorites[left] ? 100 : 0) + (leftGroup.followed ? 50 : 0) + (leftGroup.live ? 20 : 0) + Math.min(leftGroup.events.length, 10) - (left === "sports" ? 1000 : 0);
+    const rightScore = (favorites[right] ? 100 : 0) + (rightGroup.followed ? 50 : 0) + (rightGroup.live ? 20 : 0) + Math.min(rightGroup.events.length, 10) - (right === "sports" ? 1000 : 0);
     return rightScore - leftScore || String(leftGroup.name).localeCompare(String(rightGroup.name));
   });
 }
@@ -200,7 +208,7 @@ function renderSportsScoreboard(events, options) {
   const groups = {};
   events.forEach(function(event) {
     const id = String(event.leagueId || "sports");
-    if (!groups[id]) groups[id] = { name: event.leagueName || id, events: [], live: false, followed: false };
+    if (!groups[id]) groups[id] = { name: id === "sports" ? "Other sports" : (event.leagueName || id), events: [], live: false, followed: false };
     groups[id].events.push(event);
     if (sportsEventIsLive(event)) groups[id].live = true;
     if (sportsEventIsFollowed(event)) groups[id].followed = true;
@@ -229,11 +237,13 @@ function renderSportsScoreRow(event) {
   const matchup = sportsEventIsRace(event) || sportsEventIsProgram(event)
     ? "<span class=\"sports-score-program\">" + escapeHTML(sportsEventTitle(event)) + "</span>"
     : team(event.away, event.awayScore) + team(event.home, event.homeScore);
+  const watchLabel = "Watch " + sportsEventTitle(event) + " on " + ((channel && channel.name) || "channel");
   const watch = channel
-    ? "<button type=\"button\" class=\"sports-score-watch\" data-channel=\"" + escapeHTML(channel.id || "") + "\" aria-label=\"" + escapeHTML("Watch " + sportsEventTitle(event) + " on " + (channel.name || "channel")) + "\">" + icon("play") + "<span>" + escapeHTML(channel.name || "Watch") + "</span></button>"
+    ? "<button type=\"button\" class=\"sports-score-watch\" data-channel=\"" + escapeHTML(channel.id || "") + "\" aria-label=\"" + escapeHTML(watchLabel) + "\" title=\"" + escapeHTML(channel.name || "Watch") + "\">" + icon("play") + "<span>Watch</span></button>"
     : "<span class=\"sports-score-unavailable\">Not on your channels</span>";
   const recording = !live && !event.completed ? sportsEventRecordingTarget(event) : null;
-  const record = recording ? "<button type=\"button\" class=\"sports-score-record\" data-schedule-channel=\"" + escapeHTML(recording.channelID) + "\" data-schedule-program=\"" + escapeHTML(recording.programID) + "\" aria-label=\"" + escapeHTML("Record " + sportsEventTitle(event)) + "\">" + icon("record") + "<span>Record</span></button>" : "";
+  const recordLabel = "Record " + sportsEventTitle(event);
+  const record = recording ? "<button type=\"button\" class=\"sports-score-record\" data-schedule-channel=\"" + escapeHTML(recording.channelID) + "\" data-schedule-program=\"" + escapeHTML(recording.programID) + "\" aria-label=\"" + escapeHTML(recordLabel) + "\" title=\"" + escapeHTML(recordLabel) + "\">" + icon("record") + "</button>" : "";
   return "<div class=\"sports-score-row" + (live ? " live" : "") + (event.completed ? " final" : "") + "\"><button type=\"button\" class=\"sports-score-main\" data-sports-open-event=\"" + escapeHTML(sportsEventStateID(event)) + "\"><span class=\"sports-score-status\">" + escapeHTML(status) + "</span><span class=\"sports-score-teams\">" + matchup + "</span></button>" + record + watch + "</div>";
 }
 
@@ -253,14 +263,15 @@ function sportsEventRecordingTarget(event) {
   return null;
 }
 
-function sportsStandingsFor(leagueID) {
+function sportsStandingsFor(leagueID, divisions) {
   if (!espnNewsLeague(leagueID)) return null;
   state.sportsStandings = state.sportsStandings || {};
-  const cached = state.sportsStandings[leagueID];
+  const key = leagueID + (divisions ? "|division" : "");
+  const cached = state.sportsStandings[key];
   if (cached) return cached;
   const entry = { loaded: false, value: null };
-  state.sportsStandings[leagueID] = entry;
-  getJSONWithin("/dispatcharr/api/sports/standings?league=" + encodeURIComponent(leagueID), 15000, "Standings took too long.").catch(function() {
+  state.sportsStandings[key] = entry;
+  getJSONWithin("/dispatcharr/api/sports/standings?league=" + encodeURIComponent(leagueID) + (divisions ? "&level=division" : ""), 15000, "Standings took too long.").catch(function() {
     return { columns: [], groups: [], message: "Standings are unavailable right now." };
   }).then(function(value) {
     entry.loaded = true;
@@ -272,7 +283,7 @@ function sportsStandingsFor(leagueID) {
 
 function renderSportsStandings(leagueID, options) {
   options = options || {};
-  const entry = sportsStandingsFor(leagueID);
+  const entry = sportsStandingsFor(leagueID, !!options.groupOnly);
   if (!entry) return "";
   if (!entry.loaded) return sportsSectionHTML("Standings", "", "<div class=\"empty\">Loading standings...</div>", "sports-standings-section");
   const payload = entry.value || {};
@@ -288,7 +299,7 @@ function renderSportsStandings(leagueID, options) {
     return "<div class=\"sports-standings-group\"><table class=\"sports-standings\"><caption>" + escapeHTML(group.name) + "</caption><thead><tr><th scope=\"col\">Team</th>" + columns.map(function(column) { return "<th scope=\"col\">" + escapeHTML(column) + "</th>"; }).join("") + "</tr></thead><tbody>"
       + items(group.rows).map(function(row, index) {
         const own = highlight && sportsGamePassSlug(row.team) === highlight;
-        return "<tr class=\"" + (own ? "own" : "") + "\"><th scope=\"row\"><span class=\"sports-standings-rank\">" + (index + 1) + "</span>" + (row.logoUrl ? "<img src=\"" + escapeHTML(row.logoUrl) + "\" alt=\"\" loading=\"lazy\" onerror=\"this.remove()\">" : "") + "<span>" + escapeHTML(row.team) + "</span>" + (row.clinch ? "<em title=\"Clinched\">" + escapeHTML(row.clinch) + "</em>" : "") + "</th>"
+        return "<tr class=\"" + (own ? "own" : "") + "\"><th scope=\"row\"><span class=\"sports-standings-rank\">" + (index + 1) + "</span>" + (row.logoUrl ? "<img src=\"" + escapeHTML(row.logoUrl) + "\" alt=\"\" loading=\"lazy\" onerror=\"this.remove()\">" : "") + "<span>" + escapeHTML(row.team) + "</span>" + (row.clinch ? "<em title=\"" + escapeHTML(row.clinch === "e" ? "Eliminated" : "Clinched a playoff spot") + "\">" + escapeHTML(row.clinch) + "</em>" : "") + "</th>"
           + items(row.values).map(function(value) { return "<td>" + escapeHTML(value || "–") + "</td>"; }).join("") + "</tr>";
       }).join("") + "</tbody></table></div>";
   }).join("");
@@ -327,7 +338,7 @@ function renderSportsUpcomingForTeams(payload) {
 
 function renderSportsScoresTab(payload) {
   const filter = state.sportsScoresFilter === "tv" ? "tv" : "all";
-  const events = items(payload && payload.events).filter(function(event) { return filter === "all" || sportsEventWatchable(event); });
+  const events = items(payload && payload.events).filter(function(event) { return sportsEventIsGame(event) && (filter === "all" || sportsEventWatchable(event)); });
   const toggle = "<div class=\"view-toggle sports-scores-filter\" aria-label=\"Which games\">" + [["all", "All games"], ["tv", "On my channels"]].map(function(option) {
     return "<button type=\"button\" data-sports-scores-filter=\"" + option[0] + "\" class=\"" + (filter === option[0] ? "active" : "") + "\" aria-pressed=\"" + (filter === option[0] ? "true" : "false") + "\">" + option[1] + "</button>";
   }).join("") + "</div>";
@@ -413,7 +424,7 @@ function sportsTeamSummaryFor(entry) {
       return { available: false, articles: [], message: "Team details are unavailable right now." };
     }).then(function(value) {
       state.sportsTeamSummaries[key] = { loaded: true, value: value || { articles: [] } };
-      if (state.view === "sports" && state.sportsTeam === key) renderSportsPage();
+      if (state.view === "sports" && !state.sportsSelectedEventID) renderSportsPage();
     });
   }
   return null;
@@ -430,8 +441,10 @@ function sportsNewsLeaguesForYou(payload) {
   return ids;
 }
 
+const SPORTS_NEWS_LEAGUE_NAMES = { mlb: "MLB", nfl: "NFL", nba: "NBA", wnba: "WNBA", nhl: "NHL", mls: "MLS", "premier-league": "Premier League", "uefa-champions-league": "Champions League", "college-football": "College Football", "mens-college-basketball": "Men's College Basketball", "womens-college-basketball": "Women's College Basketball", "formula-1": "Formula 1", golf: "PGA Tour", mma: "UFC" };
+
 function espnNewsLeague(leagueID) {
-  return ["mlb", "nfl", "nba", "wnba", "nhl", "mls", "premier-league", "uefa-champions-league", "college-football", "mens-college-basketball", "womens-college-basketball", "formula-1", "golf", "mma"].indexOf(String(leagueID || "")) !== -1;
+  return Object.prototype.hasOwnProperty.call(SPORTS_NEWS_LEAGUE_NAMES, String(leagueID || ""));
 }
 
 function sportsNewsRequest(leagueID, teamName) {
@@ -477,8 +490,7 @@ function renderSportsNewsTab(payload) {
   const leagues = sportsNewsLeaguesForYou(payload);
   const selected = state.sportsNewsLeague && leagues.indexOf(state.sportsNewsLeague) !== -1 ? state.sportsNewsLeague : "";
   const chips = "<div class=\"sports-leagues\"><button type=\"button\" class=\"chip" + (!selected ? " active" : "") + "\" data-sports-news-league=\"\">For you</button>" + leagues.map(function(id) {
-    const league = sportsLeagueByID(payload, id);
-    return "<button type=\"button\" class=\"chip" + (selected === id ? " active" : "") + "\" data-sports-news-league=\"" + escapeHTML(id) + "\">" + escapeHTML((league && league.name) || id) + "</button>";
+    return "<button type=\"button\" class=\"chip" + (selected === id ? " active" : "") + "\" data-sports-news-league=\"" + escapeHTML(id) + "\">" + escapeHTML(SPORTS_NEWS_LEAGUE_NAMES[id] || id) + "</button>";
   }).join("") + "</div>";
   let news;
   if (selected) {

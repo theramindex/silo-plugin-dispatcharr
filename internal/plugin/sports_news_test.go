@@ -85,7 +85,7 @@ func TestSportsStandingsGroupsAndColumns(t *testing.T) {
 	defer espn.Close()
 	news := sportsNewsCache{standingsBaseURL: espn.URL + "/", client: espn.Client()}
 	league, _ := espnLeagueFor("mlb")
-	payload := news.standings(context.Background(), "mlb", league)
+	payload := news.standings(context.Background(), "mlb", league, false)
 	if strings.Join(payload.Columns, ",") != "W,L,PCT,GB,STRK,L10" || len(payload.Groups) != 1 {
 		t.Fatalf("unexpected standings shape %+v", payload)
 	}
@@ -114,6 +114,43 @@ func TestApplyESPNCompetitionDetailBaseballSituationAndLeaders(t *testing.T) {
 	}
 	if len(result.Leaders) != 1 || result.Leaders[0].Side != "home" || !result.Available {
 		t.Fatalf("leaders must map to the home or away side: %+v", result.Leaders)
+	}
+}
+
+func TestGuideNextGameListingsUseTheEmbeddedStart(t *testing.T) {
+	t.Parallel()
+	start, ok := guideSportsNextGameStart("Next Game: Baltimore Orioles @ New York Yankees on 2026-09-25 at 07:05PM EDT")
+	if !ok || time.Unix(start, 0).UTC().Format(time.RFC3339) != "2026-09-25T23:05:00Z" {
+		t.Fatalf("unexpected start %v %v", time.Unix(start, 0).UTC(), ok)
+	}
+	if _, ok := guideSportsNextGameStart("Next Game: Mets @ Nationals"); ok {
+		t.Fatal("listings without a date must not produce a start time")
+	}
+	now := time.Date(2026, time.September, 25, 4, 0, 0, 0, time.UTC)
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{{ID: "channel:yankees", Name: "New York Yankees", CategoryName: "MLB"}},
+		Programs: []model.Program{{ID: "p1", ChannelID: "channel:yankees", Title: "Next Game: Baltimore Orioles @ New York Yankees on 2026-09-25 at 07:05PM EDT", Categories: []string{"Sports", "Baseball"}, StartUnix: now.Unix(), EndUnix: now.Add(time.Hour).Unix()}},
+	}})
+	events, _ := sportsEventsFromGuideWithScoreHints(store.Current(), now)
+	if len(events) != 1 || time.Unix(events[0].StartUnix, 0).UTC().Hour() != 23 || events[0].Home.Name != "New York Yankees" || strings.Contains(events[0].Name, "Next Game") {
+		t.Fatalf("next-game filler must become a game at its real start: %+v", events)
+	}
+	provider := []SportsEvent{{ID: "sportarr:1", LeagueID: "mlb", StartUnix: now.Add(15*time.Hour + 5*time.Minute).Unix(), Home: SportsTeam{Name: "New York Yankees"}, Away: SportsTeam{Name: "Baltimore Orioles"}}}
+	merged := mergeSportsGuideEvents(provider, events)
+	if len(merged) != 1 || len(merged[0].Channels) != 1 || merged[0].Channels[0].ID != "channel:yankees" {
+		t.Fatalf("the provider game must pick up the team channel: %+v", merged)
+	}
+}
+
+func TestMergeSportsGuideEventsMarksNextDayRebroadcastsAsReplays(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.September, 25, 4, 0, 0, 0, time.UTC)
+	provider := []SportsEvent{{ID: "sportarr:1", LeagueID: "mlb", Completed: true, Status: "completed", StartUnix: now.Add(-5 * time.Hour).Unix(), Home: SportsTeam{Name: "New York Yankees"}, Away: SportsTeam{Name: "Tampa Bay Rays"}}}
+	guide := []SportsEvent{{ID: "epg:1", LeagueID: "mlb", Status: "scheduled", StartUnix: now.Add(8 * time.Hour).Unix(), Home: SportsTeam{Name: "New York Yankees"}, Away: SportsTeam{Name: "Tampa Bay Rays"}}}
+	merged := mergeSportsGuideEvents(provider, guide)
+	if len(merged) != 2 || merged[1].Status != "replay" {
+		t.Fatalf("a next-morning airing of a finished game must be a replay: %+v", merged)
 	}
 }
 

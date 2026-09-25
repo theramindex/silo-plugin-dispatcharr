@@ -44,6 +44,40 @@ var raceLocationPrefix = regexp.MustCompile(`(?i)^\s*(?:v(?:s\.)?|at|@|:|-)\s*`)
 var guideSportsTimestampSuffix = regexp.MustCompile(`(?i)\s*\(\d{4}-\d{2}-\d{2}(?:[ t]\d{1,2}:\d{2}(?::\d{2})?)?\)\s*$`)
 var guideSportsVenueSuffix = regexp.MustCompile(`\s+_\s+([^_]+?)\s*$`)
 var guideSportsNextGameSuffix = regexp.MustCompile(`(?i)\s+on\s+\d{4}-\d{2}-\d{2}\s+at\s+\d{1,2}:\d{2}\s*(?:am|pm)?(?:\s+[a-z]{2,5})?\s*$`)
+var guideSportsNextGamePrefix = regexp.MustCompile(`(?i)^\s*next\s+game\s*:\s*`)
+var guideSportsNextGameWhen = regexp.MustCompile(`(?i)\bon\s+(\d{4}-\d{2}-\d{2})\s+at\s+(\d{1,2}):(\d{2})\s*(am|pm)?\s*([a-z]{2,5})?\s*$`)
+
+var guideSportsZoneOffsets = map[string]int{"UTC": 0, "GMT": 0, "EDT": -4, "EST": -5, "ET": -4, "CDT": -5, "CST": -6, "CT": -5, "MDT": -6, "MST": -7, "MT": -6, "PDT": -7, "PST": -8, "PT": -7, "BST": 1}
+
+func guideSportsNextGameStart(title string) (int64, bool) {
+	match := guideSportsNextGameWhen.FindStringSubmatch(title)
+	if match == nil {
+		return 0, false
+	}
+	day, err := time.Parse("2006-01-02", match[1])
+	if err != nil {
+		return 0, false
+	}
+	hour, _ := strconv.Atoi(match[2])
+	minute, _ := strconv.Atoi(match[3])
+	switch strings.ToLower(match[4]) {
+	case "pm":
+		if hour < 12 {
+			hour += 12
+		}
+	case "am":
+		if hour == 12 {
+			hour = 0
+		}
+	}
+	offset, ok := guideSportsZoneOffsets[strings.ToUpper(firstNonEmpty(match[5], "ET"))]
+	if !ok || hour > 23 || minute > 59 {
+		return 0, false
+	}
+	zone := time.FixedZone(match[5], offset*3600)
+	return time.Date(day.Year(), day.Month(), day.Day(), hour, minute, 0, 0, zone).Unix(), true
+}
+
 var sportsISODatePattern = regexp.MustCompile(`\b(20\d{2})[-_/](\d{1,2})[-_/](\d{1,2})\b`)
 var sportsUSDatePattern = regexp.MustCompile(`\b(\d{1,2})[-_/](\d{1,2})[-_/](20\d{2})\b`)
 var guideSportsMatchNumberSuffix = regexp.MustCompile(`(?i)\s*(?:,\s*match\s+\d+|[-,]?\s*\d+(?:st|nd|rd|th)\s+match)\s*$`)
@@ -593,9 +627,10 @@ func mergeSportsGuideEvents(events, guideEvents []SportsEvent) []SportsEvent {
 			break
 		}
 		if !matched {
-			if guideEvent.Live && guideEvent.Status == "airing" {
+			if !guideEvent.Completed {
 				for _, providerEvent := range merged {
-					if providerEvent.Completed && providerEvent.StartUnix < guideEvent.StartUnix && sportsEventsSameIdentity(providerEvent, guideEvent) {
+					recent := guideEvent.Live || guideEvent.StartUnix-providerEvent.StartUnix < 36*3600
+					if providerEvent.Completed && providerEvent.StartUnix < guideEvent.StartUnix && recent && sportsEventsSameIdentity(providerEvent, guideEvent) {
 						guideEvent.Status = "replay"
 						guideEvent.StatusText = "Replay"
 						break
@@ -681,6 +716,17 @@ func sportsEventsFromGuideWithScoreHints(snapshot cache.Snapshot, now time.Time)
 			refreshScores = true
 		}
 
+		nextGame := guideSportsNextGamePrefix.MatchString(displayTitle)
+		if nextGame {
+			// Team channels list "Next Game: A @ B on <date> at <time>" as filler; the
+			// game itself starts at the embedded time, not the listing time.
+			gameStart, ok := guideSportsNextGameStart(displayTitle)
+			if !ok {
+				continue
+			}
+			program.StartUnix = gameStart
+			program.EndUnix = gameStart + 3*3600
+		}
 		startBucket := program.StartUnix / (15 * 60)
 		key := normalizeMatchText(displayTitle) + "|" + fmt.Sprintf("%d", startBucket)
 		event := byKey[key]
@@ -690,6 +736,10 @@ func sportsEventsFromGuideWithScoreHints(snapshot cache.Snapshot, now time.Time)
 				endUnix = program.StartUnix + 3*3600
 			}
 			live, completed, status, statusText := guideSportsBroadcastStatus(program, endUnix, now)
+			if nextGame {
+				displayTitle = strings.TrimSpace(guideSportsNextGameSuffix.ReplaceAllString(guideSportsNextGamePrefix.ReplaceAllString(displayTitle, ""), ""))
+				live, completed, status, statusText = false, false, "scheduled", "Upcoming"
+			}
 			shortName := strings.TrimSpace(awayName + " vs " + homeName)
 			if eventType == "event" {
 				shortName = displayTitle

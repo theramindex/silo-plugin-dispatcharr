@@ -159,11 +159,9 @@ type espnStatsCompetition struct {
 		Errors    *int `json:"errors"`
 		Probables []struct {
 			espnAthleteRef
-			Record     string `json:"record"`
-			Statistics []struct {
-				Abbreviation string `json:"abbreviation"`
-				DisplayValue string `json:"displayValue"`
-			} `json:"statistics"`
+			Record string `json:"record"`
+			// ESPN sends a list on scoreboards and an object in game summaries.
+			Statistics json.RawMessage `json:"statistics"`
 		} `json:"probables"`
 		Leaders []espnLeaderCategory `json:"leaders"`
 	} `json:"competitors"`
@@ -437,7 +435,12 @@ func applyESPNCompetitionDetail(result *SportsGameStats, competition espnStatsCo
 				if probable.Record != "" {
 					stats = append(stats, probable.Record)
 				}
-				for _, stat := range probable.Statistics {
+				var statistics []struct {
+					Abbreviation string `json:"abbreviation"`
+					DisplayValue string `json:"displayValue"`
+				}
+				_ = json.Unmarshal(probable.Statistics, &statistics)
+				for _, stat := range statistics {
 					if stat.Abbreviation == "ERA" && stat.DisplayValue != "" {
 						stats = append(stats, stat.DisplayValue+" ERA")
 					}
