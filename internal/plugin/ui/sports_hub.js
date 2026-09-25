@@ -568,7 +568,63 @@ function openSportsTeam(key) {
   commitAppRoute("push");
 }
 
+let sportsHighlightReturnFocus = null;
+
+function openSportsHighlight(trigger) {
+  closeSportsHighlight();
+  const src = trigger.getAttribute("data-sports-highlight-src") || "";
+  if (!/^https:\/\//i.test(src)) return;
+  const title = trigger.getAttribute("data-sports-highlight-title") || "Highlight";
+  const page = trigger.getAttribute("data-sports-highlight-page") || "";
+  sportsHighlightReturnFocus = trigger;
+  const root = document.createElement("div");
+  root.id = "sports-highlight-modal";
+  root.className = "sports-highlight-modal";
+  root.innerHTML = "<div class=\"sports-highlight-backdrop\" data-sports-highlight-close=\"true\"></div>"
+    + "<section class=\"sports-highlight-dialog\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"sports-highlight-title\">"
+    + "<header><h2 id=\"sports-highlight-title\">" + escapeHTML(title) + "</h2>"
+    + (/^https:\/\//i.test(page) && page !== src ? "<a href=\"" + escapeHTML(page) + "\" target=\"_blank\" rel=\"noopener noreferrer\">Open on ESPN</a>" : "")
+    + "<button type=\"button\" data-sports-highlight-close=\"true\" aria-label=\"Close highlight\">" + icon("x") + "</button></header>"
+    + "<video src=\"" + escapeHTML(src) + "\" controls autoplay playsinline></video></section>";
+  document.body.appendChild(root);
+  document.body.classList.add("program-modal-open");
+  const close = root.querySelector("header button");
+  if (close) close.focus();
+}
+
+function closeSportsHighlight() {
+  const root = byId("sports-highlight-modal");
+  if (!root) return;
+  const video = root.querySelector("video");
+  if (video) { video.pause(); video.removeAttribute("src"); video.load(); }
+  root.remove();
+  document.body.classList.remove("program-modal-open");
+  const target = sportsHighlightReturnFocus;
+  sportsHighlightReturnFocus = null;
+  if (target && document.contains(target)) target.focus();
+}
+
+document.addEventListener("keydown", function(event) {
+  if (event.key === "Escape" && byId("sports-highlight-modal")) {
+    event.preventDefault();
+    event.stopPropagation();
+    closeSportsHighlight();
+  }
+}, true);
+
 document.addEventListener("click", function(event) {
+  const highlightClose = event.target.closest && event.target.closest("[data-sports-highlight-close]");
+  if (highlightClose) {
+    event.preventDefault();
+    closeSportsHighlight();
+    return;
+  }
+  const highlight = event.target.closest && event.target.closest("[data-sports-highlight-src]");
+  if (highlight) {
+    event.preventDefault();
+    openSportsHighlight(highlight);
+    return;
+  }
   const teamOpen = event.target.closest && event.target.closest("[data-sports-team-open]");
   if (teamOpen) {
     event.preventDefault();

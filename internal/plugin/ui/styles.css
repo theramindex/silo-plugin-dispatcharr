@@ -334,6 +334,15 @@ button { cursor: pointer; touch-action: manipulation; }
 .tile .tile-disclosure { width: 1.75rem; height: 1.75rem; border-radius: 999px; background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--muted); display: grid; place-items: center; }
 .tile .tile-disclosure svg { width: 0.9rem; height: 0.9rem; stroke-width: 2; }
 .tile:hover .tile-disclosure, .tile.active .tile-disclosure { color: var(--text); background: color-mix(in srgb, var(--text) 10%, transparent); }
+.category-grid + .category-groups { margin-top: 1rem; }
+.category-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(17rem, 100%), 1fr)); gap: 1rem; align-items: start; }
+.category-group { min-width: 0; border: 1px solid var(--line); border-radius: 0.5rem; background: color-mix(in srgb, var(--panel) 45%, var(--bg)); padding: 0.75rem; }
+.category-group > header { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; padding: 0.1rem 0.25rem 0.6rem; }
+.category-group h3 { margin: 0; font-size: 1rem; font-weight: 700; }
+.category-group > header span { color: var(--muted); font-size: 0.75rem; font-weight: 600; }
+.category-group-list { display: grid; gap: 0.4rem; }
+.category-group .tile { min-height: 3.25rem; padding: 0.5rem 0.7rem; }
+.category-group .tile:hover, .category-group .tile.active { transform: none; }
 .search-page { width: 100%; max-width: 100%; min-width: 0; padding: 0.35rem 0 2rem; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.15rem; overflow: hidden; }
 .search-commandbar { width: 100%; max-width: 100%; min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "title form" "scopes scopes"; align-items: center; gap: 1rem 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
 .search-commandbar-title { grid-area: title; align-self: start; display: grid; gap: 0.18rem; padding-top: 0.55rem; }
@@ -420,7 +429,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .on-later-shelf > header span, .event-shelf > header span { color: var(--muted); font-size: 0.72rem; font-weight: 700; }
 .on-later-shelf-rail, .event-shelf-rail { display: grid; grid-auto-flow: column; gap: 0.7rem; min-width: 0; overflow-x: auto; overscroll-behavior-inline: contain; scroll-snap-type: inline proximity; scrollbar-width: thin; padding: 0.05rem 0 0.35rem; }
 .on-later-shelf-rail { grid-auto-columns: clamp(16.5rem, 25vw, 21rem); }
-.event-shelf-rail { grid-auto-flow: row; grid-template-columns: repeat(auto-fill, minmax(min(18rem, 100%), 22rem)); align-items: start; overflow: visible; scroll-snap-type: none; padding-bottom: 0; }
+.event-shelf-rail { grid-auto-flow: row; grid-template-columns: repeat(auto-fill, minmax(min(18rem, 100%), 1fr)); align-items: start; overflow: visible; scroll-snap-type: none; padding-bottom: 0; }
 .on-later-program-card { min-width: 0; overflow: hidden; scroll-snap-align: start; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--panel); color: var(--text); }
 .on-later-program-open { width: 100%; min-width: 0; display: grid; border: 0; background: transparent; color: inherit; padding: 0; text-align: left; }
 .on-later-card-media { position: relative; aspect-ratio: 4 / 3; min-width: 0; display: grid; place-items: center; overflow: hidden; border-bottom: 1px solid var(--line); background: #11141a; }
@@ -464,7 +473,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .on-later-page .search-hero { grid-template-columns: minmax(0, 1fr); align-items: start; }
 .on-later-page .search-hero p { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.9rem; font-weight: 500; }
 .my-tv-page { width: 100%; min-width: 0; display: grid; gap: 1.5rem; padding: 0.75rem 0 2.5rem; }
-.my-tv-header { display: grid; grid-template-columns: minmax(14rem, 0.65fr) minmax(22rem, 1.35fr); align-items: center; gap: clamp(1.5rem, 4vw, 4rem); border-bottom: 1px solid var(--line); padding: 0.75rem 0 1.4rem; }
+.my-tv-header { display: grid; grid-template-columns: minmax(14rem, 0.65fr) minmax(22rem, 1.35fr); align-items: center; gap: clamp(1.5rem, 4vw, 4rem); padding: 0.5rem 0 0.25rem; }
 .my-tv-heading h2 { margin: 0; color: var(--text); font-size: 1.875rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
 .my-tv-heading p { max-width: 34rem; margin: 0.45rem 0 0; color: var(--muted); font-size: 0.82rem; font-weight: 500; line-height: 1.45; }
 .my-tv-search { min-height: 3.4rem; display: grid; grid-template-columns: 1.2rem minmax(0, 1fr) 2rem; align-items: center; gap: 0.75rem; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--panel); padding: 0.55rem 0.65rem 0.55rem 0.9rem; transition: border-color 160ms ease, background-color 160ms ease; }
@@ -485,17 +494,19 @@ button { cursor: pointer; touch-action: manipulation; }
 #my-tv-dashboard { display: grid; gap: 1.75rem; }
 .my-tv-section, .my-tv-up-next { min-width: 0; display: grid; gap: 0.75rem; }
 .my-tv-section > header, .my-tv-up-next > header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
-.my-tv-section h3, .my-tv-up-next h2 { margin: 0; color: var(--text); font-size: 1rem; font-weight: 700; }
-.my-tv-section > header span { color: var(--muted); font-size: 0.7rem; font-weight: 600; }
-.my-tv-following { display: flex; gap: 0.5rem; overflow-x: auto; overscroll-behavior-inline: contain; padding: 0.05rem 0 0.4rem; scrollbar-width: thin; }
-.my-tv-follow-card { min-width: 13rem; max-width: 17rem; min-height: 3.55rem; flex: 0 1 17rem; display: grid; grid-template-columns: 2.15rem minmax(0, 1fr) 2rem; align-items: center; gap: 0.55rem; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--panel); padding: 0.45rem 0.5rem; }
+.my-tv-section h3, .my-tv-up-next h3 { margin: 0; color: var(--text); font-size: 1.05rem; font-weight: 700; }
+.my-tv-section > header span { color: var(--muted); font-size: 0.75rem; font-weight: 600; }
+.my-tv-favorites .search-result-list { grid-template-columns: repeat(auto-fill, minmax(min(21rem, 100%), 1fr)); gap: 0.5rem; }
+.my-tv-following { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(14rem, 100%), 1fr)); gap: 0.5rem; }
+.my-tv-follow-note { margin: 0; color: var(--muted); font-size: 0.75rem; }
+.my-tv-follow-card { min-width: 0; min-height: 3.55rem; display: grid; grid-template-columns: 2.15rem minmax(0, 1fr) 2rem; align-items: center; gap: 0.55rem; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--panel); padding: 0.45rem 0.5rem; }
 .my-tv-follow-mark { width: 2.15rem; height: 2.15rem; display: grid; place-items: center; overflow: hidden; border-radius: 0.35rem; background: var(--panel-2); }
 .my-tv-follow-mark > svg { width: 1.05rem; height: 1.05rem; color: var(--muted); }
 .my-tv-follow-mark .sports-league-mark, .my-tv-follow-logo { width: 100%; height: 100%; object-fit: contain; }
 .my-tv-follow-card > span:nth-child(2) { min-width: 0; display: grid; gap: 0.1rem; }
 .my-tv-follow-card strong, .my-tv-follow-card small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.my-tv-follow-card strong { color: var(--text); font-size: 0.74rem; }
-.my-tv-follow-card small { color: var(--muted); font-size: 0.64rem; font-weight: 700; }
+.my-tv-follow-card strong { color: var(--text); font-size: 0.82rem; }
+.my-tv-follow-card small { color: var(--muted); font-size: 0.7rem; font-weight: 600; }
 .my-tv-follow-card > button { width: 2rem; height: 2rem; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--muted); }
 .my-tv-follow-card > button:hover { background: var(--panel-2); color: var(--text); }
 .my-tv-follow-card > button svg { width: 0.9rem; height: 0.9rem; }
@@ -521,7 +532,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .my-tv-result > button { min-height: 2.25rem; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--text); padding: 0 0.8rem; font-size: 0.68rem; font-weight: 700; }
 .my-tv-result > button:hover:not(:disabled) { background: var(--text); color: var(--bg); }
 .my-tv-result > button:disabled { color: var(--muted); }
-.my-tv-up-next { gap: 1.2rem; border-top: 1px solid var(--line); padding-top: 1.35rem; }
+.my-tv-up-next { gap: 1rem; }
 .my-tv-sports-grid { grid-template-columns: repeat(auto-fill, minmax(min(20rem, 100%), 1fr)); }
 .my-tv-empty { min-height: 8.5rem; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 1.5rem; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--muted); padding: 1.4rem 0; }
 #my-tv-dashboard > .my-tv-empty:first-child { border-top: 0; }
@@ -595,6 +606,10 @@ button { cursor: pointer; touch-action: manipulation; }
 .event-details { min-width: 0; display: grid; align-content: start; gap: 0.5rem; }
 .event-details p { margin: 0; color: var(--muted); font-size: 0.82rem; font-weight: 700; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .event-meta { display: flex; flex-wrap: wrap; gap: 0.35rem; min-width: 0; }
+.event-later-airings { margin: 0.45rem 0 0; color: var(--muted); font-size: 0.75rem; }
+.event-filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; min-width: 0; }
+.event-filter-bar .sports-leagues { padding-left: 0.9rem; border-left: 1px solid var(--line); }
+@media (max-width: 720px) { .event-filter-bar .sports-leagues { padding-left: 0; border-left: 0; } }
 .event-meta span { border: 1px solid var(--line); border-radius: 999px; background: var(--rail-2); color: var(--muted); padding: 0.16rem 0.44rem; font-size: 0.68rem; font-weight: 700; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .event-meta .event-keyword { color: var(--text); }
 .event-card > .sports-channels { justify-content: stretch; padding: 0; border-top: 1px solid color-mix(in srgb, var(--line) 72%, transparent); }
@@ -1029,6 +1044,18 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-highlight-thumb svg { position: relative; width: 2.2rem; height: 2.2rem; padding: 0.55rem; border-radius: 50%; background: rgba(0,0,0,0.6); color: white; }
 .sports-highlight strong { font-size: 0.8rem; line-height: 1.35; }
 .sports-highlight:hover strong, .sports-highlight:focus-visible strong { text-decoration: underline; }
+button.sports-highlight { border: 0; background: transparent; padding: 0; font: inherit; text-align: left; cursor: pointer; }
+.sports-highlight-modal { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 1rem; }
+.sports-highlight-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.72); }
+.sports-highlight-dialog { position: relative; width: min(60rem, 100%); max-height: calc(100dvh - 2rem); display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--panel); box-shadow: 0 1.5rem 4rem rgba(0,0,0,0.5); }
+.sports-highlight-dialog header { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0.6rem 0.6rem 1rem; }
+.sports-highlight-dialog h2 { flex: 1 1 auto; min-width: 0; margin: 0; overflow: hidden; font-size: 0.95rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.sports-highlight-dialog header a { flex: 0 0 auto; color: var(--muted); font-size: 0.8rem; }
+.sports-highlight-dialog header a:hover { color: var(--text); }
+.sports-highlight-dialog header button { flex: 0 0 auto; width: 2.5rem; height: 2.5rem; display: grid; place-items: center; border: 0; border-radius: 999px; background: transparent; color: var(--muted); }
+.sports-highlight-dialog header button:hover, .sports-highlight-dialog header button:focus-visible { background: var(--panel-2); color: var(--text); }
+.sports-highlight-dialog header svg { width: 1.1rem; height: 1.1rem; }
+.sports-highlight-dialog video { width: 100%; max-height: calc(100dvh - 6rem); aspect-ratio: 16 / 9; border: 0; border-radius: 0; background: #000; }
 .sports-standings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(26rem, 100%), 1fr)); gap: 0.75rem; align-items: start; }
 .sports-standings-group { overflow-x: auto; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--panel); }
 .sports-standings { width: 100%; border-collapse: collapse; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
@@ -1433,6 +1460,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .player-center-button.loading svg { animation: spin 880ms linear infinite; }
 .player-error { position: absolute; left: 50%; top: 50%; z-index: 4; transform: translate(-50%, -50%); width: min(26rem, calc(100vw - 2.5rem)); display: grid; justify-items: center; gap: 0.55rem; text-align: center; color: white; }
 .player-error.hidden { display: none; }
+.playback-shell.sports-open .player-error { top: calc((100% - var(--player-sports-drawer-height, 0px)) / 2); max-height: calc(100% - var(--player-sports-drawer-height, 0px) - 2rem); }
 .player-error .player-logo { width: 4.5rem; height: 3rem; margin: 0 0 0.25rem; }
 .player-error strong { font-size: 1.25rem; font-weight: 600; }
 .player-error p { margin: 0; color: rgba(255,255,255,0.72); font-size: 0.92rem; line-height: 1.45; }
