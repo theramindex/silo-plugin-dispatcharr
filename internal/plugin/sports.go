@@ -132,6 +132,26 @@ type SportsTeam struct {
 	PrimaryColor    string `json:"primaryColor,omitempty"`
 	SecondaryColor  string `json:"secondaryColor,omitempty"`
 	Favorite        bool   `json:"favorite,omitempty"`
+	// FollowIDs lists identities saved follows may use, since guide-only and
+	// provider copies of the same team hash to different IDs.
+	FollowIDs []string `json:"followIds,omitempty"`
+}
+
+func sportsTeamFollowIDs(team SportsTeam) []string {
+	name := strings.TrimSpace(team.Name)
+	if name == "" {
+		return nil
+	}
+	seen := map[string]bool{}
+	ids := []string{}
+	for _, abbreviation := range []string{team.Abbreviation, sportsTeamInitials(name), ""} {
+		id := stableSportsTeamID(SportsTeam{Name: name, Abbreviation: abbreviation})
+		if !seen[id] && id != team.ID {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }
 
 type SportsImage struct {
@@ -404,6 +424,8 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 		events[index] = normalizeSportsEventFreshness(events[index], now)
 		events[index].Home.Favorite = false
 		events[index].Away.Favorite = false
+		events[index].Home.FollowIDs = sportsTeamFollowIDs(events[index].Home)
+		events[index].Away.FollowIDs = sportsTeamFollowIDs(events[index].Away)
 		if len(events[index].Channels) > 0 {
 			events[index].Channels = mergeSportsChannelMatches(events[index].Channels)
 			events[index].MatchDiagnostics = make([]SportsMatchDiagnostic, 0, len(events[index].Channels))

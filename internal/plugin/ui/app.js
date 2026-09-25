@@ -2983,6 +2983,7 @@ function myTVBuiltInSportsPeople() {
 function sportsFavoriteTeamMatches(team) {
   const favorites = sportsFavoriteTeamMap();
   if (favorites[String(team && team.id || "")]) return true;
+  if (items(team && team.followIds).some(function(id) { return !!favorites[id]; })) return true;
   const slug = sportsGamePassSlug(team && (team.name || team.abbreviation));
   if (!slug) return false;
   return Object.keys(favorites).some(function(id) { return !!favorites[id] && String(id).indexOf("gamepass:") === 0 && String(id).endsWith(":" + slug); });
