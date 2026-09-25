@@ -81,8 +81,15 @@ func guideSportsNextGameStart(title string) (int64, bool) {
 var sportsISODatePattern = regexp.MustCompile(`\b(20\d{2})[-_/](\d{1,2})[-_/](\d{1,2})\b`)
 var sportsUSDatePattern = regexp.MustCompile(`\b(\d{1,2})[-_/](\d{1,2})[-_/](20\d{2})\b`)
 var guideSportsMatchNumberSuffix = regexp.MustCompile(`(?i)\s*(?:,\s*match\s+\d+|[-,]?\s*\d+(?:st|nd|rd|th)\s+match)\s*$`)
-var guideSportsStageSuffix = regexp.MustCompile(`(?i)\s+[-–—]\s+(?:qualifier|eliminator|semi[- ]?final|final)(?:\s+\d+)?\s*$`)
-var guideSportsCompetitionSuffix = regexp.MustCompile(`(?i)\s+-\s+(?:uefa\s+(?:champions|europa|conference)\s+league)\b.*$`)
+var guideSportsStageSuffix = regexp.MustCompile(`(?i)\s+[-–—]\s+(?:qualifier|eliminator|play[- ]?offs?|quarter[- ]?final|semi[- ]?final|final)(?:\s+\d+)?\s*$`)
+
+// Country codes such as "(NOR)" stay on the team; only network tags are dropped.
+var guideSportsNetworkSuffix = regexp.MustCompile(`(?i)\s*\((?:accnx|accn|secn\+?|espn[2u+]?|espnews|btn\+?|b1g\+|fs[12]|cbssn|nbcsn|peacock|paramount\+|dazn|tsn\+?\d*|sn\d*|flo\w*|nfhs)\)\s*$`)
+
+// Provider event channels append the air time ("@ 24 Sep 07:50 AM ET",
+// "SEP 25 06:00 PM"); it is not the second half of a matchup.
+var guideSportsAirTimeSuffix = regexp.MustCompile(`(?i)\s*(?:@\s*)?(?:\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{1,2})\s+\d{1,2}:\d{2}(?:\s*[ap]\.?m\.?)?(?:\s+[a-z]{2,4})?\s*$`)
+var guideSportsCompetitionSuffix = regexp.MustCompile(`(?i)\s+[-–—]\s+(?:[^-–—]*\b(?:league|cup|championships?|tournament|trophy|qualif\w*|series)\b|(?:match\s*day|matchday|round|week|leg|group)\s+\w+).*$`)
 var guideSportsClockName = regexp.MustCompile(`(?i)^\d{1,2}(?::\d{2})?\s*(?:am|pm)(?:\s+[a-z]{2,5})?$`)
 var guideSportsNonMatchTitle = regexp.MustCompile(`(?i)\b(?:good morning|outdoor magazine|the verdict|the case for)\b`)
 
@@ -419,6 +426,7 @@ func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) Spor
 			}
 		}
 	}
+	events = inferGuideSportsLeagues(events)
 	channelIndex := newSportsChannelIndex(snapshot)
 	for index := range events {
 		events[index] = normalizeSportsEventFreshness(events[index], now)
@@ -986,6 +994,7 @@ func guideSportsMatchup(title string) (string, string, bool) {
 	}
 	title = guideSportsNextGameSuffix.ReplaceAllString(title, "")
 	title = guideSportsTimestampSuffix.ReplaceAllString(title, "")
+	title = guideSportsAirTimeSuffix.ReplaceAllString(title, "")
 	locations := sportsMatchupSeparator.FindAllStringIndex(title, -1)
 	if len(locations) == 0 {
 		return "", "", false
@@ -996,8 +1005,14 @@ func guideSportsMatchup(title string) (string, string, bool) {
 	if colon := strings.LastIndex(left, ":"); colon >= 0 {
 		left = strings.TrimSpace(left[colon+1:])
 	}
+	if pipe := strings.LastIndex(left, "|"); pipe >= 0 {
+		left = strings.TrimSpace(left[pipe+1:])
+	}
 	if colon := strings.Index(right, ":"); colon >= 0 {
 		right = strings.TrimSpace(right[:colon])
+	}
+	if pipe := strings.Index(right, "|"); pipe >= 0 {
+		right = strings.TrimSpace(right[:pipe])
 	}
 	left = cleanGuideSportsTeamName(strings.Trim(left, " -:|,."))
 	right = cleanGuideSportsTeamName(strings.Trim(right, " -:|,."))
@@ -1008,6 +1023,72 @@ func guideSportsMatchup(title string) (string, string, bool) {
 		return "", "", false
 	}
 	return left, right, true
+}
+
+type sportsLeagueRef struct {
+	ID, Name, Sport string
+}
+
+// Guide listings like "Padres vs Dodgers" never name their league. Both teams
+// must resolve to the same league through names the provider already knows.
+func inferGuideSportsLeagues(events []SportsEvent) []SportsEvent {
+	known := map[string]sportsLeagueRef{}
+	ambiguous := map[string]bool{}
+	for _, event := range events {
+		if event.LeagueID == "" || event.LeagueID == "sports" || event.EventType != "" {
+			continue
+		}
+		ref := sportsLeagueRef{ID: event.LeagueID, Name: event.LeagueName, Sport: event.SportName}
+		for _, team := range []SportsTeam{event.Home, event.Away} {
+			for _, key := range sportsTeamNameKeys(team.Name) {
+				if existing, ok := known[key]; ok && existing.ID != ref.ID {
+					ambiguous[key] = true
+					continue
+				}
+				known[key] = ref
+			}
+		}
+	}
+	resolve := func(name string) (sportsLeagueRef, bool) {
+		for _, key := range sportsTeamNameKeys(name) {
+			if ref, ok := known[key]; ok && !ambiguous[key] {
+				return ref, true
+			}
+		}
+		return sportsLeagueRef{}, false
+	}
+	for index, event := range events {
+		if (event.LeagueID != "" && event.LeagueID != "sports") || event.EventType != "" {
+			continue
+		}
+		away, awayOK := resolve(event.Away.Name)
+		home, homeOK := resolve(event.Home.Name)
+		if !awayOK || !homeOK || away.ID != home.ID {
+			continue
+		}
+		events[index].LeagueID = home.ID
+		events[index].LeagueName = home.Name
+		events[index].SportName = firstNonEmpty(home.Sport, event.SportName)
+	}
+	return events
+}
+
+func sportsTeamNameKeys(name string) []string {
+	words := strings.Fields(normalizeMatchText(name))
+	if len(words) == 0 {
+		return nil
+	}
+	keys := []string{strings.Join(words, " ")}
+	if len(words) > 1 {
+		keys = append(keys, words[len(words)-1], strings.Join(words[len(words)-2:], " "))
+	}
+	filtered := keys[:0]
+	for _, key := range keys {
+		if len([]rune(key)) >= 4 {
+			filtered = append(filtered, key)
+		}
+	}
+	return filtered
 }
 
 // A semicolon-separated fight card is one broadcast, not one pair of fighters.
@@ -1036,6 +1117,7 @@ func cleanGuideSportsTeamName(value string) string {
 	value = guideSportsMatchNumberSuffix.ReplaceAllString(value, "")
 	value = guideSportsStageSuffix.ReplaceAllString(value, "")
 	value = guideSportsCompetitionSuffix.ReplaceAllString(value, "")
+	value = guideSportsNetworkSuffix.ReplaceAllString(value, "")
 	value = strings.TrimSpace(value)
 	if open := strings.LastIndex(value, " ("); open > 0 && strings.HasSuffix(value, ")") {
 		base := strings.TrimSpace(value[:open])

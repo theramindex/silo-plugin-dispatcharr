@@ -954,6 +954,12 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-scoreboard-league > header button { display: inline-flex; align-items: center; gap: 0.2rem; border: 0; background: transparent; color: var(--text); padding: 0; font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
 .sports-scoreboard-league > header svg { width: 0.85rem; height: 0.85rem; color: var(--muted); }
 .sports-scoreboard-league > header span { color: var(--muted); font-size: 0.7rem; font-weight: 600; }
+.sports-scoreboard-league > header [data-sports-open-league] { flex: 1 1 auto; min-width: 0; }
+.sports-scoreboard-league > header .sports-scoreboard-toggle { flex: 0 0 auto; width: 1.75rem; height: 1.75rem; justify-content: center; margin-left: -0.35rem; border-radius: 999px; }
+.sports-scoreboard-league > header .sports-scoreboard-toggle:hover, .sports-scoreboard-league > header .sports-scoreboard-toggle:focus-visible { background: var(--panel-2); }
+.sports-scoreboard-toggle svg { transition: transform 160ms ease-out; }
+.sports-scoreboard-league.collapsed .sports-scoreboard-toggle svg { transform: rotate(-90deg); }
+.sports-scoreboard-league.collapsed > header { border-bottom: 0; }
 .sports-scoreboard-rows { display: grid; }
 .sports-team-page .sports-scoreboard-rows { border: 1px solid var(--line); border-radius: 0.5rem; background: var(--panel); overflow: hidden; }
 .sports-score-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.6rem 0.35rem 0; }
