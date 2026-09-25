@@ -362,19 +362,37 @@ func (cache *footballStatsCache) fetch(ctx context.Context, event SportsEvent) (
 		return missing, nil
 	}
 	start := time.Unix(event.StartUnix, 0).UTC()
-	dates := start.Add(-12*time.Hour).Format("20060102") + "-" + start.Add(12*time.Hour).Format("20060102")
 	var board struct {
 		Events []espnStatsEvent `json:"events"`
 	}
-	boardPath := "/scoreboard?limit=1000&dates=" + dates
-	if leaguePath == "football/college-football" {
-		boardPath += "&groups=80"
-	}
-	if strings.HasSuffix(leaguePath, "college-basketball") {
-		boardPath += "&groups=50"
-	}
-	if err := cache.get(ctx, leaguePath, boardPath, &board); err != nil {
-		return missing, err
+	// ESPN rejects date ranges on scoreboards, so query each day on either side
+	// of the start time.
+	seenDays := map[string]bool{}
+	seenEvents := map[string]bool{}
+	for _, day := range []string{start.Add(-12 * time.Hour).Format("20060102"), start.Add(12 * time.Hour).Format("20060102")} {
+		if seenDays[day] {
+			continue
+		}
+		seenDays[day] = true
+		boardPath := "/scoreboard?limit=1000&dates=" + day
+		if leaguePath == "football/college-football" {
+			boardPath += "&groups=80"
+		}
+		if strings.HasSuffix(leaguePath, "college-basketball") {
+			boardPath += "&groups=50"
+		}
+		var dayBoard struct {
+			Events []espnStatsEvent `json:"events"`
+		}
+		if err := cache.get(ctx, leaguePath, boardPath, &dayBoard); err != nil {
+			return missing, err
+		}
+		for _, candidate := range dayBoard.Events {
+			if !seenEvents[candidate.ID] {
+				seenEvents[candidate.ID] = true
+				board.Events = append(board.Events, candidate)
+			}
+		}
 	}
 	match := ""
 	var matchedCompetition espnStatsCompetition
