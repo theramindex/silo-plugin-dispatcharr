@@ -100,6 +100,9 @@ function sportsFollowedHubTeams(payload) {
     seen[sportsGamePassSlug(person.name)] = true;
   });
   return collapseSportsFollowedHubTeams(followed).sort(function(left, right) {
+    const leftLive = sportsTeamStatusLine(left).live ? 0 : 1;
+    const rightLive = sportsTeamStatusLine(right).live ? 0 : 1;
+    if (leftLive !== rightLive) return leftLive - rightLive;
     return sportsTeamName(left.team).localeCompare(sportsTeamName(right.team));
   });
 }
