@@ -26,6 +26,17 @@ func TestSportsScoresVisibleWithStaleProviderStatus(t *testing.T) {
 	}
 }
 
+func TestEventCardsKeepPosterRegionWithoutArtwork(t *testing.T) {
+	t.Parallel()
+	result := runUIInvariantScript(t, []string{
+		`const html = renderBroadcastEventCard({ id:"cma", shortName:"CMA Awards", categoryName:"Awards", startUnix: 1790355600, description:"Late night with the CMA Awards.", channels:[{id:"cma", name:"CMA Awards", score:80}] });`,
+		`globalThis.__result = { stableResults: html.indexOf("event-card-media") !== -1 && html.indexOf("no-art") !== -1 && html.indexOf("<img") === -1 && html.indexOf("CMA Awards") !== -1 };`,
+	})
+	if !result.StableResults {
+		t.Fatal("events without posters must still render a fallback media frame")
+	}
+}
+
 func TestSportsReplayEmptyStateExplainsLibrarySource(t *testing.T) {
 	t.Parallel()
 	result := runUIInvariantScript(t, []string{

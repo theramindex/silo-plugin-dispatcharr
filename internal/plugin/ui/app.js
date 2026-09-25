@@ -5086,8 +5086,18 @@ function eventArtworkFailed(image) {
   const media = image && image.parentElement;
   const card = media && media.closest ? media.closest(".event-card") : null;
   if (!media || !card) return;
-  media.remove();
+  image.setAttribute("hidden", "true");
+  const fallback = media.querySelector(".event-card-media-fallback");
+  if (fallback) fallback.removeAttribute("hidden");
+  media.classList.remove("has-art");
+  media.classList.add("no-art");
   card.classList.add("no-art");
+}
+function eventCategoryMark(event) {
+  const category = lower(event && (event.categoryId || event.categoryName));
+  if (category.indexOf("award") !== -1) return icon("trophy");
+  if (category.indexOf("parade") !== -1 || category.indexOf("civic") !== -1) return icon("calendar");
+  return icon("calendar");
 }
 function renderBroadcastEventCard(event) {
   const status = eventStatusLabel(event);
@@ -5104,8 +5114,10 @@ function renderBroadcastEventCard(event) {
   const laterAirings = items(event.laterAirings).filter(function(startUnix) { return startUnix > 0; });
   const meta = [event.keyword || "", windows.length > 1 ? windows.length + " coverage windows" : "", uniqueChannels.length ? uniqueChannels.length + " channel" + (uniqueChannels.length === 1 ? "" : "s") : "", laterAirings.length ? pluralLabel(laterAirings.length, "more airing") : ""].filter(Boolean).map(function(value, index) { return "<span" + (index === 0 && event.keyword ? " class=\"event-keyword\"" : "") + ">" + escapeHTML(value) + "</span>"; }).join("");
   const laterHTML = laterAirings.length ? "<p class=\"event-later-airings\">Also airs " + escapeHTML(laterAirings.slice(0, 3).map(dateTimeLabel).join(" · ")) + (laterAirings.length > 3 ? " and more" : "") + "</p>" : "";
-  const fallbackMedia = uniqueChannels[0] ? logoHTML(uniqueChannels[0]) : icon("calendar");
-  const media = artwork ? "<span class=\"event-card-media has-art\"><img src=\"" + escapeHTML(artwork) + "\" alt=\"\" onload=\"eventArtworkLoaded(this)\" onerror=\"eventArtworkFailed(this)\"><span class=\"event-card-media-fallback\" hidden>" + fallbackMedia + "</span></span>" : "";
+  const fallbackMedia = uniqueChannels[0] ? logoHTML(uniqueChannels[0]) : eventCategoryMark(event);
+  const media = "<span class=\"event-card-media" + (artwork ? " has-art" : " no-art") + "\">"
+    + (artwork ? "<img src=\"" + escapeHTML(artwork) + "\" alt=\"\" onload=\"eventArtworkLoaded(this)\" onerror=\"eventArtworkFailed(this)\">" : "")
+    + "<span class=\"event-card-media-fallback\"" + (artwork ? " hidden" : "") + ">" + fallbackMedia + "</span></span>";
   return "<article " + cardClass + (sportsEventIsLive(event) ? " live" : "") + (featured ? " featured" : "") + '"><div class="event-card-visual">' + media + '<header class="event-card-head"><span class="event-card-category">' + escapeHTML(event.categoryName || "Events") + "</span><span class=\"event-card-status\">" + escapeHTML(status) + "</span>" + featureControl + "<strong class=\"event-card-title\" data-overflow-tooltip=\"" + escapeHTML(event.name || title) + "\">" + escapeHTML(title) + "</strong></header></div>"
     + "<div class=\"event-card-body" + (artwork ? "" : " no-art") + "\"><div class=\"event-details\">" + (event.description ? "<p data-overflow-description=\"true\">" + escapeHTML(event.description) + "</p>" : "") + "<div class=\"event-meta\">" + meta + "</div>" + laterHTML + renderEventBroadcastWindows(event) + "</div></div>"
     + renderBroadcastEventChannels(event)
