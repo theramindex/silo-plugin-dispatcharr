@@ -5,6 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="dispatcharr-asset-version" content="__ASSET_VERSION__">
 <title>__APP_TITLE__</title>
+<script>
+(function() {
+  var root = document.documentElement, key = "dispatcharr-silo-theme";
+  try {
+    var url = new URL(window.location.href);
+    var theme = String(root.getAttribute("data-silo-theme") || "").replace(/[^a-z0-9_-]/g, "");
+    if (theme) window.localStorage.setItem(key, theme);
+    else {
+      var saved = String(window.localStorage.getItem(key) || "").replace(/[^a-z0-9_-]/g, "");
+      if (saved) root.setAttribute("data-silo-theme", saved);
+    }
+    if (url.searchParams.has("theme")) {
+      url.searchParams.delete("theme");
+      window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    }
+  } catch (_) {}
+})();
+</script>
 <link rel="stylesheet" href="__ASSET_PREFIX__/app.css?v=__ASSET_VERSION__">
 <script defer src="__ASSET_PREFIX__/lineup.js?v=__ASSET_VERSION__"></script>
 <script defer src="__ASSET_PREFIX__/sports_replays.js?v=__ASSET_VERSION__"></script>
