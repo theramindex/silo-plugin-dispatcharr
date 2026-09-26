@@ -2193,7 +2193,7 @@ function renderHome() {
     + (!favorites.length && watchedOften.length ? sectionHeader("Watched often") + favoriteHomeCards(watchedOften) : "")
     + renderSavedLineupsHome()
     + sectionHeaderWithActions("TV Guide", "<button type=\"button\" class=\"section-action\" data-view=\"guide\">Open Full Guide</button>" + guideFreshnessHTML())
-    + renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true })
+    + renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true, shelf: true })
     + (channelGroupsInSideMenu() ? "" : categoryGrid());
   const openGuide = root.querySelector("[data-view=\"guide\"]");
   if (openGuide) openGuide.onclick = function() { setView("guide"); };
@@ -2216,20 +2216,34 @@ function savedLineupCategoryLabel(categoryID) {
   if (path) return path.split(" / ").join(" | ");
   return categoryName(id) || "Saved lineup";
 }
+function savedLineupCountLabel(count) {
+  const total = Number(count) || 0;
+  if (!total) return "No channels";
+  return total === 1 ? "1 channel" : total + " channels";
+}
+function savedLineupFaceHTML(channels) {
+  const channel = items(channels).find(function(item) { return item && item.logoUrl; });
+  if (!channel) return "<span class=\"saved-lineup-glyph\">" + icon("collection") + "</span>";
+  return "<img src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">";
+}
+function savedLineupHomeCard(name, meta, openAttribute, channels, editHTML) {
+  return "<div class=\"saved-lineup-card\"><button type=\"button\" class=\"continue-card recent-channel-card saved-lineup-open\" " + openAttribute + " aria-label=\"" + escapeHTML(name + " - " + meta) + "\"><div class=\"poster-box\">" + savedLineupFaceHTML(channels) + "</div><span class=\"recent-channel-copy\"><strong>" + escapeHTML(name) + "</strong><span class=\"muted\">" + escapeHTML(meta) + "</span></span></button>" + (editHTML || "") + "</div>";
+}
 function renderSavedLineupsHome() {
   const lineups = savedLineups();
   const groups = customGroupCategories();
   if (!lineups.length && !groups.length) return "";
   const lineupCards = lineups.map(function(lineup) {
-    const count = channelsForSavedLineup(lineup).length;
-    const meta = ["Saved lineup", count ? count + " channels" : "No matching channels"].join(" · ");
-    return "<div class=\"saved-lineup-item\"><button type=\"button\" class=\"saved-lineup-open\" data-saved-lineup-open=\"" + escapeHTML(lineup.id) + "\"><strong>" + escapeHTML(lineup.name) + "</strong><span>" + escapeHTML(meta) + "</span></button><button type=\"button\" class=\"saved-lineup-edit\" data-saved-lineup-edit=\"" + escapeHTML(lineup.id) + "\" aria-label=\"Edit " + escapeHTML(lineup.name) + "\" title=\"Edit saved lineup\">" + icon("settings") + "</button></div>";
+    const channels = channelsForSavedLineup(lineup);
+    const meta = savedLineupCountLabel(channels.length);
+    const edit = "<button type=\"button\" class=\"saved-lineup-edit\" data-saved-lineup-edit=\"" + escapeHTML(lineup.id) + "\" aria-label=\"Edit " + escapeHTML(lineup.name) + "\" title=\"Edit saved lineup\">" + icon("settings") + "</button>";
+    return savedLineupHomeCard(lineup.name, meta, "data-saved-lineup-open=\"" + escapeHTML(lineup.id) + "\"", channels, edit);
   });
   const groupCards = groups.map(function(group) {
-    const meta = ["Custom group", group.count ? group.count + " channels" : "No channels"].join(" · ");
-    return "<div class=\"saved-lineup-item\"><button type=\"button\" class=\"saved-lineup-open\" data-category=\"" + escapeHTML(group.id) + "\"><strong>" + escapeHTML(group.name) + "</strong><span>" + escapeHTML(meta) + "</span></button></div>";
+    const channels = channelsForSavedLineup({ categoryId: group.id });
+    return savedLineupHomeCard(group.name, savedLineupCountLabel(group.count || channels.length), "data-category=\"" + escapeHTML(group.id) + "\"", channels, "");
   });
-  return sectionHeader("Saved Lineups") + "<div class=\"saved-lineup-grid\">" + lineupCards.concat(groupCards).join("") + "</div>";
+  return sectionHeader("Saved Lineups") + "<div class=\"row-scroll recent-channel-row saved-lineup-row\">" + lineupCards.concat(groupCards).join("") + "</div>";
 }
 function emptyStateHTML(title, detail) {
   detail = String(detail || "").trim();
@@ -4136,7 +4150,7 @@ function renderSportsEventDetail(payload, event) {
   const broadcasts = channels.length ? renderSportsBroadcastGroups(channels, event, true) : "";
   const coverage = matches.length ? "<div class=\"sports-coverage-grid\">" + matches.slice(0, 8).map(renderSportsCoverageCard).join("") + "</div>" : "";
   const relatedBody = related.length ? "<div class=\"sports-event-grid\">" + related.map(renderSportsEventTile).join("") + "</div>" : "";
-  const metadata = [event.venue].filter(Boolean);
+  const metadata = [event.venue, event.description].filter(Boolean);
   const metadataHTML = metadata.length ? "<p class=\"sports-event-metadata\">" + metadata.map(escapeHTML).join(" · ") + "</p>" : "";
   const navigation = renderSportsEventNavigation(payload, event);
   const leagueFavorite = !!sportsFavoriteLeagueMap()[event.leagueId];
@@ -4195,11 +4209,22 @@ function markSportsDetailBackgroundFailed(image) {
     image.parentElement.classList.add("no-art");
   }
 }
+function sportsChannelFeedLabel(channel) {
+  const reason = String(channel && channel.reason || "");
+  const marked = reason.match(/^(Home|Away|National) feed$/);
+  if (marked) return marked[0];
+  const token = String(channel && channel.name || "").match(/\b(HOME|AWAY|NATIONAL)\b/);
+  if (!token) return "";
+  const word = token[1].toLowerCase();
+  return word.charAt(0).toUpperCase() + word.slice(1) + " feed";
+}
 function sportsBroadcastTraits(channel, event) {
   const text = lower([channel.name, channel.categoryName, channel.reason].join(" "));
   const away = lower(sportsTeamName(event.away));
   const home = lower(sportsTeamName(event.home));
   const traits = [];
+  const feed = sportsChannelFeedLabel(channel);
+  if (feed) traits.push(feed);
   if (away && text.indexOf(away) !== -1) traits.push("Likely away");
   if (home && text.indexOf(home) !== -1) traits.push("Likely home");
   if (/\b(local|regional)\b/.test(text)) traits.push("Likely local");
@@ -4558,7 +4583,7 @@ function renderSportsChannels(event) {
   return "<div class=\"sports-channels\">" + visible.map(renderSportsChannelChip).join("") + more + "</div>";
 }
 function renderSportsChannelChip(channel, context) {
-  const meta = channel.categoryName || channel.reason || "Live TV";
+  const meta = sportsChannelFeedLabel(channel) || channel.categoryName || channel.reason || "Live TV";
   const name = channel.name || "Channel";
   const isEventFooter = context === "event-footer";
   const className = "sports-channel" + (isEventFooter ? " event-channel-link" : "");
@@ -5118,7 +5143,8 @@ function renderBroadcastEventCard(event) {
   const media = "<span class=\"event-card-media" + (artwork ? " has-art" : " no-art") + "\">"
     + (artwork ? "<img src=\"" + escapeHTML(artwork) + "\" alt=\"\" onload=\"eventArtworkLoaded(this)\" onerror=\"eventArtworkFailed(this)\">" : "")
     + "<span class=\"event-card-media-fallback\"" + (artwork ? " hidden" : "") + ">" + fallbackMedia + "</span></span>";
-  return "<article " + cardClass + (sportsEventIsLive(event) ? " live" : "") + (featured ? " featured" : "") + '"><div class="event-card-visual">' + media + '<header class="event-card-head"><span class="event-card-category">' + escapeHTML(event.categoryName || "Events") + "</span><span class=\"event-card-status\">" + escapeHTML(status) + "</span>" + featureControl + "<strong class=\"event-card-title\" data-overflow-tooltip=\"" + escapeHTML(event.name || title) + "\">" + escapeHTML(title) + "</strong></header></div>"
+  const channelsOpen = uniqueChannels.length > 1 && !!state.expandedEvents[event.id];
+  return "<article " + cardClass + (sportsEventIsLive(event) ? " live" : "") + (featured ? " featured" : "") + (channelsOpen ? " channels-expanded" : "") + '"><div class="event-card-visual">' + media + '<header class="event-card-head"><span class="event-card-category">' + escapeHTML(event.categoryName || "Events") + "</span><span class=\"event-card-status\">" + escapeHTML(status) + "</span>" + featureControl + "<strong class=\"event-card-title\" data-overflow-tooltip=\"" + escapeHTML(event.name || title) + "\">" + escapeHTML(title) + "</strong></header></div>"
     + "<div class=\"event-card-body" + (artwork ? "" : " no-art") + "\"><div class=\"event-details\">" + (event.description ? "<p data-overflow-description=\"true\">" + escapeHTML(event.description) + "</p>" : "") + "<div class=\"event-meta\">" + meta + "</div>" + laterHTML + renderEventBroadcastWindows(event) + "</div></div>"
     + renderBroadcastEventChannels(event)
     + "</article>";
@@ -5158,14 +5184,19 @@ function eventStatusLabel(event) {
   if (event.startUnix) return sportsDateLabel(event.startUnix);
   return "Time TBD";
 }
+function eventChannelMenuID(eventID) {
+  return "event-channels-" + String(eventID || "event").replace(/[^a-z0-9_-]+/gi, "-");
+}
 function renderBroadcastEventChannels(event) {
   const channels = uniqueEventChannels(event.channels);
   if (!channels.length) return "<div class=\"sports-channel-empty muted\">No matching channels.</div>";
+  if (channels.length === 1) return "<div class=\"sports-channels event-card-channels\">" + renderSportsChannelChip(channels[0], "event-footer") + "</div>";
   const expanded = !!state.expandedEvents[event.id];
-  const visible = expanded ? channels : channels.slice(0, 3);
-  const hiddenCount = channels.length - visible.length;
-  const more = hiddenCount > 0 ? "<button class=\"sports-channel-more\" type=\"button\" data-event-expand=\"" + escapeHTML(event.id || "") + "\">+" + hiddenCount + " more</button>" : (expanded && channels.length > 3 ? "<button class=\"sports-channel-more\" type=\"button\" data-event-expand=\"" + escapeHTML(event.id || "") + "\">Show less</button>" : "");
-  return "<div class=\"sports-channels event-card-channels\">" + visible.map(function(channel) { return renderSportsChannelChip(channel, "event-footer"); }).join("") + more + "</div>";
+  const menuID = eventChannelMenuID(event.id);
+  const title = cleanProviderText(event.shortName || event.name) || "Event";
+  return "<div class=\"sports-channels event-card-channels event-channel-menu" + (expanded ? " expanded" : "") + "\">"
+    + "<button type=\"button\" class=\"event-channel-menu-button\" data-event-expand=\"" + escapeHTML(event.id || "") + "\" aria-expanded=\"" + (expanded ? "true" : "false") + "\" aria-controls=\"" + escapeHTML(menuID) + "\" aria-label=\"" + escapeHTML((expanded ? "Hide" : "Show") + " channels for " + title) + "\"><span>Watch on " + channels.length + " channels</span>" + icon("chevron-down") + "</button>"
+    + "<div class=\"event-channel-menu-list\" id=\"" + escapeHTML(menuID) + "\"" + (expanded ? "" : " hidden") + ">" + channels.map(function(channel) { return renderSportsChannelChip(channel, "event-footer"); }).join("") + "</div></div>";
 }
 function setEventTab(tab) {
   state.eventsTab = tab || "live";
@@ -5232,14 +5263,18 @@ function categoryGridSection(title, categories, includeAllGuide) {
   const allGuide = includeAllGuide ? allChannelsGuideTileHTML() : "";
   const grouped = categoryPrefixGroups(categories);
   if (!grouped.groups.length) return sectionHeader(title) + "<div class=\"category-grid\">" + allGuide + categories.map(function(category) { return categoryTileHTML(category); }).join("") + "</div>";
+  const columns = Math.min(3, Math.max(grouped.groups.length, 1));
+  const looseCount = (allGuide ? 1 : 0) + grouped.loose.length;
+  const spanLead = columns > 1 && looseCount % columns === 1;
   const loose = allGuide + grouped.loose.map(function(category) { return categoryTileHTML(category); }).join("");
   return sectionHeader(title)
-    + (loose ? "<div class=\"category-grid\">" + loose + "</div>" : "")
+    + "<div class=\"category-board\" style=\"--category-columns:" + columns + "\">"
+    + (loose ? "<div class=\"category-grid" + (spanLead ? " span-lead" : "") + "\">" + loose + "</div>" : "")
     + "<div class=\"category-groups\">" + grouped.groups.map(function(group) {
       const total = group.categories.reduce(function(sum, category) { return sum + (Number(category.count) || 0); }, 0);
       return "<section class=\"category-group\" aria-label=\"" + escapeHTML(group.prefix) + "\"><header><h3>" + escapeHTML(group.prefix) + "</h3>" + (total ? "<span>" + escapeHTML(total + " " + (total === 1 ? "channel" : "channels")) + "</span>" : "") + "</header><div class=\"category-group-list\">"
         + group.categories.map(function(category) { return categoryTileHTML(category, group.names[category.id]); }).join("") + "</div></section>";
-    }).join("") + "</div>";
+    }).join("") + "</div></div>";
 }
 function categoryPrefixSplit(name) {
   const match = String(name || "").trim().match(/^([^\s|:/]{2,})\s*[|:/]?\s+(.+)$/);
@@ -5509,9 +5544,10 @@ function homeGuideChannels(watched) {
 }
 function renderHomeGuide(channels, emptyMessage, options) {
   const meta = options && options.hideFreshness ? "" : "<div class=\"guide-meta-row\">" + guideFreshnessHTML() + "</div>";
+  const shelfClass = options && options.shelf ? " home-shelf-guide" : "";
   if (!channels.length) return meta + "<div class=\"empty\">" + escapeHTML(emptyMessage || "No recently watched channels yet.") + "</div>";
   const slots = guideSlots();
-  return meta + "<div class=\"home-guide guide-scroll\"><div class=\"guide-page guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\">" + guideTimeHeadHTML(slots) + channels.map(function(channel, channelIndex) {
+  return meta + "<div class=\"home-guide guide-scroll" + shelfClass + "\"><div class=\"guide-page guide-timeline\" style=\"" + guideTimelineStyle(slots) + "\">" + guideTimeHeadHTML(slots) + channels.map(function(channel, channelIndex) {
     return "<div class=\"epg-row\">" + renderGuideChannelButton(channel) + "<div class=\"epg-programs\">" + renderEPGCells(channel, channelIndex) + "</div></div>";
   }).join("") + "</div></div>";
 }

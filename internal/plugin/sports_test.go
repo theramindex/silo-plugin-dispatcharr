@@ -880,6 +880,13 @@ func TestGuideSportsMatchupParsesQualifiedBroadcastTitles(t *testing.T) {
 			wantMatch: true,
 		},
 		{
+			name:      "pregame prefix and home feed are not team names",
+			title:     "Pregame: Iowa at Michigan HOME 26 Sep 07:30 PM ET",
+			wantAway:  "Iowa",
+			wantHome:  "Michigan",
+			wantMatch: true,
+		},
+		{
 			name:      "venue suffix is not part of the home country",
 			title:     "(CA) (CBC 01) | 2026 Women's Volleyball Nations League: Canada vs Dominican Republic _ Hong Kong (2026-07-12 04:15:00)",
 			wantAway:  "Canada",
@@ -1367,6 +1374,90 @@ func TestMergeSportsGuideEventsCollapsesSwappedCollegeListings(t *testing.T) {
 	series := mergeSportsGuideEvents([]SportsEvent{friday}, []SportsEvent{saturday})
 	if len(series) != 2 {
 		t.Fatalf("same-home MLB series games on consecutive days must stay separate, got %+v", series)
+	}
+}
+
+func TestCollapseEquivalentSportsEventsPrefersCompleteRowOverReversedBroadcast(t *testing.T) {
+	t.Parallel()
+
+	friday := time.Date(2026, time.September, 25, 17, 0, 0, 0, time.UTC).Unix()
+	saturday := time.Date(2026, time.September, 26, 19, 30, 0, 0, time.UTC).Unix()
+	complete := SportsEvent{
+		ID: "guide:complete", LeagueID: "sports", Name: "Iowa at Michigan",
+		Away: SportsTeam{Name: "Iowa"}, Home: SportsTeam{Name: "Michigan"},
+		Venue: "Michigan Stadium", StartUnix: saturday, Status: "scheduled",
+	}
+	reversed := SportsEvent{
+		ID: "guide:reversed", LeagueID: "sports", Name: "Michigan at Iowa",
+		Away: SportsTeam{Name: "Michigan"}, Home: SportsTeam{Name: "Iowa"},
+		StartUnix: friday, Status: "scheduled",
+	}
+	merged := collapseEquivalentSportsEvents([]SportsEvent{reversed, complete})
+	if len(merged) != 1 || merged[0].Away.Name != "Iowa" || merged[0].Home.Name != "Michigan" || merged[0].Venue != "Michigan Stadium" || merged[0].StartUnix != saturday {
+		t.Fatalf("expected the complete Iowa at Michigan row, got %+v", merged)
+	}
+}
+
+func TestCollapseEquivalentSportsEventsPrefersUpcomingOverFinishedReverse(t *testing.T) {
+	t.Parallel()
+
+	friday := time.Date(2026, time.September, 25, 17, 0, 0, 0, time.UTC).Unix()
+	saturday := time.Date(2026, time.September, 26, 19, 30, 0, 0, time.UTC).Unix()
+	finished := SportsEvent{
+		ID: "guide:finished", LeagueID: "college-football", LeagueName: "College Football",
+		Name:      "Michigan at Iowa",
+		Away:      SportsTeam{Name: "Michigan", LogoURL: "https://example/michigan.png"},
+		Home:      SportsTeam{Name: "Iowa", LogoURL: "https://example/iowa.png"},
+		StartUnix: friday, Completed: true, Status: "final",
+	}
+	upcoming := SportsEvent{
+		ID: "guide:upcoming", LeagueID: "sports", Name: "Iowa at Michigan",
+		Away: SportsTeam{Name: "Iowa"}, Home: SportsTeam{Name: "Michigan"},
+		StartUnix: saturday, Status: "scheduled",
+	}
+	merged := collapseEquivalentSportsEvents([]SportsEvent{finished, upcoming})
+	if len(merged) != 1 || merged[0].Completed || merged[0].Away.Name != "Iowa" || merged[0].Home.Name != "Michigan" || merged[0].StartUnix != saturday {
+		t.Fatalf("expected the upcoming Iowa at Michigan listing, got %+v", merged)
+	}
+}
+
+func TestSportsEventsFromGuideCollapsesGamePhasesAndFeedLabels(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.September, 26, 18, 0, 0, 0, time.UTC)
+	kickoff := time.Date(2026, time.September, 26, 23, 30, 0, 0, time.UTC)
+	summary := "Venue: Michigan Stadium\nBroadcast: ESPN\nRecords: Iowa 1-0, Michigan 1-0\nScore: Iowa 10, Michigan 24\n"
+	events := sportsEventsFromGuide(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{
+			{ID: "channel:home", Name: "ESPN HOME", CategoryID: "sports", CategoryName: "Sports"},
+			{ID: "channel:away", Name: "BTN AWAY", CategoryID: "sports", CategoryName: "Sports"},
+		},
+		Programs: []model.Program{
+			{ID: "program:pregame", ChannelID: "channel:home", Title: "Pregame: Iowa at Michigan", Categories: []string{"College Football"}, Summary: summary, StartUnix: time.Date(2026, time.September, 26, 0, 0, 0, 0, time.UTC).Unix(), EndUnix: kickoff.Unix()},
+			{ID: "program:live", ChannelID: "channel:home", Title: "Live: Iowa at Michigan", Categories: []string{"College Football"}, Summary: summary, StartUnix: kickoff.Unix(), EndUnix: kickoff.Add(3 * time.Hour).Unix()},
+			{ID: "program:postgame", ChannelID: "channel:away", Title: "Postgame: Iowa at Michigan", Categories: []string{"College Football"}, StartUnix: kickoff.Add(3 * time.Hour).Unix(), EndUnix: kickoff.Add(4 * time.Hour).Unix()},
+		},
+		Content: model.ContentState{LiveCategories: []model.Category{{ID: "sports", Name: "Sports", Kind: "live"}}},
+	}}, now)
+	if len(events) != 1 {
+		t.Fatalf("expected one Iowa at Michigan game, got %+v", events)
+	}
+	event := events[0]
+	if event.Away.Name != "Iowa" || event.Home.Name != "Michigan" || event.StartUnix != kickoff.Unix() {
+		t.Fatalf("expected the live block at kickoff, got %+v", event)
+	}
+	if event.Venue != "Michigan Stadium" || !strings.Contains(event.Description, "ESPN") || !strings.Contains(event.Description, "Iowa 1-0, Michigan 1-0") {
+		t.Fatalf("expected venue, broadcast, and records from the guide text, got venue=%q description=%q", event.Venue, event.Description)
+	}
+	if event.AwayScore != "10" || event.HomeScore != "24" {
+		t.Fatalf("expected Iowa 10, Michigan 24, got %s-%s", event.AwayScore, event.HomeScore)
+	}
+	reasons := map[string]string{}
+	for _, channel := range event.Channels {
+		reasons[channel.ID] = channel.Reason
+	}
+	if reasons["channel:home"] != "Home feed" || reasons["channel:away"] != "Away feed" {
+		t.Fatalf("expected home and away feeds to stay separate, got %+v", event.Channels)
 	}
 }
 

@@ -113,6 +113,33 @@ func TestMapDispatcharrProgramOmitsPlaceholderTitles(t *testing.T) {
 	}
 }
 
+func TestMapDispatcharrProgramUsesMatchupSubtitleWhenTitleIsGeneric(t *testing.T) {
+	t.Parallel()
+
+	program := MapDispatcharrProgram("dispatcharr:espn", dispatcharr.Program{
+		ID:        "epg-cfb",
+		Title:     "College Football",
+		SubTitle:  "Michigan at Iowa",
+		StartTime: "2026-09-26T19:30:00Z",
+		EndTime:   "2026-09-26T23:00:00Z",
+	})
+	if program.Title != "Michigan at Iowa" {
+		t.Fatalf("generic league title must yield to the matchup subtitle, got %q", program.Title)
+	}
+	if len(program.Categories) != 1 || program.Categories[0] != "College Football" {
+		t.Fatalf("expected the league label to stay available, got %+v", program.Categories)
+	}
+
+	episode := MapDispatcharrProgram("dispatcharr:comedy", dispatcharr.Program{
+		ID:       "epg-episode",
+		Title:    "The Simpsons",
+		SubTitle: "Homer vs. the Eighteenth Amendment",
+	})
+	if episode.Title != "The Simpsons" {
+		t.Fatalf("episode subtitles must stay off the programme title, got %q", episode.Title)
+	}
+}
+
 func TestMapDispatcharrProgramUsesSubtitleWhenTitleIsPlaceholder(t *testing.T) {
 	t.Parallel()
 
