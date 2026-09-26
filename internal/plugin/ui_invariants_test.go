@@ -26,6 +26,34 @@ func TestSportsScoresVisibleWithStaleProviderStatus(t *testing.T) {
 	}
 }
 
+func TestEventCardsCollapseExtraChannelsIntoMenu(t *testing.T) {
+	t.Parallel()
+	result := runUIInvariantScript(t, []string{
+		`state.expandedEvents = {};`,
+		`const channels = [{id:"pt", name:"PT: Stingray iConcerts"}, {id:"es", name:"Stingray Conciertos"}];`,
+		`const closed = renderBroadcastEventChannels({ id:"stingray", shortName:"Ellie", channels: channels });`,
+		`state.expandedEvents.stingray = true;`,
+		`const open = renderBroadcastEventCard({ id:"stingray", shortName:"Ellie", channels: channels });`,
+		`const single = renderBroadcastEventChannels({ id:"cma", shortName:"CMA", channels:[{id:"cma", name:"CMA Awards"}] });`,
+		`globalThis.__result = { stableResults: closed.indexOf("event-channel-menu-button") !== -1 && closed.indexOf("Watch on 2 channels") !== -1 && closed.indexOf(" hidden") !== -1 && single.indexOf("event-channel-menu-button") === -1 && single.indexOf("Watch on ") !== -1 && open.indexOf("channels-expanded") !== -1 && open.indexOf(" hidden") === -1 && open.indexOf("PT: Stingray iConcerts") !== -1 };`,
+	})
+	if !result.StableResults {
+		t.Fatal("event cards with more than one channel must use a closed dropdown until opened")
+	}
+}
+
+func TestSportsChannelChipLabelsFeed(t *testing.T) {
+	t.Parallel()
+	result := runUIInvariantScript(t, []string{
+		`const home = renderSportsChannelChip({ id:"espn", name:"ESPN", categoryName:"Sports", reason:"Home feed" }, "event-footer");`,
+		`const plain = renderSportsChannelChip({ id:"espn2", name:"ESPN2", categoryName:"Sports", reason:"guide: exact program" });`,
+		`globalThis.__result = { stableResults: home.indexOf(">Home feed<") !== -1 && home.indexOf("Watch on ") !== -1 && plain.indexOf(">Sports<") !== -1 && plain.indexOf("Home feed") === -1 };`,
+	})
+	if !result.StableResults {
+		t.Fatal("watch rows must label home, away, and national feeds")
+	}
+}
+
 func TestEventCardsKeepPosterRegionWithoutArtwork(t *testing.T) {
 	t.Parallel()
 	result := runUIInvariantScript(t, []string{

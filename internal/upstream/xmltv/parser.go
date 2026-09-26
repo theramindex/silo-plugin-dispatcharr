@@ -18,6 +18,7 @@ type Programme struct {
 	Start      string   `xml:"start,attr"`
 	Stop       string   `xml:"stop,attr"`
 	Title      string   `xml:"title"`
+	SubTitle   string   `xml:"sub-title"`
 	Desc       string   `xml:"desc"`
 	Categories []string `xml:"category"`
 	Icon       Icon     `xml:"icon"`

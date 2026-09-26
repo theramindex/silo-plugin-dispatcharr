@@ -510,7 +510,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		!strings.Contains(body, `+ renderSavedLineupsHome()`) ||
 		!strings.Contains(body, `+ (favorites.length ? sectionHeader("Favorites") + favoriteHomeCards(favorites) : "")`) ||
 		!strings.Contains(body, `+ sectionHeaderWithActions("TV Guide", "<button type=\"button\" class=\"section-action\" data-view=\"guide\">Open Full Guide</button>" + guideFreshnessHTML())`) ||
-		!strings.Contains(body, `+ renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true })`) ||
+		!strings.Contains(body, `+ renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true, shelf: true })`) ||
 		!strings.Contains(body, `+ (channelGroupsInSideMenu() ? "" : categoryGrid());`) {
 		t.Fatalf("expected home page order to be continue watching, favorites, guide grid, saved lineups, then optional group sections")
 	}
@@ -4472,7 +4472,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		}
 	}
 	eventChannels := functionBody("renderBroadcastEventChannels")
-	for _, want := range []string{`event-card-channels`, `event-footer`} {
+	for _, want := range []string{`event-card-channels`, `event-footer`, `event-channel-menu-button`, `channels.length === 1`} {
 		if !strings.Contains(eventChannels, want) {
 			t.Fatalf("event channels must render as a flat card footer via %q", want)
 		}
@@ -4524,6 +4524,8 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.event-card-media { aspect-ratio: 16 / 9;`,
 		`.event-card-head {`,
 		`.event-card-channels { display: grid; gap: 0; }`,
+		`.event-channel-menu-button {`,
+		`.event-card.channels-expanded {`,
 		`.event-card-channels .event-channel-link {`,
 		`.event-channel-prefix {`,
 		`.sports-feature {`,

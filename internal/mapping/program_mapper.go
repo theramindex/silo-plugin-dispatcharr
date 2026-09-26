@@ -1,6 +1,7 @@
 package mapping
 
 import (
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -33,17 +34,72 @@ func MapXtreamProgram(channelID string, listing xtream.EPGListing) model.Program
 func MapXMLTVProgramme(channelID string, programme xmltv.Programme) model.Program {
 	startUnix := parseXMLTVTime(programme.Start)
 	endUnix := parseXMLTVTime(programme.Stop)
-	title := GuideProgramTitle(programme.Title)
+	title, categories := guideDisplayTitle(programme.Title, programme.SubTitle, programme.Categories)
 	return model.Program{
 		ID:         model.StableProgramID(model.ProgramIdentity{ChannelID: channelID, Title: title, StartUnix: startUnix}),
 		ChannelID:  channelID,
 		Title:      title,
 		Summary:    programme.Desc,
 		ImageURL:   programme.Icon.Src,
-		Categories: append([]string(nil), programme.Categories...),
+		Categories: categories,
 		StartUnix:  startUnix,
 		EndUnix:    endUnix,
 	}
+}
+
+var guideMatchupSeparator = regexp.MustCompile(`(?i)\s+(?:vs\.?|v\.?|at|@)\s+`)
+var guidePhaseLabelPrefix = regexp.MustCompile(`(?i)^(?:pre[\s-]?game|post[\s-]?game|live)\s*[:|\-]\s*`)
+
+// Generic league and phase titles hide the matchup in the subtitle. Episode
+// subtitles stay put because the programme title is not one of these labels.
+var genericSportsGuideTitles = map[string]struct{}{
+	"sports": {}, "sport": {}, "game": {}, "live": {},
+	"college football": {}, "nfl": {}, "nfl football": {},
+	"nba": {}, "nba basketball": {}, "wnba": {},
+	"mlb": {}, "mlb baseball": {}, "nhl": {}, "nhl hockey": {},
+	"mls": {}, "premier league": {}, "uefa champions league": {}, "champions league": {},
+	"ufc": {}, "mma": {}, "boxing": {}, "golf": {}, "pga": {}, "tennis": {},
+	"nascar": {}, "nascar cup series": {}, "formula 1": {}, "f1": {}, "cricket": {},
+	"pregame": {}, "pre-game": {}, "pre game": {},
+	"postgame": {}, "post-game": {}, "post game": {},
+}
+
+func guideDisplayTitle(title, subtitle string, categories []string) (string, []string) {
+	title = GuideProgramTitle(title, subtitle)
+	display, leagueHint := guideSportsMatchupTitle(title, subtitle)
+	if leagueHint != "" {
+		categories = append(categories, leagueHint)
+	}
+	return display, categories
+}
+
+func guideSportsMatchupTitle(title, subtitle string) (string, string) {
+	title = strings.TrimSpace(title)
+	subtitle = strings.TrimSpace(subtitle)
+	if subtitle == "" || !guideMatchupSeparator.MatchString(subtitle) || guideMatchupSeparator.MatchString(title) || !genericSportsGuideLabel(title) {
+		return title, ""
+	}
+	return subtitle, title
+}
+
+func genericSportsGuideLabel(title string) bool {
+	label := normalizeGuideLabel(title)
+	if label == "" {
+		return false
+	}
+	if _, ok := genericSportsGuideTitles[label]; ok {
+		return true
+	}
+	stripped := strings.TrimSpace(guidePhaseLabelPrefix.ReplaceAllString(title, ""))
+	if stripped == "" || stripped == title {
+		return stripped == ""
+	}
+	_, ok := genericSportsGuideTitles[normalizeGuideLabel(stripped)]
+	return ok
+}
+
+func normalizeGuideLabel(value string) string {
+	return strings.Join(strings.Fields(strings.ToLower(strings.TrimSpace(value))), " ")
 }
 
 func GuideProgramTitle(values ...string) string {

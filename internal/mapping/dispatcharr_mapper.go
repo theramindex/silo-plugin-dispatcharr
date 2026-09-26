@@ -46,9 +46,7 @@ func MapDispatcharrVODCategory(category dispatcharr.VODCategory) model.Category 
 
 func MapDispatcharrProgram(channelID string, program dispatcharr.Program) model.Program {
 	startUnix := parseDispatcharrTime(program.StartTime.String())
-	title := GuideProgramTitle(program.Title.String(), program.SubTitle.String())
-	categories := append([]string(nil), program.Categories...)
-	categories = append(categories, program.CustomProperties.Categories...)
+	title, categories := guideDisplayTitle(program.Title.String(), program.SubTitle.String(), append(append([]string{}, program.Categories...), program.CustomProperties.Categories...))
 	return model.Program{
 		ID: model.StableProgramID(model.ProgramIdentity{
 			UpstreamID: program.ID.String() + "|" + channelID,
