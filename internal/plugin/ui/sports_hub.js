@@ -269,11 +269,22 @@ function renderSportsScoreboard(events, options) {
   }).join("") + "</div>";
 }
 
+function sportsScoreStatusHTML(event) {
+  if (sportsEventIsLive(event)) return "<span>" + escapeHTML(sportsStatusLabel(event)) + "</span>";
+  if (event.completed) return "<span>" + escapeHTML(event.statusText || "Final") + "</span>";
+  const start = Number(event.startUnix || 0);
+  if (!start) return "<span>" + escapeHTML(event.statusText || "Time TBD") + "</span>";
+  const date = new Date(start * 1000);
+  const day = date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+  const time = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return "<span>" + escapeHTML(day) + "</span><span>" + escapeHTML(time) + "</span>";
+}
+
 function renderSportsScoreRow(event) {
   const live = sportsEventIsLive(event);
   const showScore = sportsEventHasScores(event) && !sportsScoresHidden(false);
   const channel = uniqueEventChannels(event.channels)[0];
-  const status = live ? sportsStatusLabel(event) : (event.completed ? (event.statusText || "Final") : sportsDateLabel(event.startUnix));
+  const status = sportsScoreStatusHTML(event);
   const team = function(side, score) {
     const value = side || {};
     return "<span class=\"sports-score-team" + (value.favorite ? " followed" : "") + "\">" + renderSportsTeamLogo(value, "sports-score-logo") + "<span>" + escapeHTML(sportsTeamName(value) || "TBD") + "</span>" + (showScore ? "<b>" + escapeHTML(score || "0") + "</b>" : "") + "</span>";
@@ -292,7 +303,7 @@ function renderSportsScoreRow(event) {
   const recording = !live && !event.completed ? sportsEventRecordingTarget(event) : null;
   const recordLabel = "Record " + sportsEventTitle(event);
   const record = recording ? "<button type=\"button\" class=\"sports-score-record\" data-schedule-channel=\"" + escapeHTML(recording.channelID) + "\" data-schedule-program=\"" + escapeHTML(recording.programID) + "\" aria-label=\"" + escapeHTML(recordLabel) + "\" title=\"" + escapeHTML(recordLabel) + "\">" + icon("record") + "</button>" : "";
-  return "<div class=\"sports-score-row" + (live ? " live" : "") + (event.completed ? " final" : "") + "\"><button type=\"button\" class=\"sports-score-main\" data-sports-open-event=\"" + escapeHTML(sportsEventStateID(event)) + "\"><span class=\"sports-score-status\">" + escapeHTML(status) + "</span><span class=\"sports-score-teams\">" + matchup + "</span></button>" + record + watch + "</div>";
+  return "<div class=\"sports-score-row" + (live ? " live" : "") + (event.completed ? " final" : "") + "\"><button type=\"button\" class=\"sports-score-main\" data-sports-open-event=\"" + escapeHTML(sportsEventStateID(event)) + "\"><span class=\"sports-score-status\">" + status + "</span><span class=\"sports-score-teams\">" + matchup + "</span></button>" + record + watch + "</div>";
 }
 
 // A future game can be recorded when a matched channel lists a guide program
@@ -404,33 +415,119 @@ function renderSportsScoresTab(payload) {
 }
 
 function renderSportsTeamsTab(payload) {
+  ensureSportsLeagueCatalog(payload);
   const followed = sportsFollowedHubTeams(payload);
   const query = String(state.sportsTeamQuery || "");
-  const followedHTML = followed.length ? "<div class=\"sports-team-grid\">" + followed.map(function(entry) {
-    const status = sportsTeamStatusLine(entry);
-    return "<button type=\"button\" class=\"sports-team-tile" + (status.live ? " live" : "") + "\" data-sports-team-open=\"" + escapeHTML(entry.key) + "\">" + renderSportsTeamLogo(entry.team, "sports-team-tile-logo") + "<strong>" + escapeHTML(sportsTeamName(entry.team)) + "</strong><small>" + escapeHTML(entry.leagueName) + "</small><span>" + escapeHTML(status.text) + "</span></button>";
-  }).join("") + "</div>" : emptyStateHTML("You aren't following any teams yet.", "Search above to follow a team.");
+  const followedHTML = followed.length ? "<div class=\"sports-team-grid\">" + followed.map(renderSportsHubTeamTile).join("") + "</div>" : emptyStateHTML("You aren't following any teams yet.", "Search above to follow a team.");
   return "<section class=\"sports-section sports-team-search\"><label class=\"sports-team-search-field\"><span>" + icon("search") + "</span><input id=\"sports-team-search\" type=\"search\" value=\"" + escapeHTML(query) + "\" placeholder=\"Find a team\" autocomplete=\"off\" aria-label=\"Find a team\"></label><div id=\"sports-team-search-results\">" + renderSportsTeamSearchResults(payload, query) + "</div></section>"
     + sportsSectionHTML("Following", "", followedHTML, "sports-following-section")
     + renderSportsUpcomingForTeams(payload);
 }
 
+function renderSportsHubTeamTile(entry) {
+  const status = sportsTeamStatusLine(entry);
+  return "<button type=\"button\" class=\"sports-team-tile" + (status.live ? " live" : "") + "\" data-sports-team-open=\"" + escapeHTML(entry.key) + "\">" + renderSportsTeamLogo(entry.team, "sports-team-tile-logo") + "<strong>" + escapeHTML(sportsTeamName(entry.team)) + "</strong><small>" + escapeHTML(entry.leagueName) + "</small><span>" + escapeHTML(status.text) + "</span></button>";
+}
+
+function sportsCatalogLeagues(payload) {
+  return items(payload && payload.leagues).filter(function(league) { return league && league.id; }).slice().sort(function(left, right) {
+    return String(left.name || left.id).localeCompare(String(right.name || right.id));
+  });
+}
+
+function sportsLeagueRosterReady(league) {
+  const id = String(league && league.id || "");
+  if (!id || id === "sports") return true;
+  return !!(state.sportsLeagueTeams && Object.prototype.hasOwnProperty.call(state.sportsLeagueTeams, id));
+}
+
+function sportsCatalogEntries(payload, league, hub) {
+  const leagueID = String(league && league.id || "");
+  const roster = state.sportsLeagueTeams && state.sportsLeagueTeams[leagueID];
+  const events = typeof sportsLeagueEvents === "function" ? sportsLeagueEvents(payload, leagueID) : [];
+  const teams = typeof sportsLeagueTeams === "function" ? sportsLeagueTeams(events, roster) : items(roster);
+  return teams.map(function(team) {
+    const key = sportsTeamKey(leagueID, team);
+    if (key && hub && hub[key]) return hub[key];
+    return { key: key, leagueID: leagueID, leagueName: league.name || leagueID, team: team, events: [] };
+  }).filter(function(entry) { return entry && entry.key; });
+}
+
+function sportsCatalogEntryByKey(payload, key) {
+  const parts = sportsTeamKeyParts(key);
+  const hub = sportsHubTeams(payload);
+  const leagues = sportsCatalogLeagues(payload).filter(function(league) {
+    return !parts.leagueID || String(league.id) === parts.leagueID;
+  });
+  for (let index = 0; index < leagues.length; index++) {
+    const entries = sportsCatalogEntries(payload, leagues[index], hub);
+    for (let entryIndex = 0; entryIndex < entries.length; entryIndex++) {
+      if (entries[entryIndex].key === key) return entries[entryIndex];
+    }
+  }
+  return null;
+}
+
+function ensureSportsLeagueCatalog(payload) {
+  if (typeof loadSportsLeagueTeams !== "function" || state.sportsLeagueCatalogRunning) return;
+  const pending = sportsCatalogLeagues(payload).filter(function(league) { return !sportsLeagueRosterReady(league); });
+  if (!pending.length) return;
+  state.sportsLeagueCatalogRunning = true;
+  const workers = Math.min(3, pending.length);
+  let index = 0;
+  let active = workers;
+  const next = function() {
+    const league = pending[index++];
+    if (!league) {
+      active -= 1;
+      if (active <= 0) state.sportsLeagueCatalogRunning = false;
+      return;
+    }
+    Promise.resolve(loadSportsLeagueTeams(league)).finally(next);
+  };
+  for (let worker = 0; worker < workers; worker++) next();
+}
+
+function refreshSportsTeamCatalog() {
+  const results = typeof byId === "function" ? byId("sports-team-search-results") : null;
+  if (results && state.view === "sports" && sportsHubTab(state.sportsTab) === "teams" && !state.sportsTeam && !state.sportsLeague) {
+    results.innerHTML = renderSportsTeamSearchResults(state.sports || {}, state.sportsTeamQuery);
+    return;
+  }
+  if (state.view === "sports" && sportsHubTab(state.sportsTab) === "teams" && !state.sportsTeam && !state.sportsLeague && typeof renderSportsPage === "function") renderSportsPage();
+}
+
 function renderSportsTeamSearchResults(payload, query) {
   const needle = lower(query).trim();
-  const teams = sportsHubTeams(payload);
-  const entries = Object.keys(teams).map(function(key) { return teams[key]; }).filter(function(entry) {
-    if (!needle) return false;
-    const team = entry.team || {};
-    return lower([team.name, team.abbreviation, entry.leagueName].join(" ")).indexOf(needle) !== -1;
-  }).sort(function(left, right) { return sportsTeamName(left.team).localeCompare(sportsTeamName(right.team)); }).slice(0, 24);
-  if (!needle) return "<p class=\"sports-team-search-note\">Search teams playing this week, or browse a league from Scores.</p>";
-  if (!entries.length) return "<p class=\"sports-team-search-note\">No teams match &ldquo;" + escapeHTML(query) + "&rdquo; this week.</p>";
-  return "<div class=\"sports-team-results\">" + entries.map(function(entry) {
-    const team = Object.assign({ leagueName: entry.leagueName }, entry.team);
-    const followed = sportsFavoriteTeamMatches(team);
-    return "<div class=\"sports-team-result\"><button type=\"button\" class=\"sports-team-result-main\" data-sports-team-open=\"" + escapeHTML(entry.key) + "\">" + renderSportsTeamLogo(team, "sports-team-result-logo") + "<span><strong>" + escapeHTML(sportsTeamName(team)) + "</strong><small>" + escapeHTML(entry.leagueName) + "</small></span></button>"
-      + "<button type=\"button\" class=\"sports-team-follow" + (followed ? " active" : "") + "\" data-sports-favorite-team=\"" + escapeHTML(sportsFollowIDForTeam(entry.leagueID, team)) + "\"" + sportsTeamLabelAttrs(team) + " data-sports-favorite-enabled=\"" + (followed ? "false" : "true") + "\" aria-pressed=\"" + (followed ? "true" : "false") + "\">" + icon(followed ? "heart-solid" : "heart") + "<span>" + (followed ? "Following" : "Follow") + "</span></button></div>";
-  }).join("") + "</div>";
+  const hub = sportsHubTeams(payload);
+  const leagues = sportsCatalogLeagues(payload);
+  if (needle) {
+    const entries = [];
+    leagues.forEach(function(league) {
+      sportsCatalogEntries(payload, league, hub).forEach(function(entry) {
+        const team = entry.team || {};
+        if (lower([team.name, team.abbreviation, entry.leagueName].join(" ")).indexOf(needle) === -1) return;
+        entries.push(entry);
+      });
+    });
+    entries.sort(function(left, right) { return sportsTeamName(left.team).localeCompare(sportsTeamName(right.team)); });
+    if (!entries.length) return "<p class=\"sports-team-search-note\">No teams match &ldquo;" + escapeHTML(query) + "&rdquo;.</p>";
+    return "<div class=\"sports-team-results\">" + entries.map(function(entry) {
+      const team = Object.assign({ leagueName: entry.leagueName }, entry.team);
+      const followed = sportsFavoriteTeamMatches(team);
+      return "<div class=\"sports-team-result\"><button type=\"button\" class=\"sports-team-result-main\" data-sports-team-open=\"" + escapeHTML(entry.key) + "\">" + renderSportsTeamLogo(team, "sports-team-result-logo") + "<span><strong>" + escapeHTML(sportsTeamName(team)) + "</strong><small>" + escapeHTML(entry.leagueName) + "</small></span></button>"
+        + "<button type=\"button\" class=\"sports-team-follow" + (followed ? " active" : "") + "\" data-sports-favorite-team=\"" + escapeHTML(sportsFollowIDForTeam(entry.leagueID, team)) + "\"" + sportsTeamLabelAttrs(team) + " data-sports-favorite-enabled=\"" + (followed ? "false" : "true") + "\" aria-pressed=\"" + (followed ? "true" : "false") + "\">" + icon(followed ? "heart-solid" : "heart") + "<span>" + (followed ? "Following" : "Follow") + "</span></button></div>";
+    }).join("") + "</div>";
+  }
+  const sections = leagues.map(function(league) {
+    const entries = sportsCatalogEntries(payload, league, hub);
+    if (!entries.length && sportsLeagueRosterReady(league)) return "";
+    const count = entries.length ? "<span class=\"sports-section-count\">" + escapeHTML(pluralLabel(entries.length, "team")) + "</span>" : "";
+    const body = entries.length ? "<div class=\"sports-team-grid\">" + entries.map(renderSportsHubTeamTile).join("") + "</div>" : "<p class=\"sports-team-search-note\">Loading teams…</p>";
+    return sportsSectionHTML(league.name || league.id, count, body, "sports-catalog-league");
+  }).filter(Boolean);
+  if (sections.length) return sections.join("");
+  return "<p class=\"sports-team-search-note\">No leagues are available yet.</p>";
 }
 
 function sportsFollowIDForTeam(leagueID, team) {
@@ -444,7 +541,7 @@ function renderSportsTeamPage(payload, key) {
   const parts = sportsTeamKeyParts(key);
   const teams = sportsHubTeams(payload);
   const followedEntry = sportsFollowedHubTeams(payload).find(function(entry) { return entry.key === key; });
-  const entry = teams[key] || followedEntry || { key: key, leagueID: parts.leagueID, leagueName: parts.leagueID, team: { name: parts.slug.replace(/-/g, " ") }, events: [] };
+  const entry = teams[key] || followedEntry || sportsCatalogEntryByKey(payload, key) || { key: key, leagueID: parts.leagueID, leagueName: parts.leagueID, team: { name: parts.slug.replace(/-/g, " ") }, events: [] };
   const summary = sportsTeamSummaryFor(entry);
   const team = Object.assign({ leagueName: entry.leagueName }, entry.team, summary && summary.logoUrl && !(entry.team || {}).logoUrl ? { logoUrl: summary.logoUrl } : {});
   const followed = sportsFavoriteTeamMatches(team);

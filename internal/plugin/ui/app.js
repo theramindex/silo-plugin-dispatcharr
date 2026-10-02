@@ -15,6 +15,8 @@ const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sor
 const appHistoryStateKey = "dispatcharrRoute";
 state.onLaterShelfLimits = {};
 state.myTVTeamCatalogLoading = null;
+state.channelsBrowserGroup = "";
+state.channelsBrowserChannel = "";
 state.aspectMode = "fit";
 state.guideCategoryPickerOpen = false;
 state.guideCategoryQuery = "";
@@ -2119,6 +2121,7 @@ function render() {
   if (shell) {
     shell.classList.toggle("is-player", state.view === "player");
     shell.classList.toggle("is-guide", state.view === "guide");
+    shell.classList.toggle("is-channels", state.view === "channels");
     shell.classList.toggle("is-sports", state.view === "sports");
     shell.classList.toggle("is-sports-app", isSportsApp());
     shell.classList.toggle("is-events", state.view === "events");
@@ -2127,6 +2130,7 @@ function render() {
     shell.classList.toggle("is-onlater", state.view === "mytv");
     shell.classList.toggle("is-mytv", state.view === "mytv");
   }
+  if (state.view !== "channels") stopChannelsPreview();
   resetMainHorizontalScroll();
   renderRail();
   renderSportsTopbarTabs();
@@ -2200,7 +2204,236 @@ function renderHome() {
   attachHomeGuidePageScroll();
 }
 function renderChannelsPage() {
-  byId("view").innerHTML = categoryGrid({ includeAllGuide: true });
+  const previousGroup = state.channelsBrowserRenderedGroup || "";
+  const groups = document.querySelector(".channels-groups");
+  const list = document.querySelector(".channels-list");
+  const groupsTop = groups ? groups.scrollTop : 0;
+  const listTop = list ? list.scrollTop : 0;
+  const html = channelsBrowserHTML();
+  const nextID = state.channelsBrowserChannel || "";
+  const previewRoot = document.querySelector(".channels-preview");
+  const keepPreview = !!(previewRoot && state.channelsPreview && previewRoot.getAttribute("data-channels-preview") === nextID);
+  if (keepPreview) previewRoot.remove();
+  else stopChannelsPreview();
+  byId("view").innerHTML = html;
+  const slot = document.querySelector(".channels-preview");
+  if (keepPreview && slot) slot.replaceWith(previewRoot);
+  else if (nextID) attachChannelsPreview();
+  const nextGroups = document.querySelector(".channels-groups");
+  const nextList = document.querySelector(".channels-list");
+  if (nextGroups) nextGroups.scrollTop = groupsTop;
+  if (nextList && previousGroup === state.channelsBrowserGroup) nextList.scrollTop = listTop;
+  state.channelsBrowserRenderedGroup = state.channelsBrowserGroup || "";
+}
+function stopChannelsPreview() {
+  if (state.channelsPreview && typeof state.channelsPreview.destroy === "function") state.channelsPreview.destroy();
+  state.channelsPreview = null;
+  state.channelsPreviewChannelID = "";
+}
+function markChannelsPreviewFailed(channelID) {
+  if (state.channelsPreviewChannelID !== channelID) return;
+  const root = document.querySelector(".channels-preview");
+  if (root && root.getAttribute("data-channels-preview") === channelID) root.classList.add("is-failed");
+}
+function attachChannelsPreview() {
+  const channel = channelByID(state.channelsBrowserChannel);
+  const video = byId("channels-preview");
+  if (!channel || !video || state.view !== "channels") return;
+  if (state.channelsPreview && state.channelsPreviewChannelID === channel.id) return;
+  stopChannelsPreview();
+  state.channelsPreviewChannelID = channel.id;
+  const format = channel.streamFormat || "";
+  ensurePlayerLibraries(format).then(function() {
+    const current = byId("channels-preview");
+    if (!current || current !== video || state.view !== "channels" || state.channelsBrowserChannel !== channel.id) return;
+    video.muted = true;
+    video.defaultMuted = true;
+    video.playsInline = true;
+    const attachment = attachVideoSource(video, browserStreamURL(channel), {
+      format: format,
+      hlsBufferSeconds: channel.hlsBufferSeconds,
+      onFatal: function() { markChannelsPreviewFailed(channel.id); }
+    });
+    if (state.view !== "channels" || state.channelsBrowserChannel !== channel.id || byId("channels-preview") !== video) {
+      attachment.destroy();
+      return;
+    }
+    state.channelsPreview = attachment;
+    video.addEventListener("playing", function() {
+      const root = video.closest(".channels-preview");
+      if (root) root.classList.add("is-playing");
+    });
+    video.play().catch(function() {});
+  }).catch(function() {
+    markChannelsPreviewFailed(channel.id);
+  });
+}
+function channelsPreviewHTML(channel) {
+  const name = channel.name || "channel";
+  return "<div class=\"channels-preview\" data-channels-preview=\"" + escapeHTML(channel.id) + "\"><video id=\"channels-preview\" muted playsinline autoplay aria-label=\"" + escapeHTML("Live preview, " + name) + "\"></video><div class=\"channels-preview-fallback\">" + logoHTML(channel) + "</div><div class=\"channels-preview-status\">Preview unavailable</div></div>";
+}
+function channelsBrowserIncludeChannel(channel) {
+  const hidden = hiddenMap();
+  return !(channel && channel.categoryId && hidden[channel.categoryId]);
+}
+function channelsBrowserCategories() {
+  const sourceCategories = sourceCategoriesWithChannels(channelsBrowserIncludeChannel);
+  const listing = adminListingCategories("");
+  const featured = sourceCategories.filter(function(category) { return !!category.featured; }).sort(compareCategoryDisplayName);
+  const featuredSourceIDs = {};
+  featured.forEach(function(category) { featuredSourceIDs[category.sourceID] = true; });
+  const regularListing = listing.filter(function(category) {
+    return !(category.kind === "source" && featuredSourceIDs[category.sourceID]);
+  });
+  const categories = featured.concat(regularListing);
+  return categories.length ? categories : sourceCategories;
+}
+function channelsBrowserChildGroups(category) {
+  const id = String(category && category.id || "");
+  let children = [];
+  if (id.indexOf("virtual:") === 0) children = virtualChildCategories(virtualCategoryPath(id), channelsBrowserIncludeChannel);
+  else if (id.indexOf("featured:") === 0) children = featuredChildCategories(featuredCategoryPath(id), channelsBrowserIncludeChannel);
+  return children.map(function(child) {
+    return { category: child, label: String(child.name || child.id || "") };
+  });
+}
+function channelsBrowserSetups(categories) {
+  const setups = [];
+  const byKey = {};
+  const loose = [];
+  items(categories).forEach(function(category) {
+    const split = categoryPrefixSplit(category && (category.name || category.id));
+    if (split) {
+      const key = split.prefix.toLowerCase();
+      if (!byKey[key]) {
+        byKey[key] = { prefix: split.prefix, groups: [] };
+        setups.push(byKey[key]);
+      }
+      byKey[key].groups.push({ category: category, label: split.rest || split.prefix });
+      return;
+    }
+    const children = channelsBrowserChildGroups(category);
+    if (children.length) {
+      setups.push({ prefix: String(category.name || category.id || ""), groups: children });
+      return;
+    }
+    loose.push({ category: category, label: String(category.name || category.id || "") });
+  });
+  if (loose.length) setups.push({ prefix: "", groups: loose });
+  return setups;
+}
+function channelsBrowserSelection(setups) {
+  const groups = [];
+  items(setups).forEach(function(setup) {
+    items(setup.groups).forEach(function(group) {
+      groups.push({ setup: setup, group: group });
+    });
+  });
+  let selected = groups.find(function(entry) { return entry.group.category && entry.group.category.id === state.channelsBrowserGroup; });
+  if (!selected) selected = groups[0] || null;
+  state.channelsBrowserGroup = selected && selected.group.category ? selected.group.category.id : "";
+  return selected;
+}
+function channelsForBrowserGroup(categoryID) {
+  return dedupeChannels(effectiveChannels(false).filter(function(channel) {
+    if (!channelsBrowserIncludeChannel(channel)) return false;
+    return !categoryID || channelInSelectedCategory(channel, categoryID);
+  }));
+}
+function channelsBrowserContext(setup, group) {
+  const parts = [];
+  if (setup && setup.prefix) parts.push(setup.prefix);
+  if (group && group.label) parts.push(group.label);
+  return parts.join(" · ");
+}
+function channelsBrowserProgramSubtitle(program) {
+  const title = String(program && program.title || "").trim();
+  const text = String(program && program.description || "").replace(/\s+/g, " ").trim();
+  if (!text || lower(text) === lower(title)) return "";
+  return text;
+}
+function channelsBrowserProgress(program) {
+  const start = Number(program && program.startUnix || 0);
+  const end = Number(program && program.endUnix || 0);
+  if (!start || !end || end <= start) return 0;
+  return Math.max(0, Math.min(1, (Date.now() / 1000 - start) / (end - start)));
+}
+function channelsBrowserWindow(program) {
+  const start = timeLabel(program && program.startUnix);
+  const end = timeLabel(program && program.endUnix);
+  if (start && end) return start + "–" + end;
+  return start || end || "";
+}
+function channelsBrowserUpcoming(channel) {
+  const now = Math.floor(Date.now() / 1000);
+  return programsFor(channel && channel.id).filter(function(program) {
+    return (program.startUnix || 0) > now;
+  }).slice(0, 3);
+}
+function channelsBrowserGroupButton(setup, group, active) {
+  const category = group.category || {};
+  const count = Number(category.count) || 0;
+  const context = channelsBrowserContext(setup, group);
+  return "<button type=\"button\" class=\"channels-group" + (active ? " active" : "") + "\" data-channels-group=\"" + escapeHTML(category.id || "") + "\" aria-pressed=\"" + (active ? "true" : "false") + "\" aria-label=\"" + escapeHTML(context || group.label || "Group") + "\"><span>" + escapeHTML(group.label || "Group") + "</span><small>" + escapeHTML(String(count)) + "</small></button>";
+}
+function channelsBrowserRow(channel, context, active) {
+  const program = currentProgram(channel) || {};
+  const title = program.title || "No program data";
+  const subtitle = channelsBrowserProgramSubtitle(program);
+  const progress = program.startUnix ? Math.round(channelsBrowserProgress(program) * 100) : 0;
+  const when = channelsBrowserWindow(program);
+  return "<button type=\"button\" class=\"channels-row" + (active ? " active" : "") + "\" data-channels-channel=\"" + escapeHTML(channel.id) + "\" aria-pressed=\"" + (active ? "true" : "false") + "\"><span class=\"channels-mark\">" + logoHTML(channel) + "</span><span class=\"channels-name\"><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><span>" + escapeHTML(context || channel.categoryName || "Live TV") + "</span></span><span class=\"channels-program\"><strong>" + escapeHTML(title) + "</strong>" + (subtitle ? "<span>" + escapeHTML(subtitle) + "</span>" : "") + (program.startUnix ? "<span class=\"channels-bar\"><i style=\"width:" + progress + "%\"></i></span>" : "") + "</span><span class=\"channels-when\">" + escapeHTML(when) + "</span></button>";
+}
+function channelsBrowserDetail(channel, context) {
+  if (!channel) return "<aside class=\"channels-detail\"><div class=\"empty\">Select a channel.</div></aside>";
+  const program = currentProgram(channel) || {};
+  const title = program.title || "No program data";
+  const subtitle = channelsBrowserProgramSubtitle(program);
+  const progress = program.startUnix ? Math.round(channelsBrowserProgress(program) * 100) : 0;
+  const when = channelsBrowserWindow(program);
+  const number = channel.number ? "Channel " + channel.number : "";
+  const meta = [context, number].filter(Boolean).join(" · ");
+  const upcoming = channelsBrowserUpcoming(channel);
+  const next = upcoming.length ? "<div class=\"channels-next\"><span class=\"channels-eyebrow\">Next</span>" + upcoming.map(function(item) {
+    return "<div class=\"channels-next-row\"><b>" + escapeHTML(timeLabel(item.startUnix) || "Later") + "</b><span>" + escapeHTML(item.title || "Untitled") + "</span></div>";
+  }).join("") + "</div>" : "";
+  return "<aside class=\"channels-detail\">" + channelsPreviewHTML(channel) + "<div class=\"channels-detail-copy\"><h3>" + escapeHTML(channel.name || "Untitled") + "</h3><p class=\"channels-sub\">" + escapeHTML(meta || "Live TV") + "</p><div class=\"channels-now\"><span class=\"channels-eyebrow\">On now</span><strong>" + escapeHTML(title) + "</strong>" + (subtitle ? "<p>" + escapeHTML(subtitle) + (when ? " " + escapeHTML(when) + "." : "") + "</p>" : (when ? "<p>" + escapeHTML(when) + "</p>" : "")) + (program.startUnix ? "<span class=\"channels-bar\"><i style=\"width:" + progress + "%\"></i></span>" : "") + "<button type=\"button\" class=\"channels-watch\" data-channel=\"" + escapeHTML(channel.id) + "\">" + icon("play") + "<span>Watch</span></button></div>" + next + "</div></aside>";
+}
+function channelsBrowserHTML() {
+  const setups = channelsBrowserSetups(channelsBrowserCategories());
+  const selected = channelsBrowserSelection(setups);
+  if (!selected) return "<div class=\"empty\">No groups yet.</div>";
+  const context = channelsBrowserContext(selected.setup, selected.group);
+  const channels = channelsForBrowserGroup(selected.group.category && selected.group.category.id);
+  let channel = channels.find(function(item) { return item.id === state.channelsBrowserChannel; });
+  if (!channel) channel = channels[0] || null;
+  state.channelsBrowserChannel = channel ? channel.id : "";
+  maybeWarmGuideForChannels(channels.slice(0, 40), "channels:" + state.channelsBrowserGroup);
+  const groups = setups.map(function(setup) {
+    const total = setup.groups.reduce(function(sum, group) { return sum + (Number(group.category && group.category.count) || 0); }, 0);
+    const heading = setup.prefix ? "<h2>" + escapeHTML(setup.prefix) + "<span>" + escapeHTML(String(total)) + "</span></h2>" : "";
+    return "<section class=\"channels-setup\">" + heading + setup.groups.map(function(group) {
+      const active = !!(selected.group.category && group.category && group.category.id === selected.group.category.id);
+      return channelsBrowserGroupButton(setup, group, active);
+    }).join("") + "</section>";
+  }).join("");
+  const rows = channels.length
+    ? channels.map(function(item) { return channelsBrowserRow(item, context, !!(channel && item.id === channel.id)); }).join("")
+    : "<div class=\"empty\">No channels in this group.</div>";
+  return "<div class=\"channels-stage\"><aside class=\"channels-groups\" aria-label=\"Channel groups\">" + groups + "</aside><div class=\"channels-list\" aria-label=\"" + escapeHTML(context || "Channels") + "\">" + rows + "</div>" + channelsBrowserDetail(channel, context) + "</div>";
+}
+function selectChannelsBrowserGroup(id) {
+  id = String(id || "");
+  if (!id || id === state.channelsBrowserGroup) return;
+  state.channelsBrowserGroup = id;
+  state.channelsBrowserChannel = "";
+  renderChannelsPage();
+}
+function selectChannelsBrowserChannel(id) {
+  id = String(id || "");
+  if (!id || id === state.channelsBrowserChannel) return;
+  state.channelsBrowserChannel = id;
+  renderChannelsPage();
 }
 function channelsForSavedLineup(lineup) {
   if (!lineup || !lineup.categoryId) return [];
@@ -3495,7 +3728,7 @@ function loadSports(force, preparedOnly) {
 function loadSportsLeagueTeams(league) {
   if (!league || !league.id) return Promise.resolve([]);
   const leagueID = String(league.id);
-  if (state.sportsLeagueTeams[leagueID]) {
+  if (Object.prototype.hasOwnProperty.call(state.sportsLeagueTeams, leagueID)) {
     league.teams = state.sportsLeagueTeams[leagueID];
     return Promise.resolve(league.teams);
   }
@@ -3507,10 +3740,12 @@ function loadSportsLeagueTeams(league) {
     league.teams = teams;
     return teams;
   }).catch(function() {
+    state.sportsLeagueTeams[leagueID] = [];
     return [];
   }).finally(function() {
     delete state.sportsLeagueTeamsLoading[leagueID];
     if (state.view === "sports" && state.sportsLeague === leagueID) renderSportsPage();
+    else if (typeof refreshSportsTeamCatalog === "function") refreshSportsTeamCatalog();
   });
   state.sportsLeagueTeamsLoading[leagueID] = request;
   return request;
@@ -8598,6 +8833,18 @@ document.addEventListener("click", function(event) {
   if (channelTarget) {
     const channel = channelByID(channelTarget.getAttribute("data-channel"));
     if (channel) playChannel(channel);
+  }
+  const channelsGroup = event.target.closest("[data-channels-group]");
+  if (channelsGroup) {
+    event.preventDefault();
+    selectChannelsBrowserGroup(channelsGroup.getAttribute("data-channels-group"));
+    return;
+  }
+  const channelsChannel = event.target.closest("[data-channels-channel]");
+  if (channelsChannel) {
+    event.preventDefault();
+    selectChannelsBrowserChannel(channelsChannel.getAttribute("data-channels-channel"));
+    return;
   }
   const allChannelsGuide = event.target.closest("[data-all-channels-guide]");
   if (allChannelsGuide) {
