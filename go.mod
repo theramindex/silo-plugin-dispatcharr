@@ -3,7 +3,7 @@ module github.com/theramindex/silo-plugin-dispatcharr
 go 1.26.0
 
 require (
-	github.com/Silo-Server/silo-plugin-sdk v0.16.1
+	github.com/Silo-Server/silo-plugin-sdk v0.23.0
 	golang.org/x/text v0.37.0
 	google.golang.org/grpc v1.82.1
 	google.golang.org/protobuf v1.36.11
