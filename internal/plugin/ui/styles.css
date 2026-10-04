@@ -1098,6 +1098,10 @@ button { cursor: pointer; touch-action: manipulation; }
 .sports-team-hero > div { flex: 1 1 auto; min-width: 0; display: grid; gap: 0.3rem; }
 .sports-team-hero h1 { margin: 0; font-size: 1.875rem; font-weight: 700; }
 .sports-team-hero p { margin: 0; color: var(--muted); font-size: 0.85rem; font-weight: 600; }
+.sports-team-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.7rem 0.75rem; margin: 0; }
+.sports-team-stats div { display: grid; gap: 0.12rem; min-width: 0; }
+.sports-team-stats dt { color: var(--muted); font-size: 0.68rem; font-weight: 600; }
+.sports-team-stats dd { margin: 0; font-size: 1.05rem; font-weight: 700; }
 .sports-team-hero-logo { width: 4.5rem; height: 4.5rem; object-fit: contain; display: grid; place-items: center; font-size: 1rem; font-weight: 700; }
 .sports-team-next { grid-template-columns: minmax(0, 24rem); }
 .sports-news-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(24rem, 100%), 1fr)); gap: 0.6rem; }

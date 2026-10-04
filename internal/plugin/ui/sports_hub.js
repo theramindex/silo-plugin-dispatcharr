@@ -29,6 +29,7 @@ function sportsEventIsGame(event) {
 }
 
 function sportsTeamKey(leagueID, team) {
+  if (typeof sportsTeamHasName === "function" && !sportsTeamHasName(team) && !(team && String(team.abbreviation || "").trim())) return "";
   const name = sportsTeamName(team || {});
   if (!leagueID || !name) return "";
   return String(leagueID) + "~" + sportsGamePassSlug(name);
@@ -154,8 +155,11 @@ function sportsTeamStatusLine(entry) {
   }
   if (games.recent.length) return { text: sportsTeamResultLine(entry, games.recent[0]), live: false, event: games.recent[0] };
   const cached = state.sportsTeamSummaries && state.sportsTeamSummaries[entry.key];
-  const next = cached && cached.loaded && cached.value && items(cached.value.upcoming)[0];
+  const summary = cached && cached.loaded && cached.value;
+  const next = summary && items(summary.upcoming)[0];
   if (next) return { text: sportsDateLabel(next.startUnix) + (next.home ? " vs " : " at ") + next.opponent, live: false, event: null };
+  const recent = summary && items(summary.recent)[0];
+  if (recent) return { text: [recent.result, recent.score, (recent.home ? "vs" : "at"), recent.opponent].filter(Boolean).join(" "), live: false, event: null };
   return { text: "No games this week", live: false, event: null };
 }
 
@@ -358,7 +362,7 @@ function renderSportsStandings(leagueID, options) {
     return "<div class=\"sports-standings-group\"><table class=\"sports-standings\"><caption>" + escapeHTML(group.name) + "</caption><thead><tr><th scope=\"col\">Team</th>" + columns.map(function(column) { return "<th scope=\"col\">" + escapeHTML(column) + "</th>"; }).join("") + "</tr></thead><tbody>"
       + items(group.rows).map(function(row, index) {
         const own = highlight && sportsGamePassSlug(row.team) === highlight;
-        return "<tr class=\"" + (own ? "own" : "") + "\"><th scope=\"row\"><span class=\"sports-standings-rank\">" + (index + 1) + "</span>" + (row.logoUrl ? "<img src=\"" + escapeHTML(row.logoUrl) + "\" alt=\"\" loading=\"lazy\" onerror=\"this.remove()\">" : "") + "<span>" + escapeHTML(row.team) + "</span>" + (row.clinch ? "<em title=\"" + escapeHTML(row.clinch === "e" ? "Eliminated" : "Clinched a playoff spot") + "\">" + escapeHTML(row.clinch) + "</em>" : "") + "</th>"
+        return "<tr class=\"" + (own ? "own" : "") + "\"><th scope=\"row\"><span class=\"sports-standings-rank\">" + (index + 1) + "</span>" + (row.logoUrl ? "<img src=\"" + escapeHTML(row.logoUrl) + "\" alt=\"\" loading=\"lazy\" data-img-error=\"remove\">" : "") + "<span>" + escapeHTML(row.team) + "</span>" + (row.clinch ? "<em title=\"" + escapeHTML(row.clinch === "e" ? "Eliminated" : "Clinched a playoff spot") + "\">" + escapeHTML(row.clinch) + "</em>" : "") + "</th>"
           + items(row.values).map(function(value) { return "<td>" + escapeHTML(value || "–") + "</td>"; }).join("") + "</tr>";
       }).join("") + "</tbody></table></div>";
   }).join("");
@@ -555,17 +559,41 @@ function renderSportsTeamPage(payload, key) {
     : (summary && summary.nextEventName ? "<p class=\"sports-team-note\">" + escapeHTML(summary.nextEventName + (summary.nextEventUnix ? " · " + sportsDateLabel(summary.nextEventUnix) : "")) + "</p>" : "");
   const schedule = games.upcoming.slice(next === games.upcoming[0] ? 1 : 0, 8);
   const scheduleRows = sportsScheduleRowsHTML(entry, summary, schedule);
+  const recentRows = sportsTeamRecentRows(entry, summary);
   const newsBody = !summary ? "<div class=\"empty\">Loading news...</div>" : (summary.articles && summary.articles.length ? renderSportsNewsList(summary.articles, 8) : emptyStateHTML("No recent news.", summary.message || ""));
   return "<div class=\"sports-pinned sports-detail-toolbar\"><button type=\"button\" class=\"sports-back\" data-sports-back=\"browse\">" + icon("arrow-left") + "<span>" + escapeHTML(sportsTabLabel(state.sportsTab)) + "</span></button></div>"
     + "<div class=\"sports-score-scroll sports-team-page\">" + header
     + "<div class=\"sports-split\"><div class=\"sports-split-main\">"
     + sportsSectionHTML(next && sportsEventIsLive(next) ? "Live now" : "Next game", "", nextBody, "sports-team-next-section")
     + sportsSectionHTML("Coming up", "", scheduleRows ? "<div class=\"sports-scoreboard-rows\">" + scheduleRows + "</div>" : "", "sports-team-schedule-section")
-    + sportsSectionHTML("Recent results", "", games.recent.length ? "<div class=\"sports-scoreboard-rows\">" + games.recent.slice(0, 5).map(renderSportsScoreRow).join("") + "</div>" : "", "sports-team-results-section")
+    + sportsSectionHTML("Recent results", "", recentRows ? "<div class=\"sports-scoreboard-rows\">" + recentRows + "</div>" : "", "sports-team-results-section")
     + "</div><aside class=\"sports-split-side\">"
+    + renderSportsTeamStats(summary)
     + renderSportsStandings(entry.leagueID, { team: sportsTeamName(team), groupOnly: true })
     + sportsSectionHTML("News", "", newsBody, "sports-news-section compact")
     + "</aside></div></div>";
+}
+
+function sportsTeamRecentRows(entry, summary) {
+  const games = sportsTeamEventsSorted(entry);
+  const rows = games.recent.slice(0, 5).map(renderSportsScoreRow);
+  const covered = games.recent.map(function(event) { return Number(event.startUnix || 0); });
+  items(summary && summary.recent).forEach(function(game) {
+    if (rows.length >= 5) return;
+    const start = Number(game.startUnix || 0);
+    if (start && covered.some(function(other) { return Math.abs(other - start) <= 18 * 3600; })) return;
+    const line = [game.result, game.score, (game.home ? "vs" : "at"), game.opponent].filter(Boolean).join(" ");
+    rows.push("<div class=\"sports-score-row final\"><span class=\"sports-score-main static\"><span class=\"sports-score-status\">" + escapeHTML(sportsDateLabel(game.startUnix)) + "</span><span class=\"sports-score-teams\"><span class=\"sports-score-program\">" + escapeHTML(line) + "</span></span></span></div>");
+  });
+  return rows.join("");
+}
+
+function renderSportsTeamStats(summary) {
+  const stats = items(summary && summary.stats);
+  if (!stats.length) return "";
+  return sportsSectionHTML("This season", "", "<dl class=\"sports-team-stats\">" + stats.map(function(stat) {
+    return "<div><dt>" + escapeHTML(stat.label) + "</dt><dd>" + escapeHTML(stat.value) + "</dd></div>";
+  }).join("") + "</dl>", "sports-team-stats-section");
 }
 
 function sportsTeamSummaryFor(entry) {
@@ -576,7 +604,8 @@ function sportsTeamSummaryFor(entry) {
   if (cached && cached.loaded) return cached.value;
   if (!cached) {
     state.sportsTeamSummaries[key] = { loaded: false };
-    const query = "?league=" + encodeURIComponent(entry.leagueID) + "&name=" + encodeURIComponent(sportsTeamName(entry.team));
+    const teamID = entry.team && entry.team.id ? String(entry.team.id) : "";
+    const query = "?league=" + encodeURIComponent(entry.leagueID) + "&name=" + encodeURIComponent(sportsTeamName(entry.team)) + (teamID ? "&id=" + encodeURIComponent(teamID) : "");
     getJSONWithin("/dispatcharr/api/sports/team" + query, 15000, "Team details took too long.").catch(function() {
       return { available: false, articles: [], message: "Team details are unavailable right now." };
     }).then(function(value) {
@@ -678,8 +707,8 @@ function renderSportsNewsList(news, limit) {
   }
   return "<div class=\"sports-news-list\" aria-label=\"Headlines from ESPN\">" + articles.map(function(article) {
     const meta = [article.leagueName, sportsNewsAge(article.published), article.premium ? "ESPN+" : ""].filter(Boolean).join(" · ");
-    const image = article.imageUrl ? "<img src=\"" + escapeHTML(article.imageUrl) + "\" alt=\"\" loading=\"lazy\" onerror=\"this.remove()\">" : "";
-    return "<a class=\"sports-news-item\" href=\"" + escapeHTML(article.url) + "\" target=\"_blank\" rel=\"noopener noreferrer\">" + image + "<span><small>" + escapeHTML(meta) + "</small><strong>" + escapeHTML(article.headline) + "</strong>" + (article.description ? "<p>" + escapeHTML(article.description) + "</p>" : "") + "</span></a>";
+    const image = article.imageUrl ? "<img src=\"" + escapeHTML(article.imageUrl) + "\" alt=\"\" loading=\"lazy\" data-img-error=\"remove\">" : "";
+    return "<a class=\"sports-news-item\"" + externalLinkAttrs(article.url) + ">" + image + "<span><small>" + escapeHTML(meta) + "</small><strong>" + escapeHTML(article.headline) + "</strong>" + (article.description ? "<p>" + escapeHTML(article.description) + "</p>" : "") + "</span></a>";
   }).join("") + "</div>";
 }
 
@@ -741,6 +770,8 @@ function openSportsHighlight(trigger) {
     + "<video src=\"" + escapeHTML(src) + "\" controls autoplay playsinline></video></section>";
   document.body.appendChild(root);
   document.body.classList.add("program-modal-open");
+  const shell = document.querySelector(".shell");
+  if (shell) shell.setAttribute("inert", "");
   const close = root.querySelector("header button");
   if (close) close.focus();
 }
@@ -751,18 +782,52 @@ function closeSportsHighlight() {
   const video = root.querySelector("video");
   if (video) { video.pause(); video.removeAttribute("src"); video.load(); }
   root.remove();
-  document.body.classList.remove("program-modal-open");
+  const otherModalOpen = !!(state.programDetails || state.savedLineupEditor);
+  if (!otherModalOpen) {
+    document.body.classList.remove("program-modal-open");
+    const shell = document.querySelector(".shell");
+    if (shell) shell.removeAttribute("inert");
+  }
   const target = sportsHighlightReturnFocus;
   sportsHighlightReturnFocus = null;
   if (target && document.contains(target)) target.focus();
 }
 
+function trapSportsHighlightFocus(event) {
+  const dialog = document.querySelector("#sports-highlight-modal .sports-highlight-dialog");
+  if (!dialog) return false;
+  const focusable = Array.prototype.slice.call(dialog.querySelectorAll("button:not([disabled]), [href], video[controls], [tabindex]:not([tabindex='-1'])"));
+  if (!focusable.length) return false;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const active = document.activeElement;
+  if (!dialog.contains(active)) {
+    event.preventDefault();
+    (event.shiftKey ? last : first).focus();
+    return true;
+  }
+  if (event.shiftKey && active === first) {
+    event.preventDefault();
+    last.focus();
+    return true;
+  }
+  if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    first.focus();
+    return true;
+  }
+  return false;
+}
+
 document.addEventListener("keydown", function(event) {
-  if (event.key === "Escape" && byId("sports-highlight-modal")) {
+  if (!byId("sports-highlight-modal")) return;
+  if (event.key === "Escape") {
     event.preventDefault();
     event.stopPropagation();
     closeSportsHighlight();
+    return;
   }
+  if (event.key === "Tab" && trapSportsHighlightFocus(event)) event.stopPropagation();
 }, true);
 
 document.addEventListener("click", function(event) {
