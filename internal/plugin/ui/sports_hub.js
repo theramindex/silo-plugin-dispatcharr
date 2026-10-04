@@ -577,15 +577,35 @@ function renderSportsTeamPage(payload, key) {
 function sportsTeamRecentRows(entry, summary) {
   const games = sportsTeamEventsSorted(entry);
   const rows = games.recent.slice(0, 5).map(renderSportsScoreRow);
-  const covered = games.recent.map(function(event) { return Number(event.startUnix || 0); });
+  const covered = games.recent.map(function(event) { return sportsRecentCoverKey(entry, event); });
   items(summary && summary.recent).forEach(function(game) {
     if (rows.length >= 5) return;
-    const start = Number(game.startUnix || 0);
-    if (start && covered.some(function(other) { return Math.abs(other - start) <= 18 * 3600; })) return;
+    if (sportsRecentAlreadyCovered(covered, game)) return;
     const line = [game.result, game.score, (game.home ? "vs" : "at"), game.opponent].filter(Boolean).join(" ");
     rows.push("<div class=\"sports-score-row final\"><span class=\"sports-score-main static\"><span class=\"sports-score-status\">" + escapeHTML(sportsDateLabel(game.startUnix)) + "</span><span class=\"sports-score-teams\"><span class=\"sports-score-program\">" + escapeHTML(line) + "</span></span></span></div>");
+    covered.push({ start: Number(game.startUnix || 0), opponent: String(game.opponent || ""), score: String(game.score || "") });
   });
   return rows.join("");
+}
+
+function sportsRecentCoverKey(entry, event) {
+  const home = sportsGamePassSlug(sportsTeamName(event.home || {})) === sportsGamePassSlug(sportsTeamName(entry.team));
+  const opponent = sportsTeamName(home ? event.away : event.home);
+  const own = home ? event.homeScore : event.awayScore;
+  const other = home ? event.awayScore : event.homeScore;
+  const score = own == null || other == null || own === "" || other === "" ? "" : String(own) + "–" + String(other);
+  return { start: Number(event.startUnix || 0), opponent: opponent, score: score };
+}
+
+function sportsRecentAlreadyCovered(covered, game) {
+  const start = Number(game.startUnix || 0);
+  const opponent = String(game.opponent || "").toLowerCase();
+  const score = String(game.score || "");
+  return covered.some(function(other) {
+    const sameStart = start && other.start && Math.abs(other.start - start) <= 15 * 60;
+    const sameFinal = opponent && score && String(other.opponent || "").toLowerCase() === opponent && other.score === score;
+    return sameStart || sameFinal;
+  });
 }
 
 function renderSportsTeamStats(summary) {

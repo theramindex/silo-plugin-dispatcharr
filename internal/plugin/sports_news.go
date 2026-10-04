@@ -72,6 +72,7 @@ type SportsTeamSummary struct {
 	Stats         []SportsTeamStat    `json:"stats,omitempty"`
 	Articles      []SportsNewsArticle `json:"articles"`
 	Message       string              `json:"message,omitempty"`
+	espnTeamID    string              `json:"-"`
 }
 
 type SportsTeamStat struct {
@@ -571,7 +572,9 @@ func (cache *sportsNewsCache) teamSummary(ctx context.Context, leagueID string, 
 		summary.Message = "Team details are unavailable right now."
 		return summary
 	}
-	return value.(SportsTeamSummary)
+	summary := value.(SportsTeamSummary)
+	summary.Stats = cache.teamStats(ctx, league, summary.espnTeamID)
+	return summary
 }
 
 func (cache *sportsNewsCache) fetchTeamSummary(ctx context.Context, leagueID string, league espnSportsLeague, name string) (SportsTeamSummary, error) {
@@ -629,13 +632,36 @@ func (cache *sportsNewsCache) fetchTeamSummary(ctx context.Context, leagueID str
 		summary.Articles = articles
 	}
 	summary.Upcoming = cache.teamSchedule(ctx, league, team.ID, time.Now())
-	summary.Stats = cache.teamStatSheet(ctx, league, team.ID)
+	summary.espnTeamID = team.ID
 	return summary, nil
 }
 
-// Current-season counting stats only. The statistics URL is not given a
-// season year, so a past year's sheet is never requested.
-func (cache *sportsNewsCache) teamStatSheet(ctx context.Context, league espnSportsLeague, espnTeamID string) []SportsTeamStat {
+// teamStats keeps the counting sheet on its own cache entry. A failed lookup
+// expires in sportsNewsNegativeTTL. It must not ride inside the 30-minute summary.
+func (cache *sportsNewsCache) teamStats(ctx context.Context, league espnSportsLeague, espnTeamID string) []SportsTeamStat {
+	if strings.TrimSpace(espnTeamID) == "" {
+		return nil
+	}
+	value, err := cache.load(ctx, "stats|"+league.Path+"|"+espnTeamID, func(ctx context.Context) (any, time.Duration, error) {
+		sheet, err := cache.teamStatSheet(ctx, league, espnTeamID)
+		if err != nil {
+			return nil, 0, err
+		}
+		if sheet == nil {
+			sheet = []SportsTeamStat{}
+		}
+		return sheet, sportsTeamSummaryTTL, nil
+	})
+	if err != nil {
+		return nil
+	}
+	sheet, _ := value.([]SportsTeamStat)
+	return sheet
+}
+
+// seasontype=2 is the regular season of the year ESPN already selected.
+// A season year is never sent, so this cannot ask for a past year.
+func (cache *sportsNewsCache) teamStatSheet(ctx context.Context, league espnSportsLeague, espnTeamID string) ([]SportsTeamStat, error) {
 	var payload struct {
 		Results struct {
 			Stats struct {
@@ -643,10 +669,10 @@ func (cache *sportsNewsCache) teamStatSheet(ctx context.Context, league espnSpor
 			} `json:"stats"`
 		} `json:"results"`
 	}
-	if err := cache.get(ctx, league.Path+"/teams/"+url.PathEscape(espnTeamID)+"/statistics", &payload); err != nil {
-		return nil
+	if err := cache.get(ctx, league.Path+"/teams/"+url.PathEscape(espnTeamID)+"/statistics?seasontype=2", &payload); err != nil {
+		return nil, err
 	}
-	return sportsTeamStatSheet(league.Path, payload.Results.Stats.Categories)
+	return sportsTeamStatSheet(league.Path, payload.Results.Stats.Categories), nil
 }
 
 type sportsStatCategory struct {
@@ -698,21 +724,8 @@ func sportsTeamStatSheet(path string, categories []sportsStatCategory) []SportsT
 			}
 		}
 	}
-	if len(stats) > 0 {
-		return stats
-	}
-	for _, category := range categories {
-		for _, stat := range category.Stats {
-			label := strings.TrimSpace(stat.Abbreviation)
-			value := strings.TrimSpace(stat.DisplayValue)
-			if label == "" || value == "" {
-				continue
-			}
-			stats = append(stats, SportsTeamStat{Label: label, Value: value})
-			if len(stats) == 4 {
-				return stats
-			}
-		}
+	if len(stats) == 0 {
+		return nil
 	}
 	return stats
 }
