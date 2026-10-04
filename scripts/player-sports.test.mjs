@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 test('sports drawer waits for data and avoids redundant redraws', () => {
-  const source = fs.readFileSync(new URL('../internal/plugin/ui/app.js', import.meta.url), 'utf8');
+  const source = ['core', 'prefs', 'sports', 'admin', 'multiview', 'app'].map(name => fs.readFileSync(new URL('../internal/plugin/ui/' + name + '.js', import.meta.url), 'utf8')).join('\n');
   const render = source.slice(source.indexOf('function renderPlayerSportsDrawer()'), source.indexOf('function stopPlayerSportsRefresh()'));
   let writes = 0, html = '', body = {scrollTop: 80};
   const root = {classList: {toggle() {}}, querySelector: () => body,

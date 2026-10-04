@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const player = fs.readFileSync(new URL('../internal/plugin/ui/player.js', import.meta.url), 'utf8');
-const app = fs.readFileSync(new URL('../internal/plugin/ui/app.js', import.meta.url), 'utf8');
+const app = ['core', 'prefs', 'sports', 'admin', 'multiview', 'app'].map(name => fs.readFileSync(new URL('../internal/plugin/ui/' + name + '.js', import.meta.url), 'utf8')).join('\n');
 function node() {
   return {innerHTML: '', textContent: '', attrs: {}, classList: {toggle() {}}, setAttribute(k, v) {this.attrs[k] = v;}};
 }

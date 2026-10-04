@@ -6,8 +6,50 @@ import (
 	"strings"
 )
 
-//go:embed ui/page.html ui/styles.css ui/lineup.js ui/sports_replays.js ui/sports_hub.js ui/app.js ui/guide.js ui/player.js
-var playerUIAssets embed.FS
+//go:embed ui/page.html ui/styles.css ui/*.js
+var playerUIFiles embed.FS
+
+// playerAppScriptParts is the source order of the browser "app.js" asset. The
+// app is split into files for maintainability, but it is served (and tested)
+// as ONE classic script, so every part shares a single top-level scope.
+// core.js must stay first (it declares the route/state globals every other
+// part reads) and app.js must stay last (it ends with the load-time event
+// wiring and route restore, which needs every const/let above it initialized).
+// The middle parts only declare functions and self-contained constants.
+var playerAppScriptParts = []string{
+	"ui/core.js",
+	"ui/prefs.js",
+	"ui/sports.js",
+	"ui/admin.js",
+	"ui/multiview.js",
+	"ui/app.js",
+}
+
+// playerScriptOrder is the order the page loads its scripts (see page.html);
+// "ui/app.js" here is the composed playerAppScriptParts bundle.
+var playerScriptOrder = []string{"ui/lineup.js", "ui/sports_replays.js", "ui/app.js", "ui/guide.js", "ui/sports_hub.js", "ui/player.js"}
+
+// composedUIAssets serves embedded UI files, composing ui/app.js from its parts.
+type composedUIAssets struct {
+	files embed.FS
+}
+
+func (assets composedUIAssets) ReadFile(name string) ([]byte, error) {
+	if name != "ui/app.js" {
+		return assets.files.ReadFile(name)
+	}
+	parts := make([]string, 0, len(playerAppScriptParts))
+	for _, part := range playerAppScriptParts {
+		payload, err := assets.files.ReadFile(part)
+		if err != nil {
+			return nil, fmt.Errorf("read app script part %s: %w", part, err)
+		}
+		parts = append(parts, strings.TrimRight(string(payload), "\n"))
+	}
+	return []byte(strings.Join(parts, "\n") + "\n"), nil
+}
+
+var playerUIAssets = composedUIAssets{files: playerUIFiles}
 
 var playerPageHTMLTemplate string
 
@@ -24,8 +66,8 @@ func mustLoadPlayerPageHTMLTemplate() string {
 }
 
 func playerAppJavaScript() string {
-	parts := make([]string, 0, 6)
-	for _, name := range []string{"ui/lineup.js", "ui/sports_replays.js", "ui/app.js", "ui/guide.js", "ui/sports_hub.js", "ui/player.js"} {
+	parts := make([]string, 0, len(playerScriptOrder))
+	for _, name := range playerScriptOrder {
 		payload, err := playerUIAssets.ReadFile(name)
 		if err != nil {
 			return ""

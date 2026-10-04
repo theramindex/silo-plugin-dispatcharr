@@ -155,6 +155,9 @@ function scheduleGuideWindowRender() {
   state.guideRenderFrame = requestAnimationFrame(function() {
     state.guideRenderFrame = 0;
     renderGuideWindow(false);
+    // Scrolling forward past loaded data pulls the next guide window.
+    const scroll = byId("guide-scroll");
+    if (scroll && typeof ensureGuideCoverageForView === "function" && scroll.scrollLeft + scroll.clientWidth * 2 >= scroll.scrollWidth) ensureGuideCoverageForView("guide");
   });
 }
 

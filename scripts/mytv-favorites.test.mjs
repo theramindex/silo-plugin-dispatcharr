@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const source = fs.readFileSync(new URL('../internal/plugin/ui/app.js', import.meta.url), 'utf8');
+const source = ['core', 'prefs', 'sports', 'admin', 'multiview', 'app'].map(name => fs.readFileSync(new URL('../internal/plugin/ui/' + name + '.js', import.meta.url), 'utf8')).join('\n');
 function setup() {
   const preferences = { favorites: { second: true, first: true }, favoriteOrder: ['second', 'first'] };
   const channels = [{ id: 'first', name: 'ESPN' }, { id: 'second', name: 'ESPN 2' }, { id: 'suggested', name: 'Suggested' }];
@@ -67,7 +67,7 @@ function teamSetup() {
   ctx.sportsFavoriteTeamMap = () => ctx.prefs().sportsFavoriteTeams;
   ctx.myTVSportsPeople = () => [{ id: 'epg-yankees', name: 'New York Yankees' }];
   ctx.applySportsFavoritesToPayload = () => {};
-  for (const name of ['sportsGamePassSlug', 'myTVBuiltInSportsPeople', 'sportsFavoriteTeamMatches', 'sportsSavedTeamID', 'sportsTeamLabelAttrs', 'sportsTeamFavoriteButton', 'toggleSportsTeamFavorite']) {
+  for (const name of ['sportsGamePassSlug', 'sportsTeamHasName', 'sportsTeamIdentityIDs', 'myTVBuiltInSportsPeople', 'sportsFavoriteTeamMatches', 'sportsSavedTeamID', 'sportsTeamLabelAttrs', 'sportsTeamFavoriteButton', 'toggleSportsTeamFavorite']) {
     const start = source.indexOf('function ' + name + '(');
     vm.runInContext(source.slice(start, source.indexOf('\nfunction ', start + 1)), ctx);
   }

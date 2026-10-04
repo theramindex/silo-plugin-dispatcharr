@@ -1497,7 +1497,7 @@ func pluginAssetVersion() string {
 	assetVersionOnce.Do(func() {
 		hash := sha256.New()
 		for _, asset := range []struct {
-			fs   embed.FS
+			fs   interface{ ReadFile(string) ([]byte, error) }
 			path string
 		}{
 			{playerUIAssets, "ui/styles.css"},

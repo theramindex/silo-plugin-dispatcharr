@@ -413,6 +413,22 @@ function updateFullscreenButton() {
   renderPlayerMoreMenu();
 }
 
+// One AbortController per video source: switching sources removes every
+// listener the previous source registered instead of stacking duplicates.
+function videoSourceListenerOptions() {
+  if (state.videoSourceListeners) state.videoSourceListeners.abort();
+  state.videoSourceListeners = typeof AbortController === "function" ? new AbortController() : null;
+  const signal = state.videoSourceListeners ? state.videoSourceListeners.signal : null;
+  return function(extra) {
+    const options = Object.assign({}, extra || {});
+    if (signal) options.signal = signal;
+    return options;
+  };
+}
+function videoSourceListenerSignal() {
+  return state.videoSourceListeners ? state.videoSourceListeners.signal : undefined;
+}
+
 function setVideoSource(url, options) {
   const video = byId("player");
   if (!video) return;
@@ -428,25 +444,26 @@ function setVideoSource(url, options) {
   updateSubtitlesButton();
   updateVolumeMenu();
   renderPlayerMoreMenu();
+  const listen = videoSourceListenerOptions();
   if (video.audioTracks && video.audioTracks.addEventListener) {
-    video.audioTracks.addEventListener("addtrack", updateAudioMenu);
-    video.audioTracks.addEventListener("removetrack", updateAudioMenu);
-    video.audioTracks.addEventListener("change", updateAudioMenu);
+    video.audioTracks.addEventListener("addtrack", updateAudioMenu, listen());
+    video.audioTracks.addEventListener("removetrack", updateAudioMenu, listen());
+    video.audioTracks.addEventListener("change", updateAudioMenu, listen());
   }
-  video.addEventListener("loadedmetadata", updateAudioMenu, { once: true });
-  video.addEventListener("loadedmetadata", updateSubtitlesButton, { once: true });
-  video.addEventListener("waiting", function() { state.playerWaiting = true; updateCenterPlayButton(); });
-  video.addEventListener("stalled", function() { state.playerWaiting = true; updateCenterPlayButton(); });
-  video.addEventListener("canplay", function() { state.playerWaiting = false; updateCenterPlayButton(); });
-  video.addEventListener("playing", function() { state.playerWaiting = false; clearPlayerError(); updateCenterPlayButton(); wakePlayerChrome(); });
-  video.addEventListener("pause", function() { updateCenterPlayButton(); wakePlayerChrome(); });
-  video.addEventListener("play", updateCenterPlayButton);
-  video.addEventListener("ended", updateCenterPlayButton);
-  video.addEventListener("error", function() { state.playerWaiting = false; updateCenterPlayButton(); });
+  video.addEventListener("loadedmetadata", updateAudioMenu, listen({ once: true }));
+  video.addEventListener("loadedmetadata", updateSubtitlesButton, listen({ once: true }));
+  video.addEventListener("waiting", function() { state.playerWaiting = true; updateCenterPlayButton(); }, listen());
+  video.addEventListener("stalled", function() { state.playerWaiting = true; updateCenterPlayButton(); }, listen());
+  video.addEventListener("canplay", function() { state.playerWaiting = false; updateCenterPlayButton(); }, listen());
+  video.addEventListener("playing", function() { state.playerWaiting = false; clearPlayerError(); updateCenterPlayButton(); wakePlayerChrome(); }, listen());
+  video.addEventListener("pause", function() { updateCenterPlayButton(); wakePlayerChrome(); }, listen());
+  video.addEventListener("play", updateCenterPlayButton, listen());
+  video.addEventListener("ended", updateCenterPlayButton, listen());
+  video.addEventListener("error", function() { state.playerWaiting = false; updateCenterPlayButton(); }, listen());
   if (video.textTracks && video.textTracks.addEventListener) {
-    video.textTracks.addEventListener("addtrack", updateSubtitlesButton);
-    video.textTracks.addEventListener("removetrack", updateSubtitlesButton);
-    video.textTracks.addEventListener("change", updateSubtitlesButton);
+    video.textTracks.addEventListener("addtrack", updateSubtitlesButton, listen());
+    video.textTracks.addEventListener("removetrack", updateSubtitlesButton, listen());
+    video.textTracks.addEventListener("change", updateSubtitlesButton, listen());
   }
   if (state.hls) { state.hls.destroy(); state.hls = null; }
   if (state.tsPlayer) { state.tsPlayer.destroy(); state.tsPlayer = null; }
@@ -505,8 +522,8 @@ async function playChannel(channel, options) {
       state.timeShiftTimelineTimer = setInterval(updateTimeShiftUI, 1000);
       const video = byId("player");
       if (video) {
-        video.addEventListener("timeupdate", updateTimeShiftUI);
-        video.addEventListener("progress", updateTimeShiftUI);
+        video.addEventListener("timeupdate", updateTimeShiftUI, { signal: videoSourceListenerSignal() });
+        video.addEventListener("progress", updateTimeShiftUI, { signal: videoSourceListenerSignal() });
       }
       updateTimeShiftUI();
       showPlayerToast("Live Rewind ready.");
@@ -524,10 +541,19 @@ async function playChannel(channel, options) {
 }
 
 function startWatch(channel) {
+  const attempt = (state.watchAttempt || 0) + 1;
+  state.watchAttempt = attempt;
   if (state.currentSession) postJSON("/dispatcharr/api/watch/stop", { sessionId: state.currentSession.id, reason: "switch_channel" }).catch(function() {});
+  state.currentSession = null;
   recordWatchPreference(channel);
   postJSON("/dispatcharr/api/watch/start", { itemKind: "channel", itemId: channel.id, itemName: channel.name }).then(function(payload) {
-    state.currentSession = payload.session;
+    const session = payload && payload.session;
+    if (attempt !== state.watchAttempt) {
+      // A newer switch (or a stop) happened while this start was in flight.
+      if (session && session.id) postJSON("/dispatcharr/api/watch/stop", { sessionId: session.id, reason: "superseded" }).catch(function() {});
+      return;
+    }
+    state.currentSession = session;
     if (state.heartbeat) clearInterval(state.heartbeat);
     state.heartbeat = setInterval(function() {
       if (state.currentSession) postJSON("/dispatcharr/api/watch/heartbeat", { sessionId: state.currentSession.id }).catch(function() {});
@@ -539,6 +565,7 @@ function startWatch(channel) {
 document.addEventListener("fullscreenchange", updateFullscreenButton);
 document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
 startGuideAutoRefresh();
+startPrefsSync();
 const initialAppLoad = isAdminRoute ? loadAdminApp() : loadApp();
 initialAppLoad.then(function() {
   const snapshot = window.initialAppRouteSnapshot || readAppRouteHash();

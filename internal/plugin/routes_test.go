@@ -426,7 +426,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`if (!descriptionOverflows(target)) return;`,
 		`.logo-fallback`,
 		`function channelLogoFallback(channel)`,
-		`onerror=\"this.hidden = true; this.nextElementSibling.hidden = false;\"`,
+		`data-img-error=\"logo-fallback\"`,
 		`<span class=\"epg-channel-title\">`,
 		`title=\"" + escapeHTML(channelName) + "\"`,
 		`data-channel-name=\"`,
@@ -4223,7 +4223,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		}
 	}
 	sportsTeamLogo := functionBody("renderSportsTeamLogo")
-	for _, want := range []string{`sportsPreferredLogo`, `markSportsMediaFailed(this)`} {
+	for _, want := range []string{`sportsPreferredLogo`, `data-img-error=\"sports-media\"`} {
 		if !strings.Contains(sportsTeamLogo, want) {
 			t.Fatalf("sports team logos must avoid retrying failed media via %q", want)
 		}
