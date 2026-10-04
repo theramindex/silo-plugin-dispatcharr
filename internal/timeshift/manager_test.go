@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 )
@@ -64,6 +65,111 @@ func TestManagerSharesOneChannelBufferAcrossLeases(t *testing.T) {
 	if err := manager.Clear(); err != nil {
 		t.Fatalf("clear manager: %v", err)
 	}
+}
+
+func TestManagerBudgetEvictionOfOwnBufferDoesNotDeadlock(t *testing.T) {
+	t.Parallel()
+	stream := bytes.Join([][]byte{
+		testPATPacket(), testPMTPacket(), testVideoPacket(0), testFillerPacket(),
+		testVideoPacket(180000), testFillerPacket(), testVideoPacket(360000),
+	}, nil)
+	upstreamClosed := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("content-type", "video/mp2t")
+		_, _ = w.Write(stream)
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
+		<-r.Context().Done()
+		close(upstreamClosed)
+	}))
+	defer upstream.Close()
+
+	root := t.TempDir()
+	manager := NewManager(root)
+	// One byte of budget: the first segment written makes the ingest goroutine
+	// evict its own buffer from inside writeSegment -> enforceBudget.
+	config := Config{Enabled: true, MaxBytes: 1, MinFreeBytes: 1, MaxBuffers: 2, Window: 30 * time.Minute}
+	lease, err := manager.Acquire("channel-1", upstream.URL, config)
+	if err != nil {
+		t.Fatalf("acquire lease: %v", err)
+	}
+	b := manager.bufferByID(lease.BufferID)
+	if b == nil {
+		t.Fatal("expected buffer to be registered")
+	}
+
+	select {
+	case <-b.done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("ingest goroutine deadlocked evicting its own buffer")
+	}
+	select {
+	case <-upstreamClosed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("upstream connection leaked after eviction")
+	}
+	if manager.bufferByID(lease.BufferID) != nil {
+		t.Fatal("expected evicted buffer to be removed from the manager")
+	}
+	if stats := manager.Stats(); stats.Bytes != 0 || stats.ActiveBuffers != 0 {
+		t.Fatalf("expected evicted bytes to be released once, got %+v", stats)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, err := os.Stat(b.dir); os.IsNotExist(err) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("evicted buffer directory %s was not removed", b.dir)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err := manager.Clear(); err != nil {
+		t.Fatalf("clear manager: %v", err)
+	}
+}
+
+func TestManagerReplacingBufferDoesNotBlockOrDeleteReplacement(t *testing.T) {
+	t.Parallel()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("content-type", "video/mp2t")
+		_, _ = w.Write(testPATPacket())
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
+		<-r.Context().Done()
+	}))
+	defer upstream.Close()
+
+	manager := NewManager(t.TempDir())
+	config := Config{Enabled: true, MaxBytes: 32 << 20, MinFreeBytes: 1, MaxBuffers: 2, Window: 30 * time.Minute}
+	first, err := manager.Acquire("channel-1", upstream.URL+"/a", config)
+	if err != nil {
+		t.Fatalf("acquire first: %v", err)
+	}
+	old := manager.bufferByID(first.BufferID)
+	done := make(chan Lease, 1)
+	go func() {
+		lease, _ := manager.Acquire("channel-1", upstream.URL+"/b", config)
+		done <- lease
+	}()
+	var second Lease
+	select {
+	case second = <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Acquire blocked replacing a buffer")
+	}
+	select {
+	case <-old.done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("replaced buffer did not stop")
+	}
+	replacement := manager.bufferByID(second.BufferID)
+	if replacement == nil || replacement == old || replacement.dir == old.dir {
+		t.Fatalf("expected a replacement buffer with its own directory")
+	}
+	_ = manager.Clear()
 }
 
 func TestManagerRejectsDisabledAndOverCapacityBuffers(t *testing.T) {

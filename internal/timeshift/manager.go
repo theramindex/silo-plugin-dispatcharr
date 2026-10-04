@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,6 +21,8 @@ import (
 )
 
 const DefaultRootDir = "/var/lib/continuum/plugins/silo.ramindex.dispatcharr/timeshift"
+
+var errBufferStopped = errors.New("live rewind buffer stopped")
 
 type Config struct {
 	Enabled      bool
@@ -166,12 +169,19 @@ func (m *Manager) Acquire(channelID, streamURL string, config Config) (Lease, er
 			return Lease{}, fmt.Errorf("live rewind channel limit reached")
 		}
 		if b != nil {
-			b.stop(false)
+			b.retire()
+		}
+		generation, err := randomID(6)
+		if err != nil {
+			m.mu.Unlock()
+			return Lease{}, err
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		b = &buffer{
+			// Each buffer gets its own directory so a retired buffer's
+			// asynchronous cleanup never deletes its replacement's segments.
 			manager: m, id: bufferID, channelID: channelID, streamURL: streamURL,
-			dir: filepath.Join(m.root, bufferID), cancel: cancel, done: make(chan struct{}), state: "starting",
+			dir: filepath.Join(m.root, bufferID+"-"+generation), cancel: cancel, done: make(chan struct{}), state: "starting",
 			leases: map[string]time.Time{}, lastLease: time.Now(), window: config.Window,
 		}
 		m.buffers[bufferID] = b
@@ -226,7 +236,7 @@ func (m *Manager) Release(leaseID string) {
 			delete(m.buffers, b.id)
 		}
 		m.mu.Unlock()
-		b.stop(true)
+		b.retire()
 	}
 }
 
@@ -327,7 +337,12 @@ func (m *Manager) Clear() error {
 	m.buffers = map[string]*buffer{}
 	m.mu.Unlock()
 	for _, b := range buffers {
-		b.stop(false)
+		b.shutdown()
+	}
+	// Clear is never called from an ingest goroutine, so waiting here cannot
+	// self-deadlock; it keeps the root removal below from racing late writes.
+	for _, b := range buffers {
+		<-b.done
 	}
 	if err := os.RemoveAll(m.root); err != nil {
 		return err
@@ -412,6 +427,12 @@ func (b *buffer) writeSegment(closed closedSegment) error {
 	}
 	segment := Segment{Seq: seq, Path: path, Duration: closed.duration, Size: int64(len(closed.data)), Created: time.Now()}
 	b.mu.Lock()
+	if b.state == "stopped" {
+		// Retired while writing; the segment must not be counted again.
+		b.mu.Unlock()
+		_ = os.Remove(path)
+		return errBufferStopped
+	}
 	b.segments = append(b.segments, segment)
 	b.state = "buffering"
 	b.err = ""
@@ -472,16 +493,27 @@ func (b *buffer) fail(err error) {
 	b.mu.Unlock()
 }
 
-func (b *buffer) stop(remove bool) {
+// shutdown cancels ingest and detaches the buffer's segments without waiting
+// for the ingest goroutine, so it is safe to call from that goroutine itself
+// (budget eviction of its own buffer) and while holding m.mu.
+func (b *buffer) shutdown() {
 	b.cancel()
-	<-b.done
 	b.mu.Lock()
 	b.state = "stopped"
 	b.leases = map[string]time.Time{}
+	b.segments = nil
 	b.mu.Unlock()
-	if remove {
+}
+
+// retire shuts the buffer down and removes its directory once ingest exits.
+// The wait runs in its own goroutine: never block on done inline, because
+// the caller may be the ingest goroutine being waited on.
+func (b *buffer) retire() {
+	b.shutdown()
+	go func() {
+		<-b.done
 		_ = os.RemoveAll(b.dir)
-	}
+	}()
 }
 
 func (m *Manager) bufferByID(id string) *buffer {
@@ -560,13 +592,18 @@ func (m *Manager) enforceBudget() {
 		if total <= config.MaxBytes && freeBytes(m.root) >= config.MinFreeBytes {
 			break
 		}
+		// Only the call that actually detaches a buffer subtracts its bytes, so
+		// concurrent enforcement passes never count one eviction twice.
 		m.mu.Lock()
-		if m.buffers[item.buffer.id] == item.buffer {
+		evicted := m.buffers[item.buffer.id] == item.buffer
+		if evicted {
 			delete(m.buffers, item.buffer.id)
+			item.buffer.retire()
 		}
 		m.mu.Unlock()
-		item.buffer.stop(true)
-		total -= item.bytes
+		if evicted {
+			total -= item.bytes
+		}
 	}
 }
 
@@ -615,7 +652,7 @@ func (m *Manager) prune() {
 	}
 	m.mu.Unlock()
 	for _, b := range remove {
-		b.stop(true)
+		b.retire()
 	}
 	if !config.Enabled {
 		_ = m.Clear()

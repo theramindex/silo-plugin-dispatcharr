@@ -201,7 +201,7 @@
       "id": "dispatcharr-api-refresh",
       "method": "POST",
       "path": "/dispatcharr/api/refresh",
-      "access": "authenticated",
+      "access": "admin",
       "navigable": false
     },
     {
@@ -264,14 +264,14 @@
       "id": "dispatcharr-api-recordings-stop",
       "method": "POST",
       "path": "/dispatcharr/api/recordings/stop",
-      "access": "authenticated",
+      "access": "admin",
       "navigable": false
     },
     {
       "id": "dispatcharr-api-recordings-delete",
       "method": "POST",
       "path": "/dispatcharr/api/recordings/delete",
-      "access": "authenticated",
+      "access": "admin",
       "navigable": false
     },
     {

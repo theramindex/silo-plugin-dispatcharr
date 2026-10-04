@@ -23,6 +23,7 @@ import (
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/timeshift"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/dispatcharr"
+	sharedhttp "github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/httpclient"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
 )
 
@@ -236,6 +237,10 @@ type AppPayload struct {
 	Channels     []PublicChannel  `json:"channels"`
 	Categories   []model.Category `json:"categories"`
 	Capabilities AppCapabilities  `json:"capabilities"`
+	// IsAdmin mirrors the host-stamped X-Silo-User-Role header so the UI can
+	// hide admin-only controls (force refresh, stop/delete recording). The
+	// server enforces those routes independently.
+	IsAdmin bool `json:"isAdmin"`
 }
 
 type watchRequest struct {
@@ -282,7 +287,7 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return s.handleChannelRefresh(ctx, request)
 	case "/dispatcharr/api/app":
 		s.ensureCatalogHydrated(ctx)
-		return s.respondJSON(http.StatusOK, s.buildAppPayload())
+		return s.respondJSON(http.StatusOK, s.buildAppPayload(request))
 	case "/dispatcharr/channels", "/dispatcharr/api/channels":
 		s.ensureCatalogHydrated(ctx)
 		return s.respondJSON(http.StatusOK, s.channelsPayload())
@@ -503,7 +508,7 @@ func (s *HTTPRoutesServer) handleChannelRefresh(ctx context.Context, request *pl
 	if !started {
 		status = http.StatusOK
 	}
-	return s.respondJSON(status, s.buildAppPayload())
+	return s.respondJSON(status, s.buildAppPayload(request))
 }
 
 func (s *HTTPRoutesServer) startBackgroundProfileWarm(snapshot cache.Snapshot, settings config.Settings) bool {
@@ -541,6 +546,9 @@ func (s *HTTPRoutesServer) handleRefresh(ctx context.Context, request *pluginv1.
 	if request.GetMethod() != http.MethodPost {
 		return textResponse(http.StatusMethodNotAllowed, "refresh requires POST"), nil
 	}
+	if !requestIsAdmin(request) {
+		return adminRequiredResponse("forcing a catalog refresh")
+	}
 	if s.coordinator == nil || s.settingsProvider == nil {
 		return textResponse(http.StatusServiceUnavailable, "catalog sync is not available"), nil
 	}
@@ -558,7 +566,7 @@ func (s *HTTPRoutesServer) handleRefresh(ctx context.Context, request *pluginv1.
 	if !started {
 		status = http.StatusOK
 	}
-	return s.respondJSON(status, s.buildAppPayload())
+	return s.respondJSON(status, s.buildAppPayload(request))
 }
 
 func (s *HTTPRoutesServer) handleGuidePing(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
@@ -632,9 +640,10 @@ func (s *HTTPRoutesServer) startBackgroundGuideWarm(settings config.Settings) (b
 	return true, "refreshing"
 }
 
-func (s *HTTPRoutesServer) buildAppPayload() AppPayload {
+func (s *HTTPRoutesServer) buildAppPayload(request *pluginv1.HandleHTTPRequest) AppPayload {
 	snapshot := s.store.Current()
 	return AppPayload{
+		IsAdmin:      requestIsAdmin(request),
 		Status:       s.healthPayload(),
 		Source:       snapshot.Catalog.Source,
 		Channels:     publicChannels(snapshot.Catalog.Channels, s.hlsBufferSeconds()),
@@ -862,6 +871,9 @@ func (s *HTTPRoutesServer) handleScheduleRecording(ctx context.Context, request 
 }
 
 func (s *HTTPRoutesServer) handleStopRecording(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if !requestIsAdmin(request) {
+		return adminRequiredResponse("stopping a recording")
+	}
 	if !s.recordingsEnabled() {
 		return textResponse(http.StatusConflict, recordingsUnavailableReason(s)), nil
 	}
@@ -881,6 +893,9 @@ func (s *HTTPRoutesServer) handleStopRecording(ctx context.Context, request *plu
 }
 
 func (s *HTTPRoutesServer) handleDeleteRecording(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if !requestIsAdmin(request) {
+		return adminRequiredResponse("deleting a recording")
+	}
 	if !s.recordingsEnabled() {
 		return textResponse(http.StatusConflict, recordingsUnavailableReason(s)), nil
 	}
@@ -1197,14 +1212,17 @@ func testConnection(ctx context.Context, connection config.ConnectionSettings) e
 }
 
 func testConnectionURL(ctx context.Context, target string) error {
+	// Connection URLs can embed credentials (Xtream username/password in the
+	// path or query), so url.Error values are redacted before they reach the
+	// admin UI or logs.
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
-		return err
+		return sharedhttp.RedactErrorURL(err)
 	}
 	request.Header.Set("Range", "bytes=0-0")
 	response, err := (&http.Client{Timeout: 12 * time.Second}).Do(request)
 	if err != nil {
-		return err
+		return sharedhttp.RedactErrorURL(err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 400 {
@@ -1227,7 +1245,37 @@ func (s *HTTPRoutesServer) respondAdminSettings(request *pluginv1.HandleHTTPRequ
 }
 
 func (s *HTTPRoutesServer) adminSettingsAuthorized(request *pluginv1.HandleHTTPRequest) bool {
+	return requestIsAdmin(request)
+}
+
+// requestIsAdmin reports whether the Silo host identified the caller as an
+// admin. X-Silo-User-Role is trustworthy: the host's plugin HTTP proxy only
+// forwards an allowlist of client headers (accept, content-type, range, ...)
+// and stamps the X-Silo-User-* identity headers itself after authenticating
+// the session, so a browser cannot inject or override this value.
+func requestIsAdmin(request *pluginv1.HandleHTTPRequest) bool {
 	return strings.EqualFold(strings.TrimSpace(headerValue(request.GetHeaders(), "x-silo-user-role")), "admin")
+}
+
+// adminRequiredResponse is the JSON 403 returned when a non-admin calls an
+// admin-only action (force refresh, stopping or deleting recordings).
+func adminRequiredResponse(action string) (*pluginv1.HandleHTTPResponse, error) {
+	body, err := json.Marshal(map[string]any{
+		"ok":      false,
+		"error":   "admin_required",
+		"message": "Only Silo admins can perform this action: " + action + ".",
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &pluginv1.HandleHTTPResponse{
+		StatusCode: http.StatusForbidden,
+		Headers: map[string]string{
+			"cache-control": "no-store",
+			"content-type":  "application/json",
+		},
+		Body: body,
+	}, nil
 }
 
 func headerValue(headers map[string]string, key string) string {
