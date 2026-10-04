@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const source = fs.readFileSync(new URL('../internal/plugin/ui/app.js', import.meta.url), 'utf8');
+const source = ['core', 'prefs', 'sports', 'admin', 'multiview', 'app'].map(name => fs.readFileSync(new URL('../internal/plugin/ui/' + name + '.js', import.meta.url), 'utf8')).join('\n');
 function load(names, globals) {
   const ctx = vm.createContext(Object.assign({
     state: {},
@@ -48,7 +48,7 @@ test('repeat airings of the same show on the same channel collapse into one card
 });
 
 test('highlights with an mp4 stream open in the modal, others keep the ESPN link', () => {
-  const ctx = load(['renderSportsHighlights'], {
+  const ctx = load(['safeHTTPS', 'externalLinkAttrs', 'renderSportsHighlights'], {
     sportsSectionHTML: (title, meta, body) => body
   });
   const html = ctx.renderSportsHighlights([

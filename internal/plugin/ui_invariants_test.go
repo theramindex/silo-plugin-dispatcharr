@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -359,16 +360,141 @@ func TestCommitAppRouteDoesNotCloneHistoryState(t *testing.T) {
 func TestRecordingCardExposesDirectStopDeleteAndPadding(t *testing.T) {
 	t.Parallel()
 	result := runUIInvariantScript(t, []string{
-		`state.app = { capabilities: { recordings: true }, source: { mode: "direct_login" }, preferences: defaultPrefs() };`,
+		`state.app = { isAdmin: true, capabilities: { recordings: true }, source: { mode: "direct_login" }, preferences: defaultPrefs() };`,
 		`state.recordingCapability = { available: true, canSchedule: true, canStop: true, canDelete: true };`,
 		`state.adminCategorySettings = defaultAdminCategorySettings();`,
-		`const card = renderRecordingCard({ id: 88, status: "recording", custom_properties: { title: "News at 6" }, _silo: { recording_id: "88", can_stop: true, can_delete: true } });`,
+		`const recording = { id: 88, status: "recording", custom_properties: { title: "News at 6" }, _silo: { recording_id: "88", can_stop: true, can_delete: true } };`,
+		`const card = renderRecordingCard(recording);`,
 		`renderAdminRecordingSettings();`,
 		`const admin = document.getElementById("admin-recording-settings").innerHTML;`,
-		`globalThis.__result = { stableResults: card.includes("data-recording-stop") && card.includes("data-recording-delete") && admin.includes("Start padding") && admin.includes("Comskip") && admin.includes("data-admin-recording-field") };`,
+		`state.app.isAdmin = false;`,
+		`const userCard = renderRecordingCard(recording);`,
+		`delete state.app.isAdmin;`,
+		`const unknownCard = renderRecordingCard(recording);`,
+		`const hidden = [userCard, unknownCard].every(function(html) { return !html.includes("data-recording-stop") && !html.includes("data-recording-delete") && html.includes("News at 6"); });`,
+		`globalThis.__result = { stableResults: card.includes("data-recording-stop") && card.includes("data-recording-delete") && admin.includes("Start padding") && admin.includes("Comskip") && admin.includes("data-admin-recording-field"), separate: hidden };`,
 	})
 	if !result.StableResults {
-		t.Fatal("Direct recordings must expose stop/delete and padding/Comskip controls")
+		t.Fatal("Direct recordings must expose stop/delete and padding/Comskip controls to admins")
+	}
+	if !result.Separate {
+		t.Fatal("recording stop/delete must be hidden unless the bootstrap reports isAdmin === true")
+	}
+}
+
+var inlineEventHandlerPattern = regexp.MustCompile(`[\s"'\\]on[a-z]+\s*=\s*\\?["']`)
+
+func TestUIPageDeclaresCSPAndUsesNoInlineScriptOrHandlers(t *testing.T) {
+	t.Parallel()
+	page, err := playerUIAssets.ReadFile("ui/page.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := string(page)
+	csp := regexp.MustCompile(`<meta http-equiv="Content-Security-Policy" content="([^"]+)">`).FindStringSubmatch(html)
+	if csp == nil {
+		t.Fatal("page must declare its CSP in a meta tag (the Silo proxy strips plugin response headers)")
+	}
+	directives := map[string]string{}
+	for _, part := range regexp.MustCompile(`\s*;\s*`).Split(csp[1], -1) {
+		fields := regexp.MustCompile(`\s+`).Split(part, 2)
+		if len(fields) == 2 {
+			directives[fields[0]] = fields[1]
+		}
+	}
+	for name, want := range map[string]string{"default-src": "'self'", "script-src": "'self'", "object-src": "'none'", "base-uri": "'none'"} {
+		if directives[name] != want {
+			t.Fatalf("CSP %s = %q, want %q", name, directives[name], want)
+		}
+	}
+	for _, name := range []string{"media-src", "connect-src", "worker-src"} {
+		if !regexp.MustCompile(`\bblob:`).MatchString(directives[name]) {
+			t.Fatalf("CSP %s must allow blob: for MSE playback and hls.js workers, got %q", name, directives[name])
+		}
+	}
+	for _, tag := range regexp.MustCompile(`<script[^>]*>`).FindAllString(html, -1) {
+		if !regexp.MustCompile(`\ssrc="`).MatchString(tag) {
+			t.Fatalf("inline <script> blocks are blocked by script-src 'self': %s", tag)
+		}
+	}
+	names := []string{"ui/page.html"}
+	entries, err := playerUIFiles.ReadDir("ui")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if regexp.MustCompile(`\.js$`).MatchString(entry.Name()) {
+			names = append(names, "ui/"+entry.Name())
+		}
+	}
+	for _, name := range names {
+		source, err := playerUIFiles.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if match := inlineEventHandlerPattern.Find(source); match != nil {
+			t.Fatalf("%s contains an inline event handler %q; use data-img-error/data-img-load or a listener", name, match)
+		}
+	}
+}
+
+func TestComposedAppScriptKeepsCoreFirstAndBootLast(t *testing.T) {
+	t.Parallel()
+	composed, err := playerUIAssets.ReadFile("ui/app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := string(composed)
+	for _, part := range playerAppScriptParts {
+		source, err := playerUIFiles.ReadFile(part)
+		if err != nil {
+			t.Fatalf("missing app script part %s: %v", part, err)
+		}
+		if !strings.Contains(script, strings.TrimRight(string(source), "\n")) {
+			t.Fatalf("composed app.js must include %s", part)
+		}
+	}
+	if !regexp.MustCompile(`^const path = window\.location\.pathname;`).MatchString(script) {
+		t.Fatal("core.js (route/state globals) must be first in the composed app.js")
+	}
+	if !regexp.MustCompile(`window\.addEventListener\("pagehide"[\s\S]*\}\);\n$`).MatchString(script) {
+		t.Fatal("app.js (load-time wiring) must be last in the composed app.js")
+	}
+}
+
+func TestPrefsGuideSportsAndLinkSafetyInvariants(t *testing.T) {
+	t.Parallel()
+	result := runUIInvariantScript(t, []string{
+		`state.app = { preferences: defaultPrefs(), channels: [], programs: [] };`,
+		// escapeHTML keeps falsy-but-real values.
+		`const escapes = escapeHTML(0) === "0" && escapeHTML(false) === "false" && escapeHTML(null) === "" && escapeHTML(undefined) === "";`,
+		// External links must be absolute https.
+		`const links = safeHTTPS("https://espn.com/a") === "https://espn.com/a" && safeHTTPS("javascript:alert(1)") === "" && safeHTTPS("http://x.test") === "" && safeHTTPS("/relative") === "" && externalLinkAttrs("data:text/html,x") === "";`,
+		// Guide windows merge and dedupe; programs inside the refreshed window are replaced.
+		`const now = Math.floor(Date.now() / 1000);`,
+		`const existing = [{ id: "a", channelId: "1", startUnix: now, endUnix: now + 1800, title: "Old" }, { id: "far", channelId: "1", startUnix: now + 30 * 3600, endUnix: now + 31 * 3600 }];`,
+		`const merged = mergeGuideWindowPrograms(existing, [{ id: "a", channelId: "1", startUnix: now, endUnix: now + 1800, title: "New" }, { id: "b", channelId: "1", startUnix: now + 1800, endUnix: now + 3600 }], now - 3600, now + 24 * 3600);`,
+		`const guideMerge = merged.length === 3 && merged.filter(function(p) { return p.id === "a"; }).length === 1 && merged.find(function(p) { return p.id === "a"; }).title === "New" && merged.some(function(p) { return p.id === "far"; });`,
+		`const ignored = guideWindowIgnoredByBackend([{ startUnix: now + 48 * 3600, endUnix: now + 49 * 3600 }], now, now + 24 * 3600) && !guideWindowIgnoredByBackend([{ startUnix: now, endUnix: now + 60 }], now, now + 24 * 3600);`,
+		// Nameless phantom teams never become follows; legacy ids still resolve.
+		`state.sports = { events: [{ leagueName: "NFL", home: { id: "phantom-1", name: "" }, away: { id: "lions-new", name: "Detroit Lions", legacyIds: ["lions-old"] } }], leagues: [] };`,
+		`state.sportsLeagueTeams = {};`,
+		`state.app.preferences.sportsFavoriteTeams = { "phantom-1": true, "lions-old": true };`,
+		`prefsSync.loaded = true;`,
+		`const people = myTVSportsPeople();`,
+		`const phantomSkipped = !people.some(function(team) { return team.id === "phantom-1"; });`,
+		`const legacyResolved = sportsFavoriteTeamMatches(state.sports.events[0].away) && myTVFollowedPeople().some(function(team) { return team.id === "lions-old" && team.name === "Detroit Lions"; });`,
+		`const dropped = dropPhantomSportsFollows() && !state.app.preferences.sportsFavoriteTeams["phantom-1"] && !!state.app.preferences.sportsFavoriteTeams["lions-old"];`,
+		`const queuedSave = prefsSync.dirty === true;`,
+		`clearTimeout(prefsSync.timer); prefsSync.dirty = false;`,
+		`const droppedAndSaved = dropped && queuedSave;`,
+		`globalThis.__result = { stableResults: escapes && links && guideMerge && ignored, separate: phantomSkipped && legacyResolved && droppedAndSaved };`,
+	})
+	if !result.StableResults {
+		t.Fatal("escapeHTML, safe external links, and guide window merging must hold")
+	}
+	if !result.Separate {
+		t.Fatal("phantom (nameless) teams must not be followed and legacy ids must resolve")
 	}
 }
 
@@ -400,7 +526,7 @@ func runUIInvariantScript(t *testing.T, statements []string) uiInvariantResult {
 		t.Fatal(err)
 	}
 	var scripts []string
-	for _, match := range regexp.MustCompile(`<script defer src="__ASSET_PREFIX__/([^?]+)\?`).FindAllStringSubmatch(string(page), -1) {
+	for _, match := range regexp.MustCompile(`<script(?: defer)? src="__ASSET_PREFIX__/([^?]+)\?`).FindAllStringSubmatch(string(page), -1) {
 		source, err := playerUIAssets.ReadFile("ui/" + match[1])
 		if err != nil {
 			t.Fatal(err)

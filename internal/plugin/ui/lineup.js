@@ -1,3 +1,24 @@
+// Theme bootstrap. This file is loaded synchronously in <head> so the Silo
+// theme applies before first paint; CSP (script-src 'self') forbids the
+// inline script that used to do this.
+(function() {
+  var root = typeof document !== "undefined" ? document.documentElement : null, key = "dispatcharr-silo-theme";
+  if (!root || typeof window === "undefined" || !window.location) return;
+  try {
+    var url = new URL(window.location.href);
+    var theme = String(root.getAttribute("data-silo-theme") || "").replace(/[^a-z0-9_-]/g, "");
+    if (theme) window.localStorage.setItem(key, theme);
+    else {
+      var saved = String(window.localStorage.getItem(key) || "").replace(/[^a-z0-9_-]/g, "");
+      if (saved) root.setAttribute("data-silo-theme", saved);
+    }
+    if (url.searchParams.has("theme")) {
+      url.searchParams.delete("theme");
+      window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    }
+  } catch (_) {}
+})();
+
 (function(global) {
   "use strict";
 

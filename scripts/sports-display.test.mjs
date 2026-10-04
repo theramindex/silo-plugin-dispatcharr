@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 test('event details use browse breadcrumbs and sport art without generic league copy', () => {
-  const source = fs.readFileSync(new URL('../internal/plugin/ui/app.js', import.meta.url), 'utf8');
+  const source = ['core', 'prefs', 'sports', 'admin', 'multiview', 'app'].map(name => fs.readFileSync(new URL('../internal/plugin/ui/' + name + '.js', import.meta.url), 'utf8')).join('\n');
   const ctx = vm.createContext({
     state: {sportsTab: 'live', sportsFailedMedia: {}}, isSportsPath: false,
     escapeHTML: value => String(value || ''), safeSportsMediaURL: value => String(value || ''),
@@ -59,11 +59,11 @@ test('event details use browse breadcrumbs and sport art without generic league 
 });
 
 test('MLB details render innings, final stats, and honor hidden scores', () => {
-  const source = fs.readFileSync(new URL('../internal/plugin/ui/app.js', import.meta.url), 'utf8');
+  const source = ['core', 'prefs', 'sports', 'admin', 'multiview', 'app'].map(name => fs.readFileSync(new URL('../internal/plugin/ui/' + name + '.js', import.meta.url), 'utf8')).join('\n');
   const event = {id: 'mlb', leagueId: 'mlb', away: {name: 'Reds'}, home: {name: 'Dodgers'}};
   const data = {available: true, completed: true, homeScore: '6', awayScore: '3', updatedAtUnix: 1, sourceUrl: 'https://www.espn.com/mlb/boxscore/', innings: [{number: 1, away: '0', home: '0'}, {number: 9, away: '0', home: ''}], rows: [{label: 'Hits', away: '7', home: '10'}]};
   const ctx = vm.createContext({sportsGameStatsState: {id: 'mlb', data}, items: value => value || [], escapeHTML: value => String(value ?? ''), sportsScoresHidden: () => false, sportsEventStateID: e => e.id, sportsTeamName: t => t.name, sportsTeamAbbreviation: t => t.name.slice(0, 3).toUpperCase(), icon: () => '', sportsSectionHTML: (title, source, body) => title ? title + source + body : ''});
-  for (const name of ['sportsHasGameStats', 'renderSportsGameStats', 'renderSportsInnings', 'renderSportsBaseballSituation', 'renderSportsProbables', 'renderSportsLeaders', 'renderSportsPlays', 'renderSportsHighlights']) {
+  for (const name of ['safeHTTPS', 'externalLinkAttrs', 'sportsHasGameStats', 'renderSportsGameStats', 'renderSportsInnings', 'renderSportsBaseballSituation', 'renderSportsProbables', 'renderSportsLeaders', 'renderSportsPlays', 'renderSportsHighlights']) {
     const start = source.indexOf('function ' + name + '('), end = source.indexOf('\nfunction ', start + 1);
     vm.runInContext(source.slice(start, end), ctx);
   }
@@ -90,7 +90,7 @@ test('MLB details render innings, final stats, and honor hidden scores', () => {
 });
 
 test('game-thumbs failures fall back once and retain the local layout', () => {
-  const source = fs.readFileSync(new URL('../internal/plugin/ui/app.js', import.meta.url), 'utf8');
+  const source = ['core', 'prefs', 'sports', 'admin', 'multiview', 'app'].map(name => fs.readFileSync(new URL('../internal/plugin/ui/' + name + '.js', import.meta.url), 'utf8')).join('\n');
   const state = {sportsFailedMedia: {}};
   const ctx = vm.createContext({state, safeSportsMediaURL: value => String(value || ''), escapeHTML: value => String(value || '')});
   for (const name of ['sportsMediaFailed', 'markSportsMediaFailed', 'sportsPreferredLogo', 'sportsGeneratedBackground', 'markSportsBackgroundFailed']) {
@@ -120,7 +120,7 @@ test('game-thumbs failures fall back once and retain the local layout', () => {
 });
 
 test('upcoming promotions show a matchup heading and separate start time', () => {
-  const source = fs.readFileSync(new URL('../internal/plugin/ui/app.js', import.meta.url), 'utf8');
+  const source = ['core', 'prefs', 'sports', 'admin', 'multiview', 'app'].map(name => fs.readFileSync(new URL('../internal/plugin/ui/' + name + '.js', import.meta.url), 'utf8')).join('\n');
   const ctx = vm.createContext({
     sportsTeamName: team => team?.name || 'Team', uniqueEventChannels: () => [],
     sportsEventArtwork: () => '', sportsArtworkDimensions: () => '',
