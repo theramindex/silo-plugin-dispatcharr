@@ -320,3 +320,59 @@ func assertNoBroadcastEventMatch(t *testing.T, matches []SportsChannelMatch, cha
 		}
 	}
 }
+
+func TestEventsPayloadIsCachedPerSnapshotVersionAndRules(t *testing.T) {
+	t.Parallel()
+
+	start := time.Now().Add(24 * time.Hour).Unix()
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{{ID: "ch:abc", Name: "ABC East", CategoryName: "US | Locals"}},
+		Programs: []model.Program{{ID: "p:oscars", ChannelID: "ch:abc", Title: "The Oscars", StartUnix: start, EndUnix: start + 3600}},
+	}})
+	server := NewHTTPRoutesServer(store)
+	now := time.Now()
+
+	first := server.eventsPayload(now)
+	if len(first.Events) != 1 {
+		t.Fatalf("expected one event, got %+v", first.Events)
+	}
+	index := server.guideIndex.get(store.Current())
+	// Mutating the cached result proves the second call reused it.
+	first.Events[0].Name = "cached marker"
+	if again := server.eventsPayload(now.Add(time.Second)); len(again.Events) != 1 || again.Events[0].Name != "cached marker" {
+		t.Fatalf("expected cached events payload, got %+v", again.Events)
+	}
+	if server.guideIndex.get(store.Current()) != index {
+		t.Fatal("events should reuse the shared guide index")
+	}
+
+	// New rules invalidate without a snapshot change.
+	store.SetAdminSettings(json.RawMessage(`{"eventKeywords":[{"categoryId":"civic","categoryName":"Civic","keywords":["State of the Union"]}]}`))
+	if changed := server.eventsPayload(now.Add(2 * time.Second)); len(changed.Events) != 0 {
+		t.Fatalf("expected rules change to recompute events, got %+v", changed.Events)
+	}
+	store.SetAdminSettings(nil)
+
+	// A new snapshot invalidates as well.
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{{ID: "ch:abc", Name: "ABC East", CategoryName: "US | Locals"}},
+		Programs: []model.Program{{ID: "p:grammys", ChannelID: "ch:abc", Title: "Grammy Awards", StartUnix: start, EndUnix: start + 3600}},
+	}})
+	refreshed := server.eventsPayload(now.Add(3 * time.Second))
+	if len(refreshed.Events) != 1 || refreshed.Events[0].Name != "Grammy Awards" {
+		t.Fatalf("expected recomputed events after snapshot change, got %+v", refreshed.Events)
+	}
+}
+
+func TestEventsCacheIsBounded(t *testing.T) {
+	t.Parallel()
+
+	var cacheUnderTest eventsPayloadCache
+	for i := 0; i < eventsCacheMaxEntries*3; i++ {
+		cacheUnderTest.put(eventsCacheKey{version: uint64(i)}, EventsPayload{})
+		if len(cacheUnderTest.entries) > eventsCacheMaxEntries {
+			t.Fatalf("cache grew beyond bound: %d", len(cacheUnderTest.entries))
+		}
+	}
+}

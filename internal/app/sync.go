@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
@@ -81,12 +83,7 @@ func (s *Service) syncNow(ctx context.Context, settings config.Settings, nowUnix
 		if options.channelsOnly {
 			programs = s.preservedPrograms(settings, channels)
 		} else {
-			xmltvData, err := s.fetchURL(ctx, settings.EPGXMLURL)
-			if err != nil {
-				s.recordSyncFailure(ctx, nowUnix, err)
-				return err
-			}
-			doc, err := xmltv.Parse(xmltvData)
+			doc, err := s.fetchXMLTV(ctx, settings.EPGXMLURL, "", nil)
 			if err != nil {
 				s.recordSyncFailure(ctx, nowUnix, err)
 				return err
@@ -305,21 +302,18 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 		programs = append(programs, xmltvPrograms...)
 	}
 
-	if !options.channelsOnly && len(programs) == 0 {
-		for _, stream := range streams {
-			if tightDeadline {
-				continue
-			}
-			channel := mapping.MapXtreamChannel(stream)
-			epg, err := client.ShortEPG(ctx, stream.StreamID)
-			if err != nil {
-				s.recordSyncFailure(ctx, nowUnix, err)
-				return err
-			}
-			for _, listing := range epg.EPGListings {
-				programs = appendGuideProgram(programs, mapping.MapXtreamProgram(channel.ID, listing))
-			}
+	var shortEPG xtreamShortEPGResult
+	if !options.channelsOnly && len(programs) == 0 && !tightDeadline {
+		shortPrograms, result := fetchXtreamShortEPG(ctx, client, streams)
+		shortEPG = result
+		if err := ctx.Err(); err != nil {
+			s.recordSyncFailure(ctx, nowUnix, err)
+			return err
 		}
+		if result.failed > 0 || result.skipped > 0 {
+			log.Printf("dispatcharr: xtream short EPG fetched %d/%d channels (%d failed, %d skipped near deadline); first error: %v", result.succeeded, len(streams), result.failed, result.skipped, result.firstErr)
+		}
+		programs = append(programs, shortPrograms...)
 	}
 
 	sortChannelsByLineupNumber(channels)
@@ -337,7 +331,95 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 	if err := s.replaceSnapshotAfterSync(state, options.exactGuide); err != nil {
 		return err
 	}
+	if shortEPG.succeeded == 0 && shortEPG.failed > 0 {
+		// Channels are saved; surface the guide failure without failing the sync.
+		if s.recordEPGFailure(ctx, nowUnix, fmt.Errorf("xtream short epg failed for all %d attempted channels: %w", shortEPG.failed, shortEPG.firstErr)) {
+			_ = s.persistSnapshot()
+		}
+	}
 	return nil
+}
+
+// xtreamShortEPGWorkers bounds concurrent get_short_epg calls when no XMLTV
+// feed is configured. Serial calls on large lineups overran the refresh
+// coordinator's timeout.
+const xtreamShortEPGWorkers = 8
+
+type xtreamShortEPGResult struct {
+	succeeded int
+	failed    int
+	skipped   int
+	firstErr  error
+}
+
+// fetchXtreamShortEPG fetches per-stream short EPG with a bounded worker pool.
+// Per-channel failures are counted and skipped so one bad stream cannot abort
+// the sync; dispatch stops early once the context is done or its deadline is
+// too tight to finish, leaving time to save the channel lineup. Programs are
+// returned in stream order.
+func fetchXtreamShortEPG(ctx context.Context, client XtreamClient, streams []xtream.LiveStream) ([]model.Program, xtreamShortEPGResult) {
+	perStream := make([][]model.Program, len(streams))
+	errs := make([]error, len(streams))
+	attempted := make([]bool, len(streams))
+
+	jobs := make(chan int)
+	var wg sync.WaitGroup
+	workers := xtreamShortEPGWorkers
+	if len(streams) < workers {
+		workers = len(streams)
+	}
+	for worker := 0; worker < workers; worker++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for index := range jobs {
+				stream := streams[index]
+				channelID := mapping.MapXtreamChannel(stream).ID
+				epg, err := client.ShortEPG(ctx, stream.StreamID)
+				attempted[index] = true
+				if err != nil {
+					errs[index] = err
+					continue
+				}
+				listings := make([]model.Program, 0, len(epg.EPGListings))
+				for _, listing := range epg.EPGListings {
+					listings = appendGuideProgram(listings, mapping.MapXtreamProgram(channelID, listing))
+				}
+				perStream[index] = listings
+			}
+		}()
+	}
+dispatch:
+	for index := range streams {
+		if ctx.Err() != nil || hasTightDeadline(ctx) {
+			break
+		}
+		select {
+		case jobs <- index:
+		case <-ctx.Done():
+			break dispatch
+		}
+	}
+	close(jobs)
+	wg.Wait()
+
+	var result xtreamShortEPGResult
+	programs := make([]model.Program, 0)
+	for index := range streams {
+		switch {
+		case !attempted[index]:
+			result.skipped++
+		case errs[index] != nil:
+			result.failed++
+			if result.firstErr == nil {
+				result.firstErr = errs[index]
+			}
+		default:
+			result.succeeded++
+			programs = append(programs, perStream[index]...)
+		}
+	}
+	return programs, result
 }
 
 func requireDispatcharrMinimumVersion(ctx context.Context, client DispatcharrClient) error {
@@ -510,13 +592,9 @@ func directSourceWithProfiles(profiles []dispatcharr.ChannelProfile, selected *d
 }
 
 func (s *Service) xmltvProgramsForChannels(ctx context.Context, rawURL string, channels []model.Channel) ([]model.Program, error) {
-	data, err := s.fetchURL(ctx, rawURL)
+	doc, err := s.fetchXMLTV(ctx, rawURL, "custom", nil)
 	if err != nil {
-		return nil, fmt.Errorf("fetch custom xmltv: %w", err)
-	}
-	doc, err := xmltv.Parse(data)
-	if err != nil {
-		return nil, fmt.Errorf("parse custom xmltv: %w", err)
+		return nil, err
 	}
 	return programsFromXMLTVDocument(channels, doc), nil
 }
@@ -957,13 +1035,9 @@ func (s *Service) refreshEPG(ctx context.Context, settings config.Settings, nowU
 	if err != nil {
 		return err
 	}
-	data, err := s.fetchURL(ctx, rawURL)
+	doc, err := s.fetchXMLTV(ctx, rawURL, "epg", nil)
 	if err != nil {
-		return fmt.Errorf("fetch epg xmltv: %w", err)
-	}
-	doc, err := xmltv.Parse(data)
-	if err != nil {
-		return fmt.Errorf("parse epg xmltv: %w", err)
+		return err
 	}
 
 	snapshot := s.store.Current()

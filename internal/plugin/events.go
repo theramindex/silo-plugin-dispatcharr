@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
@@ -70,10 +71,65 @@ func (s *HTTPRoutesServer) handleEvents(ctx context.Context, request *pluginv1.H
 	return s.respondJSON(http.StatusOK, s.eventsPayload(time.Now()))
 }
 
+// eventsCacheTTLSeconds bounds how stale live/completed flags can be when a
+// cached payload is reused for the same snapshot and keyword rules.
+const (
+	eventsCacheTTLSeconds = 30
+	eventsCacheMaxEntries = 16
+)
+
+type eventsCacheKey struct {
+	version uint64
+	rules   string
+	bucket  int64
+}
+
+// eventsPayloadCache memoizes /api/events per snapshot version, keyword rule
+// set and short time bucket. It is bounded: when full it is reset.
+type eventsPayloadCache struct {
+	mu      sync.Mutex
+	entries map[eventsCacheKey]EventsPayload
+}
+
+func (c *eventsPayloadCache) get(key eventsCacheKey) (EventsPayload, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	payload, ok := c.entries[key]
+	return payload, ok
+}
+
+func (c *eventsPayloadCache) put(key eventsCacheKey, payload EventsPayload) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.entries == nil || len(c.entries) >= eventsCacheMaxEntries {
+		c.entries = make(map[eventsCacheKey]EventsPayload, eventsCacheMaxEntries)
+	}
+	c.entries[key] = payload
+}
+
+func eventRulesCacheKey(rules []EventKeywordRule) string {
+	data, err := json.Marshal(rules)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
 func (s *HTTPRoutesServer) eventsPayload(now time.Time) EventsPayload {
 	snapshot := s.store.Current()
 	rules := s.eventKeywordRules()
-	events := detectGuideBroadcastEvents(snapshot, now, rules)
+	key := eventsCacheKey{version: snapshot.Version, rules: eventRulesCacheKey(rules), bucket: now.Unix() / eventsCacheTTLSeconds}
+	if payload, ok := s.eventsCache.get(key); ok {
+		return payload
+	}
+	index := s.guideIndex.get(snapshot)
+	payload := buildEventsPayload(index, snapshot, now, rules)
+	s.eventsCache.put(key, payload)
+	return payload
+}
+
+func buildEventsPayload(index *guideIndex, snapshot cache.Snapshot, now time.Time, rules []EventKeywordRule) EventsPayload {
+	events := detectIndexedGuideBroadcastEvents(index, snapshot, now, rules)
 	sort.Slice(events, func(i, j int) bool {
 		if events[i].Live != events[j].Live {
 			return events[i].Live
@@ -297,6 +353,13 @@ func eventCategoryName(categoryID string) string {
 }
 
 func detectGuideBroadcastEvents(snapshot cache.Snapshot, now time.Time, rules []EventKeywordRule) []BroadcastEvent {
+	return detectIndexedGuideBroadcastEvents(buildGuideIndex(snapshot), snapshot, now, rules)
+}
+
+// detectIndexedGuideBroadcastEvents scans the index's start-sorted programs,
+// so no per-request copy/sort is needed, and resolves channels via the
+// index's channel map instead of scanning the lineup per matching program.
+func detectIndexedGuideBroadcastEvents(index *guideIndex, snapshot cache.Snapshot, now time.Time, rules []EventKeywordRule) []BroadcastEvent {
 	nowUnix := now.Unix()
 	maxUnix := now.AddDate(0, 0, 60).Unix()
 	categoryNames := map[string]string{}
@@ -304,18 +367,12 @@ func detectGuideBroadcastEvents(snapshot cache.Snapshot, now time.Time, rules []
 		categoryNames[category.ID] = category.Name
 	}
 	byKey := map[string]*BroadcastEvent{}
-	programs := append([]model.Program(nil), snapshot.Catalog.Programs...)
-	sort.SliceStable(programs, func(i, j int) bool {
-		if programs[i].StartUnix != programs[j].StartUnix {
-			return programs[i].StartUnix < programs[j].StartUnix
-		}
-		return programs[i].ID < programs[j].ID
-	})
-	for _, program := range programs {
-		if program.EndUnix > 0 && program.EndUnix < nowUnix-6*3600 {
-			continue
-		}
+	for _, program := range index.all {
 		if program.StartUnix > maxUnix {
+			// index.all is start-sorted; nothing later can qualify.
+			break
+		}
+		if program.EndUnix > 0 && program.EndUnix < nowUnix-6*3600 {
 			continue
 		}
 		rule, keyword, ok := matchEventKeyword(program, rules)
@@ -325,7 +382,7 @@ func detectGuideBroadcastEvents(snapshot cache.Snapshot, now time.Time, rules []
 		if programLooksArchival(program, now) {
 			continue
 		}
-		channel, ok := channelByIDFromSnapshot(snapshot, program.ChannelID)
+		channel, ok := index.channel(program.ChannelID)
 		if !ok {
 			continue
 		}

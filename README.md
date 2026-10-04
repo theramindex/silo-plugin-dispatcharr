@@ -57,6 +57,9 @@ first-class Live TV provider capability.
     playback only works when the provider serves HLS. Plain MPEG-TS live
     channels and VOD files return `stream_requires_hls` (422); use Dispatcharr
     Direct or an HLS output instead
+  - Without an EPG XML URL, guide data comes from per-channel `get_short_epg`
+    calls run by a bounded worker pool (8 concurrent). Channels whose guide call
+    fails are skipped and counted in the log; the lineup is still saved
 - **M3U/XMLTV** fallback
   - M3U URL
   - EPG XML URL
@@ -72,7 +75,14 @@ first-class Live TV provider capability.
   playback preferences in Silo's per-user plugin configuration, read and
   written by the browser (see "User identity" below)
 - Coordinates manual, scheduled, channel-only, and guide-only refreshes through
-  one serialized job state and preserves the last known good guide on failure
+  one serialized job state and preserves the last known good guide on failure.
+  A refresh whose guide drops below half of the previous still-current program
+  count or channel coverage is treated as an upstream glitch: the previous
+  guide is kept and `status.epgWarning` explains why. Source-mode or
+  connection changes always accept the new guide
+- Streams XMLTV guides (custom EPG XML URL, Xtream `xmltv.php`, M3U/XMLTV)
+  through an incremental decoder capped at 256 MiB instead of buffering the
+  whole document
 - Loads guide data separately from the lightweight app bootstrap; refresh
   polling uses only the status endpoint
 - Keeps stale metadata visible when sync fails
@@ -82,7 +92,7 @@ first-class Live TV provider capability.
   - `/dispatcharr/player`
   - `/dispatcharr/api/app`
   - `/dispatcharr/api/channels`
-  - `/dispatcharr/api/guide`
+  - `/dispatcharr/api/guide` (see "Guide API" below)
   - `/dispatcharr/api/categories`
   - `/dispatcharr/api/recordings` (`GET` lists Dispatcharr DVR rows, `POST` schedules an EPG program on Dispatcharr; available to all signed-in users)
   - `/dispatcharr/api/recordings/stop`, `/dispatcharr/api/recordings/delete` (`POST`, **admin only**)
@@ -202,6 +212,24 @@ trusts `X-Silo-User-Role` for authorization.
   hide those controls.
 - The plugin does not yet key server-side state by `X-Silo-User-Id`; per-user
   preferences remain browser-managed.
+
+## Guide API
+
+`GET /dispatcharr/api/guide` (also `/dispatcharr/guide`) returns
+`{"programs":[...]}` ordered by start time, then program ID. The guide is
+indexed once per catalog snapshot, so requests never re-sort the full guide.
+Optional query parameters:
+
+| Parameter | Meaning |
+| --- | --- |
+| `channel_id` | Single channel ID (legacy). |
+| `channel_ids` | Comma-separated channel IDs; merged with `channel_id`. Max 2000. |
+| `start` | Unix seconds. With `end`, returns programs overlapping `[start, end)`. |
+| `end` | Unix seconds. Either bound may be omitted to leave that side open. |
+
+With no parameters the full guide is returned (backward compatible). A program
+without an end time matches when its start lies inside the window. Invalid
+numbers or `start >= end` return `400`.
 
 ## v1 limitations
 
