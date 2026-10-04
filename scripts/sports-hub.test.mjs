@@ -87,6 +87,25 @@ test('the standalone Sports header carries sections and followed team shortcuts'
   assert.match(onTeam, /sports-header-team active/);
 });
 
+test('a doubleheader stays beside the final already on the page', () => {
+  const ctx = context();
+  const yankees = { name: 'New York Yankees' };
+  const sox = { name: 'Boston Red Sox' };
+  const entry = {
+    team: yankees,
+    events: [{ id: 'first', completed: true, startUnix: 1700000000, home: yankees, away: sox, homeScore: '8', awayScore: '7' }]
+  };
+  const summary = {
+    recent: [
+      { startUnix: 1700000000 + 4 * 3600, opponent: 'Boston Red Sox', score: '1–0', result: 'W', home: true },
+      { startUnix: 1700000000 + 10 * 3600, opponent: 'Boston Red Sox', score: '8–7', result: 'W', home: true }
+    ]
+  };
+  const html = ctx.sportsTeamRecentRows(entry, summary);
+  assert.match(html, /1–0/);
+  assert.doesNotMatch(html, /8–7/);
+});
+
 test('news from several feeds is deduplicated and newest first', () => {
   const ctx = context();
   const merged = ctx.mergeSportsNews([
