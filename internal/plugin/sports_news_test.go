@@ -192,8 +192,8 @@ func TestHTTPRoutesServerSportsNewsAndTeam(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/statistics"):
-			if r.URL.RawQuery != "" {
-				t.Errorf("stat sheet must stay on the current season, query %q", r.URL.RawQuery)
+			if r.URL.Query().Get("season") != "" || r.URL.Query().Get("seasontype") != "2" {
+				t.Errorf("stat sheet must request the current regular season, query %q", r.URL.RawQuery)
 			}
 			_, _ = w.Write([]byte(`{"results":{"stats":{"categories":[{"name":"batting","stats":[{"abbreviation":"AVG","displayValue":".382"},{"abbreviation":"HR","displayValue":"4"},{"abbreviation":"RBI","displayValue":"17"}]},{"name":"pitching","stats":[{"abbreviation":"W","displayValue":"2"},{"abbreviation":"L","displayValue":"0"},{"abbreviation":"WHIP","displayValue":"0.56"}]}]}}}`))
 		case strings.HasSuffix(r.URL.Path, "/baseball/mlb/teams"):
@@ -271,5 +271,111 @@ func TestSportarrRecentGamesKeepsLatestFive(t *testing.T) {
 	}
 	if sportarrRecentTeamID("college-team:abc") != "" || sportarrRecentTeamID("70037096-7c2a-484b-8632-f63ca196f0ed") == "" {
 		t.Fatal("recent results only accept a Sportarr team id")
+	}
+	shortName := sportarrRecentGames(events, "Yankees", sportarrRecentResultLimit)
+	if len(shortName) != 5 || shortName[0].Score != "8–7" {
+		t.Fatalf("a nickname must still find the club's finals, got %+v", shortName)
+	}
+	state := sportarrRecentGames([]sportarrPreviousEvent{{HomeTeam: "Michigan State", AwayTeam: "Ohio State", Date: "2026-09-01", HomeScore: "1", AwayScore: "0"}}, "Michigan", 5)
+	if len(state) != 0 {
+		t.Fatalf("Michigan must not take Michigan State's final, got %+v", state)
+	}
+	wolverines := sportarrRecentGames([]sportarrPreviousEvent{{HomeTeam: "Michigan Wolverines", AwayTeam: "Ohio State", Date: "2026-09-01", HomeScore: "2", AwayScore: "0"}}, "Michigan", 5)
+	if len(wolverines) != 1 || wolverines[0].Score != "2–0" {
+		t.Fatalf("Michigan must keep the Wolverines final, got %+v", wolverines)
+	}
+	junk := sportsTeamStatSheet("baseball/mlb", []sportsStatCategory{{Name: "batting", Stats: []struct {
+		Abbreviation string `json:"abbreviation"`
+		DisplayValue string `json:"displayValue"`
+	}{{Abbreviation: "G", DisplayValue: "2"}}}})
+	if len(junk) != 0 {
+		t.Fatalf("a sheet that misses the sport's picks must stay hidden, got %+v", junk)
+	}
+}
+
+func TestTeamStatFailureDoesNotStickInTheSummary(t *testing.T) {
+	t.Parallel()
+	failures := 0
+	espn := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/statistics"):
+			failures++
+			if failures == 1 {
+				http.Error(w, "unavailable", http.StatusBadGateway)
+				return
+			}
+			_, _ = w.Write([]byte(`{"results":{"stats":{"categories":[{"name":"batting","stats":[{"abbreviation":"AVG","displayValue":".250"}]}]}}}`))
+		case strings.HasSuffix(r.URL.Path, "/baseball/mlb/teams"):
+			_, _ = w.Write([]byte(`{"sports":[{"leagues":[{"teams":[{"team":{"id":"10","displayName":"New York Yankees","location":"New York","name":"Yankees"}}]}]}]}`))
+		case strings.HasSuffix(r.URL.Path, "/baseball/mlb/teams/10"):
+			_, _ = w.Write([]byte(`{"team":{"id":"10","displayName":"New York Yankees","record":{"items":[{"summary":"91-67"}]}}}`))
+		default:
+			_, _ = w.Write([]byte(`{}`))
+		}
+	}))
+	defer espn.Close()
+	server := NewHTTPRoutesServer(cache.NewStore())
+	server.sportsNews = sportsNewsCache{baseURL: espn.URL + "/", client: espn.Client()}
+	load := func() SportsTeamSummary {
+		query, _ := structpb.NewStruct(map[string]any{"league": "mlb", "name": "New York Yankees"})
+		response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/api/sports/team", Query: query})
+		if err != nil {
+			t.Fatalf("team: %v", err)
+		}
+		var team SportsTeamSummary
+		if err := json.Unmarshal(response.GetBody(), &team); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		return team
+	}
+	first := load()
+	if first.Record != "91-67" || len(first.Stats) != 0 {
+		t.Fatalf("a failed sheet must leave the record and hide the numbers, got %+v", first)
+	}
+	server.sportsNews.mu.Lock()
+	for key, entry := range server.sportsNews.entries {
+		if entry.err != nil {
+			entry.expires = time.Now().Add(-time.Second)
+			server.sportsNews.entries[key] = entry
+		}
+	}
+	server.sportsNews.mu.Unlock()
+	second := load()
+	if len(second.Stats) != 1 || second.Stats[0].Label != "AVG" || second.Stats[0].Value != ".250" {
+		t.Fatalf("the sheet must load once the failed lookup expires, got %+v", second.Stats)
+	}
+}
+
+func TestRecentResultsResolvesAGuideTeamByName(t *testing.T) {
+	t.Parallel()
+	paths := []string{}
+	sportarr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.Contains(r.URL.Path, "/search/team/"):
+			_, _ = w.Write([]byte(`{"data":{"search":[{"hubId":"70037096-7c2a-484b-8632-f63ca196f0ed","strTeam":"New York Yankees"},{"hubId":"other","strTeam":"New York Mets"}]}}`))
+		case strings.Contains(r.URL.Path, "/schedule/previous/team/70037096-7c2a-484b-8632-f63ca196f0ed"):
+			_, _ = w.Write([]byte(`{"data":[{"strHomeTeam":"New York Yankees","strAwayTeam":"Boston Red Sox","dateEvent":"2026-09-06","intHomeScore":"8","intAwayScore":"7"}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer sportarr.Close()
+	server := NewHTTPRoutesServer(cache.NewStore())
+	server.sportsProvider = &sportarrSportsProvider{client: sportarr.Client(), baseURL: sportarr.URL}
+	server.sportsNews = sportsNewsCache{baseURL: "http://127.0.0.1:1/", client: sportarr.Client()}
+	query, _ := structpb.NewStruct(map[string]any{"league": "mlb", "name": "New York Yankees", "id": "sports-team:abc"})
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/api/sports/team", Query: query})
+	if err != nil {
+		t.Fatalf("team: %v", err)
+	}
+	var team SportsTeamSummary
+	if err := json.Unmarshal(response.GetBody(), &team); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(team.Recent) != 1 || team.Recent[0].Score != "8–7" || team.Recent[0].Result != "W" {
+		t.Fatalf("a guide id must still load that club's last final, got %+v paths %v", team.Recent, paths)
 	}
 }
