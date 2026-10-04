@@ -430,6 +430,9 @@ func (event sportarrEvent) sportsEvent() SportsEvent {
 func (p *sportarrSportsProvider) RecentResults(ctx context.Context, teamID, teamName string) []SportsTeamGame {
 	teamID = sportarrRecentTeamID(teamID)
 	if teamID == "" {
+		teamID = p.sportarrTeamIDByName(ctx, teamName)
+	}
+	if teamID == "" {
 		return nil
 	}
 	var payload struct {
@@ -505,7 +508,71 @@ func sportarrRecentGames(events []sportarrPreviousEvent, teamName string, limit 
 func sameSportsTeamName(left, right string) bool {
 	leftName := normalizeMatchText(left)
 	rightName := normalizeMatchText(right)
-	return leftName != "" && leftName == rightName
+	if leftName == "" || rightName == "" {
+		return false
+	}
+	if leftName == rightName {
+		return true
+	}
+	return sportsNicknameEquals(left, rightName) || sportsNicknameEquals(right, leftName) || sportsLocationEquals(left, rightName) || sportsLocationEquals(right, leftName)
+}
+
+func sportsLocationEquals(full, target string) bool {
+	words := strings.Fields(strings.TrimSpace(full))
+	if len(words) < 2 {
+		return false
+	}
+	location := normalizeMatchText(strings.Join(words[:len(words)-1], " "))
+	if location != target {
+		return false
+	}
+	return !sportsGenericTeamWord(normalizeMatchText(words[len(words)-1]))
+}
+
+func sportsNicknameEquals(full, target string) bool {
+	words := strings.Fields(strings.TrimSpace(full))
+	if len(words) < 2 {
+		return false
+	}
+	location := normalizeMatchText(strings.Join(words[:len(words)-1], " "))
+	for _, short := range sportsTeamShortNames(full) {
+		normalized := normalizeMatchText(short)
+		if normalized == "" || normalized == location {
+			continue
+		}
+		if normalized == target {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *sportarrSportsProvider) sportarrTeamIDByName(ctx context.Context, teamName string) string {
+	teamName = strings.TrimSpace(teamName)
+	if teamName == "" {
+		return ""
+	}
+	var payload struct {
+		Data struct {
+			Search []struct {
+				HubID string `json:"hubId"`
+				Name  string `json:"strTeam"`
+			} `json:"search"`
+		} `json:"data"`
+	}
+	endpoint := sportarrRootURL(p.baseURL) + "/api/v2/json/search/team/" + url.PathEscape(teamName)
+	if err := p.getJSON(ctx, endpoint, &payload); err != nil {
+		return ""
+	}
+	for _, team := range payload.Data.Search {
+		if !sameSportsTeamName(team.Name, teamName) {
+			continue
+		}
+		if id := sportarrRecentTeamID(team.HubID); id != "" {
+			return id
+		}
+	}
+	return ""
 }
 
 func sportsResultLetter(ownScore, otherScore string) string {
