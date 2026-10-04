@@ -61,6 +61,8 @@ type HTTPRoutesServer struct {
 	timeShift           *timeshift.Manager
 	streamTickets       map[string]streamTicket
 	streamTicketsMu     sync.Mutex
+	guideIndex          guideIndexCache
+	eventsCache         eventsPayloadCache
 }
 
 type connectionSettingsStorage interface {
@@ -293,12 +295,12 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return s.respondJSON(http.StatusOK, s.channelsPayload())
 	case "/dispatcharr/guide", "/dispatcharr/api/guide":
 		s.ensureCatalogHydrated(ctx)
-		channelID := queryValue(request, "channel_id")
-		programs := programsForChannel(s.store.Current().Catalog.Programs, channelID)
-		sort.Slice(programs, func(i, j int) bool {
-			return programs[i].StartUnix < programs[j].StartUnix
-		})
-		return s.respondJSON(http.StatusOK, GuidePayload{Programs: programs})
+		query, err := parseGuideQuery(request)
+		if err != nil {
+			return textResponse(http.StatusBadRequest, err.Error()), nil
+		}
+		index := s.guideIndex.get(s.store.Current())
+		return s.respondJSON(http.StatusOK, GuidePayload{Programs: index.query(query.ChannelIDs, query.Window)})
 	case "/dispatcharr/api/guide/ping":
 		return s.handleGuidePing(ctx, request)
 	case "/dispatcharr/api/categories":
@@ -1741,19 +1743,6 @@ func xtreamConnectionSettings(settings config.Settings) (string, string, string)
 		return settings.DispatcharrURL, settings.DispatcharrUser, settings.DispatcharrPass
 	}
 	return settings.XtreamBaseURL, settings.XtreamUsername, settings.XtreamPassword
-}
-
-func programsForChannel(programs []model.Program, channelID string) []model.Program {
-	if strings.TrimSpace(channelID) == "" {
-		return append([]model.Program(nil), programs...)
-	}
-	filtered := make([]model.Program, 0, len(programs))
-	for _, program := range programs {
-		if program.ChannelID == channelID {
-			filtered = append(filtered, program)
-		}
-	}
-	return filtered
 }
 
 func normalizeChannelIDs(ids []string) []string {
