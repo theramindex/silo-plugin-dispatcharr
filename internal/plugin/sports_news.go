@@ -28,25 +28,7 @@ type espnSportsLeague struct {
 	Name string
 }
 
-// ESPN league paths for the site API. Leagues outside this list still get
-// scores and schedules from the sports provider, just without news.
-var espnSportsLeagues = map[string]espnSportsLeague{
-	"mlb":                       {Path: "baseball/mlb", Name: "MLB"},
-	"nfl":                       {Path: "football/nfl", Name: "NFL"},
-	"nba":                       {Path: "basketball/nba", Name: "NBA"},
-	"wnba":                      {Path: "basketball/wnba", Name: "WNBA"},
-	"nhl":                       {Path: "hockey/nhl", Name: "NHL"},
-	"mls":                       {Path: "soccer/usa.1", Name: "MLS"},
-	"premier-league":            {Path: "soccer/eng.1", Name: "Premier League"},
-	"uefa-champions-league":     {Path: "soccer/uefa.champions", Name: "Champions League"},
-	"college-football":          {Path: "football/college-football", Name: "College Football"},
-	"mens-college-basketball":   {Path: "basketball/mens-college-basketball", Name: "Men's College Basketball"},
-	"womens-college-basketball": {Path: "basketball/womens-college-basketball", Name: "Women's College Basketball"},
-	"formula-1":                 {Path: "racing/f1", Name: "Formula 1"},
-	"golf":                      {Path: "golf/pga", Name: "PGA Tour"},
-	"mma":                       {Path: "mma/ufc", Name: "UFC"},
-}
-
+// espnSportsLeagues is derived from sportsLeagueRegistry (sports_leagues.go).
 func espnLeagueFor(leagueID string) (espnSportsLeague, bool) {
 	league, ok := espnSportsLeagues[strings.ToLower(strings.TrimSpace(leagueID))]
 	return league, ok
@@ -86,8 +68,15 @@ type SportsTeamSummary struct {
 	NextEventName string              `json:"nextEventName,omitempty"`
 	NextEventUnix int64               `json:"nextEventUnix,omitempty"`
 	Upcoming      []SportsTeamGame    `json:"upcoming"`
+	Recent        []SportsTeamGame    `json:"recent,omitempty"`
+	Stats         []SportsTeamStat    `json:"stats,omitempty"`
 	Articles      []SportsNewsArticle `json:"articles"`
 	Message       string              `json:"message,omitempty"`
+}
+
+type SportsTeamStat struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
 }
 
 type SportsTeamGame struct {
@@ -96,6 +85,8 @@ type SportsTeamGame struct {
 	Opponent  string `json:"opponent"`
 	Home      bool   `json:"home"`
 	Broadcast string `json:"broadcast,omitempty"`
+	Score     string `json:"score,omitempty"`
+	Result    string `json:"result,omitempty"`
 }
 
 type SportsStandingsPayload struct {
@@ -170,15 +161,21 @@ func (cache *sportsNewsCache) standings(ctx context.Context, leagueID string, le
 	if divisions {
 		path += "?level=3"
 	}
-	key := "standings|" + path
-	if value, ok := cache.cached(key); ok {
-		return value.(SportsStandingsPayload)
-	}
-	var root espnStandingsNode
-	if err := cache.getStandings(ctx, path, &root); err != nil {
+	value, err := cache.load(ctx, "standings|"+path, func(ctx context.Context) (any, time.Duration, error) {
+		var root espnStandingsNode
+		if err := cache.getStandings(ctx, path, &root); err != nil {
+			return nil, 0, err
+		}
+		return buildSportsStandings(payload, league, columns, root), sportsTeamSummaryTTL, nil
+	})
+	if err != nil {
 		payload.Message = "Standings are unavailable right now."
 		return payload
 	}
+	return value.(SportsStandingsPayload)
+}
+
+func buildSportsStandings(payload SportsStandingsPayload, league espnSportsLeague, columns [][2]string, root espnStandingsNode) SportsStandingsPayload {
 	present := map[string]bool{}
 	var leaves []espnStandingsNode
 	var walk func(node espnStandingsNode)
@@ -235,7 +232,6 @@ func (cache *sportsNewsCache) standings(ctx context.Context, leagueID string, le
 	if len(payload.Groups) == 0 {
 		payload.Message = "Standings aren't published yet."
 	}
-	cache.store(key, payload, sportsTeamSummaryTTL)
 	return payload
 }
 
@@ -325,34 +321,71 @@ type espnTeam struct {
 
 type sportsNewsCacheEntry struct {
 	value   any
+	err     error
 	expires time.Time
 }
 
 type sportsNewsCache struct {
 	mu               sync.Mutex
 	entries          map[string]sportsNewsCacheEntry
+	flights          sportsFlightGroup
 	baseURL          string
 	standingsBaseURL string
 	client           *http.Client
 }
 
+const (
+	// A failed ESPN lookup is remembered this long so a page of team cards
+	// does not retry it once per card.
+	sportsNewsNegativeTTL = 60 * time.Second
+	// Bound on one shared load; a team summary makes several requests.
+	sportsNewsLoadTimeout = 30 * time.Second
+)
+
 func (cache *sportsNewsCache) cached(key string) (any, bool) {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 	entry, ok := cache.entries[key]
-	if !ok || time.Now().After(entry.expires) {
+	if !ok || entry.err != nil || time.Now().After(entry.expires) {
 		return nil, false
 	}
 	return entry.value, true
 }
 
 func (cache *sportsNewsCache) store(key string, value any, ttl time.Duration) {
+	cache.storeEntry(key, sportsNewsCacheEntry{value: value, expires: time.Now().Add(ttl)})
+}
+
+func (cache *sportsNewsCache) storeEntry(key string, entry sportsNewsCacheEntry) {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 	if cache.entries == nil || len(cache.entries) >= sportsNewsCacheLimit {
 		cache.entries = make(map[string]sportsNewsCacheEntry)
 	}
-	cache.entries[key] = sportsNewsCacheEntry{value: value, expires: time.Now().Add(ttl)}
+	cache.entries[key] = entry
+}
+
+// load returns the cached value for key, or runs fetch once for all
+// concurrent callers. Successes are kept for the TTL fetch returns; failures
+// are remembered for sportsNewsNegativeTTL.
+func (cache *sportsNewsCache) load(ctx context.Context, key string, fetch func(context.Context) (any, time.Duration, error)) (any, error) {
+	cache.mu.Lock()
+	if entry, ok := cache.entries[key]; ok && time.Now().Before(entry.expires) {
+		cache.mu.Unlock()
+		return entry.value, entry.err
+	}
+	cache.mu.Unlock()
+	return cache.flights.do(key, func() (any, error) {
+		loadCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), sportsNewsLoadTimeout)
+		defer cancel()
+		value, ttl, err := fetch(loadCtx)
+		if err != nil {
+			cache.storeEntry(key, sportsNewsCacheEntry{err: err, expires: time.Now().Add(sportsNewsNegativeTTL)})
+			return nil, err
+		}
+		cache.store(key, value, ttl)
+		return value, nil
+	})
 }
 
 func (cache *sportsNewsCache) get(ctx context.Context, path string, result any) error {
@@ -417,18 +450,24 @@ type espnNewsResponse struct {
 }
 
 func (cache *sportsNewsCache) news(ctx context.Context, leagueID string, league espnSportsLeague, espnTeamID string, limit int) ([]SportsNewsArticle, error) {
-	key := "news|" + league.Path + "|" + espnTeamID
-	if value, ok := cache.cached(key); ok {
-		return trimSportsNews(value.([]SportsNewsArticle), limit), nil
-	}
-	query := url.Values{"limit": {"25"}}
-	if espnTeamID != "" {
-		query.Set("team", espnTeamID)
-	}
-	var payload espnNewsResponse
-	if err := cache.get(ctx, league.Path+"/news?"+query.Encode(), &payload); err != nil {
+	value, err := cache.load(ctx, "news|"+league.Path+"|"+espnTeamID, func(ctx context.Context) (any, time.Duration, error) {
+		query := url.Values{"limit": {"25"}}
+		if espnTeamID != "" {
+			query.Set("team", espnTeamID)
+		}
+		var payload espnNewsResponse
+		if err := cache.get(ctx, league.Path+"/news?"+query.Encode(), &payload); err != nil {
+			return nil, 0, err
+		}
+		return sportsNewsArticles(payload, leagueID, league), sportsNewsTTL, nil
+	})
+	if err != nil {
 		return nil, err
 	}
+	return trimSportsNews(value.([]SportsNewsArticle), limit), nil
+}
+
+func sportsNewsArticles(payload espnNewsResponse, leagueID string, league espnSportsLeague) []SportsNewsArticle {
 	articles := make([]SportsNewsArticle, 0, len(payload.Articles))
 	for _, item := range payload.Articles {
 		headline := strings.TrimSpace(item.Headline)
@@ -456,8 +495,7 @@ func (cache *sportsNewsCache) news(ctx context.Context, leagueID string, league 
 		}
 		articles = append(articles, article)
 	}
-	cache.store(key, articles, sportsNewsTTL)
-	return trimSportsNews(articles, limit), nil
+	return articles
 }
 
 func trimSportsNews(articles []SportsNewsArticle, limit int) []SportsNewsArticle {
@@ -468,32 +506,33 @@ func trimSportsNews(articles []SportsNewsArticle, limit int) []SportsNewsArticle
 }
 
 func (cache *sportsNewsCache) teams(ctx context.Context, league espnSportsLeague) ([]espnTeam, error) {
-	key := "teams|" + league.Path
-	if value, ok := cache.cached(key); ok {
-		return value.([]espnTeam), nil
-	}
-	var payload struct {
-		Sports []struct {
-			Leagues []struct {
-				Teams []struct {
-					Team espnTeam `json:"team"`
-				} `json:"teams"`
-			} `json:"leagues"`
-		} `json:"sports"`
-	}
-	if err := cache.get(ctx, league.Path+"/teams?limit=1000", &payload); err != nil {
-		return nil, err
-	}
-	teams := []espnTeam{}
-	for _, sport := range payload.Sports {
-		for _, entry := range sport.Leagues {
-			for _, team := range entry.Teams {
-				teams = append(teams, team.Team)
+	value, err := cache.load(ctx, "teams|"+league.Path, func(ctx context.Context) (any, time.Duration, error) {
+		var payload struct {
+			Sports []struct {
+				Leagues []struct {
+					Teams []struct {
+						Team espnTeam `json:"team"`
+					} `json:"teams"`
+				} `json:"leagues"`
+			} `json:"sports"`
+		}
+		if err := cache.get(ctx, league.Path+"/teams?limit=1000", &payload); err != nil {
+			return nil, 0, err
+		}
+		teams := []espnTeam{}
+		for _, sport := range payload.Sports {
+			for _, entry := range sport.Leagues {
+				for _, team := range entry.Teams {
+					teams = append(teams, team.Team)
+				}
 			}
 		}
+		return teams, sportsTeamListTTL, nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	cache.store(key, teams, sportsTeamListTTL)
-	return teams, nil
+	return value.([]espnTeam), nil
 }
 
 // matchESPNTeam prefers exact display names, then school or city names, so
@@ -522,21 +561,29 @@ func matchESPNTeam(teams []espnTeam, name string) (espnTeam, bool) {
 }
 
 func (cache *sportsNewsCache) teamSummary(ctx context.Context, leagueID string, league espnSportsLeague, name string) SportsTeamSummary {
-	summary := SportsTeamSummary{LeagueID: leagueID, LeagueName: league.Name, Name: name, Upcoming: []SportsTeamGame{}, Articles: []SportsNewsArticle{}}
 	key := "summary|" + league.Path + "|" + normalizeMatchText(name)
-	if value, ok := cache.cached(key); ok {
-		return value.(SportsTeamSummary)
-	}
-	teams, err := cache.teams(ctx, league)
+	value, err := cache.load(ctx, key, func(ctx context.Context) (any, time.Duration, error) {
+		summary, err := cache.fetchTeamSummary(ctx, leagueID, league, name)
+		return summary, sportsTeamSummaryTTL, err
+	})
 	if err != nil {
+		summary := SportsTeamSummary{LeagueID: leagueID, LeagueName: league.Name, Name: name, Upcoming: []SportsTeamGame{}, Articles: []SportsNewsArticle{}}
 		summary.Message = "Team details are unavailable right now."
 		return summary
+	}
+	return value.(SportsTeamSummary)
+}
+
+func (cache *sportsNewsCache) fetchTeamSummary(ctx context.Context, leagueID string, league espnSportsLeague, name string) (SportsTeamSummary, error) {
+	summary := SportsTeamSummary{LeagueID: leagueID, LeagueName: league.Name, Name: name, Upcoming: []SportsTeamGame{}, Articles: []SportsNewsArticle{}}
+	teams, err := cache.teams(ctx, league)
+	if err != nil {
+		return summary, err
 	}
 	team, ok := matchESPNTeam(teams, name)
 	if !ok {
 		summary.Message = "No team details found for " + name + "."
-		cache.store(key, summary, sportsTeamSummaryTTL)
-		return summary
+		return summary, nil
 	}
 	var detail struct {
 		Team struct {
@@ -582,8 +629,92 @@ func (cache *sportsNewsCache) teamSummary(ctx context.Context, leagueID string, 
 		summary.Articles = articles
 	}
 	summary.Upcoming = cache.teamSchedule(ctx, league, team.ID, time.Now())
-	cache.store(key, summary, sportsTeamSummaryTTL)
-	return summary
+	summary.Stats = cache.teamStatSheet(ctx, league, team.ID)
+	return summary, nil
+}
+
+// Current-season counting stats only. The statistics URL is not given a
+// season year, so a past year's sheet is never requested.
+func (cache *sportsNewsCache) teamStatSheet(ctx context.Context, league espnSportsLeague, espnTeamID string) []SportsTeamStat {
+	var payload struct {
+		Results struct {
+			Stats struct {
+				Categories []sportsStatCategory `json:"categories"`
+			} `json:"stats"`
+		} `json:"results"`
+	}
+	if err := cache.get(ctx, league.Path+"/teams/"+url.PathEscape(espnTeamID)+"/statistics", &payload); err != nil {
+		return nil
+	}
+	return sportsTeamStatSheet(league.Path, payload.Results.Stats.Categories)
+}
+
+type sportsStatCategory struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"displayName"`
+	Stats       []struct {
+		Abbreviation string `json:"abbreviation"`
+		DisplayValue string `json:"displayValue"`
+	} `json:"stats"`
+}
+
+type sportsStatPick struct {
+	category     string
+	abbreviation string
+	label        string
+}
+
+func sportsTeamStatPicks(path string) []sportsStatPick {
+	switch {
+	case strings.HasPrefix(path, "baseball/"):
+		return []sportsStatPick{{"batting", "AVG", "AVG"}, {"batting", "HR", "HR"}, {"batting", "RBI", "RBI"}, {"pitching", "W", "W"}, {"pitching", "L", "L"}, {"pitching", "WHIP", "WHIP"}}
+	case strings.HasPrefix(path, "football/"):
+		return []sportsStatPick{{"passing", "RTG", "RTG"}, {"passing", "TD", "Pass TD"}, {"rushing", "YDS", "Rush"}, {"rushing", "TD", "Rush TD"}, {"defense", "SACK", "Sacks"}, {"scoring", "PTS", "PTS"}}
+	case strings.HasPrefix(path, "basketball/"):
+		return []sportsStatPick{{"offensive", "PTS", "PTS"}, {"offensive", "FG%", "FG%"}, {"offensive", "3P%", "3P%"}, {"offensive", "AST", "AST"}, {"general", "REB", "REB"}, {"defensive", "STL", "STL"}}
+	case strings.HasPrefix(path, "hockey/"):
+		return []sportsStatPick{{"general", "WINS", "W"}, {"offensive", "G", "G"}, {"offensive", "A", "A"}, {"offensive", "PTS", "PTS"}, {"defensive", "SV%", "SV%"}, {"defensive", "GAA", "GAA"}}
+	case strings.HasPrefix(path, "soccer/"):
+		return []sportsStatPick{{"offensive", "G", "G"}, {"offensive", "A", "A"}, {"general", "GP", "GP"}, {"defensive", "GA", "GA"}}
+	default:
+		return nil
+	}
+}
+
+func sportsTeamStatSheet(path string, categories []sportsStatCategory) []SportsTeamStat {
+	picks := sportsTeamStatPicks(path)
+	stats := make([]SportsTeamStat, 0, len(picks))
+	for _, pick := range picks {
+	categories:
+		for _, category := range categories {
+			if !strings.EqualFold(category.Name, pick.category) && !strings.EqualFold(category.DisplayName, pick.category) {
+				continue
+			}
+			for _, stat := range category.Stats {
+				if strings.EqualFold(stat.Abbreviation, pick.abbreviation) && strings.TrimSpace(stat.DisplayValue) != "" {
+					stats = append(stats, SportsTeamStat{Label: pick.label, Value: strings.TrimSpace(stat.DisplayValue)})
+					break categories
+				}
+			}
+		}
+	}
+	if len(stats) > 0 {
+		return stats
+	}
+	for _, category := range categories {
+		for _, stat := range category.Stats {
+			label := strings.TrimSpace(stat.Abbreviation)
+			value := strings.TrimSpace(stat.DisplayValue)
+			if label == "" || value == "" {
+				continue
+			}
+			stats = append(stats, SportsTeamStat{Label: label, Value: value})
+			if len(stats) == 4 {
+				return stats
+			}
+		}
+	}
+	return stats
 }
 
 func (s *HTTPRoutesServer) handleSportsNews(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
@@ -628,5 +759,9 @@ func (s *HTTPRoutesServer) handleSportsTeam(ctx context.Context, request *plugin
 	if !s.sportsFeatureEnabled() || !ok || name == "" {
 		return s.respondJSON(http.StatusOK, SportsTeamSummary{LeagueID: leagueID, Name: name, Upcoming: []SportsTeamGame{}, Articles: []SportsNewsArticle{}, Message: "Team details aren't available for this league yet."})
 	}
-	return s.respondJSON(http.StatusOK, s.sportsNews.teamSummary(ctx, leagueID, league, name))
+	summary := s.sportsNews.teamSummary(ctx, leagueID, league, name)
+	if recent, ok := s.sportsProvider.(sportsRecentResultsProvider); ok {
+		summary.Recent = recent.RecentResults(ctx, queryValue(request, "id"), name)
+	}
+	return s.respondJSON(http.StatusOK, summary)
 }

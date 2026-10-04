@@ -18,6 +18,7 @@ const (
 	defaultSportarrAPIBaseURL = "https://sportarr.net/api/public/v1"
 	sportarrPageSize          = 100
 	sportarrMaxPages          = 20
+	sportarrRecentResultLimit = 5
 	sportarrPageConcurrency   = 4
 	sportarrDetailConcurrency = 6
 	sportarrTeamCacheLimit    = 256
@@ -424,6 +425,119 @@ func (event sportarrEvent) sportsEvent() SportsEvent {
 		Live:      live,
 		Completed: completed,
 	}
+}
+
+func (p *sportarrSportsProvider) RecentResults(ctx context.Context, teamID, teamName string) []SportsTeamGame {
+	teamID = sportarrRecentTeamID(teamID)
+	if teamID == "" {
+		return nil
+	}
+	var payload struct {
+		Data []sportarrPreviousEvent `json:"data"`
+	}
+	endpoint := sportarrRootURL(p.baseURL) + "/api/v2/json/schedule/previous/team/" + url.PathEscape(teamID)
+	if err := p.getJSON(ctx, endpoint, &payload); err != nil {
+		return nil
+	}
+	return sportarrRecentGames(payload.Data, teamName, sportarrRecentResultLimit)
+}
+
+func sportarrRecentTeamID(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || strings.Contains(value, ":") || strings.ContainsAny(value, "/\\?& ") {
+		return ""
+	}
+	return value
+}
+
+type sportarrPreviousEvent struct {
+	HomeTeam  string         `json:"strHomeTeam"`
+	AwayTeam  string         `json:"strAwayTeam"`
+	Date      string         `json:"dateEvent"`
+	Time      string         `json:"strTime"`
+	Timestamp string         `json:"strTimestamp"`
+	HomeScore sportarrString `json:"intHomeScore"`
+	AwayScore sportarrString `json:"intAwayScore"`
+}
+
+func sportarrRecentGames(events []sportarrPreviousEvent, teamName string, limit int) []SportsTeamGame {
+	if limit < 1 {
+		return nil
+	}
+	games := make([]SportsTeamGame, 0, len(events))
+	for _, event := range events {
+		home := strings.TrimSpace(event.HomeTeam)
+		away := strings.TrimSpace(event.AwayTeam)
+		ownHome := sameSportsTeamName(home, teamName)
+		ownAway := sameSportsTeamName(away, teamName)
+		if ownHome == ownAway {
+			continue
+		}
+		ownScore := string(event.HomeScore)
+		otherScore := string(event.AwayScore)
+		opponent := away
+		if ownAway {
+			ownScore, otherScore = otherScore, ownScore
+			opponent = home
+		}
+		ownScore = strings.TrimSpace(ownScore)
+		otherScore = strings.TrimSpace(otherScore)
+		if ownScore == "" || otherScore == "" || opponent == "" {
+			continue
+		}
+		game := SportsTeamGame{
+			Name:      home + " vs " + away,
+			StartUnix: sportarrPreviousStart(event.Timestamp, event.Date, event.Time),
+			Opponent:  opponent,
+			Home:      ownHome,
+			Score:     ownScore + "–" + otherScore,
+			Result:    sportsResultLetter(ownScore, otherScore),
+		}
+		games = append(games, game)
+	}
+	sort.SliceStable(games, func(i, j int) bool { return games[i].StartUnix > games[j].StartUnix })
+	if len(games) > limit {
+		games = games[:limit]
+	}
+	return games
+}
+
+func sameSportsTeamName(left, right string) bool {
+	leftName := normalizeMatchText(left)
+	rightName := normalizeMatchText(right)
+	return leftName != "" && leftName == rightName
+}
+
+func sportsResultLetter(ownScore, otherScore string) string {
+	own, ownErr := strconv.Atoi(ownScore)
+	other, otherErr := strconv.Atoi(otherScore)
+	if ownErr != nil || otherErr != nil {
+		return ""
+	}
+	if own > other {
+		return "W"
+	}
+	if own < other {
+		return "L"
+	}
+	return "T"
+}
+
+func sportarrPreviousStart(timestamp, date, clock string) int64 {
+	if start := parseSportarrTime(timestamp); start > 0 {
+		return start
+	}
+	date = strings.TrimSpace(date)
+	clock = strings.TrimSpace(clock)
+	if date != "" && clock != "" {
+		if parsed, err := time.Parse("2006-01-02 15:04:05", date+" "+clock); err == nil {
+			return parsed.UTC().Unix()
+		}
+	}
+	if parsed, err := time.Parse("2006-01-02", date); err == nil {
+		return parsed.UTC().Unix()
+	}
+	return 0
 }
 
 func (p *sportarrSportsProvider) LeagueTeams(ctx context.Context, leagueID string) ([]SportsTeam, error) {

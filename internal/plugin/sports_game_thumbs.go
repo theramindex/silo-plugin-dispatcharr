@@ -51,35 +51,19 @@ func gameThumbsMatchText(value string) string {
 
 func gameThumbsKnownLeague(event SportsEvent) string {
 	value := strings.Join([]string{event.LeagueID, event.LeagueName, event.SportName, event.Name, event.ShortName}, " ")
+	// College and World Cup namespaces are pinned in sportsLeagueRegistry.
 	if id, _, _ := guideCollegeCompetition(value); id != "" {
-		competition := strings.TrimPrefix(id, "college-")
-		if slug := map[string]string{
-			"football": "ncaaf", "mens-football": "ncaaf",
-			"basketball": "ncaam", "mens-basketball": "ncaam", "womens-basketball": "ncaaw",
-			"baseball": "ncaabb", "mens-baseball": "ncaabb", "softball": "ncaasbw", "womens-softball": "ncaasbw",
-			"soccer": "ncaas", "mens-soccer": "ncaas", "womens-soccer": "ncaaws",
-			"hockey": "ncaah", "mens-hockey": "ncaah", "womens-hockey": "ncaawh",
-			"volleyball": "ncaavb", "mens-volleyball": "ncaavb", "womens-volleyball": "ncaawvb",
-			"lacrosse": "ncaalax", "mens-lacrosse": "ncaalax", "womens-lacrosse": "ncaawlax",
-			"field-hockey": "ncaawfh", "womens-field-hockey": "ncaawfh",
-		}[competition]; slug != "" {
+		if slug, ok := gameThumbsRegistryLeague(id); ok && slug != "" {
 			return slug
 		}
 		// School identities remain useful for college sports without a dedicated namespace.
 		return "ncaa"
 	}
-	// Keep distinct World Cup competitions from being captured by the generic FIFA alias.
+	// Keep distinct World Cup competitions from being captured by the generic
+	// FIFA alias; youth competitions are pinned to no artwork.
 	if id, _, _ := guideWorldCupCompetition(value); id != "" {
-		switch id {
-		case "fiba-womens-world-cup":
-			return "fiba-women"
-		case "fiba-world-cup":
-			return "fiba"
-		case "fifa-womens-world-cup":
-			return "fifa.wwc"
-		case "fifa-womens-u20-world-cup", "fifa-u20-world-cup":
-			// Do not replace a youth competition's identity with the senior tournament.
-			return ""
+		if slug, ok := gameThumbsRegistryLeague(id); ok {
+			return slug
 		}
 	}
 	text := gameThumbsMatchText(value)

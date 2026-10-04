@@ -24,6 +24,7 @@ function context(extra = {}) {
     sportsFavoriteTeamMatches: team => !!team.favorite, myTVFollowedPeople: () => [],
     configuredSportsLibraryIDs: () => [], pluralLabel: (count, noun) => count + ' ' + noun + (count === 1 ? '' : 's'),
     emptyStateHTML: title => '<div class="empty">' + title + '</div>',
+    externalLinkAttrs: url => /^https:\/\//i.test(String(url || '')) ? ' href="' + url + '" target="_blank" rel="noopener noreferrer"' : '',
     ...extra
   });
   vm.runInContext(source, ctx);

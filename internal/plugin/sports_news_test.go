@@ -191,6 +191,11 @@ func TestHTTPRoutesServerSportsNewsAndTeam(t *testing.T) {
 		requests = append(requests, r.URL.Path+"?"+r.URL.RawQuery)
 		w.Header().Set("Content-Type", "application/json")
 		switch {
+		case strings.HasSuffix(r.URL.Path, "/statistics"):
+			if r.URL.RawQuery != "" {
+				t.Errorf("stat sheet must stay on the current season, query %q", r.URL.RawQuery)
+			}
+			_, _ = w.Write([]byte(`{"results":{"stats":{"categories":[{"name":"batting","stats":[{"abbreviation":"AVG","displayValue":".382"},{"abbreviation":"HR","displayValue":"4"},{"abbreviation":"RBI","displayValue":"17"}]},{"name":"pitching","stats":[{"abbreviation":"W","displayValue":"2"},{"abbreviation":"L","displayValue":"0"},{"abbreviation":"WHIP","displayValue":"0.56"}]}]}}}`))
 		case strings.HasSuffix(r.URL.Path, "/baseball/mlb/teams"):
 			_, _ = w.Write([]byte(`{"sports":[{"leagues":[{"teams":[{"team":{"id":"10","displayName":"New York Yankees","location":"New York","name":"Yankees","abbreviation":"NYY","color":"003087","logos":[{"href":"https://a.espncdn.com/i/teamlogos/mlb/500/nyy.png"}]}}]}]}]}`))
 		case strings.HasSuffix(r.URL.Path, "/baseball/mlb/teams/10/schedule"):
@@ -233,9 +238,38 @@ func TestHTTPRoutesServerSportsNewsAndTeam(t *testing.T) {
 	if len(team.Upcoming) != 1 || team.Upcoming[0].Opponent != "Baltimore Orioles" || !team.Upcoming[0].Home || team.Upcoming[0].Broadcast != "YES" {
 		t.Fatalf("team schedule must list future games with opponent and network, got %+v", team.Upcoming)
 	}
+	if len(team.Stats) != 6 || team.Stats[0].Label != "AVG" || team.Stats[0].Value != ".382" || team.Stats[5].Label != "WHIP" {
+		t.Fatalf("team sheet must keep the current-season counting stats, got %+v", team.Stats)
+	}
 	var unsupported SportsNewsPayload
 	get("/dispatcharr/api/sports/news", map[string]any{"league": "cebl"}, &unsupported)
 	if len(unsupported.Articles) != 0 || unsupported.Message == "" {
 		t.Fatalf("unsupported leagues must explain missing news, got %+v", unsupported)
+	}
+}
+
+func TestSportarrRecentGamesKeepsLatestFive(t *testing.T) {
+	t.Parallel()
+	events := []sportarrPreviousEvent{
+		{HomeTeam: "New York Yankees", AwayTeam: "Boston Red Sox", Date: "2026-09-01", HomeScore: "9", AwayScore: "2"},
+		{HomeTeam: "New York Yankees", AwayTeam: "Boston Red Sox", Date: "2026-09-02", HomeScore: "1", AwayScore: "4"},
+		{HomeTeam: "Baltimore Orioles", AwayTeam: "New York Yankees", Date: "2026-09-03", HomeScore: "0", AwayScore: "2"},
+		{HomeTeam: "New York Yankees", AwayTeam: "Boston Red Sox", Date: "2026-09-04", HomeScore: "3", AwayScore: "3"},
+		{HomeTeam: "New York Yankees", AwayTeam: "Boston Red Sox", Date: "2026-09-05", HomeScore: "5", AwayScore: "1"},
+		{HomeTeam: "New York Yankees", AwayTeam: "Boston Red Sox", Date: "2026-09-06", HomeScore: "8", AwayScore: "7"},
+		{HomeTeam: "Boston Red Sox", AwayTeam: "Tampa Bay Rays", Date: "2026-09-07", HomeScore: "1", AwayScore: "0"},
+	}
+	games := sportarrRecentGames(events, "New York Yankees", sportarrRecentResultLimit)
+	if len(games) != 5 {
+		t.Fatalf("recent results must stay at five, got %+v", games)
+	}
+	if games[0].Score != "8–7" || games[0].Result != "W" || !games[0].Home || games[0].Opponent != "Boston Red Sox" {
+		t.Fatalf("newest result = %+v", games[0])
+	}
+	if games[1].Result != "W" || games[2].Result != "T" || games[3].Home || games[3].Result != "W" || games[3].Opponent != "Baltimore Orioles" || games[4].Result != "L" {
+		t.Fatalf("order = %+v", games)
+	}
+	if sportarrRecentTeamID("college-team:abc") != "" || sportarrRecentTeamID("70037096-7c2a-484b-8632-f63ca196f0ed") == "" {
+		t.Fatal("recent results only accept a Sportarr team id")
 	}
 }
