@@ -2493,14 +2493,14 @@ func TestHTTPRoutesServerStopAndDeleteRecording(t *testing.T) {
 		return config.Settings{SourceMode: config.SourceModeDirectLogin, DispatcharrURL: upstream.URL, DispatcharrUser: "demo", DispatcharrPass: "secret", ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}
 	})
 
-	stop, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodPost, Path: "/dispatcharr/api/recordings/stop", Body: []byte(`{"id":"88"}`)})
+	stop, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodPost, Path: "/dispatcharr/api/recordings/stop", Body: []byte(`{"id":"88"}`), Headers: map[string]string{"x-silo-user-role": "admin"}})
 	if err != nil {
 		t.Fatalf("stop route: %v", err)
 	}
 	if stop.GetStatusCode() != http.StatusOK {
 		t.Fatalf("expected stop 200, got %d: %s", stop.GetStatusCode(), stop.GetBody())
 	}
-	del, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodPost, Path: "/dispatcharr/api/recordings/delete", Body: []byte(`{"id":"88"}`)})
+	del, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodPost, Path: "/dispatcharr/api/recordings/delete", Body: []byte(`{"id":"88"}`), Headers: map[string]string{"x-silo-user-role": "admin"}})
 	if err != nil {
 		t.Fatalf("delete route: %v", err)
 	}
@@ -2704,7 +2704,7 @@ func TestHTTPRoutesServerRefreshRouteStartsBackgroundCatalogSync(t *testing.T) {
 		}
 	}, syncer)
 
-	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "POST", Path: "/dispatcharr/api/refresh"})
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "POST", Path: "/dispatcharr/api/refresh", Headers: map[string]string{"X-Silo-User-Role": "admin"}})
 	if err != nil {
 		t.Fatalf("refresh route: %v", err)
 	}
@@ -4711,6 +4711,97 @@ func TestPlayerAppUsesLightweightRefreshPolling(t *testing.T) {
 	} {
 		if strings.Contains(script, obsolete) {
 			t.Fatalf("player must not request unsupported content endpoint %q", obsolete)
+		}
+	}
+}
+
+func TestAdminOnlyRoutesRejectNonAdminCallers(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{Source: model.LiveTVSource(model.SourceModeDirectLogin)}})
+	syncer := &stubCatalogSyncer{store: store}
+	server := NewHTTPRoutesServerWithSyncer(store, func() config.Settings {
+		return config.Settings{SourceMode: config.SourceModeDirectLogin, DispatcharrURL: "https://dispatcharr.example.com", DispatcharrUser: "demo", DispatcharrPass: "secret", ChannelRefreshH: 24, EPGRefreshH: 24}
+	}, syncer)
+
+	for _, path := range []string{"/dispatcharr/api/refresh", "/dispatcharr/api/recordings/stop", "/dispatcharr/api/recordings/delete"} {
+		for _, headers := range []map[string]string{nil, {"x-silo-user-role": "user"}, {"x-silo-user-role": ""}} {
+			response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodPost, Path: path, Body: []byte(`{"id":"88"}`), Headers: headers})
+			if err != nil {
+				t.Fatalf("%s: %v", path, err)
+			}
+			if response.GetStatusCode() != http.StatusForbidden {
+				t.Fatalf("%s with %v: expected 403, got %d: %s", path, headers, response.GetStatusCode(), response.GetBody())
+			}
+			if !strings.Contains(response.GetHeaders()["content-type"], "application/json") {
+				t.Fatalf("%s: expected JSON 403, got headers %v", path, response.GetHeaders())
+			}
+			var body map[string]any
+			if err := json.Unmarshal(response.GetBody(), &body); err != nil || body["error"] != "admin_required" {
+				t.Fatalf("%s: expected admin_required error body, got %s (%v)", path, response.GetBody(), err)
+			}
+		}
+	}
+	if syncer.forceCallCount() != 0 || syncer.callCount() != 0 {
+		t.Fatalf("non-admin refresh must not start a sync, got force=%d calls=%d", syncer.forceCallCount(), syncer.callCount())
+	}
+
+	// Scheduling stays available to regular users (it may fail for other
+	// reasons, but never with the admin gate).
+	schedule, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method:  http.MethodPost,
+		Path:    "/dispatcharr/api/recordings",
+		Body:    []byte(`{"channelId":"x","startUnix":1900000000,"endUnix":1900003600}`),
+		Headers: map[string]string{"x-silo-user-role": "user"},
+	})
+	if err != nil {
+		t.Fatalf("schedule route: %v", err)
+	}
+	if schedule.GetStatusCode() == http.StatusForbidden {
+		t.Fatalf("scheduling must not require admin, got %s", schedule.GetBody())
+	}
+}
+
+func TestAppPayloadReportsIsAdminFromHostRoleHeader(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{Source: model.LiveTVSource(model.SourceModeXtream), Channels: []model.Channel{{ID: "xtream:1", Name: "News"}}}})
+	server := NewHTTPRoutesServer(store)
+
+	for role, want := range map[string]bool{"admin": true, "Admin": true, "user": false, "": false} {
+		response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/dispatcharr/api/app", Headers: map[string]string{"X-Silo-User-Role": role}})
+		if err != nil {
+			t.Fatalf("app route: %v", err)
+		}
+		var raw map[string]any
+		if err := json.Unmarshal(response.GetBody(), &raw); err != nil {
+			t.Fatalf("unmarshal app payload: %v", err)
+		}
+		if got, ok := raw["isAdmin"].(bool); !ok || got != want {
+			t.Fatalf("role %q: expected isAdmin=%v, got %#v", role, want, raw["isAdmin"])
+		}
+	}
+}
+
+func TestTestConnectionURLRedactsCredentialedURLErrors(t *testing.T) {
+	t.Parallel()
+
+	listener := httptest.NewServer(http.NotFoundHandler())
+	closedURL := listener.URL
+	listener.Close()
+
+	for _, target := range []string{
+		closedURL + "/get.php?username=demo&password=hunter2secret",
+		"http://demo:hunter2secret@[::1/get.php",
+	} {
+		err := testConnectionURL(context.Background(), target)
+		if err == nil {
+			t.Fatalf("expected error for %q", target)
+		}
+		if strings.Contains(err.Error(), "hunter2secret") {
+			t.Fatalf("error leaked credentials: %v", err)
 		}
 	}
 }

@@ -20,7 +20,14 @@ owns recording behavior in Direct mode.
   behavior are Dispatcharr responsibilities.
 - **Silo presents and plays.** This plugin reads Dispatcharr-backed catalog data,
   renders the Silo Live TV UI, stores Silo/user presentation preferences, and
-  redirects playback to Dispatcharr/provider-owned stream URLs.
+  redirects playback to Dispatcharr/provider-owned stream URLs. Stream URLs
+  that embed provider credentials (Xtream-style `/live/USER/PASS/...` paths or
+  password/token query parameters) are never handed to the browser; they can
+  only be relayed when they are HLS (`.m3u8` playlists plus bounded segments).
+  Continuous MPEG-TS or large VOD files behind credentialed URLs are **not**
+  proxied: the stream route returns HTTP 422 with
+  `{"code":"stream_requires_hls"}`. Use Dispatcharr Direct, or configure an HLS
+  output profile for the source.
 - **No server-side transcoding.** The plugin does not invoke ffmpeg or perform
   GPU/CPU video conversion. Browser playback uses the bundled client-side
   HLS/mpegts players when the stream format is compatible.
@@ -46,6 +53,10 @@ first-class Live TV provider capability.
   - Username
   - Password
   - Live TV, EPG, VOD, and series metadata when the provider exposes those APIs
+  - Xtream live and VOD URLs carry the account credentials, so browser
+    playback only works when the provider serves HLS. Plain MPEG-TS live
+    channels and VOD files return `stream_requires_hls` (422); use Dispatcharr
+    Direct or an HLS output instead
 - **M3U/XMLTV** fallback
   - M3U URL
   - EPG XML URL
@@ -58,9 +69,8 @@ first-class Live TV provider capability.
 - Keeps Xtream VOD and series support available when Xtream Codes mode is selected
 - Resolves playback targets fresh at play time
 - Stores favorites, hidden categories, recent channels, custom groups, and
-  playback preferences in Silo's per-user plugin configuration
-- Keeps backend app/status responses user-neutral because the current HTTP
-  route SDK does not provide a user identity to plugin handlers
+  playback preferences in Silo's per-user plugin configuration, read and
+  written by the browser (see "User identity" below)
 - Coordinates manual, scheduled, channel-only, and guide-only refreshes through
   one serialized job state and preserves the last known good guide on failure
 - Loads guide data separately from the lightweight app bootstrap; refresh
@@ -74,7 +84,9 @@ first-class Live TV provider capability.
   - `/dispatcharr/api/channels`
   - `/dispatcharr/api/guide`
   - `/dispatcharr/api/categories`
-  - `/dispatcharr/api/recordings` (`GET` lists Dispatcharr DVR rows, `POST` schedules an EPG program on Dispatcharr)
+  - `/dispatcharr/api/recordings` (`GET` lists Dispatcharr DVR rows, `POST` schedules an EPG program on Dispatcharr; available to all signed-in users)
+  - `/dispatcharr/api/recordings/stop`, `/dispatcharr/api/recordings/delete` (`POST`, **admin only**)
+  - `/dispatcharr/api/refresh` (`POST` force refresh, **admin only**)
   - `/dispatcharr/api/timeshift/*` (shared Live Rewind leases, status, and administration)
   - `/dispatcharr/api/sports`
   - `/dispatcharr/api/events`
@@ -83,7 +95,7 @@ first-class Live TV provider capability.
   - `/dispatcharr/vod/stream?item_id=...`
 - Exposes host-scheduled task keys `dispatcharr-sync`,
   `dispatcharr-refresh-channels`, and `dispatcharr-refresh-epg`
-- Shows Dispatcharr-managed DVR recordings in the plugin app when using Dispatcharr Direct Login or API Key mode. Like AerioTV's Dispatcharr server-side DVR flow, the plugin schedules recordings through Dispatcharr and opens Dispatcharr-owned playback URLs for completed or in-progress server recordings. It does not expose cancel/delete/stop controls.
+- Shows Dispatcharr-managed DVR recordings in the plugin app when using Dispatcharr Direct Login or API Key mode. Like AerioTV's Dispatcharr server-side DVR flow, the plugin schedules recordings through Dispatcharr and opens Dispatcharr-owned playback URLs for completed or in-progress server recordings. Any signed-in user can schedule; stopping and deleting recordings are admin-only.
   - Silo owns task cadence; the plugin cannot declare or change intervals
   - A `startup` trigger is useful after install/restart so channels and EPG populate immediately
 
@@ -172,13 +184,32 @@ first-class Live TV provider capability.
   [Alertle V2](https://github.com/Deekerman/Alertle-V2); alerts, notification
   endpoints, and its scheduler remain outside the plugin.
 
+## User identity and admin-only actions
+
+The Silo host's plugin HTTP proxy forwards only an allowlist of client headers
+(`accept`, `accept-language`, `content-type`, `if-none-match`,
+`if-modified-since`, `range`, `user-agent`, `origin`, `referer`) and stamps its
+own identity headers on authenticated requests: `X-Silo-User-Id`,
+`X-Silo-User-Role` (`admin` or `user`), `X-Silo-User-Name`, and
+`X-Silo-Profile-Name`. A browser cannot inject or override them, so the plugin
+trusts `X-Silo-User-Role` for authorization.
+
+- `POST /dispatcharr/api/refresh`, `POST /dispatcharr/api/recordings/stop`, and
+  `POST /dispatcharr/api/recordings/delete` are declared `"access": "admin"`
+  in the manifest and are also enforced in the handlers, which return
+  `403 {"ok":false,"error":"admin_required",...}` for non-admins.
+- `GET /dispatcharr/api/app` includes `"isAdmin": true|false` so the UI can
+  hide those controls.
+- The plugin does not yet key server-side state by `X-Silo-User-Id`; per-user
+  preferences remain browser-managed.
+
 ## v1 limitations
 
 - Exactly one Dispatcharr-backed source
 - EPG is required for setup in Xtream and M3U/XMLTV-compatible modes
-- HTTP route requests do not include a Silo user identifier. Per-user state is
-  therefore read and written by the browser through Silo's user config API,
-  never through process-global plugin state.
+- Per-user state (favorites, hidden categories, playback preferences) is read
+  and written by the browser through Silo's user config API, never through
+  process-global plugin state.
 - Source-mode changes reset cached channel/guide state before rebuilding
 - Dispatcharr Direct does not silently fall back to Xtream Codes; Direct failures are surfaced in plugin health/status
 - Silo host integration still needs real environment validation

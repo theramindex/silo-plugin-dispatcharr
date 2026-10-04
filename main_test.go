@@ -369,3 +369,36 @@ func mustStruct(t *testing.T, value map[string]any) *structpb.Struct {
 	}
 	return result
 }
+
+func TestManifestRestrictsDestructiveActionsToAdmins(t *testing.T) {
+	t.Parallel()
+
+	manifest, err := loadManifest()
+	if err != nil {
+		t.Fatalf("load manifest: %v", err)
+	}
+	want := map[string]string{
+		"POST /dispatcharr/api/refresh":           "admin",
+		"POST /dispatcharr/api/recordings/stop":   "admin",
+		"POST /dispatcharr/api/recordings/delete": "admin",
+		"POST /dispatcharr/api/recordings":        "authenticated",
+		"GET /dispatcharr/api/recordings":         "authenticated",
+	}
+	seen := map[string]bool{}
+	for _, route := range manifest.GetHttpRoutes() {
+		key := route.GetMethod() + " " + route.GetPath()
+		expected, ok := want[key]
+		if !ok {
+			continue
+		}
+		seen[key] = true
+		if route.GetAccess() != expected {
+			t.Fatalf("route %s: expected access %q, got %q", key, expected, route.GetAccess())
+		}
+	}
+	for key := range want {
+		if !seen[key] {
+			t.Fatalf("manifest is missing route %s", key)
+		}
+	}
+}
