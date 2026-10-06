@@ -1337,6 +1337,11 @@ function channelsBrowserSetups(categories) {
   const byKey = {};
   const loose = [];
   items(categories).forEach(function(category) {
+    const children = channelsBrowserChildGroups(category);
+    if (children.length) {
+      setups.push({ prefix: String(category.name || category.id || ""), groups: children });
+      return;
+    }
     const split = categoryPrefixSplit(category && (category.name || category.id));
     if (split) {
       const key = split.prefix.toLowerCase();
@@ -1345,11 +1350,6 @@ function channelsBrowserSetups(categories) {
         setups.push(byKey[key]);
       }
       byKey[key].groups.push({ category: category, label: split.rest || split.prefix });
-      return;
-    }
-    const children = channelsBrowserChildGroups(category);
-    if (children.length) {
-      setups.push({ prefix: String(category.name || category.id || ""), groups: children });
       return;
     }
     loose.push({ category: category, label: String(category.name || category.id || "") });

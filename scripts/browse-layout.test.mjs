@@ -20,6 +20,20 @@ function load(names, globals) {
   return ctx;
 }
 
+test('a folder with child groups stays intact instead of splitting its name', () => {
+  const ctx = load(['categoryPrefixSplit', 'channelsBrowserSetups'], {
+    channelsBrowserChildGroups: category => category.children || []
+  });
+  const setups = ctx.channelsBrowserSetups([
+    { id: 'virtual:US TV', name: 'US TV', children: [{ category: { id: 'virtual:US TV / Sports', count: 36 }, label: 'Sports' }] },
+    { id: 'c1', name: 'US News' }
+  ]);
+  assert.equal(setups[0].prefix, 'US TV');
+  assert.equal(setups[0].groups[0].label, 'Sports');
+  assert.equal(setups[1].prefix, 'US');
+  assert.equal(setups[1].groups[0].label, 'News');
+});
+
 test('channel groups sharing a region prefix are grouped and shown without the prefix', () => {
   const ctx = load(['categoryPrefixSplit', 'categoryPrefixGroups']);
   const categories = ['Events', 'Replays', 'US Kids', 'US News', 'International Kids', 'International News', 'Solo Group'].map((name, index) => ({ id: 'c' + index, name }));
