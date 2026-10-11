@@ -432,7 +432,7 @@
       "id": "livetv-v1-info",
       "method": "GET",
       "path": "/silo-compat/livetv/v1/info",
-      "access": "authenticated",
+      "access": "admin",
       "navigable": false
     },
     {
@@ -446,7 +446,7 @@
       "id": "livetv-v1-stream",
       "method": "GET",
       "path": "/silo-compat/livetv/v1/stream",
-      "access": "authenticated",
+      "access": "admin",
       "navigable": false
     }
   ],
