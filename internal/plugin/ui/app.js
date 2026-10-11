@@ -758,6 +758,7 @@ async function hydrateApp(payload, options) {
   state.app = payload;
   const previousPrefs = previousApp.preferences || null;
   let prefsJustLoaded = false;
+  let loadedProfileID;
   if (options.localCache) {
     state.app.preferences = previousPrefs || defaultPrefs();
     state.adminCategorySettings = defaultAdminCategorySettings();
@@ -773,8 +774,9 @@ async function hydrateApp(payload, options) {
       // Keep whatever this tab already has; saves stay pending until a load succeeds.
       state.app.preferences = previousPrefs || mergePrefs(state.app.preferences);
     } else {
-      const siloPrefs = viewerPrefsView(readSiloPrefsValue(values && values.preferences ? values.preferences : ""));
-      state.app.preferences = mergePrefs(siloPrefs || state.app.preferences);
+      loadedProfileID = activeViewerProfileID();
+      const rawPrefs = readSiloPrefsValue(values && values.preferences ? values.preferences : "");
+      state.app.preferences = mergePrefs((rawPrefs && profileView(rawPrefs, loadedProfileID)) || state.app.preferences);
       prefsJustLoaded = true;
     }
     const savedAdminSettings = values && values[adminSettingsKey] ? readAdminSettingsValue(values[adminSettingsKey]) : null;
@@ -788,7 +790,7 @@ async function hydrateApp(payload, options) {
   state.recentSearches = readRecentSearches();
   rebuildProgramIndex();
   normalizePreferences();
-  if (prefsJustLoaded) adoptLoadedPrefs(previousPrefs);
+  if (prefsJustLoaded) adoptLoadedPrefs(previousPrefs, loadedProfileID);
   else if (!prefsSync.baseline) prefsSync.baseline = prefsSnapshot(state.app.preferences);
   if (!prefsSync.loaded && !options.localCache && !options.reuseSettings) schedulePrefsLoadRetry();
   normalizeAdminCategorySettings();

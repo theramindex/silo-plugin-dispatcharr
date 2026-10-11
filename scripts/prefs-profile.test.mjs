@@ -239,3 +239,78 @@ test('without a profile id and no stored profiles, no profiles key is written', 
   await ctx.flushPrefsSave();
   assert.equal('profiles' in stored(server), false);
 });
+
+test('edits made as p1 are never written into p2 when the profile switches before the save', async () => {
+  const { ctx, server } = setup({ preferences: JSON.stringify(fixture) }, 'p1');
+  load(ctx, server);
+  assert.equal(ctx.sync.profileID, 'p1', 'the tab records the profile its prefs were loaded for');
+  ctx.state.app.preferences.favorites['xtream:7'] = true;
+  ctx.state.app.preferences.favoriteOrder.push('xtream:7');
+  ctx.savePrefs({ quiet: true });
+  ctx.viewerProfile = 'p2';
+  await ctx.flushPrefsSave();
+  assert.equal(server.puts.length, 0, 'nothing is written for the stale profile');
+  assert.deepEqual(clone(ctx.state.app.preferences.favorites), { 'xtream:42': true }, 'p2 view is adopted');
+  assert.deepEqual(clone(ctx.state.app.preferences.hiddenCategories), { '7': true });
+  assert.equal('profiles' in ctx.state.app.preferences, false);
+  assert.equal(ctx.sync.profileID, 'p2');
+  assert.equal(ctx.sync.dirty, false, 'the pending diff is discarded');
+  assert.deepEqual(clone(ctx.sync.baseline.favorites), { 'xtream:42': true });
+  assert.deepEqual(JSON.parse(server.values.preferences), fixture, 'the stored prefs are untouched');
+});
+
+test('a profile switch while the save is reading settings still writes nothing', async () => {
+  const { ctx, server } = setup({ preferences: JSON.stringify(fixture) }, 'p1');
+  load(ctx, server);
+  ctx.state.app.preferences.favorites['xtream:7'] = true;
+  ctx.savePrefs({ quiet: true });
+  const read = ctx.loadPluginSettingsValues;
+  ctx.loadPluginSettingsValues = async function() {
+    const values = await read();
+    ctx.viewerProfile = 'p2';
+    return values;
+  };
+  await ctx.flushPrefsSave();
+  assert.equal(server.puts.length, 0);
+  assert.deepEqual(clone(ctx.state.app.preferences.favorites), { 'xtream:42': true });
+  assert.equal(ctx.sync.profileID, 'p2');
+  assert.equal(ctx.sync.dirty, false);
+});
+
+test('a save for the same profile still writes normally and keeps the recorded profile', async () => {
+  const { ctx, server } = setup({ preferences: JSON.stringify(fixture) }, 'p2');
+  load(ctx, server);
+  ctx.state.app.preferences.favorites['xtream:7'] = true;
+  ctx.state.app.preferences.favoriteOrder.push('xtream:7');
+  ctx.savePrefs({ quiet: true });
+  await ctx.flushPrefsSave();
+  assert.equal(server.puts.length, 1);
+  assert.deepEqual(stored(server).profiles.p2.favorites, { 'xtream:42': true, 'xtream:7': true });
+  assert.equal(ctx.sync.profileID, 'p2');
+});
+
+test('a reload adopts the new profile\'s view and drops edits pending for the old one', async () => {
+  const { ctx, server } = setup({ preferences: JSON.stringify(fixture) }, 'p1');
+  load(ctx, server);
+  ctx.state.app.preferences.favorites['xtream:7'] = true;
+  ctx.savePrefs({ quiet: true });
+  ctx.viewerProfile = 'p2';
+  // Not forced and inside the 5s recheck window: a profile change must still reload.
+  await ctx.reloadPrefsFromRemote();
+  assert.deepEqual(clone(ctx.state.app.preferences.favorites), { 'xtream:42': true });
+  assert.equal(ctx.sync.profileID, 'p2');
+  assert.equal(ctx.sync.dirty, false);
+  assert.equal(ctx.sync.timer, 0, 'the debounced save for the old profile is cancelled');
+  await ctx.flushPrefsSave();
+  assert.equal(server.puts.length, 0);
+});
+
+test('a reload for the same profile still keeps edits that are pending', async () => {
+  const { ctx, server } = setup({ preferences: JSON.stringify(fixture) }, 'p1');
+  load(ctx, server);
+  ctx.state.app.preferences.favorites['xtream:7'] = true;
+  ctx.savePrefs({ quiet: true });
+  await ctx.reloadPrefsFromRemote({ force: true });
+  assert.deepEqual(clone(ctx.state.app.preferences.favorites), { 'm3u:news.hd': true, 'xtream:7': true });
+  assert.equal(ctx.sync.dirty, true);
+});
