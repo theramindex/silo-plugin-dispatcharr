@@ -383,6 +383,9 @@ func TestManifestRestrictsDestructiveActionsToAdmins(t *testing.T) {
 		"POST /dispatcharr/api/recordings/delete": "admin",
 		"POST /dispatcharr/api/recordings":        "authenticated",
 		"GET /dispatcharr/api/recordings":         "authenticated",
+		"GET /silo-compat/livetv/v1/info":         "authenticated",
+		"GET /silo-compat/livetv/v1/channels":     "authenticated",
+		"GET /silo-compat/livetv/v1/stream":       "authenticated",
 	}
 	seen := map[string]bool{}
 	for _, route := range manifest.GetHttpRoutes() {

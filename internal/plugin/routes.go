@@ -394,6 +394,12 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 			return textResponse(http.StatusNotFound, err.Error()), nil
 		}
 		return s.serveProviderStream(ctx, streamURL, request), nil
+	case "/silo-compat/livetv/v1/info":
+		return s.handleLiveTVInfo(ctx), nil
+	case "/silo-compat/livetv/v1/channels":
+		return s.handleLiveTVChannels(ctx), nil
+	case "/silo-compat/livetv/v1/stream":
+		return s.handleLiveTVStream(ctx, request), nil
 	default:
 		return textResponse(http.StatusNotFound, "route not found"), nil
 	}

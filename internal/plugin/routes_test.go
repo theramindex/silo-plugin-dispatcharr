@@ -623,6 +623,9 @@ func TestManifestDeclaresPublicApplicationRoutesOnly(t *testing.T) {
 		"GET /dispatcharr/assets/guide.js",
 		"GET /dispatcharr/assets/player.js",
 		"GET /dispatcharr/assets/app.css",
+		"GET /silo-compat/livetv/v1/info",
+		"GET /silo-compat/livetv/v1/channels",
+		"GET /silo-compat/livetv/v1/stream",
 	} {
 		if !seen[route] {
 			t.Fatalf("manifest does not declare %s", route)
