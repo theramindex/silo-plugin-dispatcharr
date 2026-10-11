@@ -220,7 +220,7 @@ function savedLineupForCategory(categoryID) {
 }
 function mergePrefs(remote) {
   remote = Object.assign(defaultPrefs(), remote || {});
-  return {
+  const merged = {
     favorites: Object.assign({}, remote.favorites),
     favoriteOrder: uniqueIDs(items(remote.favoriteOrder)),
     autoFavorites: Object.assign({}, remote.autoFavorites),
@@ -244,6 +244,10 @@ function mergePrefs(remote) {
     customGroupMemberships: Object.assign({}, remote.customGroupMemberships),
     savedLineups: normalizeSavedLineups(remote.savedLineups)
   };
+  // The stored per-profile sections ride along on the raw remote blob only; the
+  // viewer's own view never carries them (see profileView).
+  if (prefsPlainObject(remote.profiles)) merged.profiles = Object.assign({}, remote.profiles);
+  return merged;
 }
 function normalizePreferences() {
   if (!state.app || !state.app.preferences) return;
@@ -598,7 +602,7 @@ async function loadPluginSettingsValues() {
 }
 async function loadUserPrefs() {
   const values = await loadPluginSettingsValues();
-  return readSiloPrefsValue(values ? values.preferences : "");
+  return viewerPrefsView(readSiloPrefsValue(values ? values.preferences : ""));
 }
 async function loadAdminCategorySettings() {
   return readAdminSettingsValue(await getJSON(adminSettingsURL()));
@@ -701,8 +705,56 @@ function applyPrefsDiff(remote, baseline, local) {
   }
   return result;
 }
+// Raw stored shape: legacy top-level keys plus the per-profile `profiles` map.
+// Use viewerPrefsView/profileView for what a tab shows and diffs against.
 function remotePrefsFromValues(values) {
   return mergePrefs(readSiloPrefsValue(values && values.preferences ? values.preferences : "") || defaultPrefs());
+}
+// Favorites, their order and hidden groups are kept per Silo profile under
+// preferences.profiles[profileID]. Everything else stays top-level. A profile
+// with no section yet shows the legacy top-level values, and so does a viewer
+// with no profile id.
+const profileScopedPrefKeys = ["favorites", "favoriteOrder", "hiddenCategories"];
+function activeViewerProfileID() { return coreStoredValue("profile_id") || ""; }
+function prefsProfileSection(remote, profileID) {
+  const section = profileID && remote && prefsPlainObject(remote.profiles) ? remote.profiles[profileID] : null;
+  return prefsPlainObject(section) ? section : null;
+}
+// A copy of the stored prefs as the given profile sees them. `profiles` is
+// removed so the per-profile map is never diffed or edited by the tab.
+function profileView(remote, profileID) {
+  const view = prefsSnapshot(remote);
+  delete view.profiles;
+  const section = prefsProfileSection(remote, profileID);
+  if (!section) return view;
+  profileScopedPrefKeys.forEach(function(key) {
+    if (Object.prototype.hasOwnProperty.call(section, key)) view[key] = prefsSnapshot(section[key]);
+    else delete view[key];
+  });
+  return view;
+}
+function viewerPrefsView(remote) {
+  return remote ? profileView(remote, activeViewerProfileID()) : null;
+}
+// Inverse of profileView: `merged` is the viewer's view after a save diff and
+// `remote` the raw stored prefs it was merged against. Scoped keys go into
+// profiles[profileID] (the legacy top-level ones keep the stored values), every
+// other key comes from `merged`, and the other profiles are carried over.
+function mergeProfileView(remote, merged, profileID) {
+  const result = prefsSnapshot(merged);
+  delete result.profiles;
+  if (remote && prefsPlainObject(remote.profiles)) result.profiles = prefsSnapshot(remote.profiles);
+  if (!profileID) return result;
+  const section = Object.assign({}, prefsProfileSection(remote, profileID));
+  profileScopedPrefKeys.forEach(function(key) {
+    if (remote && Object.prototype.hasOwnProperty.call(remote, key)) result[key] = prefsSnapshot(remote[key]);
+    else delete result[key];
+    if (Object.prototype.hasOwnProperty.call(merged, key)) section[key] = prefsSnapshot(merged[key]);
+    else delete section[key];
+  });
+  result.profiles = Object.assign({}, result.profiles);
+  result.profiles[profileID] = section;
+  return result;
 }
 // Called after state.app.preferences has been replaced by freshly loaded,
 // normalized remote prefs. Re-applies edits made while prefs were not loaded.
@@ -764,7 +816,7 @@ async function reloadPrefsFromRemote(options) {
       prefsSync.lastRemoteCheck = Date.now();
       return;
     }
-    state.app.preferences = remotePrefsFromValues(values);
+    state.app.preferences = profileView(remotePrefsFromValues(values), activeViewerProfileID());
     normalizePreferences();
     adoptLoadedPrefs(local);
     if (!prefsValueEqual(before, state.app.preferences)) renderAfterPrefsSync();
@@ -831,8 +883,10 @@ async function runPrefsSave() {
   let merged = null;
   try {
     await writePluginSettingsValues(function(values) {
-      merged = applyPrefsDiff(remotePrefsFromValues(values), baseline, local);
-      values.preferences = JSON.stringify(merged);
+      const remoteRaw = remotePrefsFromValues(values);
+      const profileID = activeViewerProfileID();
+      merged = applyPrefsDiff(profileView(remoteRaw, profileID), baseline, local);
+      values.preferences = JSON.stringify(mergeProfileView(remoteRaw, merged, profileID));
       return values;
     });
   } catch (error) {

@@ -27,6 +27,7 @@ function setup(remoteValues, options = {}) {
     uniqueIDs: values => [...new Set((Array.isArray(values) ? values : []).map(v => String(v || '')).filter(Boolean))],
     defaultPrefs: () => ({ favorites: {}, favoriteOrder: [], hiddenCategories: {}, recentChannels: [], keywordPasses: [] }),
     normalizePreferences() {},
+    coreStoredValue: () => '',
     siloCoreURL: path => '/api/v1' + path,
     showAppToast(message) { ctx.toasts.push(message); },
     renderSettings() {}, render() { ctx.renders += 1; },
