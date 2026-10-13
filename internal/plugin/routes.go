@@ -416,6 +416,7 @@ func (s *HTTPRoutesServer) ensureCatalogHydrated(ctx context.Context) {
 	current := s.store.Current()
 	if len(current.Catalog.Channels) > 0 && catalogSnapshotMatchesSettings(current, settings) {
 		s.startBackgroundProfileWarm(current, settings)
+		s.startMissingGuideWarm(current, settings)
 		return
 	}
 
@@ -425,6 +426,7 @@ func (s *HTTPRoutesServer) ensureCatalogHydrated(ctx context.Context) {
 	current = s.store.Current()
 	if len(current.Catalog.Channels) > 0 && catalogSnapshotMatchesSettings(current, settings) {
 		s.startBackgroundProfileWarm(current, settings)
+		s.startMissingGuideWarm(current, settings)
 		return
 	}
 	if len(current.Catalog.Channels) > 0 && !catalogSnapshotMatchesSettings(current, settings) {
@@ -457,6 +459,7 @@ func (s *HTTPRoutesServer) ensureCatalogHydratedAsync() {
 	current := s.store.Current()
 	if len(current.Catalog.Channels) > 0 && catalogSnapshotMatchesSettings(current, settings) {
 		s.startBackgroundProfileWarm(current, settings)
+		s.startMissingGuideWarm(current, settings)
 		return
 	}
 
@@ -478,6 +481,18 @@ func (s *HTTPRoutesServer) ensureCatalogHydratedAsync() {
 		defer cancel()
 		s.ensureCatalogHydrated(ctx)
 	}()
+}
+
+// startMissingGuideWarm loads the guide for a catalog that has channels but no
+// programs and no guide load running. A channels-only refresh keeps the
+// programs it finds in the store, so after the saved snapshot is lost it saves
+// channels alone, and nothing else would load the guide before the scheduled
+// guide refresh. startBackgroundGuideWarm limits retries to one per cooldown.
+func (s *HTTPRoutesServer) startMissingGuideWarm(current cache.Snapshot, settings config.Settings) {
+	if len(current.Catalog.Programs) > 0 || current.Health.EPGStatus == "loading" {
+		return
+	}
+	_, _ = s.startBackgroundGuideWarm(settings)
 }
 
 func catalogRequestHasTightDeadline(ctx context.Context) bool {
