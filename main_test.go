@@ -392,6 +392,7 @@ func TestManifestRestrictsDestructiveActionsToAdmins(t *testing.T) {
 		"GET /dispatcharr/api/recordings":         "authenticated",
 		"GET /silo-compat/livetv/v1/info":         "admin",
 		"GET /silo-compat/livetv/v1/channels":     "authenticated",
+		"GET /silo-compat/livetv/v1/programs":     "authenticated",
 		"GET /silo-compat/livetv/v1/stream":       "admin",
 	}
 	seen := map[string]bool{}
