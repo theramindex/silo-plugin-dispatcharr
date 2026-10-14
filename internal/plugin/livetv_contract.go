@@ -35,6 +35,11 @@ type livetvChannel struct {
 	GroupID string   `json:"groupId"`
 	Group   string   `json:"group"`
 	Folders []string `json:"folders,omitempty"`
+	// ProfileIDs are the Dispatcharr channel profiles the channel is in, and
+	// ProfileFolders its folders by profile, so Silo can apply a user's
+	// profile selection.
+	ProfileIDs     []string              `json:"profileIds,omitempty"`
+	ProfileFolders []livetvProfileFolder `json:"profileFolders,omitempty"`
 }
 
 type livetvStream struct {
@@ -60,17 +65,21 @@ func (s *HTTPRoutesServer) handleLiveTVChannels(ctx context.Context) *pluginv1.H
 	s.ensureCatalogHydrated(ctx)
 	snapshot := s.store.Current()
 	channels := snapshot.Catalog.Channels
-	folders := livetvChannelFolders(s.livetvFolderSettings(snapshot.Catalog.Source, liveCategories(snapshot)), channels)
+	settings := s.livetvFolderSettings(snapshot.Catalog.Source, liveCategories(snapshot))
+	folders := livetvChannelFolders(settings, channels)
+	profileFolders := livetvChannelProfileFolders(settings, channels)
 	lineup := make([]livetvChannel, 0, len(channels))
 	for _, channel := range channels {
 		lineup = append(lineup, livetvChannel{
-			ID:      channel.ID,
-			Number:  channel.Number,
-			Name:    channel.Name,
-			LogoURL: livetvLogoURL(channel.LogoURL),
-			GroupID: channel.CategoryID,
-			Group:   channel.CategoryName,
-			Folders: folders[channel.ID],
+			ID:             channel.ID,
+			Number:         channel.Number,
+			Name:           channel.Name,
+			LogoURL:        livetvLogoURL(channel.LogoURL),
+			GroupID:        channel.CategoryID,
+			Group:          channel.CategoryName,
+			Folders:        folders[channel.ID],
+			ProfileIDs:     channel.ProfileIDs,
+			ProfileFolders: profileFolders[channel.ID],
 		})
 	}
 	return jsonHTTPResponse(http.StatusOK, lineup)

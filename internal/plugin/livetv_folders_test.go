@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
@@ -99,5 +100,51 @@ func TestLiveTVChannelFoldersFromChannelNames(t *testing.T) {
 	}
 	if got := liveTVFolders(t, server); !reflect.DeepEqual(got, want) {
 		t.Fatalf("folders = %v, want %v", got, want)
+	}
+}
+
+// In the profile sources each folder is also served with the profile it comes
+// from, and a channel carries its profile ids, so Silo can apply a user's
+// profile selection. Alias folders come from no profile.
+func TestLiveTVChannelProfileFolders(t *testing.T) {
+	t.Parallel()
+
+	source := model.LiveTVSource(model.SourceModeDirectLogin)
+	source.Profiles = []model.ChannelProfile{{ID: "1", Name: "US TV | NY"}, {ID: "2", Name: "US TV | NJ"}}
+	server := liveTVFolderServer(t, `{"virtualGroupSource":"profile_group","categoryAliases":[{"sourcePath":"US TV | Locals | ABC","aliasPath":"Networks | ABC"}]}`, source, []model.Channel{
+		{ID: "abc", Name: "NY | WABC", CategoryID: "10", CategoryName: "US TV | Locals | ABC", ProfileIDs: []string{"1", "2"}},
+	})
+	response := liveTVContractGet(t, server, "/silo-compat/livetv/v1/channels", nil)
+	var lineup []livetvChannel
+	if err := json.Unmarshal(response.GetBody(), &lineup); err != nil {
+		t.Fatal(err)
+	}
+	got := lineup[0]
+	if !reflect.DeepEqual(got.ProfileIDs, []string{"1", "2"}) {
+		t.Fatalf("profileIds = %v", got.ProfileIDs)
+	}
+	byProfile := map[string][]string{}
+	for _, folder := range got.ProfileFolders {
+		byProfile[folder.ProfileID] = append(byProfile[folder.ProfileID], folder.Path)
+	}
+	if want := []string{"Networks / ABC"}; !reflect.DeepEqual(byProfile[""], want) {
+		t.Fatalf("untagged = %v, want %v", byProfile[""], want)
+	}
+	if !slices.Contains(byProfile["1"], "US TV / NY / Locals / ABC") || slices.Contains(byProfile["1"], "US TV / NJ / Locals / ABC") ||
+		!slices.Contains(byProfile["2"], "US TV / NJ / Locals / ABC") {
+		t.Fatalf("by profile = %v", byProfile)
+	}
+
+	// Group sources have no profile folders to serve.
+	server = liveTVFolderServer(t, `{"virtualGroupSource":"group"}`, source, []model.Channel{
+		{ID: "abc", Name: "WABC", CategoryID: "10", CategoryName: "US TV | Locals | ABC", ProfileIDs: []string{"1"}},
+	})
+	response = liveTVContractGet(t, server, "/silo-compat/livetv/v1/channels", nil)
+	var groupLineup []livetvChannel
+	if err := json.Unmarshal(response.GetBody(), &groupLineup); err != nil {
+		t.Fatal(err)
+	}
+	if groupLineup[0].ProfileFolders != nil || !reflect.DeepEqual(groupLineup[0].ProfileIDs, []string{"1"}) {
+		t.Fatalf("group source channel = %+v", groupLineup[0])
 	}
 }
