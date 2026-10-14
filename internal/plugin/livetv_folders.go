@@ -10,8 +10,10 @@ import (
 // livetv/v1 channel folders: a Go port of the web app's virtual folder paths
 // (virtualPathsForChannel and its helpers in ui/app.js, ui/prefs.js and
 // ui/lineup.js), so Silo's Jellyfin bridge browses the same tree the web app
-// shows. Keep the two in step. Per-user settings (profile selection) are not
-// applied: the contract lineup is the same for every caller.
+// shows. Keep the two in step. The contract lineup is the same for every
+// caller, so a user's profile selection is applied by Silo: in the profile
+// group sources each folder is also served with the channel profile it comes
+// from (profileFolders).
 
 const livetvFolderSeparator = " / "
 
@@ -73,6 +75,63 @@ func livetvChannelFolders(settings livetvFolderSettings, channels []model.Channe
 			}
 		}
 		out[channel.ID] = livetvLeafFolders(paths)
+	}
+	return out
+}
+
+// livetvProfileFolder is one of a channel's folders and the channel profile it
+// comes from, or "" for a folder that comes from no profile and is shown
+// whichever profiles a user selects.
+type livetvProfileFolder struct {
+	Path      string `json:"path"`
+	ProfileID string `json:"profileId"`
+}
+
+// livetvChannelProfileFolders returns each channel's folders tagged with the
+// profile they come from, by channel id, for the sources that build folders
+// from channel profiles; nil for the others. Every path is listed, not only
+// the deepest, and a path two profiles share is listed once for each, so Silo
+// can drop the folders of profiles a user did not select and keep the deepest
+// of the rest. With every profile selected the result is the folders
+// livetvChannelFolders returns.
+func livetvChannelProfileFolders(settings livetvFolderSettings, channels []model.Channel) map[string][]livetvProfileFolder {
+	tree := livetvFolderTree{livetvFolderSettings: settings}
+	if tree.source != "profile" && !tree.useProfileGroups() {
+		return nil
+	}
+	tree.wrappers = tree.redundantProfileGroupWrappers(channels)
+	out := make(map[string][]livetvProfileFolder, len(channels))
+	for _, channel := range channels {
+		ids := channel.ProfileIDs
+		if tree.activeProfile != "" {
+			ids = []string{tree.activeProfile}
+		}
+		// The paths that come from no profile are what is left with none.
+		none := tree
+		none.activeProfile = ""
+		bare := channel
+		bare.ProfileIDs = nil
+		untagged := map[string]bool{}
+		var folders []livetvProfileFolder
+		for _, path := range none.virtualPaths(bare) {
+			untagged[path] = true
+			folders = append(folders, livetvProfileFolder{Path: path})
+		}
+		for _, id := range ids {
+			one := tree
+			one.activeProfile = id
+			for _, path := range one.virtualPaths(channel) {
+				if !untagged[path] {
+					folders = append(folders, livetvProfileFolder{Path: path, ProfileID: id})
+				}
+			}
+		}
+		if len(folders) == 0 {
+			if path := tree.sourceGroupPath(channel); path != "" {
+				folders = []livetvProfileFolder{{Path: path}}
+			}
+		}
+		out[channel.ID] = folders
 	}
 	return out
 }

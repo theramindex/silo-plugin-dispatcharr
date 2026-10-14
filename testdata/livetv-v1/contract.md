@@ -23,14 +23,36 @@ any other first-hop host.
 absolute http(s) URL or empty. There is no user state.
 `folders` (optional) lists the folders the web app shows the channel in, each a path whose
 levels are joined by `" / "` (`"US TV / NY / Locals / ABC"`). Only the deepest folders are
-listed; their parents are implied. A channel without folders is in none.
+listed; their parents are implied. A channel without folders is in none. These are the admin's
+layout; the optional fields below let Silo apply a user's own folder settings:
+- `pipeFolders`: the channel's folders for a user whose `groupCategoriesByPipe` is true, when
+  they differ from `folders`. Absent means the same as `folders`.
+- `profileIds`: the provider channel profiles the channel is in.
+- `profileFolders`: `[{"path","profileId"}]`, every folder path of the channel (not only the
+  deepest) with the channel profile it comes from, or `""` for a path shown whatever the
+  selection. A path two profiles share is listed once for each. Sent when the folders are
+  built from channel profiles.
 
-## GET /silo-compat/livetv/v1/stream?channel_id=<id>&format=ts|hls|any
-200 `{"url":"<absolute URL>","container":"ts"|"hls","mode":"redirect"|"server"}`
+## GET /silo-compat/livetv/v1/stream?channel_id=<id>&format=ts|hls|any&session_id=<id>
+200 `{"url":"<absolute URL>","container":"ts"|"hls","mode":"redirect"|"server","leased":bool}`
 - `mode=server` means the URL embeds credentials. Silo must fetch it server-side and never
   pass it to a client.
+- `session_id` (optional) is an opaque id of at most 128 characters for one play. A provider
+  that limits connections counts the stream against its limits under that id and answers
+  `"leased":true`; asking again with the same id keeps the same slot. Without `session_id`, or
+  with `leased` false or absent, nothing is held.
 - 404 `{"code":"channel_not_found"}` for an unknown channel.
+- 409 `{"code":"connection_limit"}` when every connection the provider may use is taken.
 - 422 `{"code":"format_unavailable"}` when the requested format cannot be produced.
+
+## POST /silo-compat/livetv/v1/session/heartbeat?session_id=<id>
+## POST /silo-compat/livetv/v1/session/stop?session_id=<id>
+Optional; a provider that answers `leased` serves both, declared with access `admin`.
+- A leased session keeps its slot for 90 s after its stream request or last heartbeat, then
+  the provider frees it. Silo sends a heartbeat at most every 30 s while the play is in use.
+- `heartbeat`: 200 `{}`, or 404 `{"code":"session_not_found"}` when the session is unknown or
+  expired. Silo then asks for the stream again with the same `session_id`.
+- `stop`: frees the slot. 200 `{}`, also for an unknown session.
 
 ## GET /silo-compat/livetv/v1/programs
 Optional. A provider without guide data returns 404 or an empty list; Silo treats both as no
@@ -69,3 +91,14 @@ lives at `preferences.profiles[<profileId>]` with keys `favorites` (`{channelId:
 no entry, readers use the legacy top-level `favorites`, `favoriteOrder` and
 `hiddenCategories`. The first write for a profile stores a copy. Writers preserve every key
 they do not own and never delete the legacy keys.
+
+Account-wide keys Silo reads:
+- `profileSelection`: `{"mode":"all"|"selected","profileIds":[...]}`. With `selected`, a channel
+  is shown only when one of its `profileIds` is selected, and its folders are the deepest
+  `profileFolders` paths whose `profileId` is selected or `""`. Selected ids no channel names
+  are ignored; with none left, every profile is shown.
+- `groupCategoriesByPipe`: when true, `pipeFolders` replace `folders`.
+- `recentChannels` (`[channelId]`, newest first, at most 24) and `continueWatching`
+  (`{channelId:{"itemKind":"channel","itemId","itemName","playedAt":<unix seconds>,"plays"}}`).
+  Silo writes both when a Jellyfin client starts a channel, and from the third play adds an
+  unfavorited channel to `autoFavorites` (`{channelId:true}`), as the web app does.
