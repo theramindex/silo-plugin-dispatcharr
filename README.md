@@ -258,7 +258,7 @@ Silo shows plugin Apps entries in the normal user sidebar when an HTTP route is 
 {
   "access": "authenticated",
   "navigable": true,
-    "navigation_label": "Live TV",
+    "navigation_label": "Live TV (Dispatcharr)",
   "navigation_kind": "user"
 }
 ```
