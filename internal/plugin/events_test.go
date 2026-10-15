@@ -331,7 +331,9 @@ func TestEventsPayloadIsCachedPerSnapshotVersionAndRules(t *testing.T) {
 		Programs: []model.Program{{ID: "p:oscars", ChannelID: "ch:abc", Title: "The Oscars", StartUnix: start, EndUnix: start + 3600}},
 	}})
 	server := NewHTTPRoutesServer(store)
-	now := time.Now()
+	// Start at a cache bucket's first second so the calls below, a few seconds
+	// apart, share a bucket and differ only by what they mean to invalidate.
+	now := time.Unix(time.Now().Unix()/eventsCacheTTLSeconds*eventsCacheTTLSeconds, 0)
 
 	first := server.eventsPayload(now)
 	if len(first.Events) != 1 {
