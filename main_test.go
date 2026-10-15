@@ -360,12 +360,12 @@ func TestManifestUsesSDKCatalogPresentation(t *testing.T) {
 		if route.GetPath() != "/dispatcharr" {
 			continue
 		}
-		if route.GetNavigationLabel() != "Live TV" || route.GetNavigationKind() != "user" {
+		if route.GetNavigationLabel() != "Live TV (Dispatcharr)" || route.GetNavigationKind() != "user" {
 			t.Fatalf("unexpected user app route: %+v", route)
 		}
 		return
 	}
-	t.Fatal("expected /dispatcharr to use the Live TV navigation label")
+	t.Fatal("expected /dispatcharr to use the Live TV (Dispatcharr) navigation label")
 }
 
 func mustStruct(t *testing.T, value map[string]any) *structpb.Struct {

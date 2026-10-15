@@ -10,7 +10,7 @@ Silo's user sidebar has an Apps section for installed plugins. A plugin route ap
   "path": "/dispatcharr",
   "access": "authenticated",
   "navigable": true,
-  "navigation_label": "Live TV",
+  "navigation_label": "Live TV (Dispatcharr)",
   "navigation_kind": "user"
 }
 ```
