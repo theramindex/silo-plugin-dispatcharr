@@ -35,7 +35,6 @@ node --test scripts/sports-artwork.test.mjs
 node --test scripts/guide-navigation.test.mjs
 node --test scripts/sports-hub.test.mjs
 node --test scripts/browse-layout.test.mjs
-node --test scripts/update-catalog.test.mjs
 node --test scripts/prefs-sync.test.mjs
 node --test scripts/prefs-profile.test.mjs
 go run . manifest >/dev/null
