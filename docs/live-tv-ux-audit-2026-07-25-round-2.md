@@ -2,7 +2,7 @@
 
 Date: July 25, 2026
 
-Target: `https://silo.example.com/api/v1/plugins/14/dispatcharr`
+Target: `/api/v1/plugins/<installation-id>/dispatcharr` on a Silo server
 
 Reviewed at 1280x720, 1512x982, and 1920x1080.
 

@@ -35,7 +35,7 @@ final result: blocked
 
 - Source visual truth: `/var/folders/62/h76dg1dn1w54yvjml62vxw480000gn/T/codex-clipboard-aa909038-e7e7-4661-aade-5b93ee4a3b25.png`
 - Source pixels: `3138 × 2456` (`1792 × 1402` normalized conversation preview); inferred `1569 × 1228` CSS viewport at `2x` source density.
-- Implementation: production Dispatcharr installation `14`, release `v0.3.91`, at `https://silo.example.com/api/v1/plugins/14/dispatcharr?theme=midnight-cinema`.
+- Implementation: release `v0.3.91` on a Silo server, at `/api/v1/plugins/<installation-id>/dispatcharr?theme=midnight-cinema`.
 - Implementation viewport: `1511 × 1306` CSS pixels in the Codex in-app browser; temporary `1569 × 1228` override was reset after capture was unavailable.
 - Implementation screenshot path: unavailable. The in-app browser returned `Unable to capture screenshot` for viewport and full-page captures, including while the player was visible and paused.
 - State: authenticated Midnight Cinema theme, Monumental Sports Network, live-rewind ready, controls awake, live video playing.
