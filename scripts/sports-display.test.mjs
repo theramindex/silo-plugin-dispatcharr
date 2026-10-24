@@ -3,6 +3,35 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
+test('team feeds lead broadcasters in the watch UI while explicit preferences win', () => {
+  const source = fs.readFileSync(new URL('../internal/plugin/ui/sports.js', import.meta.url), 'utf8');
+  let preferred = {}, networks = {};
+  const ctx = vm.createContext({
+    items: value => value || [], lower: value => String(value || '').toLowerCase(),
+    sportsTeamName: team => team?.name || '', channelMatchesProfileSelection: () => true,
+    sportsPreferredChannelMap: () => preferred, sportsPreferredNetworkMap: () => networks,
+    channelByID: () => null, currentProgram: () => ({}), nextProgram: () => ({}),
+    escapeHTML: value => String(value || ''), logoHTML: () => '', icon: () => ''
+  });
+  for (const name of ['uniqueEventChannels', 'sportsChannelFeedLabel', 'sportsBroadcastTraits', 'sportsBroadcastNetworkKey', 'rankedSportsBroadcasts', 'renderSportsBroadcastCard']) {
+    const start = source.indexOf('function ' + name + '(');
+    vm.runInContext(source.slice(start, source.indexOf('\nfunction ', start + 1)), ctx);
+  }
+  const event = {leagueId: 'nba', home: {name: 'New York Knicks'}, away: {name: 'Boston Celtics'}, channels: [
+    {id: 'espn', name: 'ESPN', reason: 'EPG match'},
+    {id: 'team', name: 'Boston Celtics', reason: 'Team channel', evidence: 'team'},
+    {id: 'admin', name: 'MSG', reason: 'Team channel', evidence: 'admin'}
+  ]};
+  let channels = ctx.rankedSportsBroadcasts(event);
+  assert.deepEqual([...channels.map(c => c.id)], ['admin', 'team', 'espn']);
+  assert.match(ctx.renderSportsBroadcastCard(channels[1], event, true), /<small>Team channel<\/small>/);
+  preferred = {nba: 'espn'};
+  assert.equal(ctx.rankedSportsBroadcasts(event)[0].id, 'espn');
+  preferred = {};
+  networks = {nba: 'espn'};
+  assert.equal(ctx.rankedSportsBroadcasts(event)[0].id, 'espn');
+});
+
 test('event details use browse breadcrumbs and sport art without generic league copy', () => {
   const source = ['core', 'prefs', 'sports', 'admin', 'multiview', 'app'].map(name => fs.readFileSync(new URL('../internal/plugin/ui/' + name + '.js', import.meta.url), 'utf8')).join('\n');
   const ctx = vm.createContext({

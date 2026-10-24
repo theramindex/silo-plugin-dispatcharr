@@ -75,6 +75,55 @@ func TestApplySportsTeamChannelsPutsPinnedChannelFirst(t *testing.T) {
 	}
 }
 
+func TestApplySportsTeamChannelsRecognizesDedicatedFeedsWithoutGuide(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.October, 24, 0, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name      string
+		completed bool
+		status    string
+		start     time.Time
+		pins      []sportsTeamChannelPin
+		want      string
+	}{
+		{name: "live or nearby game", start: now, want: "knicks,celtics,espn"},
+		{name: "manual assignment wins", start: now, pins: []sportsTeamChannelPin{{LeagueID: "nba", TeamName: "new york knicks", ChannelID: "espn"}}, want: "espn,knicks,celtics"},
+		{name: "completed game", start: now.Add(-3 * time.Hour), completed: true, want: "espn"},
+		{name: "replay airing", start: now, status: "replay", want: "espn"},
+		{name: "stale scheduled game", start: now.Add(-24 * time.Hour), want: "espn"},
+		{name: "distant game", start: now.Add(48 * time.Hour), want: "espn"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			snapshot := cache.Snapshot{Catalog: model.CatalogState{Channels: []model.Channel{
+				{ID: "wrong-league", Name: "New York Knicks", CategoryName: "NHL Teams"},
+				{ID: "radio", Name: "New York Knicks", CategoryName: "NBA Radio"},
+				{ID: "nickname", Name: "Knicks", CategoryName: "NBA Teams"},
+				{ID: "dated", Name: "NBA 01: New York Knicks @ 15 Oct", CategoryName: "NBA"},
+				{ID: "knicks", Name: "New York Knicks", CategoryName: "US Sports | NBA Teams"},
+				{ID: "celtics", Name: "Boston Celtics HD", CategoryName: "US Sports | NBA Teams"},
+				{ID: "espn", Name: "ESPN", CategoryName: "Sports"},
+			}}}
+			events := []SportsEvent{{ID: "game", LeagueID: "nba", StartUnix: tc.start.Unix(), Completed: tc.completed, Status: tc.status,
+				Home: SportsTeam{Name: "New York Knicks"}, Away: SportsTeam{Name: "Boston Celtics"},
+				Channels: []SportsChannelMatch{{ID: "espn", Name: "ESPN", Evidence: "epg", Confidence: "high", Score: 200}},
+			}}
+			result := applySportsTeamChannels(events, snapshot, tc.pins, now)
+			ids := []string{}
+			for _, channel := range result[0].Channels {
+				ids = append(ids, channel.ID)
+				if channel.ID == "knicks" || channel.ID == "celtics" {
+					if channel.Reason != "Team channel" || channel.Evidence != "team" || !sportsPlayableChannelMatch(channel) {
+						t.Fatalf("dedicated feeds must be playable and identified without claiming EPG confirmation: %+v", channel)
+					}
+				}
+			}
+			if got := strings.Join(ids, ","); got != tc.want {
+				t.Fatalf("got feeds %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestSportsStandingsGroupsAndColumns(t *testing.T) {
 	t.Parallel()
 	espn := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

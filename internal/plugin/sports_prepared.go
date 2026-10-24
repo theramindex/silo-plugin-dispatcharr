@@ -152,18 +152,32 @@ func (s *HTTPRoutesServer) sportsTeamChannelPins() []sportsTeamChannelPin {
 	return pins
 }
 
-// applySportsTeamChannels puts an admin-pinned team channel first on that
-// team's live and upcoming games, ahead of guide-text matches.
+// applySportsTeamChannels puts dedicated team feeds ahead of guide-text matches
+// without depending on EPG freshness. Explicit admin assignments take priority.
 func applySportsTeamChannels(events []SportsEvent, snapshot cache.Snapshot, pins []sportsTeamChannelPin, now time.Time) []SportsEvent {
-	if len(pins) == 0 {
-		return events
-	}
+	teamChannels := dedicatedSportsTeamChannels(snapshot)
 	for index := range events {
 		event := &events[index]
 		if event.Completed || (event.StartUnix > 0 && event.StartUnix > now.Add(36*time.Hour).Unix()) {
 			continue
 		}
 		home, away := normalizeMatchText(event.Home.Name), normalizeMatchText(event.Away.Name)
+		var matches []SportsChannelMatch
+		if event.Status != "replay" && sportsEventInScoreWindow(*event, now) {
+			matches = append(matches, teamChannels[event.LeagueID+"|"+home]...)
+			matches = append(matches, teamChannels[event.LeagueID+"|"+away]...)
+		}
+		if len(matches) > 0 {
+			matches = append(matches, event.Channels...)
+			seen := map[string]bool{}
+			event.Channels = nil
+			for _, match := range matches {
+				if !seen[match.ID] {
+					seen[match.ID] = true
+					event.Channels = append(event.Channels, match)
+				}
+			}
+		}
 		for _, pin := range pins {
 			if pin.LeagueID != event.LeagueID || (pin.TeamName != home && pin.TeamName != away) {
 				continue
@@ -183,6 +197,45 @@ func applySportsTeamChannels(events []SportsEvent, snapshot cache.Snapshot, pins
 		}
 	}
 	return events
+}
+
+func dedicatedSportsTeamChannels(snapshot cache.Snapshot) map[string][]SportsChannelMatch {
+	categoryNames := map[string]string{}
+	for _, category := range liveCategories(snapshot) {
+		categoryNames[category.ID] = category.Name
+	}
+	channels := map[string][]SportsChannelMatch{}
+	leagues := map[string]string{}
+	for _, channel := range snapshot.Catalog.Channels {
+		if channel.ID == "" {
+			continue
+		}
+		category := firstNonEmpty(channel.CategoryName, categoryNames[channel.CategoryID])
+		league, known := leagues[category]
+		if !known {
+			league, _, _, _ = guideSportsLeague(category)
+			leagues[category] = league
+		}
+		if league == "" || league == "sports" || containsMatchTerm(normalizeMatchText(category), "radio") || sportsAncillaryBroadcast(category) {
+			continue
+		}
+		// Full names only: nicknames, dated matchup labels and numbered event
+		// feeds must still earn their place through the normal guide matcher.
+		name := strings.Fields(normalizeMatchText(channel.Name))
+		for len(name) > 0 {
+			last := name[len(name)-1]
+			if last != "hd" && last != "fhd" && last != "uhd" && last != "4k" {
+				break
+			}
+			name = name[:len(name)-1]
+		}
+		if len(name) == 0 {
+			continue
+		}
+		key := league + "|" + strings.Join(name, " ")
+		channels[key] = append(channels[key], SportsChannelMatch{ID: channel.ID, Name: channel.Name, CategoryName: category, LogoURL: channel.LogoURL, Reason: "Team channel", Evidence: "team", Confidence: "high", Score: 100})
+	}
+	return channels
 }
 
 const sportsUnwatchableEventLimit = 250

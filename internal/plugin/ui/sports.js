@@ -1345,6 +1345,7 @@ function markSportsDetailBackgroundFailed(image) {
 }
 function sportsChannelFeedLabel(channel) {
   const reason = String(channel && channel.reason || "");
+  if (reason === "Team channel") return reason;
   const marked = reason.match(/^(Home|Away|National) feed$/);
   if (marked) return marked[0];
   const token = String(channel && channel.name || "").match(/\b(HOME|AWAY|NATIONAL)\b/);
@@ -1384,14 +1385,15 @@ function rankedSportsBroadcasts(event) {
     const traits = sportsBroadcastTraits(channel, event);
     const preferred = String(channel.id || "") === preferredID;
     const preferredNetworkMatch = !!preferredNetwork && sportsBroadcastNetworkKey(channel) === preferredNetwork;
-    const rank = (preferred ? 1000 : (preferredNetworkMatch ? 900 : 0)) + (traits.indexOf("Likely home") >= 0 ? 90 : 0) + (traits.indexOf("Likely away") >= 0 ? 80 : 0) + (traits.indexOf("Likely local") >= 0 ? 70 : 0) + (traits.indexOf("Major network") >= 0 ? 60 : 0) - (traits.indexOf("Alternate") >= 0 ? 10 : 0);
+    const priority = preferred ? 4000 : preferredNetworkMatch ? 3000 : channel.reason === "Team channel" ? (channel.evidence === "admin" ? 2000 : 1000) : 0;
+    const rank = priority + (traits.indexOf("Likely home") >= 0 ? 90 : 0) + (traits.indexOf("Likely away") >= 0 ? 80 : 0) + (traits.indexOf("Likely local") >= 0 ? 70 : 0) + (traits.indexOf("Major network") >= 0 ? 60 : 0) - (traits.indexOf("Alternate") >= 0 ? 10 : 0);
     return Object.assign({}, channel, { sportsPreferred: preferred, sportsPreferredNetwork: preferredNetworkMatch, sportsTraits: traits, sportsRank: rank, sportsOriginalIndex: index });
   }).sort(function(left, right) { return right.sportsRank - left.sportsRank || left.sportsOriginalIndex - right.sportsOriginalIndex; });
 }
 function sportsBroadcastGroup(channel) {
   if (channel.sportsPreferred || channel.sportsPreferredNetwork) return "Preferred";
   const traits = channel.sportsTraits || [];
-  for (const label of ["Likely local", "Likely home", "Likely away", "Major network", "Alternate", "Spanish", "French"]) {
+  for (const label of ["Team channel", "Likely local", "Likely home", "Likely away", "Major network", "Alternate", "Spanish", "French"]) {
     if (traits.indexOf(label) >= 0) return label;
   }
   return "Other feeds";
@@ -1404,7 +1406,7 @@ function renderSportsBroadcastGroups(channels, event, compact) {
     if (!groups[label]) groups[label] = [];
     groups[label].push(channel);
   });
-  const groupOrder = ["Preferred", "Likely local", "Likely home", "Likely away", "Major network", "Alternate", "Spanish", "French", "Other feeds"];
+  const groupOrder = ["Preferred", "Team channel", "Likely local", "Likely home", "Likely away", "Major network", "Alternate", "Spanish", "French", "Other feeds"];
   const visibleGroups = groupOrder.filter(function(label) { return groups[label] && groups[label].length; });
   return "<div class=\"sports-broadcast-groups\">" + visibleGroups.map(function(label) {
     return '<section class="sports-broadcast-group">' + (visibleGroups.length > 1 ? '<h3>' + escapeHTML(label) + '</h3>' : '') + '<div class="sports-broadcast-grid">' + groups[label].map(function(channel) { return renderSportsBroadcastCard(channel, event); }).join("") + "</div></section>";
@@ -1414,7 +1416,7 @@ function renderSportsBroadcastCard(channel, event, compact) {
   const appChannel = channelByID(channel.id) || channel;
   const current = currentProgram(appChannel) || {};
   const next = nextProgram(appChannel) || {};
-  const traits = compact ? (channel.sportsPreferred ? ["Preferred"] : []) : (channel.sportsPreferred ? ["Preferred"] : (channel.sportsPreferredNetwork ? ["Preferred network"] : [])).concat(channel.sportsTraits || []);
+  const traits = compact ? (channel.sportsPreferred ? ["Preferred"] : []).concat(channel.reason === "Team channel" ? ["Team channel"] : []) : (channel.sportsPreferred ? ["Preferred"] : (channel.sportsPreferredNetwork ? ["Preferred network"] : [])).concat(channel.sportsTraits || []);
   const guide = compact ? [] : [current.title ? "Now: " + current.title : "", next.title ? "Next: " + next.title : ""].filter(Boolean);
   return "<article class=\"sports-broadcast-card" + (channel.sportsPreferred ? " preferred" : "") + (compact ? " compact" : "") + "\"><button type=\"button\" class=\"sports-broadcast-play\" data-channel=\"" + escapeHTML(channel.id || "") + "\"><span class=\"sports-channel-logo\">" + logoHTML(channel) + "</span><span class=\"sports-broadcast-copy\"><span class=\"sports-broadcast-badges\">" + traits.map(function(trait) { return "<small>" + escapeHTML(trait) + "</small>"; }).join("") + "</span><strong>" + escapeHTML(channel.name || "Channel") + "</strong>" + guide.map(function(line) { return "<em>" + escapeHTML(line) + "</em>"; }).join("") + "</span>" + icon("play") + "</button><button type=\"button\" class=\"sports-broadcast-preference\" data-sports-preferred-channel=\"" + escapeHTML(channel.id || "") + "\" data-sports-preferred-league=\"" + escapeHTML(event.leagueId || "") + "\" aria-label=\"" + escapeHTML((channel.sportsPreferred ? "Remove preferred" : "Prefer") + " " + (channel.name || "channel")) + "\" aria-pressed=\"" + (channel.sportsPreferred ? "true" : "false") + "\">" + icon(channel.sportsPreferred ? "heart-solid" : "heart") + "</button></article>";
 }
