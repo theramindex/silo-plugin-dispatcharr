@@ -34,6 +34,31 @@ test('a folder with child groups stays intact instead of splitting its name', ()
   assert.equal(setups[1].groups[0].label, 'News');
 });
 
+test('selecting a nested channel group reveals its children and keeps its full context', () => {
+  const child = (path, label, count) => ({category: {id: 'virtual:' + path, name: label, count}, label});
+  const va = child('US TV / VA', 'VA', 12);
+  const sports = child('US TV / VA / Sports', 'Sports', 5);
+  const news = child('US TV / VA / News', 'News', 7);
+  const nba = child('US TV / VA / Sports / NBA', 'NBA', 2);
+  const children = {'virtual:US TV / VA': [sports, news], 'virtual:US TV / VA / Sports': [nba]};
+  const state = {channelsBrowserGroup: nba.category.id};
+  const ctx = load(['channelsBrowserVisibleGroups', 'channelsBrowserSelection', 'channelsBrowserContext', 'channelsBrowserGroupButton'], {
+    state,
+    channelsBrowserChildGroups: category => children[category.id] || []
+  });
+  const setups = [{prefix: 'US TV', groups: [va]}];
+  const selected = ctx.channelsBrowserSelection(setups);
+  assert.equal(selected.group.category.id, nba.category.id, 'deep selection must not reset to VA');
+  assert.equal(ctx.channelsBrowserContext(selected.setup, selected.group), 'US TV · VA · Sports · NBA');
+  assert.match(ctx.channelsBrowserGroupButton(selected.setup, selected.group, true), /data-channels-group="virtual:US TV \/ VA \/ Sports \/ NBA"/);
+  assert.match(ctx.channelsBrowserGroupButton(selected.setup, selected.group, true), /aria-pressed="true"/);
+  state.channelsBrowserGroup = va.category.id;
+  assert.deepEqual([...ctx.channelsBrowserVisibleGroups(setups[0]).map(group => group.category.id)], [va.category.id, sports.category.id, news.category.id]);
+  state.channelsBrowserGroup = news.category.id;
+  assert.equal(ctx.channelsBrowserSelection(setups).group.category.id, news.category.id);
+  assert.ok(!ctx.channelsBrowserVisibleGroups(setups[0]).some(group => group.category.id === nba.category.id), 'inactive branches stay compact');
+});
+
 test('channel groups sharing a region prefix are grouped and shown without the prefix', () => {
   const ctx = load(['categoryPrefixSplit', 'categoryPrefixGroups']);
   const categories = ['Events', 'Replays', 'US Kids', 'US News', 'International Kids', 'International News', 'Solo Group'].map((name, index) => ({ id: 'c' + index, name }));

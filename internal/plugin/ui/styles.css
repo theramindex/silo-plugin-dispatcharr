@@ -361,7 +361,10 @@ button { cursor: pointer; touch-action: manipulation; }
 .channels-setup > h2 { margin: 0; display: flex; align-items: baseline; justify-content: space-between; padding: 0.15rem 0.5rem 0.35rem; font-size: 0.72rem; font-weight: 750; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .channels-setup > h2 span { font-size: 0.68rem; letter-spacing: 0; text-transform: none; font-weight: 650; }
 .channels-group { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; min-height: 2.15rem; border: 0; border-radius: 0.4rem; background: transparent; color: var(--text); text-align: left; padding: 0 0.55rem 0 0.85rem; font-size: 0.88rem; font-weight: 640; }
-.channels-group small { color: var(--muted); font-size: 0.72rem; font-weight: 600; }
+.channels-group { padding-inline-start: calc(0.85rem + var(--channels-group-depth, 0) * 0.85rem); }
+.channels-group > span { min-width: 0; overflow-wrap: anywhere; }
+.channels-group > span svg { width: 0.75rem; height: 0.75rem; margin-inline-start: 0.35rem; vertical-align: middle; color: var(--muted); }
+.channels-group small { flex-shrink: 0; color: var(--muted); font-size: 0.72rem; font-weight: 600; }
 .channels-group:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
 .channels-group.active { background: color-mix(in srgb, var(--text) 10%, transparent); }
 .channels-list { padding: 0.45rem 0.35rem; }

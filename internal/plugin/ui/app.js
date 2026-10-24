@@ -1359,10 +1359,23 @@ function channelsBrowserSetups(categories) {
   if (loose.length) setups.push({ prefix: "", groups: loose });
   return setups;
 }
+function channelsBrowserVisibleGroups(setup) {
+  const groups = [];
+  const selectedID = String(state.channelsBrowserGroup || "");
+  function visit(group, parents) {
+    const id = String(group.category && group.category.id || "");
+    const onSelectedPath = id && (selectedID === id || selectedID.indexOf(id + " / ") === 0);
+    const children = onSelectedPath ? channelsBrowserChildGroups(group.category) : [];
+    groups.push(Object.assign({}, group, { parents: parents, depth: parents.length, expanded: children.length > 0 }));
+    children.forEach(function(child) { visit(child, parents.concat(group.label)); });
+  }
+  items(setup.groups).forEach(function(group) { visit(group, []); });
+  return groups;
+}
 function channelsBrowserSelection(setups) {
   const groups = [];
   items(setups).forEach(function(setup) {
-    items(setup.groups).forEach(function(group) {
+    channelsBrowserVisibleGroups(setup).forEach(function(group) {
       groups.push({ setup: setup, group: group });
     });
   });
@@ -1380,6 +1393,7 @@ function channelsForBrowserGroup(categoryID) {
 function channelsBrowserContext(setup, group) {
   const parts = [];
   if (setup && setup.prefix) parts.push(setup.prefix);
+  if (group && group.parents) parts.push.apply(parts, group.parents);
   if (group && group.label) parts.push(group.label);
   return parts.join(" · ");
 }
@@ -1411,7 +1425,7 @@ function channelsBrowserGroupButton(setup, group, active) {
   const category = group.category || {};
   const count = Number(category.count) || 0;
   const context = channelsBrowserContext(setup, group);
-  return "<button type=\"button\" class=\"channels-group" + (active ? " active" : "") + "\" data-channels-group=\"" + escapeHTML(category.id || "") + "\" aria-pressed=\"" + (active ? "true" : "false") + "\" aria-label=\"" + escapeHTML(context || group.label || "Group") + "\"><span>" + escapeHTML(group.label || "Group") + "</span><small>" + escapeHTML(String(count)) + "</small></button>";
+  return "<button type=\"button\" class=\"channels-group" + (active ? " active" : "") + "\" style=\"--channels-group-depth:" + (group.depth || 0) + "\" data-channels-group=\"" + escapeHTML(category.id || "") + "\" aria-pressed=\"" + (active ? "true" : "false") + "\"" + (group.expanded ? " aria-expanded=\"true\"" : "") + " aria-label=\"" + escapeHTML(context || group.label || "Group") + "\"><span>" + escapeHTML(group.label || "Group") + (group.expanded ? icon("chevron-down") : "") + "</span><small>" + escapeHTML(String(count)) + "</small></button>";
 }
 function channelsBrowserRow(channel, context, active) {
   const program = currentProgram(channel) || {};
@@ -1449,7 +1463,7 @@ function channelsBrowserHTML() {
   const groups = setups.map(function(setup) {
     const total = setup.groups.reduce(function(sum, group) { return sum + (Number(group.category && group.category.count) || 0); }, 0);
     const heading = setup.prefix ? "<h2>" + escapeHTML(setup.prefix) + "<span>" + escapeHTML(String(total)) + "</span></h2>" : "";
-    return "<section class=\"channels-setup\">" + heading + setup.groups.map(function(group) {
+    return "<section class=\"channels-setup\">" + heading + channelsBrowserVisibleGroups(setup).map(function(group) {
       const active = !!(selected.group.category && group.category && group.category.id === selected.group.category.id);
       return channelsBrowserGroupButton(setup, group, active);
     }).join("") + "</section>";
