@@ -117,7 +117,8 @@ func (m *Manager) initializeLocked() error {
 }
 
 // Start accepts only a resolved catalog URL and the caller's restricted client.
-// A viewer can have one conversion at a time; changing channels stops the old one.
+// A viewer can have one conversion at a time. Every start gets a new ID so
+// a stale response cannot stop a newer attempt, even on the same channel.
 func (m *Manager) Start(owner, channel, source string, client *http.Client) (Status, error) {
 	if owner == "" || channel == "" || client == nil {
 		return Status{}, ErrSession
@@ -133,10 +134,6 @@ func (m *Manager) Start(owner, channel, source string, client *http.Client) (Sta
 			continue
 		}
 		if s.owner == owner {
-			if s.channel == channel && s.state != "failed" {
-				s.lastSeen = time.Now()
-				return status(s), nil
-			}
 			m.removeLocked(id)
 		}
 	}

@@ -75,8 +75,14 @@ func TestSessionOwnershipCapacityAndCleanup(t *testing.T) {
 		t.Fatal("accepted arbitrary file", err)
 	}
 	same := start("viewer-a", "one")
-	if same.ID != first.ID {
-		t.Fatal("duplicate request consumed another session")
+	if same.ID == first.ID {
+		t.Fatal("retry reused a session that a stale start response can stop")
+	}
+	if err := m.Stop(first.ID, "viewer-a"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Status(same.ID, "viewer-a"); err != nil {
+		t.Fatal("late stop killed the newer retry", err)
 	}
 	second := start("viewer-b", "two")
 	if _, err := m.Start("viewer-c", "three", "https://example.com/live.ts", http.DefaultClient); err != ErrCapacity {
