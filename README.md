@@ -174,6 +174,8 @@ Sports navigation separates discovery from personal follows:
 - **My Sports** shows existing team, fighter, and league follows, with their live and upcoming events.
 - Following and unfollowing use the same profile preferences as Live TV; no migration or re-selection is needed.
 
+Sports guide preparation runs in the background. Slow Sportarr or ESPN requests keep the last available data visible; individual Sports data requests stop waiting before Silo's plugin timeout while shared ESPN cache fills can finish for later requests.
+
 ## Sports replays from Silo
 
 - Administrators can enable the Sports experience and select one or more

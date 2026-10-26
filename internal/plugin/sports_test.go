@@ -1513,20 +1513,31 @@ func TestSportsRouteReturnsWhilePreparedPayloadBuildRuns(t *testing.T) {
 		Channels: []model.Channel{{ID: "exact", Name: "NYJ vs NYG", CategoryID: "nfl", CategoryName: "NFL"}},
 		Content:  model.ContentState{LiveCategories: []model.Category{{ID: "nfl", Name: "NFL", Kind: "live"}}},
 	}})
+	// A production-sized guide must be prepared outside the RPC. Even ordinary
+	// listings run through sports parsing before they can be ruled out.
+	snapshot := store.Current()
+	for index := range 112205 {
+		snapshot.Catalog.Programs = append(snapshot.Catalog.Programs, model.Program{
+			ID: fmt.Sprintf("program:%d", index), ChannelID: "exact", Title: "Evening News",
+			StartUnix: time.Now().Add(time.Hour).Unix(), EndUnix: time.Now().Add(2 * time.Hour).Unix(),
+		})
+	}
+	store.Replace(snapshot)
 	server := NewHTTPRoutesServer(store)
 	server.sportsProvider = provider
 
 	startedAt := time.Now()
 	payload := fetchSportsPayloadOnce(t, server, false)
-	if elapsed := time.Since(startedAt); elapsed > 250*time.Millisecond {
-		t.Fatalf("sports route waited for background build: %s", elapsed)
+	if elapsed := time.Since(startedAt); elapsed > time.Second {
+		close(provider.release)
+		t.Fatalf("sports route parsed the guide on the request path: %s", elapsed)
 	}
 	if !payload.Refreshing || payload.Source != "blocking-test" {
 		t.Fatalf("expected refreshing placeholder, got %+v", payload)
 	}
 	select {
 	case <-provider.started:
-	case <-time.After(time.Second):
+	case <-time.After(60 * time.Second):
 		t.Fatal("sports payload build did not start")
 	}
 	close(provider.release)
@@ -1559,9 +1570,16 @@ func TestSportsRouteReturnsGuideFallbackWhileProviderBuildRuns(t *testing.T) {
 	server := NewHTTPRoutesServer(store)
 	server.sportsProvider = provider
 
+	_ = fetchSportsPayloadOnce(t, server, false)
+	select {
+	case <-provider.started:
+	case <-time.After(time.Second):
+		close(provider.release)
+		t.Fatal("background guide preparation did not reach the provider")
+	}
 	payload := fetchSportsPayloadOnce(t, server, false)
 	if !payload.Refreshing || payload.Source != "EPG fallback" || len(payload.Events) != 1 {
-		t.Fatalf("expected immediate EPG fallback while provider builds, got %+v", payload)
+		t.Fatalf("expected background EPG fallback while provider builds, got %+v", payload)
 	}
 	if len(payload.Events[0].Channels) != 1 || payload.Events[0].Channels[0].ID != "channel:wnba" {
 		t.Fatalf("expected guide channel match in fallback, got %+v", payload.Events[0].Channels)
@@ -2686,4 +2704,10 @@ func TestSportsWeakTeamAliasRejectsGenericNames(t *testing.T) {
 	if got := sportsWeakTeamAlias("Portland Timbers"); got != "timbers" {
 		t.Fatalf("specific alias = %q, want timbers", got)
 	}
+}
+
+// Guide fixtures that do not exercise score-refresh hints use just the events.
+func sportsEventsFromGuide(snapshot cache.Snapshot, now time.Time) []SportsEvent {
+	events, _ := sportsEventsFromGuideWithScoreHints(snapshot, now)
+	return events
 }

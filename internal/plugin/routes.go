@@ -260,6 +260,14 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 	if path, _, _ := strings.Cut(request.GetPath(), "?"); strings.HasPrefix(path, "/dispatcharr/api/sports/image/") || path == "/dispatcharr/api/sports/image" {
 		return s.handleSportsImage(ctx, request), nil
 	}
+	// Data routes must leave time for the host to serialize the response before
+	// its ten-second plugin RPC deadline. Provider cache fills may continue in
+	// the background after this individual request stops waiting.
+	if strings.HasPrefix(request.GetPath(), "/dispatcharr/api/sports") {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 7*time.Second)
+		defer cancel()
+	}
 	switch request.GetPath() {
 	case "/dispatcharr", "/dispatcharr/player", "/dispatcharr/admin", "/dispatcharr/sports":
 		return htmlResponse(http.StatusOK, s.playerPageHTML(request)), nil

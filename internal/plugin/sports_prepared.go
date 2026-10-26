@@ -18,6 +18,12 @@ func (s *HTTPRoutesServer) sportsPayloadWithBudget(ctx context.Context, refresh 
 	now := time.Now()
 	snapshot := s.store.Current()
 	guideEvents, refreshScores := sportsEventsFromGuideWithScoreHints(snapshot, now)
+	return s.buildSportsPayload(ctx, refresh, budget, snapshot, now, guideEvents, refreshScores)
+}
+
+// buildSportsPayload reuses the guide extraction already prepared by the
+// background rebuild, instead of parsing it again for the provider merge.
+func (s *HTTPRoutesServer) buildSportsPayload(ctx context.Context, refresh bool, budget sportsBuildBudget, snapshot cache.Snapshot, now time.Time, guideEvents []SportsEvent, refreshScores bool) SportsPayload {
 	providerCtx, cancelProvider := context.WithTimeout(ctx, budget.Provider)
 	events, updatedUnix, source, err := s.cachedSportsEvents(providerCtx, now, refresh || refreshScores)
 	cancelProvider()
@@ -309,17 +315,6 @@ func (s *HTTPRoutesServer) preparedSportsPayload(refresh bool) SportsPayload {
 		}
 		payload.Source = provider.Source()
 	}
-	if !s.sportsPrepared.Ready && len(payload.Events) == 0 {
-		if guideEvents := sportsEventsFromGuide(snapshot, now); len(guideEvents) > 0 {
-			payload.Events = guideEvents
-			payload.Leagues = sportsLeagues(guideEvents)
-			payload.Source = "EPG fallback"
-			payload.UpdatedAtUnix = snapshot.Health.EPGLastSuccessUnix
-			if payload.UpdatedAtUnix <= 0 {
-				payload.UpdatedAtUnix = now.Unix()
-			}
-		}
-	}
 	s.sportsPreparedMu.Unlock()
 	return payload
 }
@@ -357,7 +352,7 @@ func (s *HTTPRoutesServer) preparedSportsEvent(id string) (SportsEvent, bool) {
 		return SportsEvent{}, false
 	}
 	s.sportsPreparedMu.Unlock()
-	// Before the first build the guide fallback is assembled per request.
+	// The background build may have published a guide fallback already.
 	for _, event := range s.preparedSportsPayload(false).Events {
 		if event.ID == id || event.StableID == id {
 			return event, true
@@ -367,12 +362,28 @@ func (s *HTTPRoutesServer) preparedSportsEvent(id string) (SportsEvent, bool) {
 }
 
 func (s *HTTPRoutesServer) rebuildSportsPayload(refresh bool) {
-	guideUpdatedUnix := s.store.Current().Health.EPGLastSuccessUnix
+	snapshot := s.store.Current()
+	guideUpdatedUnix := snapshot.Health.EPGLastSuccessUnix
 	s.sportsPreparedMu.Lock()
 	budget := s.sportsPrepared.budget.withDefaults()
 	s.sportsPreparedMu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), budget.Provider+budget.Match+budget.Enrich+6*time.Second)
-	payload := s.sportsPayloadWithBudget(ctx, refresh, budget)
+	startedAt := time.Now()
+	guideEvents, refreshScores := sportsEventsFromGuideWithScoreHints(snapshot, startedAt)
+	// Publish the first guide fallback before waiting for Sportarr. This work
+	// happens once per rebuild and never holds up an HTTP request or the lock.
+	if len(guideEvents) > 0 {
+		updated := guideUpdatedUnix
+		if updated <= 0 {
+			updated = startedAt.Unix()
+		}
+		s.sportsPreparedMu.Lock()
+		if !s.sportsPrepared.Ready {
+			s.sportsPrepared.Payload = SportsPayload{Source: "EPG fallback", Events: cloneSportsEvents(guideEvents), Leagues: sportsLeagues(guideEvents), UpdatedAtUnix: updated, FavoriteTeams: []string{}}
+		}
+		s.sportsPreparedMu.Unlock()
+	}
+	payload := s.buildSportsPayload(ctx, refresh, budget, snapshot, startedAt, guideEvents, refreshScores)
 	cancel()
 
 	now := time.Now()

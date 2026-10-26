@@ -10,7 +10,9 @@ import (
 	"testing"
 	"time"
 
+	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func TestFootballStatsLoadDedupesWithoutHoldingTheLock(t *testing.T) {
@@ -181,7 +183,7 @@ func TestSportsFlightGroupSharesOneCall(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			value, err := group.do("key", func() (any, error) {
+			value, err := group.do(context.Background(), "key", func() (any, error) {
 				calls.Add(1)
 				time.Sleep(20 * time.Millisecond)
 				return "value", nil
@@ -196,7 +198,56 @@ func TestSportsFlightGroupSharesOneCall(t *testing.T) {
 	if calls.Load() > 2 {
 		t.Fatalf("concurrent callers should share a call, got %d", calls.Load())
 	}
-	if _, err := group.do("key", func() (any, error) { calls.Add(1); return nil, nil }); err != nil || len(group.calls) != 0 {
+	if _, err := group.do(context.Background(), "key", func() (any, error) { calls.Add(1); return nil, nil }); err != nil || len(group.calls) != 0 {
 		t.Fatal("finished flights must be forgotten")
+	}
+}
+
+func TestSportsNewsRouteStopsWaitingWhenRequestIsCanceled(t *testing.T) {
+	t.Parallel()
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	var requests atomic.Int32
+	espn := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		close(entered)
+		<-release
+		_, _ = w.Write([]byte(`{"articles":[]}`))
+	}))
+	defer espn.Close()
+	defer releaseOnce.Do(func() { close(release) })
+	server := NewHTTPRoutesServer(cache.NewStore())
+	server.sportsNews.baseURL = espn.URL + "/"
+	server.sportsNews.client = espn.Client()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan *pluginv1.HandleHTTPResponse, 1)
+	go func() {
+		response, _ := server.Handle(ctx, &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/dispatcharr/api/sports/news", Query: func() *structpb.Struct { q, _ := structpb.NewStruct(map[string]any{"league": "nba"}); return q }()})
+		done <- response
+	}()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("ESPN request did not start")
+	}
+	cancel()
+	select {
+	case response := <-done:
+		if response.GetStatusCode() != http.StatusOK || !strings.Contains(string(response.GetBody()), "unavailable") {
+			t.Fatalf("a canceled wait must return the normal unavailable response: %+v", response)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Sports handler kept waiting for ESPN after its request was canceled")
+	}
+	releaseOnce.Do(func() { close(release) })
+	query, _ := structpb.NewStruct(map[string]any{"league": "nba"})
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/dispatcharr/api/sports/news", Query: query})
+	if err != nil || response.GetStatusCode() != http.StatusOK || strings.Contains(string(response.GetBody()), "unavailable") {
+		t.Fatalf("the shared fill must still serve the next caller: %v %+v", err, response)
+	}
+	if requests.Load() != 1 {
+		t.Fatalf("canceled caller caused a duplicate ESPN fetch: %d", requests.Load())
 	}
 }

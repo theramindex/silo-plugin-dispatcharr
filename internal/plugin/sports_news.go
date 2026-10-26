@@ -376,7 +376,7 @@ func (cache *sportsNewsCache) load(ctx context.Context, key string, fetch func(c
 		return entry.value, entry.err
 	}
 	cache.mu.Unlock()
-	return cache.flights.do(key, func() (any, error) {
+	return cache.flights.do(ctx, key, func() (any, error) {
 		loadCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), sportsNewsLoadTimeout)
 		defer cancel()
 		value, ttl, err := fetch(loadCtx)
@@ -747,7 +747,11 @@ func (s *HTTPRoutesServer) handleSportsNews(ctx context.Context, request *plugin
 	if teamName != "" {
 		teams, err := s.sportsNews.teams(ctx, league)
 		team, found := matchESPNTeam(teams, teamName)
-		if err != nil || !found {
+		if err != nil {
+			payload.Message = "News is unavailable right now."
+			return s.respondJSON(http.StatusOK, payload)
+		}
+		if !found {
 			payload.Message = "No news found for " + teamName + "."
 			return s.respondJSON(http.StatusOK, payload)
 		}
