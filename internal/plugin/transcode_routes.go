@@ -115,7 +115,7 @@ func (s *HTTPRoutesServer) handleTranscode(request *pluginv1.HandleHTTPRequest) 
 			for i, line := range lines {
 				line = strings.TrimSpace(line)
 				if line != "" && !strings.HasPrefix(line, "#") {
-					lines[i] = "/dispatcharr/transcode/media?session_id=" + id + "&name=" + line
+					lines[i] = "media?session_id=" + id + "&name=" + line
 				}
 			}
 			return mediaHTTPResponse(200, "application/vnd.apple.mpegurl", []byte(strings.Join(lines, "\n")), "no-store")

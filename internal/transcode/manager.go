@@ -258,8 +258,8 @@ func (m *Manager) Media(id, owner, name string) ([]byte, error) {
 		return nil, ErrSession
 	}
 	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, 8<<20+1))
-	if err != nil || len(data) > 8<<20 {
+	data, err := io.ReadAll(io.LimitReader(f, 3<<20+1))
+	if err != nil || len(data) > 3<<20 {
 		return nil, ErrSession
 	}
 	return data, nil
