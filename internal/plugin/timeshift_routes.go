@@ -10,7 +10,9 @@ import (
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/timeshift"
+	sharedhttp "github.com/theramindex/silo-plugins/pkg/livemedia/httpclient"
+	timeshift "github.com/theramindex/silo-plugins/pkg/livemedia/rewind"
+	mediaweb "github.com/theramindex/silo-plugins/pkg/livemedia/web"
 )
 
 type timeShiftStartRequest struct {
@@ -64,7 +66,7 @@ func (s *HTTPRoutesServer) handleTimeShiftStart(request *pluginv1.HandleHTTPRequ
 	if publicStreamFormat(streamURL) == "hls" {
 		return textResponse(http.StatusConflict, "live rewind currently supports MPEG-TS channels only")
 	}
-	lease, err := s.timeShift.Acquire(payload.ChannelID, streamURL, config)
+	lease, err := s.timeShift.Acquire(payload.ChannelID, streamURL, mediaweb.Owner(request), config, sharedhttp.NewRestricted(append(configuredStreamHosts(s.streamProxySettings()), urlHost(streamURL))...), nil)
 	if err != nil {
 		return textResponse(http.StatusBadGateway, err.Error())
 	}
@@ -77,7 +79,7 @@ func (s *HTTPRoutesServer) handleTimeShiftStart(request *pluginv1.HandleHTTPRequ
 
 func (s *HTTPRoutesServer) handleTimeShiftStatus(request *pluginv1.HandleHTTPRequest) *pluginv1.HandleHTTPResponse {
 	leaseID := queryValue(request, "lease_id")
-	status, ok := s.timeShift.Status(leaseID)
+	status, ok := s.timeShift.Status(leaseID, mediaweb.Owner(request))
 	if !ok {
 		return textResponse(http.StatusNotFound, "rewind session not found")
 	}
@@ -86,7 +88,7 @@ func (s *HTTPRoutesServer) handleTimeShiftStatus(request *pluginv1.HandleHTTPReq
 
 func (s *HTTPRoutesServer) handleTimeShiftHeartbeat(request *pluginv1.HandleHTTPRequest) *pluginv1.HandleHTTPResponse {
 	var payload timeShiftLeaseRequest
-	if request.GetMethod() != http.MethodPost || json.Unmarshal(request.GetBody(), &payload) != nil || !s.timeShift.Heartbeat(payload.LeaseID) {
+	if request.GetMethod() != http.MethodPost || json.Unmarshal(request.GetBody(), &payload) != nil || !s.timeShift.Heartbeat(payload.LeaseID, mediaweb.Owner(request)) {
 		return textResponse(http.StatusNotFound, "rewind session not found")
 	}
 	return jsonHTTPResponse(http.StatusOK, map[string]bool{"ok": true})
@@ -97,7 +99,7 @@ func (s *HTTPRoutesServer) handleTimeShiftStop(request *pluginv1.HandleHTTPReque
 	if request.GetMethod() != http.MethodPost || json.Unmarshal(request.GetBody(), &payload) != nil {
 		return textResponse(http.StatusBadRequest, "invalid rewind session")
 	}
-	s.timeShift.Release(payload.LeaseID)
+	s.timeShift.Release(payload.LeaseID, mediaweb.Owner(request))
 	return jsonHTTPResponse(http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -125,7 +127,7 @@ func (s *HTTPRoutesServer) handleTimeShiftMedia(request *pluginv1.HandleHTTPRequ
 	}
 	leaseID := queryValue(request, "lease")
 	if request.GetPath() == "/dispatcharr/timeshift/manifest" {
-		manifest, ok := s.timeShift.Manifest(queryValue(request, "buffer_id"), leaseID)
+		manifest, ok := s.timeShift.Manifest(queryValue(request, "buffer_id"), leaseID, mediaweb.Owner(request))
 		if !ok {
 			return textResponse(http.StatusTooEarly, "rewind buffer is not ready")
 		}
@@ -136,7 +138,7 @@ func (s *HTTPRoutesServer) handleTimeShiftMedia(request *pluginv1.HandleHTTPRequ
 		if err != nil {
 			return textResponse(http.StatusBadRequest, "invalid rewind segment")
 		}
-		segment, ok := s.timeShift.Segment(queryValue(request, "buffer_id"), leaseID, seq)
+		segment, ok := s.timeShift.Segment(queryValue(request, "buffer_id"), leaseID, mediaweb.Owner(request), seq)
 		if !ok {
 			return textResponse(http.StatusNotFound, "rewind segment not found")
 		}
@@ -148,7 +150,7 @@ func (s *HTTPRoutesServer) handleTimeShiftMedia(request *pluginv1.HandleHTTPRequ
 	relative := strings.TrimPrefix(request.GetPath(), "/dispatcharr/timeshift/")
 	parts := strings.Split(relative, "/")
 	if len(parts) == 2 && parts[1] == "index.m3u8" {
-		manifest, ok := s.timeShift.Manifest(parts[0], leaseID)
+		manifest, ok := s.timeShift.Manifest(parts[0], leaseID, mediaweb.Owner(request))
 		if !ok {
 			return textResponse(http.StatusTooEarly, "rewind buffer is not ready")
 		}
@@ -159,7 +161,7 @@ func (s *HTTPRoutesServer) handleTimeShiftMedia(request *pluginv1.HandleHTTPRequ
 		if err != nil {
 			return textResponse(http.StatusBadRequest, "invalid rewind segment")
 		}
-		segment, ok := s.timeShift.Segment(parts[0], leaseID, seq)
+		segment, ok := s.timeShift.Segment(parts[0], leaseID, mediaweb.Owner(request), seq)
 		if !ok {
 			return textResponse(http.StatusNotFound, "rewind segment not found")
 		}

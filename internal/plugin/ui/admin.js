@@ -561,6 +561,9 @@ function renderAdminPlayerSettings() {
   if (!root) return;
   const settings = adminSettings();
   root.innerHTML = "<label class=\"playback-setting\"><span class=\"settings-field-copy\"><strong>HLS buffer</strong><small>Browser memory used to absorb short connection drops.</small></span><span class=\"settings-unit-field\"><input type=\"number\" min=\"5\" max=\"60\" step=\"1\" value=\"" + escapeHTML(boundedHLSBufferSeconds(settings.hlsBufferSeconds)) + "\" data-admin-player-field=\"hls-buffer\"><em>sec</em></span></label>";
+  const stations=document.createElement("div");stations.className="station-mappings";root.append(stations);
+  loadPlayerLibrary("media.js","SiloLiveMedia").then(function(){if(stations.isConnected===false)return;SiloLiveMedia.stationEditor(stations,settings,items(state.app&&state.app.channels),function(rows){state.adminCategorySettings.stationMappings=rows;markAdminSettingsDraft();renderAdminTopbarActions();});}).catch(function(){stations.textContent="Station mapping controls could not be loaded. Reload to try again.";});
+
 }
 function renderAdminSportsSettings() {
   const root = byId("admin-sports-settings");
@@ -708,7 +711,7 @@ async function refreshAdminTimeShiftStatus(quiet) {
   state.timeShiftAdminLoading = true;
   if (!quiet) renderAdminPage();
   try {
-    state.timeShiftAdminStatus = await getJSON("/dispatcharr/api/timeshift/admin-status");
+    state.timeShiftAdminStatus = await getJSON("/dispatcharr/api/media/admin-status");
   } catch (_) {
     state.timeShiftAdminStatus = { unavailable: true };
     if (!quiet) showAppToast("Live Rewind cache status is unavailable.");
@@ -719,7 +722,7 @@ async function refreshAdminTimeShiftStatus(quiet) {
 }
 async function clearAdminTimeShiftCache() {
   try {
-    await postJSON("/dispatcharr/api/timeshift/clear", {});
+    await postJSON("/dispatcharr/api/media/clear", {});
     state.timeShiftAdminStatus = null;
     showAppToast("Live Rewind cache cleared.");
     refreshAdminTimeShiftStatus(true);

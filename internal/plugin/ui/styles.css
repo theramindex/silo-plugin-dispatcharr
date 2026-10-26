@@ -2291,3 +2291,5 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
   .shell.is-sports-app .sports-header-teams { grid-column: 1; }
   .shell.is-sports-app .sports-header-refresh { grid-column: 2; }
 }
+
+.station-mappings{margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border)}.station-mappings h3{margin:0 0 .65rem}.station-mappings p{color:var(--muted);font-size:.875rem}.station-mapping-form{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) 6rem;gap:.75rem;margin-top:1rem}.station-mapping-form label{display:grid;gap:.4rem;min-width:0}.station-mapping-form>button,.station-mapping-form>p{grid-column:1/-1}.station-mapping-form input{width:100%;min-width:0}@media(max-width:700px){.station-mapping-form{grid-template-columns:1fr}.station-mapping-list .settings-row{align-items:flex-start;gap:.75rem}.station-mapping-list span{overflow-wrap:anywhere}}

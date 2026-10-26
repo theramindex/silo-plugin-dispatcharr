@@ -9,8 +9,8 @@ import (
 	"time"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/transcode"
-	sharedhttp "github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/httpclient"
+	sharedhttp "github.com/theramindex/silo-plugins/pkg/livemedia/httpclient"
+	"github.com/theramindex/silo-plugins/pkg/livemedia/transcode"
 )
 
 // Identity comes from Silo's authenticated proxy, which strips caller-supplied

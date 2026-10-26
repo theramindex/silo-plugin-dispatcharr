@@ -3416,6 +3416,7 @@ async function resolvePlayableStreamURL(url) {
   return /^https:\/\//i.test(resolved) || (/^http:\/\//i.test(resolved) && window.location.protocol === "http:") ? resolved : url;
 }
 function attachVideoSource(video, url, options) {
+ if (/\/(dispatcharr|xtream)\/stream\?/.test(url)&&new URL(url,window.location.href).searchParams.has("channel_id"))return attachSharedVideoSource(video,url,options);
   const attachment = {
     hls: null,
     tsPlayer: null,
@@ -3820,10 +3821,11 @@ function handlePlayerAction(action, button) {
     returnFromPlayer();
     return;
   }
+  if(action==="live-rewind"){state.moreMenuOpen=false;renderPlayerMoreMenu();sharedPlaybackMode("rewind");return;}
   if (action === "compatible-playback") {
     state.moreMenuOpen = false;
     renderPlayerMoreMenu();
-    tryCompatiblePlayback(null, true);
+    sharedPlaybackMode("compatible");
     return;
   }
   if (action === "retry") {

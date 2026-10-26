@@ -21,11 +21,13 @@ import (
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/timeshift"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/transcode"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/dispatcharr"
-	sharedhttp "github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/httpclient"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
+	sharedclients "github.com/theramindex/silo-plugins/pkg/livemedia/httpclient"
+	sharedhttp "github.com/theramindex/silo-plugins/pkg/livemedia/httpclient"
+	timeshift "github.com/theramindex/silo-plugins/pkg/livemedia/rewind"
+	"github.com/theramindex/silo-plugins/pkg/livemedia/transcode"
+	mediaweb "github.com/theramindex/silo-plugins/pkg/livemedia/web"
 )
 
 //go:embed assets/hls.min.js assets/mpegts.min.js
@@ -37,6 +39,10 @@ var (
 )
 
 type HTTPRoutesServer struct {
+	mediaBackoff  mediaweb.SourceBackoff
+	streamClients sharedclients.Pool
+	mediaOnce     sync.Once
+	media         *mediaweb.Controller
 	pluginv1.UnimplementedHttpRoutesServer
 	store               *cache.Store
 	settingsProvider    func() config.Settings
@@ -60,7 +66,7 @@ type HTTPRoutesServer struct {
 	sportsPrepared      sportsPreparedCache
 	sportsPreparedMu    sync.Mutex
 	sportsImages        *sportsImageCache
-	timeShift           *timeshift.Manager
+	timeShift           *timeshift.ViewerManager
 	transcodeMu         sync.Mutex
 	transcoder          *transcode.Manager
 	streamTickets       map[string]streamTicket
@@ -117,7 +123,7 @@ func NewHTTPRoutesServerWithCoordinatorAndSettingsFiles(store *cache.Store, sett
 }
 
 func newHTTPRoutesServer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
-	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, connectionTester: testConnection, sportsProvider: newSportarrSportsProvider(&http.Client{Timeout: 8 * time.Second}), sportsImages: newSportsImageCache(defaultSportsImageCacheDir, secureSportsImageHTTPClient()), timeShift: timeshift.NewManager(""), streamTickets: map[string]streamTicket{}}
+	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, connectionTester: testConnection, sportsProvider: newSportarrSportsProvider(&http.Client{Timeout: 8 * time.Second}), sportsImages: newSportsImageCache(defaultSportsImageCacheDir, secureSportsImageHTTPClient()), timeShift: timeshift.NewViewerManager(""), streamTickets: map[string]streamTicket{}}
 	if syncer != nil {
 		server.coordinator = NewRefreshCoordinator(syncer)
 	}
@@ -258,6 +264,9 @@ type watchRequest struct {
 }
 
 func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if mediaweb.Handles("/dispatcharr", request.GetPath()) {
+		return s.mediaController().Handle(ctx, request), nil
+	}
 	if strings.HasPrefix(request.GetPath(), "/dispatcharr/timeshift/") {
 		return s.handleTimeShiftMedia(request), nil
 	}

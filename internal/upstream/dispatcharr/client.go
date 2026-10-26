@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	sharedhttp "github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/httpclient"
+	sharedhttp "github.com/theramindex/silo-plugins/pkg/livemedia/httpclient"
 )
 
 const maxPaginationPages = 2000

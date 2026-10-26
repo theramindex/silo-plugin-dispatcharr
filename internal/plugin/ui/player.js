@@ -1,3 +1,29 @@
+function attachSharedVideoSource(video, url, options) {
+  const parsed = new URL(url, window.location.href);
+  const channel = parsed.searchParams.get("channel_id");
+  const mode = parsed.searchParams.get("media_mode") || "direct";
+  const attachment = {hls:null,tsPlayer:null,cancelled:false,manager:null,destroy:function(){attachment.cancelled=true;if(attachment.manager)attachment.manager.stop();}};
+  Promise.all([loadPlayerLibrary("media.js","SiloLiveMedia"),ensurePlayerLibraries("")]).then(function(){
+    if(attachment.cancelled)return;
+    const manager = new SiloLiveMedia({base:route("/dispatcharr"),root:base,video:video,fetch:coreFetch,
+      headers:function(){return typeof coreMediaRequestHeaders === "function" ? coreMediaRequestHeaders(route("/dispatcharr/api/media/start")) : playerRequestHeaders();},
+      loadLibraries:function(){return ensurePlayerLibraries("");},
+      onStatus:function(message){if(video.id==="player"&&message)showPlayerToast(message);},
+      onError:function(message){if(options&&options.onFatal)options.onFatal({message:message});else if(video.id==="player"){if(typeof showPlayerError==="function")showPlayerError(message);else showPlayerToast(message);}},
+      onAttached:function(source){attachment.hls=source.hls;attachment.tsPlayer=source.ts;if(video.id==="player"){
+        state.hls=source.hls;state.tsPlayer=source.ts;
+        if(source.mode==="rewind"||source.rewind){state.timeShiftSession={ready:true,shared:true};video.controls=true;clearInterval(state.timeShiftTimelineTimer);state.timeShiftTimelineTimer=setInterval(updateTimeShiftUI,1000);}
+        updateAudioMenu();updateSubtitlesButton();
+      }}
+    });attachment.manager=manager;manager.play(channel,mode);
+  }).catch(function(error){if(!attachment.cancelled&&options&&options.onFatal)options.onFatal(error);});
+  return attachment;
+}
+function sharedPlaybackMode(mode) {
+  if(!state.currentChannel)return;
+  stopTimeShiftSession();
+  setVideoSource(browserStreamURL(state.currentChannel)+"&media_mode="+encodeURIComponent(mode),{format:state.currentChannel.streamFormat});
+}
 // Split from app.js so Guide and player views can change independently.
 function playerGuideProgramLines(channel) {
   const current = liveProgram(channel);
@@ -372,6 +398,7 @@ function renderPlayerMoreMenu() {
     + "<button data-player-action=\"aspect\">" + menuIcon("aspect") + "<span>Aspect ratio<small>" + (state.aspectMode === "fit" ? "Fit to screen" : "Fill screen") + "</small></span></button>"
     + "<button data-player-action=\"fullscreen\">" + menuIcon(document.fullscreenElement ? "fullscreen-exit" : "fullscreen") + "<span>Fullscreen<small>" + (document.fullscreenElement ? "Exit player fullscreen" : "Fill the display") + "</small></span></button>"
     + "<button data-player-action=\"compatible-playback\">" + menuIcon("play") + "<span>Compatible playback<small>Use if video or audio will not play</small></span></button>"
+    + "<button data-player-action=\"live-rewind\">"+menuIcon("rewind")+"<span>Live Rewind</span></button>"
     + "<button data-player-action=\"pip\">" + menuIcon("pip") + "<span>Picture in Picture</span></button>"
     + "<button data-player-action=\"guide\">" + menuIcon("guide") + "<span>Channel guide</span></button>"
     + sportsControl
@@ -521,7 +548,7 @@ function setVideoSource(url, options) {
   video.addEventListener("ended", updateCenterPlayButton, listen());
   video.addEventListener("error", function() {
     state.playerWaiting = false; updateCenterPlayButton();
-    if (video.error && (video.error.code === 3 || video.error.code === 4)) {
+    if (!(state.videoAttachment&&state.videoAttachment.manager) && video.error && (video.error.code === 3 || video.error.code === 4)) {
       const fatal = options && options.onFatal ? options.onFatal : handlePlaybackFatalError;
       fatal({code: video.error.code});
     }

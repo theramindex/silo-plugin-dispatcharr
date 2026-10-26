@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	sharedhttp "github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/httpclient"
+	sharedhttp "github.com/theramindex/silo-plugins/pkg/livemedia/httpclient"
 )
 
 type Client struct {

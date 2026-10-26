@@ -6,31 +6,14 @@ Dispatcharr-specific Silo plugin that runs as a Silo-hosted Live TV app.
 > with an **Admin API Key** is the recommended full-feature source. Xtream Codes
 > and M3U/XMLTV are supported as reduced-capability source modes.
 
-The plugin owns the Silo presentation layer for Live TV. It does not ingest,
-host, remux, transcode, or manage IPTV streams. The configured upstream remains
-responsible for streams, channels, guide data, and output URLs; Dispatcharr also
-owns recording behavior in Direct mode.
+The plugin owns Silo's Live TV presentation and playback sessions. The configured upstream remains responsible for channels, guide data, stream outputs, and recording behavior in Direct mode.
 
 ## Requirements and ownership boundaries
 
-- **Dispatcharr Direct is preferred.** It is required for DVR scheduling and
-  recordings. Xtream and M3U/XMLTV expose playback and guide capabilities only.
-- **Dispatcharr manages streams.** Stream health, stream ordering, channel
-  mapping, logos, guide IDs, output profiles, proxy/output URLs, and recording
-  behavior are Dispatcharr responsibilities.
-- **Silo presents and plays.** This plugin reads Dispatcharr-backed catalog data,
-  renders the Silo Live TV UI, stores Silo/user presentation preferences, and
-  redirects playback to Dispatcharr/provider-owned stream URLs. Stream URLs
-  that embed provider credentials (Xtream-style `/live/USER/PASS/...` paths or
-  password/token query parameters) are never handed to the browser; they can
-  only be relayed when they are HLS (`.m3u8` playlists plus bounded segments).
-  Continuous MPEG-TS or large VOD files behind credentialed URLs are **not**
-  proxied: the stream route returns HTTP 422 with
-  `{"code":"stream_requires_hls"}`. Use Dispatcharr Direct, or configure an HLS
-  output profile for the source.
-- **No server-side transcoding.** The plugin does not invoke ffmpeg or perform
-  GPU/CPU video conversion. Browser playback uses the bundled client-side
-  HLS/mpegts players when the stream format is compatible.
+- **Dispatcharr Direct is preferred.** It is required for DVR scheduling and recordings. Xtream and M3U/XMLTV expose playback and guide capabilities only.
+- **Dispatcharr manages sources.** Stream health, output profiles, and recording behavior remain upstream responsibilities.
+- **Silo presents and plays.** Live channels use an authenticated continuous MPEG-TS/HLS relay. Provider URLs and credentials remain server-side, including nested HLS playlists and keys. This requires the Ramindex Silo fork's loopback relay support. Legacy credentialed non-HLS file routes still return `stream_requires_hls` (422).
+- **Compatible playback** uses host FFmpeg and a VAAPI GPU when source codecs cannot play in the browser. There is no software encoder fallback.
 - **ECM is recommended.** Use Enhanced Channel Manager (ECM) with Dispatcharr for
   channel/group curation, lineup cleanup, and operational channel management.
 
@@ -53,10 +36,7 @@ first-class Live TV provider capability.
   - Username
   - Password
   - Live TV, EPG, VOD, and series metadata when the provider exposes those APIs
-  - Xtream live and VOD URLs carry the account credentials, so browser
-    playback only works when the provider serves HLS. Plain MPEG-TS live
-    channels and VOD files return `stream_requires_hls` (422); use Dispatcharr
-    Direct or an HLS output instead
+  - Browser live channels relay MPEG-TS and HLS without exposing account credentials. Credentialed non-HLS VOD/file routes remain unsupported.
   - Without an EPG XML URL, guide data comes from per-channel `get_short_epg`
     calls run by a bounded worker pool (8 concurrent). Channels whose guide call
     fails are skipped and counted in the log; the lineup is still saved
@@ -109,42 +89,20 @@ first-class Live TV provider capability.
   - Silo owns task cadence; the plugin cannot declare or change intervals
   - A `startup` trigger is useful after install/restart so channels and EPG populate immediately
 
-## Live Rewind
+## Shared playback and Live Rewind
 
-- Live Rewind is opt-in and limited to Dispatcharr Direct MPEG-TS channels with
-  H.264 video. Unsupported streams retain the normal direct playback path.
-- The plugin copies MPEG-TS packets into keyframe-aligned HLS segments without
-  transcoding. Segments live under
-  `/var/lib/continuum/plugins/silo.ramindex.dispatcharr/timeshift`.
-- One channel has one shared ring buffer. Browser leases keep independent
-  playheads while viewers of the same channel reuse the ingest and disk cache.
-- Administrators control the global cache budget, maximum rewind window,
-  minimum free-space reserve, and maximum distinct buffered channels. Defaults
-  are 5 GB, 30 minutes, 2 GB free, and 20 channels.
-- Old segments are evicted first. If the hard disk budget cannot be maintained,
-  the least recently used channel buffer is stopped and affected players fall
-  back to direct live playback.
-- Buffers expire after their viewer leases stop heartbeating and are removed
-  after a short idle period. Multiview never starts rewind buffers.
+- Dispatcharr, XC, and HDHomeRun use the same guarded playback, viewer ownership, startup fallback, and cleanup library (SDK v0.30.0).
+- Admin **Station alternatives** explicitly map equivalent channel IDs to one station key. Lower priority numbers win; another mapped source is tried before any stream bytes are sent. Names never imply equivalence. Interrupted streams need restarting.
+- Live Rewind is opt-in and limited to Dispatcharr Direct. H.264 MPEG-TS can be copied into keyframe-aligned HLS; unsupported rewind codecs can use GPU conversion with a bounded history.
+- Administrators control cache budget, rewind window, free-space reserve, and copy-buffer count. Defaults are 5 GiB, 30 minutes, 2 GiB free, and 20 buffers. GPU histories also respect the window and budget. Cache status and clear actions include both paths.
+- Shared playback leases belong to the authenticated user/profile. Leaving playback releases resources; abandoned leases expire after 75 seconds. Legacy copy buffers may share one channel ingest; managed browser sessions reserve their own ingest.
 
 ## Compatible playback
 
-- The single-channel browser player tries the original stream first. A codec
-  failure triggers one hardware conversion attempt; the player menu also offers
-  **Compatible playback** for unsupported audio or video.
-- Conversion runs inside the plugin using the host container's installed FFmpeg
-  and a VAAPI render device (`/dev/dri/renderD128`). The bundled Jellyfin FFmpeg
-  location is detected automatically. Output is H.264/AAC HLS, capped at 1080p,
-  30 fps, and 6 Mbps video. Decoding and scaling currently use the CPU; video
-  encoding uses the GPU. There is no automatic software encoder fallback.
-- The limit is two sessions per plugin process and one per authenticated Silo
-  viewer/profile. Switching channels or leaving playback releases the session;
-  abandoned sessions expire after 75 seconds. Startup is limited to 30 seconds.
-- Inputs are fetched through a restricted local gateway. Provider URLs and keys
-  remain on the server, including nested HLS playlists. Generated HLS segments
-  pass through authenticated plugin routes and are checked against the viewer.
-- Conversion uses a short rolling HLS window, not the Live Rewind buffer.
-  Preview tiles and multiview retain their original playback path.
+- Main, preview, and multiview players try source codecs first. A codec failure triggers one GPU conversion attempt; the player menu also offers **Compatible playback**.
+- Conversion requires host FFmpeg and `/dev/dri/renderD128`. The bundled Jellyfin FFmpeg location is detected automatically. Output is H.264/AAC HLS capped at 1080p, 30 fps, and 6 Mbps video. Decoding and scaling use the CPU; encoding uses the GPU, with no software fallback.
+- Two GPU encoding slots are shared across Dispatcharr, XC, and HDHomeRun processes on one Silo server. A viewer/profile can have one converted channel per plugin; additional direct streams remain subject to source limits. Startup is limited to 30 seconds.
+- Inputs stay behind a restricted loopback gateway and generated media passes through authenticated, owner-checked routes. Normal conversion has a short rolling HLS window; Live Rewind conversion retains bounded history.
 
 ## Profile and group organization
 
@@ -267,11 +225,10 @@ numbers or `start >= end` return `400`.
   process-global plugin state.
 - Source-mode changes reset cached channel/guide state before rebuilding
 - Dispatcharr Direct does not silently fall back to Xtream Codes; Direct failures are surfaced in plugin health/status
-- Silo host integration still needs real environment validation
 - Native Jellyfin `/LiveTv/*` export is not available until Silo exposes a Live TV provider SDK/host capability
 - The HTTP route SDK buffers each response. Live Rewind and hardware playback
   conversion serve bounded HLS segments through that interface; they never put
-  an endless transport stream inside an RPC response.
+  an endless transport stream inside an RPC response. Continuous live streams use the host's loopback relay instead.
 - HTTP routes and navigation are static manifest declarations. Settings cannot
   dynamically add/remove navigation entries.
 - Scheduled-task cadence and retry policy are host-owned. The plugin only

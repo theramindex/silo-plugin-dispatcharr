@@ -12,14 +12,14 @@ import (
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/timeshift"
+	timeshift "github.com/theramindex/silo-plugins/pkg/livemedia/rewind"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func TestTimeShiftMediaUsesManifestDeclaredRoutes(t *testing.T) {
 	t.Parallel()
 	server := NewHTTPRoutesServer(cache.NewStore())
-	server.timeShift = timeshift.NewManager(t.TempDir())
+	server.timeShift = timeshift.NewViewerManager(t.TempDir())
 
 	manifestQuery, _ := structpb.NewStruct(map[string]any{"buffer_id": "buffer", "lease": "lease"})
 	manifest, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
@@ -56,11 +56,11 @@ func TestTimeShiftRoutesShareBuffersAndGateAdminOperations(t *testing.T) {
 	}})
 	store.SetAdminSettings(json.RawMessage(`{"liveRewindEnabled":true,"liveRewindCacheGB":1,"liveRewindWindowMinutes":15,"liveRewindMinFreeGB":1,"liveRewindMaxChannels":2}`))
 	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings { return config.Settings{SourceMode: config.SourceModeDirectLogin} })
-	server.timeShift = timeshift.NewManager(t.TempDir())
+	server.timeShift = timeshift.NewViewerManager(t.TempDir())
 
 	start := func() map[string]any {
 		response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
-			Path: "/dispatcharr/api/timeshift/start", Method: http.MethodPost, Body: []byte(`{"channelId":"channel-1"}`),
+			Headers: map[string]string{"X-Silo-User-Id": "1"}, Path: "/dispatcharr/api/timeshift/start", Method: http.MethodPost, Body: []byte(`{"channelId":"channel-1"}`),
 		})
 		if err != nil || response.GetStatusCode() != http.StatusAccepted {
 			t.Fatalf("start rewind: status=%d err=%v body=%s", response.GetStatusCode(), err, response.GetBody())
@@ -115,9 +115,9 @@ func TestTimeShiftStartRejectsHLSProxyStreams(t *testing.T) {
 	}}})
 	store.SetAdminSettings(json.RawMessage(`{"liveRewindEnabled":true}`))
 	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings { return config.Settings{SourceMode: config.SourceModeDirectLogin} })
-	server.timeShift = timeshift.NewManager(t.TempDir())
+	server.timeShift = timeshift.NewViewerManager(t.TempDir())
 	response, _ := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
-		Path: "/dispatcharr/api/timeshift/start", Method: http.MethodPost, Body: []byte(`{"channelId":"hls"}`),
+		Headers: map[string]string{"X-Silo-User-Id": "1"}, Path: "/dispatcharr/api/timeshift/start", Method: http.MethodPost, Body: []byte(`{"channelId":"hls"}`),
 	})
 	if response.GetStatusCode() != http.StatusConflict {
 		t.Fatalf("expected HLS rewind to stay unavailable, got %d %s", response.GetStatusCode(), response.GetBody())
@@ -130,9 +130,9 @@ func TestTimeShiftStartFallsBackWhenDisabledOrNotDirect(t *testing.T) {
 	store.Replace(cache.Snapshot{Catalog: model.CatalogState{Channels: []model.Channel{{ID: "channel", StreamURL: "http://example.test/live.ts"}}}})
 	store.SetAdminSettings(json.RawMessage(`{"liveRewindEnabled":false}`))
 	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings { return config.Settings{SourceMode: config.SourceModeXtream} })
-	server.timeShift = timeshift.NewManager(t.TempDir())
+	server.timeShift = timeshift.NewViewerManager(t.TempDir())
 	response, _ := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
-		Path: "/dispatcharr/api/timeshift/start", Method: http.MethodPost, Body: []byte(`{"channelId":"channel"}`),
+		Headers: map[string]string{"X-Silo-User-Id": "1"}, Path: "/dispatcharr/api/timeshift/start", Method: http.MethodPost, Body: []byte(`{"channelId":"channel"}`),
 	})
 	if response.GetStatusCode() != http.StatusConflict {
 		t.Fatalf("expected unavailable response, got %d", response.GetStatusCode())

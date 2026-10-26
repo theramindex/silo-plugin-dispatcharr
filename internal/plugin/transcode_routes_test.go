@@ -2,7 +2,7 @@ package plugin
 
 import (
 	"context"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/transcode"
+	"github.com/theramindex/silo-plugins/pkg/livemedia/transcode"
 	"net/http"
 	"net/url"
 	"os"

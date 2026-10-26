@@ -19,7 +19,7 @@ import (
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
-	sharedhttp "github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/httpclient"
+	sharedhttp "github.com/theramindex/silo-plugins/pkg/livemedia/httpclient"
 )
 
 const (
@@ -192,7 +192,7 @@ func urlHost(raw string) string {
 
 func (s *HTTPRoutesServer) proxyProviderMedia(ctx context.Context, streamURL, trustedHost string, allowUnsized bool) *pluginv1.HandleHTTPResponse {
 	hosts := append(configuredStreamHosts(s.streamProxySettings()), trustedHost)
-	media, err := fetchProviderMedia(ctx, sharedhttp.NewRestricted(hosts...), streamURL, allowUnsized)
+	media, err := fetchProviderMedia(ctx, s.streamClients.For(hosts...), streamURL, allowUnsized)
 	if errors.Is(err, errStreamRequiresHLS) {
 		return jsonHTTPResponse(http.StatusUnprocessableEntity, streamProxyError{Code: streamRequiresHLSCode, Error: streamRequiresHLSMessage})
 	}
