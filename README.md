@@ -168,6 +168,12 @@ first-class Live TV provider capability.
   remain upstream organizers; the plugin does not create, rename, or delete
   Dispatcharr channels.
 
+Sports navigation separates discovery from personal follows:
+
+- **Teams** browses the full team directory by league, with search and follow actions.
+- **My Sports** shows existing team, fighter, and league follows, with their live and upcoming events.
+- Following and unfollowing use the same profile preferences as Live TV; no migration or re-selection is needed.
+
 ## Sports replays from Silo
 
 - Administrators can enable the Sports experience and select one or more

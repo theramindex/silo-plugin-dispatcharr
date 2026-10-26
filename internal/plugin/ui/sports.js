@@ -1498,7 +1498,7 @@ function filteredSportsEvents(payload) {
   return collapseEquivalentSportsEvents(sourceEvents.filter(function(event) {
     if (state.sportsLeague && event.leagueId !== state.sportsLeague) return false;
     if (tab === "replays") return sportsReplayMatchesForEvent(event).length > 0;
-    if (tab === "teams") return sportsEventIsFollowed(event);
+    if (tab === "mysports") return sportsEventIsFollowed(event);
     const startUnix = Number(event.startUnix || 0);
     return !event.completed || startUnix >= now - 30 * 3600;
   })).sort(compareSportsEventsForTab);

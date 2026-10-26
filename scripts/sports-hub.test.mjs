@@ -38,7 +38,7 @@ test('legacy sports routes map onto the hub tabs', () => {
   const ctx = context();
   assert.equal(ctx.sportsHubTab('live'), 'today');
   assert.equal(ctx.sportsHubTab('upcoming'), 'scores');
-  assert.equal(ctx.sportsHubTab('favorites'), 'teams');
+  assert.equal(ctx.sportsHubTab('favorites'), 'mysports');
   assert.equal(ctx.sportsHubTab('replays'), 'replays');
   assert.equal(ctx.sportsHubTab('nonsense'), 'today');
 });
@@ -116,4 +116,66 @@ test('news from several feeds is deduplicated and newest first', () => {
   const html = ctx.renderSportsNewsList([{ id: '1', headline: 'Mets win', url: 'https://www.espn.com/story', leagueName: 'MLB' }], 5);
   assert.match(html, /target="_blank" rel="noopener noreferrer"/);
   assert.match(html, /Mets win/);
+});
+
+// Exercise the same shared follow preferences and event matching used by the
+// Sports screen. The directory must stay usable without any follows.
+test('Teams discovers everyone while My Sports contains only personal follows and their events', () => {
+  const preferences = {
+    sportsFavoriteTeams: { 'gamepass:mlb:new-york-mets': true, 'fighter-1': true },
+    sportsFavoriteTeamLabels: { 'fighter-1': { name: 'Alex Fighter', kind: 'Fighter', leagueName: 'UFC' } },
+    sportsFavoriteLeagues: { nba: true }
+  };
+  const ctx = context({
+    prefs: () => preferences,
+    uniqueIDs: values => [...new Set(values)], isSportsApp: () => true,
+    sportsFavoriteTeamMap: () => preferences.sportsFavoriteTeams,
+    sportsFavoriteLeagueMap: () => preferences.sportsFavoriteLeagues,
+    renderSportsLeagueMark: league => '<i>' + league.name + '</i>',
+    sportsTeamAbbreviation: team => team.abbreviation || '',
+    collapseEquivalentSportsEvents: events => events,
+    compareSportsEventsForTab: (a, b) => a.startUnix - b.startUnix,
+    sportsTeamSummaryFor: () => ({ upcoming: [] }), espnNewsLeague: () => false
+  });
+  vm.runInContext(fs.readFileSync(new URL('../internal/plugin/ui/sports.js', import.meta.url), 'utf8'), ctx);
+  // Artwork and score formatting have their own tests; keep this scenario
+  // focused on which real events and follows the page exposes.
+  ctx.sportsTeamSummaryFor = () => ({ upcoming: [] });
+  ctx.renderSportsTeamLogo = () => "<i></i>";
+  ctx.renderSportsLeagueMark = league => "<i>" + league.name + "</i>";
+  ctx.renderSportsEventTile = event => '<article data-event="' + event.id + '"></article>';
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    leagues: [{ id: 'mlb', name: 'MLB' }, { id: 'nba', name: 'NBA' }, { id: 'ufc', name: 'UFC' }],
+    events: [
+      { id: 'team-game', leagueId: 'mlb', home: mets, away: braves, live: true, startUnix: now - 60 },
+      { id: 'league-game', leagueId: 'nba', home: { name: 'New York Knicks' }, away: { name: 'Boston Celtics' }, startUnix: now + 3600 },
+      { id: 'fight', leagueId: 'ufc', home: { id: 'fighter-1', name: 'Alex Fighter' }, away: { name: 'Blair Fighter' }, startUnix: now + 7200 },
+      { id: 'unrelated', leagueId: 'mlb', home: { name: 'Chicago Cubs' }, away: braves, startUnix: now + 3600 },
+      { id: 'old-game', leagueId: 'mlb', home: mets, away: braves, completed: true, startUnix: now - 7200 }
+    ]
+  };
+  ctx.state.sports = payload;
+  ctx.state.sportsLeagueTeams = { mlb: [mets, braves], nba: [], ufc: [] };
+  ctx.state.sportsTab = 'teams';
+  const directory = ctx.renderSportsHub(payload);
+  assert.match(directory, /Atlanta Braves/);
+  assert.doesNotMatch(directory, /data-event="team-game"/);
+  assert.equal(ctx.sportsHubTab('mysports'), 'mysports');
+  ctx.state.sportsTab = 'mysports';
+  const personal = ctx.renderSportsHub(payload);
+  assert.match(personal, /Unfollow New York Mets/);
+  assert.match(personal, /Unfollow Alex Fighter/);
+  assert.match(personal, /Unfollow NBA/);
+  assert.match(personal, /data-event="team-game"/);
+  assert.match(personal, /data-event="league-game"/);
+  assert.match(personal, /data-event="fight"/);
+  assert.doesNotMatch(personal, /data-event="(?:unrelated|old-game)"/);
+  preferences.sportsFavoriteTeams = {};
+  preferences.sportsFavoriteLeagues = {};
+  const empty = ctx.renderSportsHub(payload);
+  assert.doesNotMatch(empty, /data-event=/);
+  assert.match(empty, /data-sports-tab="teams"/);
+  ctx.state.sportsTab = 'teams';
+  assert.match(ctx.renderSportsHub(payload), /Atlanta Braves/);
 });

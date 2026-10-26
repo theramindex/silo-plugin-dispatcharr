@@ -2281,3 +2281,13 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 @media (max-width: 600px) {
   .shell:not(.is-admin) .topbar-primary .brand h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
+
+/* Give Sports sections their own full-width row on narrow screens. */
+@media (max-width: 799px) {
+  .shell.is-sports-app .topbar { flex-wrap: wrap; }
+  .shell.is-sports-app .topbar-primary .brand h1 { position: static; width: auto; height: auto; overflow: hidden; clip-path: none; }
+  .shell.is-sports-app .sports-topbar-tabs { grid-area: nav; display: grid; grid-template-columns: minmax(0, 1fr) auto; flex: 1 1 100%; width: 100%; gap: 0.45rem; overflow: visible; }
+  .shell.is-sports-app .sports-app-nav { grid-column: 1 / -1; width: 100%; min-width: 0; }
+  .shell.is-sports-app .sports-header-teams { grid-column: 1; }
+  .shell.is-sports-app .sports-header-refresh { grid-column: 2; }
+}

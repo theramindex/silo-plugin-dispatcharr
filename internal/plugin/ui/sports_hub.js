@@ -1,8 +1,8 @@
-// Sports hub: Today, Scores, My Teams, News, and team pages.
+// Sports hub: discovery in Teams, personal follows in My Sports.
 // Games are organized by team and league; a channel match adds a Watch action.
 
-const SPORTS_HUB_TABS = ["today", "scores", "teams", "news"];
-const SPORTS_LEGACY_TABS = { live: "today", upcoming: "scores", all: "scores", favorites: "teams" };
+const SPORTS_HUB_TABS = ["today", "scores", "teams", "mysports", "news"];
+const SPORTS_LEGACY_TABS = { live: "today", upcoming: "scores", all: "scores", favorites: "mysports" };
 
 function sportsHubTab(tab) {
   const value = String(tab || "");
@@ -11,7 +11,7 @@ function sportsHubTab(tab) {
 }
 
 function sportsHubTabLabel(tab) {
-  return ({ today: "Today", scores: "Scores", teams: "My Teams", news: "News", replays: "Replays" })[tab] || "Today";
+  return ({ today: "Today", scores: "Scores", teams: "Teams", mysports: "My Sports", news: "News", replays: "Replays" })[tab] || "Today";
 }
 
 function sportsHubTabs() {
@@ -168,6 +168,7 @@ function renderSportsHub(payload) {
   let body = "";
   if (tab === "scores") body = renderSportsScoresTab(payload);
   else if (tab === "teams") body = renderSportsTeamsTab(payload);
+  else if (tab === "mysports") body = renderSportsMySportsTab(payload);
   else if (tab === "news") body = renderSportsNewsTab(payload);
   else body = renderSportsTodayTab(payload);
   const filters = renderSportsTabFilters(payload);
@@ -215,7 +216,7 @@ function renderSportsYourTeams(payload) {
       + renderSportsTeamLogo(entry.team, "sports-team-card-logo")
       + "<span><strong>" + escapeHTML(sportsTeamName(entry.team)) + "</strong><small>" + escapeHTML(status.text) + "</small></span></button>" + watch + "</article>";
   }).join("");
-  return sportsSectionHTML("Your teams", "<button type=\"button\" class=\"section-action\" data-sports-tab=\"teams\">Manage</button>", "<div class=\"sports-team-strip\">" + cards + "</div>", "sports-your-teams");
+  return sportsSectionHTML("Your teams", "<button type=\"button\" class=\"section-action\" data-sports-tab=\"mysports\">Manage</button>", "<div class=\"sports-team-strip\">" + cards + "</div>", "sports-your-teams");
 }
 
 function sportsScoreboardLeagueOrder(groups) {
@@ -420,12 +421,35 @@ function renderSportsScoresTab(payload) {
 
 function renderSportsTeamsTab(payload) {
   ensureSportsLeagueCatalog(payload);
-  const followed = sportsFollowedHubTeams(payload);
   const query = String(state.sportsTeamQuery || "");
-  const followedHTML = followed.length ? "<div class=\"sports-team-grid\">" + followed.map(renderSportsHubTeamTile).join("") + "</div>" : emptyStateHTML("You aren't following any teams yet.", "Search above to follow a team.");
-  return "<section class=\"sports-section sports-team-search\"><label class=\"sports-team-search-field\"><span>" + icon("search") + "</span><input id=\"sports-team-search\" type=\"search\" value=\"" + escapeHTML(query) + "\" placeholder=\"Find a team\" autocomplete=\"off\" aria-label=\"Find a team\"></label><div id=\"sports-team-search-results\">" + renderSportsTeamSearchResults(payload, query) + "</div></section>"
-    + sportsSectionHTML("Following", "", followedHTML, "sports-following-section")
-    + renderSportsUpcomingForTeams(payload);
+  return "<section class=\"sports-section sports-team-search\"><label class=\"sports-team-search-field\"><span>" + icon("search") + "</span><input id=\"sports-team-search\" type=\"search\" value=\"" + escapeHTML(query) + "\" placeholder=\"Find a team\" autocomplete=\"off\" aria-label=\"Find a team\"></label><div id=\"sports-team-search-results\">" + renderSportsTeamSearchResults(payload, query) + "</div></section>";
+}
+
+function renderSportsMySportsTab(payload) {
+  const people = myTVFollowedPeople();
+  const leagues = myTVFollowedLeagues();
+  const named = people.filter(function(person) { return !person.unresolved; });
+  const cards = named.map(function(person) { return myTVFollowingCard("team", person); })
+    .concat(leagues.map(function(league) { return myTVFollowingCard("league", league); }));
+  const findTeams = "<button type=\"button\" class=\"section-action\" data-sports-tab=\"teams\">Find teams</button>";
+  const missing = people.length - named.length;
+  const note = missing ? "<p class=\"my-tv-follow-note\">" + escapeHTML(pluralLabel(missing, "more follow") + " will appear when they're back on the schedule.") + "</p>" : "";
+  const following = cards.length ? "<div class=\"my-tv-following\">" + cards.join("") + "</div>" + note
+    : (note || emptyStateHTML("Follow your sports", "Browse Teams to follow teams and fighters, or follow a league from an event page. Their live and upcoming events will appear here."));
+  const now = Math.floor(Date.now() / 1000);
+  const events = collapseEquivalentSportsEvents(items(payload && payload.events).filter(function(event) {
+    return sportsEventIsFollowed(event) && !event.completed && (sportsEventIsLive(event) || Number(event.startUnix || 0) >= now);
+  })).sort(compareSportsEventsForTab);
+  const live = events.filter(sportsEventIsLive);
+  const upcoming = events.filter(function(event) { return !sportsEventIsLive(event); });
+  const tiles = function(list) { return "<div class=\"sports-event-grid\">" + list.slice(0, 18).map(renderSportsEventTile).join("") + "</div>"; };
+  const waiting = !events.length && (people.length || leagues.length)
+    ? emptyStateHTML(state.sportsLoading ? "Loading your sports…" : (payload && payload.error ? "Sports events are temporarily unavailable" : "No live or upcoming events"), payload && payload.error ? "Your follows are saved. Try refreshing the sports feed." : "Your follows are saved. Events will appear here when they're on the schedule.") : "";
+  return sportsSectionHTML("Following", findTeams, following, "sports-following-section")
+    + sportsSectionHTML(live.length ? "Live now" : "", "", live.length ? tiles(live) : "", "sports-personal-live")
+    + sportsSectionHTML(upcoming.length ? "Coming up" : "", "", upcoming.length ? tiles(upcoming) : "", "sports-personal-upcoming")
+    + waiting
+    + (!upcoming.length ? renderSportsUpcomingForTeams(payload) : "");
 }
 
 function renderSportsHubTeamTile(entry) {
