@@ -71,7 +71,7 @@ func randomMergeEvents(random *rand.Rand, count int, base time.Time, prefix stri
 			Name: away + " at " + home, Home: SportsTeam{Name: home}, Away: SportsTeam{Name: away},
 			StartUnix: base.Add(offsets[random.Intn(len(offsets))]).Unix(), Status: "scheduled",
 		}
-		switch random.Intn(8) {
+		switch random.Intn(12) {
 		case 0:
 			event.StartUnix = 0
 		case 1:
@@ -83,6 +83,23 @@ func randomMergeEvents(random *rand.Rand, count int, base time.Time, prefix stri
 			event.Live = true
 		case 4:
 			event.Venue = "Arena"
+		case 5:
+			event.ShortName = away + " vs " + home
+			event.Home.Name = ""
+		case 6:
+			event.Home.Abbreviation = sportsTeamInitials(home)
+			event.Away.Abbreviation = sportsTeamInitials(away)
+		case 7:
+			event.LeagueName = "NHL"
+			event.Name = "NHL " + event.Name
+		case 8:
+			event.Home.Name += " Hockey Club"
+		case 9:
+			event.Home.Name = strings.ToUpper(home)
+		case 10:
+			event.EventType = "race"
+			event.Name, event.ShortName = "British Grand Prix", "Formula One"
+			event.Home.Name, event.Away.Name = "Silverstone", "Formula One"
 		}
 		events = append(events, event)
 	}

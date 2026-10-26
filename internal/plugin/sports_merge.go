@@ -10,29 +10,35 @@ func mergeSportsGuideEvents(events, guideEvents []SportsEvent) []SportsEvent {
 	merged := cloneSportsEvents(events)
 	keys := make([]sportsMatchupKey, 0, len(merged)+len(guideEvents))
 	index := newSportsEventStartIndex()
+	identities := newSportsIdentityIndex()
+	seen := map[int]struct{}{}
 	for position, event := range merged {
 		index.add(position, event.StartUnix)
-		keys = append(keys, newSportsMatchupKey(event))
+		key := newSportsMatchupKey(event)
+		keys = append(keys, key)
+		identities.add(position, sportsMatchupKey{}, key)
 	}
 	var candidates []int
 	for _, guideEvent := range guideEvents {
 		matched := false
 		key := newSportsMatchupKey(guideEvent)
-		candidates = index.candidates(guideEvent.StartUnix, candidates[:0])
+		candidates = identities.candidates(key, candidates[:0], seen)
 		for _, position := range candidates {
-			if !keys[position].mayMatch(key) || !sportsEventsSameMatchup(merged[position], guideEvent) {
+			if !keys[position].matches(key, true) {
 				continue
 			}
 			before := merged[position].StartUnix
 			overlaySportsGuideEvent(&merged[position], guideEvent)
 			index.move(position, before, merged[position].StartUnix)
-			keys[position] = newSportsMatchupKey(merged[position])
+			updated := newSportsMatchupKey(merged[position])
+			identities.add(position, keys[position], updated)
+			keys[position] = updated
 			matched = true
 			break
 		}
 		if !matched {
 			if !guideEvent.Completed {
-				replayCandidates := candidates
+				replayCandidates := index.candidates(guideEvent.StartUnix, nil)
 				if guideEvent.Live || guideEvent.StartUnix <= 0 {
 					// A live listing may replay a provider game of any age.
 					replayCandidates = index.all(candidates[:0])
@@ -40,7 +46,7 @@ func mergeSportsGuideEvents(events, guideEvents []SportsEvent) []SportsEvent {
 				for _, position := range replayCandidates {
 					providerEvent := merged[position]
 					recent := guideEvent.Live || guideEvent.StartUnix-providerEvent.StartUnix < 36*3600
-					if providerEvent.Completed && providerEvent.StartUnix < guideEvent.StartUnix && recent && sportsEventsSameIdentity(providerEvent, guideEvent) {
+					if providerEvent.Completed && providerEvent.StartUnix < guideEvent.StartUnix && recent && keys[position].matches(key, false) {
 						guideEvent.Status = "replay"
 						guideEvent.StatusText = "Replay"
 						break
@@ -48,8 +54,9 @@ func mergeSportsGuideEvents(events, guideEvents []SportsEvent) []SportsEvent {
 				}
 			}
 			index.add(len(merged), guideEvent.StartUnix)
+			identities.add(len(merged), sportsMatchupKey{}, key)
 			merged = append(merged, guideEvent)
-			keys = append(keys, newSportsMatchupKey(guideEvent))
+			keys = append(keys, key)
 		}
 	}
 	return collapseEquivalentSportsEvents(merged)
@@ -58,25 +65,26 @@ func mergeSportsGuideEvents(events, guideEvents []SportsEvent) []SportsEvent {
 func collapseEquivalentSportsEvents(events []SportsEvent) []SportsEvent {
 	collapsed := make([]SportsEvent, 0, len(events))
 	keys := make([]sportsMatchupKey, 0, len(events))
-	index := newSportsEventStartIndex()
+	identities := newSportsIdentityIndex()
+	seen := map[int]struct{}{}
 	var candidates []int
 	for _, event := range events {
 		merged := false
 		key := newSportsMatchupKey(event)
-		candidates = index.candidates(event.StartUnix, candidates[:0])
+		candidates = identities.candidates(key, candidates[:0], seen)
 		for _, position := range candidates {
-			if !keys[position].mayMatch(key) || !sportsEventsSameMatchup(collapsed[position], event) {
+			if !keys[position].matches(key, true) {
 				continue
 			}
-			before := collapsed[position].StartUnix
 			overlaySportsGuideEvent(&collapsed[position], event)
-			index.move(position, before, collapsed[position].StartUnix)
-			keys[position] = newSportsMatchupKey(collapsed[position])
+			updated := newSportsMatchupKey(collapsed[position])
+			identities.add(position, keys[position], updated)
+			keys[position] = updated
 			merged = true
 			break
 		}
 		if !merged {
-			index.add(len(collapsed), event.StartUnix)
+			identities.add(len(collapsed), sportsMatchupKey{}, key)
 			collapsed = append(collapsed, event)
 			keys = append(keys, key)
 		}
@@ -87,25 +95,156 @@ func collapseEquivalentSportsEvents(events []SportsEvent) []SportsEvent {
 // sportsMatchupKey caches the normalized team words sportsEventsSameMatchup
 // needs to rule out a swapped-copy match without renormalizing names.
 type sportsMatchupKey struct {
-	start               int64
-	phased              bool
-	homeFirst, homeLast string
-	awayFirst, awayLast string
+	start                                         int64
+	phased                                        bool
+	homeFirst, homeLast                           string
+	awayFirst, awayLast                           string
+	home, away                                    string
+	homeWords, awayWords                          []string
+	textWords, anchors                            []string
+	text, nameTerm, shortTerm, homeTerm, awayTerm string
+	homeAbbrTerm, awayAbbrTerm, leagueTerm        string
 }
 
 func newSportsMatchupKey(event SportsEvent) sportsMatchupKey {
 	key := sportsMatchupKey{start: event.StartUnix, phased: event.guidePhase != ""}
-	key.homeFirst, key.homeLast = sportsFirstLastWords(event.Home.Name)
-	key.awayFirst, key.awayLast = sportsFirstLastWords(event.Away.Name)
+	key.home, key.away = normalizeMatchText(event.Home.Name), normalizeMatchText(event.Away.Name)
+	key.homeWords, key.awayWords = strings.Fields(key.home), strings.Fields(key.away)
+	if len(key.homeWords) > 0 {
+		key.homeFirst, key.homeLast = key.homeWords[0], key.homeWords[len(key.homeWords)-1]
+	}
+	if len(key.awayWords) > 0 {
+		key.awayFirst, key.awayLast = key.awayWords[0], key.awayWords[len(key.awayWords)-1]
+	}
+	term := func(value string) string {
+		value = normalizeMatchText(value)
+		if value == "" {
+			return ""
+		}
+		return " " + value + " "
+	}
+	key.text = " " + normalizeMatchText(strings.Join([]string{event.Name, event.ShortName, event.Away.Name, event.Home.Name}, " ")) + " "
+	key.nameTerm, key.shortTerm = term(event.Name), term(event.ShortName)
+	key.homeTerm, key.awayTerm = term(event.Home.Name), term(event.Away.Name)
+	key.homeAbbrTerm, key.awayAbbrTerm, key.leagueTerm = term(event.Home.Abbreviation), term(event.Away.Abbreviation), term(event.LeagueName)
+	key.textWords = sportsIdentityWords(key.text)
+	for _, value := range []string{key.nameTerm, key.shortTerm, key.homeTerm, key.awayTerm, key.homeAbbrTerm, key.awayAbbrTerm} {
+		words := strings.Fields(value)
+		if len(words) > 0 {
+			key.anchors = append(key.anchors, words[len(words)-1])
+		}
+	}
+	key.anchors = sportsIdentityWords(strings.Join(key.anchors, " "))
 	return key
 }
 
-func sportsFirstLastWords(name string) (string, string) {
-	words := strings.Fields(normalizeMatchText(name))
-	if len(words) == 0 {
-		return "", ""
+// sportsIdentityIndex only nominates pairs sharing an identity term. A
+// whole-word match must contain that term's last word; a team prefix/nickname
+// match contains the shorter name's last word. Indexing both directions keeps
+// abbreviated, swapped and title-only matches without comparing every game in
+// a crowded time window. The full matching rules still decide each candidate.
+type sportsIdentityIndex struct {
+	text    map[string][]int
+	anchors map[string][]int
+}
+
+func newSportsIdentityIndex() *sportsIdentityIndex {
+	return &sportsIdentityIndex{text: map[string][]int{}, anchors: map[string][]int{}}
+}
+
+func sportsIdentityWords(value string) []string {
+	words := []string{}
+	seen := map[string]bool{}
+	for _, word := range strings.Fields(value) {
+		if !seen[word] {
+			seen[word] = true
+			words = append(words, word)
+		}
 	}
-	return words[0], words[len(words)-1]
+	return words
+}
+
+func (index *sportsIdentityIndex) add(position int, before, after sportsMatchupKey) {
+	add := func(entries map[string][]int, previous, words []string) {
+		for _, word := range words {
+			exists := false
+			for _, old := range previous {
+				if old == word {
+					exists = true
+					break
+				}
+			}
+			if !exists {
+				entries[word] = append(entries[word], position)
+			}
+		}
+	}
+	// Retaining an old term after an overlay only adds a harmless candidate.
+	add(index.text, before.textWords, after.textWords)
+	add(index.anchors, before.anchors, after.anchors)
+}
+
+func (index *sportsIdentityIndex) candidates(key sportsMatchupKey, result []int, seen map[int]struct{}) []int {
+	clear(seen)
+	for _, word := range key.anchors {
+		for _, position := range index.text[word] {
+			seen[position] = struct{}{}
+		}
+	}
+	for _, word := range key.textWords {
+		for _, position := range index.anchors[word] {
+			seen[position] = struct{}{}
+		}
+	}
+	for position := range seen {
+		result = append(result, position)
+	}
+	sort.Ints(result) // Preserve the original first-match order.
+	return result
+}
+
+// matches preserves sportsEventsSameMatchup/Identity while comparing the
+// normalized names and whole-word terms cached once per event. Dense guide
+// windows otherwise allocate and normalize the same strings millions of times.
+func (key sportsMatchupKey) matches(other sportsMatchupKey, checkStart bool) bool {
+	if checkStart && !key.mayMatch(other) {
+		return false
+	}
+	home := sportsNormalizedTeamNameMatch(key.home, other.home, key.homeWords, other.homeWords)
+	away := sportsNormalizedTeamNameMatch(key.away, other.away, key.awayWords, other.awayWords)
+	homeAway := sportsNormalizedTeamNameMatch(key.home, other.away, key.homeWords, other.awayWords)
+	awayHome := sportsNormalizedTeamNameMatch(key.away, other.home, key.awayWords, other.homeWords)
+	sameSides := home.ok && away.ok
+	swapped := homeAway.ok && awayHome.ok && (homeAway.strong || awayHome.strong)
+	if checkStart && key.start > 0 && other.start > 0 {
+		difference := key.start - other.start
+		if difference < 0 {
+			difference = -difference
+		}
+		if difference > int64(6*time.Hour/time.Second) && (!(key.phased || other.phased) || difference > int64(30*time.Hour/time.Second)) && (sameSides || !swapped) {
+			return false
+		}
+	}
+	if (sameSides && (home.strong || away.strong)) || swapped {
+		return true
+	}
+	return key.stronglyContains(other) && other.stronglyContains(key)
+}
+
+func (key sportsMatchupKey) stronglyContains(other sportsMatchupKey) bool {
+	contains := func(term string) bool { return term != "" && strings.Contains(key.text, term) }
+	if contains(other.nameTerm) || contains(other.shortTerm) {
+		return true
+	}
+	home, away := contains(other.homeTerm), contains(other.awayTerm)
+	if home && away {
+		return true
+	}
+	homeAbbr, awayAbbr := contains(other.homeAbbrTerm), contains(other.awayAbbrTerm)
+	if (home || homeAbbr) && (away || awayAbbr) {
+		return true
+	}
+	return contains(other.leagueTerm) && (home || away || homeAbbr || awayAbbr)
 }
 
 // mayMatch is a necessary condition for sportsEventsSameMatchup. Outside the
@@ -357,14 +496,16 @@ type sportsTeamNameRelation struct {
 func sportsTeamNameMatch(left, right string) sportsTeamNameRelation {
 	leftNorm := normalizeMatchText(left)
 	rightNorm := normalizeMatchText(right)
+	return sportsNormalizedTeamNameMatch(leftNorm, rightNorm, strings.Fields(leftNorm), strings.Fields(rightNorm))
+}
+
+func sportsNormalizedTeamNameMatch(leftNorm, rightNorm string, leftWords, rightWords []string) sportsTeamNameRelation {
 	if leftNorm == "" || rightNorm == "" {
 		return sportsTeamNameRelation{}
 	}
 	if leftNorm == rightNorm {
 		return sportsTeamNameRelation{ok: true, strong: true}
 	}
-	leftWords := strings.Fields(leftNorm)
-	rightWords := strings.Fields(rightNorm)
 	if sportsWordListsPrefix(leftWords, rightWords) || sportsWordListsPrefix(rightWords, leftWords) {
 		shorter := leftWords
 		if len(rightWords) < len(leftWords) {

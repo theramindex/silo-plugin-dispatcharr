@@ -179,3 +179,35 @@ test('Teams discovers everyone while My Sports contains only personal follows an
   ctx.state.sportsTab = 'teams';
   assert.match(ctx.renderSportsHub(payload), /Atlanta Braves/);
 });
+
+test('Sports keeps polling through a slow background build, then stops at a bounded deadline', () => {
+  let pending = null;
+  let elapsed = 0;
+  let polls = 0;
+  const ctx = context({
+    setTimeout: (callback, delay) => { pending = callback; elapsed += delay; return 1; },
+    clearTimeout: () => { pending = null; }
+  });
+  vm.runInContext(fs.readFileSync(new URL('../internal/plugin/ui/sports.js', import.meta.url), 'utf8'), ctx);
+  ctx.state.sportsPollAttempts = 0;
+  ctx.loadSports = (force, preparedOnly) => {
+    assert.equal(force, true);
+    assert.equal(preparedOnly, true);
+    polls += 1;
+  };
+  for (let tick = 0; tick < 200; tick += 1) {
+    ctx.scheduleSportsPoll();
+    if (!pending) break;
+    const callback = pending;
+    pending = null;
+    callback();
+  }
+  // The server allows a minute for guide/provider/matching/enrichment work;
+  // the UI needs room beyond that without polling forever.
+  assert.ok(elapsed >= 90_000, `polling stopped after ${elapsed} ms`);
+  assert.ok(elapsed <= 180_000, `polling ran for ${elapsed} ms`);
+  assert.ok(polls < 100, 'polling never stopped');
+  ctx.stopSportsPoll(true);
+  ctx.scheduleSportsPoll();
+  assert.ok(pending, 'a later refresh must start polling again');
+});

@@ -580,12 +580,12 @@ function stopSportsPoll(resetAttempts) {
   if (resetAttempts) state.sportsPollAttempts = 0;
 }
 function scheduleSportsPoll() {
-  if (state.sportsPollTimer || state.sportsPollAttempts >= 24) return;
+  if (state.sportsPollTimer || state.sportsPollAttempts >= 48) return;
   state.sportsPollAttempts += 1;
   state.sportsPollTimer = setTimeout(function() {
     state.sportsPollTimer = null;
     loadSports(true, true);
-  }, 1500);
+  }, state.sportsPollAttempts <= 12 ? 1500 : 3000);
 }
 function loadSports(force, preparedOnly) {
   if (!sportsEnabled()) return Promise.resolve({ events: [], leagues: [] });
