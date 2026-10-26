@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.dispatcharr",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -454,6 +454,34 @@
       "method": "GET",
       "path": "/silo-compat/livetv/v1/stream",
       "access": "admin",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-transcode-start",
+      "method": "POST",
+      "path": "/dispatcharr/api/transcode/start",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-transcode-status",
+      "method": "GET",
+      "path": "/dispatcharr/api/transcode/status",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-transcode-stop",
+      "method": "POST",
+      "path": "/dispatcharr/api/transcode/stop",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-transcode-media",
+      "method": "GET",
+      "path": "/dispatcharr/transcode/media",
+      "access": "authenticated",
       "navigable": false
     }
   ],

@@ -189,6 +189,65 @@ function browserStreamURL(channel) {
   return route("/dispatcharr/stream?" + query + (sourceMode() === "xtream" ? "&output_profile=2" : ""));
 }
 
+// GPU compatibility is attempted once per channel selection. It has its own
+// generation so a late response cannot revive a channel the viewer has left.
+function stopCompatibilitySession() {
+  state.compatibilityAttempt = (state.compatibilityAttempt || 0) + 1;
+  state.compatibilityTried = false;
+  if (state.compatibilityHeartbeat) clearInterval(state.compatibilityHeartbeat);
+  state.compatibilityHeartbeat = null;
+  const session = state.compatibilitySession;
+  state.compatibilitySession = null;
+  if (session) postJSON("/dispatcharr/api/transcode/stop", {sessionId: session.sessionId}).catch(function() {});
+}
+
+function tryCompatiblePlayback(error, manual) {
+  const codecFailure = error && (error.code === 3 || error.code === 4 || error.type === "MediaError" || error.type === "mediaError" || /codec|format.*unsupported|unsupported.*format/i.test(error.detail || ""));
+  if ((!manual && !codecFailure) || state.compatibilityTried || state.view !== "player" || !state.currentChannel) return false;
+  state.compatibilityTried = true;
+  const channel = state.currentChannel;
+  const generation = state.compatibilityAttempt || 0;
+  const active = function() { return generation === (state.compatibilityAttempt || 0) && state.view === "player" && state.currentChannel && state.currentChannel.id === channel.id; };
+  stopTimeShiftSession();
+  if (state.videoAttachment) { state.videoAttachment.destroy(); state.videoAttachment = null; state.hls = null; state.tsPlayer = null; }
+  clearPlayerError();
+  state.playerWaiting = true;
+  showPlayerToast("Preparing compatible playback…");
+  (async function() {
+    let session;
+    try {
+      session = await postJSON("/dispatcharr/api/transcode/start", {channelId: channel.id});
+      if (!active()) { postJSON("/dispatcharr/api/transcode/stop", {sessionId: session.sessionId}).catch(function() {}); return; }
+      state.compatibilitySession = session;
+      for (let poll = 0; poll < 35; poll += 1) {
+        if (!active()) return;
+        const status = await getJSON("/dispatcharr/api/transcode/status?session_id=" + encodeURIComponent(session.sessionId));
+        if (!active()) return;
+        if (status.state === "failed") throw new Error(status.error || "This channel could not be converted for playback.");
+        if (status.state === "ready") {
+          await ensurePlayerLibraries("hls");
+          if (!active()) return;
+          state.compatibilityHeartbeat = setInterval(function() {
+            if (active()) getJSON("/dispatcharr/api/transcode/status?session_id=" + encodeURIComponent(session.sessionId)).catch(function() {});
+          }, 20000);
+          setVideoSource(route("/dispatcharr/transcode/media?session_id=" + encodeURIComponent(session.sessionId) + "&name=index.m3u8"), {format: "hls", onFatal: handlePlaybackFatalError});
+          showPlayerToast("Compatible playback ready.");
+          return;
+        }
+        await new Promise(function(resolve) { setTimeout(resolve, 1000); });
+      }
+      throw new Error("This channel took too long to prepare for playback.");
+    } catch (failure) {
+      if (session) postJSON("/dispatcharr/api/transcode/stop", {sessionId: session.sessionId}).catch(function() {});
+      if (active()) {
+        state.compatibilitySession = null;
+        showPlayerError(failure.message || "Compatible playback is unavailable. Try again later.");
+      }
+    }
+  })();
+  return true;
+}
+
 function stopTimeShiftSession() {
   state.timeShiftAttempt += 1;
   const session = state.timeShiftSession;
@@ -312,6 +371,7 @@ function renderPlayerMoreMenu() {
   menu.innerHTML = "<div class=\"player-more-kicker\">Playback</div>"
     + "<button data-player-action=\"aspect\">" + menuIcon("aspect") + "<span>Aspect ratio<small>" + (state.aspectMode === "fit" ? "Fit to screen" : "Fill screen") + "</small></span></button>"
     + "<button data-player-action=\"fullscreen\">" + menuIcon(document.fullscreenElement ? "fullscreen-exit" : "fullscreen") + "<span>Fullscreen<small>" + (document.fullscreenElement ? "Exit player fullscreen" : "Fill the display") + "</small></span></button>"
+    + "<button data-player-action=\"compatible-playback\">" + menuIcon("play") + "<span>Compatible playback<small>Use if video or audio will not play</small></span></button>"
     + "<button data-player-action=\"pip\">" + menuIcon("pip") + "<span>Picture in Picture</span></button>"
     + "<button data-player-action=\"guide\">" + menuIcon("guide") + "<span>Channel guide</span></button>"
     + sportsControl
@@ -459,15 +519,23 @@ function setVideoSource(url, options) {
   video.addEventListener("pause", function() { updateCenterPlayButton(); wakePlayerChrome(); }, listen());
   video.addEventListener("play", updateCenterPlayButton, listen());
   video.addEventListener("ended", updateCenterPlayButton, listen());
-  video.addEventListener("error", function() { state.playerWaiting = false; updateCenterPlayButton(); }, listen());
+  video.addEventListener("error", function() {
+    state.playerWaiting = false; updateCenterPlayButton();
+    if (video.error && (video.error.code === 3 || video.error.code === 4)) {
+      const fatal = options && options.onFatal ? options.onFatal : handlePlaybackFatalError;
+      fatal({code: video.error.code});
+    }
+  }, listen());
   if (video.textTracks && video.textTracks.addEventListener) {
     video.textTracks.addEventListener("addtrack", updateSubtitlesButton, listen());
     video.textTracks.addEventListener("removetrack", updateSubtitlesButton, listen());
     video.textTracks.addEventListener("change", updateSubtitlesButton, listen());
   }
+  if (state.videoAttachment) { state.videoAttachment.destroy(); state.videoAttachment = null; state.hls = null; state.tsPlayer = null; }
   if (state.hls) { state.hls.destroy(); state.hls = null; }
   if (state.tsPlayer) { state.tsPlayer.destroy(); state.tsPlayer = null; }
-  const attachment = attachVideoSource(video, url, { rewindable: rewindable, managedTimeShift: !!(options && options.managedTimeShift), format: options && options.format, hlsBufferSeconds: options && options.hlsBufferSeconds, onFatal: options && options.onFatal ? options.onFatal : handlePlaybackFatalError });
+  const attachment = attachVideoSource(video, url, { rewindable: rewindable, managedTimeShift: !!(options && options.managedTimeShift), format: options && options.format, hlsBufferSeconds: options && options.hlsBufferSeconds, onAttached: function(source) { state.hls = source.hls; state.tsPlayer = source.tsPlayer; }, onFatal: options && options.onFatal ? options.onFatal : handlePlaybackFatalError });
+  state.videoAttachment = attachment;
   state.hls = attachment.hls;
   state.tsPlayer = attachment.tsPlayer;
   setTimeout(updateAudioMenu, 500);
@@ -497,6 +565,7 @@ async function playChannel(channel, options) {
       guideScrollLeft: guideScroll ? guideScroll.scrollLeft : 0
     };
   }
+  stopCompatibilitySession();
   stopTimeShiftSession();
   const timeShiftAttempt = state.timeShiftAttempt;
   state.currentChannel = channel;

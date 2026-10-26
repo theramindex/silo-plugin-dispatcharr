@@ -94,3 +94,53 @@ test('menu retains useful actions and recent channels without duplicate casting'
   assert.match(html, /data-player-action="fullscreen"/);
   assert.match(html, /data-player-action="copy-stream"/);
 });
+
+test('codec failure converts once; stop and channel changes cancel late conversion', async () => {
+  const posts = [];
+  let finishStart;
+  let convertState = 'ready';
+  const state = {view: 'player', currentChannel: {id: 'one'}, timeShiftAttempt: 0};
+  const sources = [];
+  const errors = [];
+  const ctx = vm.createContext({state, document: {addEventListener() {}}, byId: () => null,
+    postJSON(path, body) {
+      posts.push([path, body]);
+      if (path.endsWith('/start')) return new Promise(resolve => {finishStart = resolve;});
+      return Promise.resolve({});
+    },
+    getJSON: async () => ({state: convertState}),
+    ensurePlayerLibraries: async () => {},
+    clearPlayerError() {}, showPlayerToast() {}, updateTimeShiftUI() {},
+    setVideoSource: (url, options) => sources.push([url, options]),
+    showPlayerError: message => errors.push(message), route: path => '/plugin' + path,
+    handlePlaybackFatalError() {}, setTimeout, clearTimeout,
+    setInterval: () => 1, clearInterval() {}
+  });
+  vm.runInContext(player.slice(0, player.indexOf('document.addEventListener("fullscreenchange"')), ctx);
+  // Keep the real conversion lifecycle while excluding presentation helpers.
+  ctx.setVideoSource = (url, options) => sources.push([url, options]);
+  ctx.showPlayerError = message => errors.push(message);
+  ctx.showPlayerToast = () => {};
+  ctx.clearPlayerError = () => {};
+  ctx.updateTimeShiftUI = () => {};
+  assert.equal(ctx.tryCompatiblePlayback({type: 'NetworkError', status: 503}), false);
+  assert.equal(ctx.tryCompatiblePlayback({type: 'mediaError'}), true);
+  assert.equal(ctx.tryCompatiblePlayback({code: 4}), false, 'one attempt per selection');
+  finishStart({sessionId: 'old'});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(sources.length, 1);
+  assert.equal(sources[0][1].format, 'hls');
+  assert.match(sources[0][0], /session_id=old/);
+  assert.equal(ctx.tryCompatiblePlayback({code: 3}), false, 'conversion cannot recursively convert itself');
+  ctx.stopCompatibilitySession();
+  assert.ok(posts.some(([path, body]) => path.endsWith('/stop') && body.sessionId === 'old'));
+  state.currentChannel = {id: 'two'};
+  assert.equal(ctx.tryCompatiblePlayback(null, true), true, 'manual audio compatibility uses the same lifecycle');
+  ctx.stopCompatibilitySession();
+  state.currentChannel = {id: 'three'};
+  finishStart({sessionId: 'late'});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(sources.length, 1, 'late completion did not replace the new channel');
+  assert.ok(posts.some(([path, body]) => path.endsWith('/stop') && body.sessionId === 'late'));
+  assert.deepEqual(errors, []);
+});

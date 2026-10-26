@@ -547,6 +547,8 @@ function epgCellStyle(startUnix, endUnix, windowInfo) {
   return "left: calc(" + leftSlots.toFixed(4) + " * var(--epg-slot)); width: calc(" + widthSlots.toFixed(4) + " * var(--epg-slot) - 0.0625rem);";
 }
 function stopPlayback() {
+  stopCompatibilitySession();
+  if (state.videoAttachment) { state.videoAttachment.destroy(); state.videoAttachment = null; state.hls = null; state.tsPlayer = null; }
   const video = byId("player");
   if (state.hls) { state.hls.destroy(); state.hls = null; }
   if (state.tsPlayer) { state.tsPlayer.destroy(); state.tsPlayer = null; }
@@ -3388,6 +3390,8 @@ function playbackErrorStatus(error) {
   return 0;
 }
 function handlePlaybackFatalError(error) {
+  if (tryCompatiblePlayback(error)) return;
+  if (state.compatibilitySession) { stopCompatibilitySession(); state.compatibilityTried = true; }
   const status = playbackErrorStatus(error);
   state.playerWaiting = false;
   const video = byId("player");
@@ -3486,6 +3490,7 @@ function startVideoSource(video, url, options, attachment) {
   } else {
     video.src = url;
   }
+  if (options && typeof options.onAttached === "function") options.onAttached(attachment);
   return attachment;
 }
 function overflowTooltip() {
@@ -3813,6 +3818,12 @@ function handlePlayerAction(action, button) {
   wakePlayerChrome();
   if (action === "back") {
     returnFromPlayer();
+    return;
+  }
+  if (action === "compatible-playback") {
+    state.moreMenuOpen = false;
+    renderPlayerMoreMenu();
+    tryCompatiblePlayback(null, true);
     return;
   }
   if (action === "retry") {

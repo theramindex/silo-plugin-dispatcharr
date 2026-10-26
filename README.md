@@ -127,6 +127,25 @@ first-class Live TV provider capability.
 - Buffers expire after their viewer leases stop heartbeating and are removed
   after a short idle period. Multiview never starts rewind buffers.
 
+## Compatible playback
+
+- The single-channel browser player tries the original stream first. A codec
+  failure triggers one hardware conversion attempt; the player menu also offers
+  **Compatible playback** for unsupported audio or video.
+- Conversion runs inside the plugin using the host container's installed FFmpeg
+  and a VAAPI render device (`/dev/dri/renderD128`). The bundled Jellyfin FFmpeg
+  location is detected automatically. Output is H.264/AAC HLS, capped at 1080p,
+  30 fps, and 6 Mbps video. Decoding and scaling currently use the CPU; video
+  encoding uses the GPU. There is no automatic software encoder fallback.
+- The limit is two sessions per plugin process and one per authenticated Silo
+  viewer/profile. Switching channels or leaving playback releases the session;
+  abandoned sessions expire after 75 seconds. Startup is limited to 30 seconds.
+- Inputs are fetched through a restricted local gateway. Provider URLs and keys
+  remain on the server, including nested HLS playlists. Generated HLS segments
+  pass through authenticated plugin routes and are checked against the viewer.
+- Conversion uses a short rolling HLS window, not the Live Rewind buffer.
+  Preview tiles and multiview retain their original playback path.
+
 ## Profile and group organization
 
 - Leave **Channel Profile** blank to ingest all Dispatcharr profiles and attach
@@ -250,9 +269,9 @@ numbers or `start >= end` return `400`.
 - Dispatcharr Direct does not silently fall back to Xtream Codes; Direct failures are surfaced in plugin health/status
 - Silo host integration still needs real environment validation
 - Native Jellyfin `/LiveTv/*` export is not available until Silo exposes a Live TV provider SDK/host capability
-- Continuous backend proxying and transcoding are not enabled because the HTTP
-  route SDK buffers each response. Live Rewind serves bounded, immutable HLS
-  segments through that interface instead.
+- The HTTP route SDK buffers each response. Live Rewind and hardware playback
+  conversion serve bounded HLS segments through that interface; they never put
+  an endless transport stream inside an RPC response.
 - HTTP routes and navigation are static manifest declarations. Settings cannot
   dynamically add/remove navigation entries.
 - Scheduled-task cadence and retry policy are host-owned. The plugin only

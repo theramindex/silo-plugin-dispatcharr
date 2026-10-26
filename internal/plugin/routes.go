@@ -22,6 +22,7 @@ import (
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/timeshift"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/transcode"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/dispatcharr"
 	sharedhttp "github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/httpclient"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
@@ -60,6 +61,8 @@ type HTTPRoutesServer struct {
 	sportsPreparedMu    sync.Mutex
 	sportsImages        *sportsImageCache
 	timeShift           *timeshift.Manager
+	transcodeMu         sync.Mutex
+	transcoder          *transcode.Manager
 	streamTickets       map[string]streamTicket
 	streamTicketsMu     sync.Mutex
 	guideIndex          guideIndexCache
@@ -268,6 +271,9 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, 7*time.Second)
 		defer cancel()
+	}
+	if strings.HasPrefix(request.GetPath(), "/dispatcharr/api/transcode/") || request.GetPath() == "/dispatcharr/transcode/media" {
+		return s.handleTranscode(request), nil
 	}
 	switch request.GetPath() {
 	case "/dispatcharr", "/dispatcharr/player", "/dispatcharr/admin", "/dispatcharr/sports":
