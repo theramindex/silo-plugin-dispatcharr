@@ -55,6 +55,7 @@ type HTTPRoutesServer struct {
 	sportsMu            sync.Mutex
 	sportsStats         footballStatsCache
 	sportsNews          sportsNewsCache
+	sportsGuide         sportsGuideCache
 	sportsPrepared      sportsPreparedCache
 	sportsPreparedMu    sync.Mutex
 	sportsImages        *sportsImageCache

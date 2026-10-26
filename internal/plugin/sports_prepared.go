@@ -17,15 +17,16 @@ func (s *HTTPRoutesServer) sportsPayloadWithBudget(ctx context.Context, refresh 
 	budget = budget.withDefaults()
 	now := time.Now()
 	snapshot := s.store.Current()
-	guideEvents, refreshScores := sportsEventsFromGuideWithScoreHints(snapshot, now)
-	return s.buildSportsPayload(ctx, refresh, budget, snapshot, now, guideEvents, refreshScores)
+	guide := s.sportsGuide.get(snapshot, now)
+	return s.buildSportsPayload(ctx, refresh, budget, snapshot, now, guide)
 }
 
 // buildSportsPayload reuses the guide extraction already prepared by the
 // background rebuild, instead of parsing it again for the provider merge.
-func (s *HTTPRoutesServer) buildSportsPayload(ctx context.Context, refresh bool, budget sportsBuildBudget, snapshot cache.Snapshot, now time.Time, guideEvents []SportsEvent, refreshScores bool) SportsPayload {
+func (s *HTTPRoutesServer) buildSportsPayload(ctx context.Context, refresh bool, budget sportsBuildBudget, snapshot cache.Snapshot, now time.Time, guide sportsGuideData) SportsPayload {
+	guideEvents := guide.Events
 	providerCtx, cancelProvider := context.WithTimeout(ctx, budget.Provider)
-	events, updatedUnix, source, err := s.cachedSportsEvents(providerCtx, now, refresh || refreshScores)
+	events, updatedUnix, source, err := s.cachedSportsEvents(providerCtx, now, refresh || guide.RefreshScores)
 	cancelProvider()
 	if len(guideEvents) > 0 {
 		if len(events) == 0 {
@@ -47,7 +48,7 @@ func (s *HTTPRoutesServer) buildSportsPayload(ctx context.Context, refresh bool,
 	// The match deadline starts after the provider fetch, independent of it.
 	matchCtx, cancelMatch := context.WithTimeout(ctx, budget.Match)
 	defer cancelMatch()
-	channelIndex := newSportsChannelIndex(snapshot)
+	channelIndex := guide.Channels
 	incomplete := false
 	for index := range events {
 		events[index] = normalizeSportsEventFreshness(events[index], now)
@@ -369,7 +370,8 @@ func (s *HTTPRoutesServer) rebuildSportsPayload(refresh bool) {
 	s.sportsPreparedMu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), budget.Provider+budget.Match+budget.Enrich+6*time.Second)
 	startedAt := time.Now()
-	guideEvents, refreshScores := sportsEventsFromGuideWithScoreHints(snapshot, startedAt)
+	guide := s.sportsGuide.get(snapshot, startedAt)
+	guideEvents := guide.Events
 	// Publish the first guide fallback before waiting for Sportarr. This work
 	// happens once per rebuild and never holds up an HTTP request or the lock.
 	if len(guideEvents) > 0 {
@@ -383,7 +385,7 @@ func (s *HTTPRoutesServer) rebuildSportsPayload(refresh bool) {
 		}
 		s.sportsPreparedMu.Unlock()
 	}
-	payload := s.buildSportsPayload(ctx, refresh, budget, snapshot, startedAt, guideEvents, refreshScores)
+	payload := s.buildSportsPayload(ctx, refresh, budget, snapshot, startedAt, guide)
 	cancel()
 
 	now := time.Now()

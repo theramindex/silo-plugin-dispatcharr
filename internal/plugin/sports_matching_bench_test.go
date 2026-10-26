@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -74,6 +75,42 @@ func TestSyntheticSportsGuideMatchesEachFixtureChannel(t *testing.T) {
 		assertSportsMatch(t, matches, fmt.Sprintf("channel:%d", position))
 		if len(matches) != 1 {
 			t.Fatalf("fixture %d should match only its own channel, got %+v", position, matches)
+		}
+	}
+}
+
+func TestSportsWordIndexPreservesFullScanMatchScores(t *testing.T) {
+	t.Parallel()
+	snapshot, events := syntheticSportsGuide(40, 96, 6, time.Now())
+	// Exercise undated, abbreviation and title-only matches as well as normal
+	// team names. The reference scores every near programme, without a word index.
+	events[1].StartUnix = 0
+	events[2].Home.Abbreviation, events[2].Away.Abbreviation = "H02", "A02"
+	events[3].Home.Name = ""
+	index := newSportsChannelIndex(snapshot)
+	for _, event := range events {
+		query := newSportsMatchQuery(event)
+		expected := map[string]sportsChannelScore{}
+		for position := range index.Channels {
+			channel := &index.Channels[position]
+			near := []*sportsIndexedProgram{}
+			for program := range channel.Programs {
+				if programNearSportsEvent(channel.Programs[program].Program, event) {
+					near = append(near, &channel.Programs[program])
+				}
+			}
+			score := query.scoreChannel(channel, near)
+			if score.Score >= sportsChannelMinimumScore {
+				expected[channel.Channel.ID] = score
+			}
+		}
+		actual := map[string]sportsChannelScore{}
+		matches, _ := index.MatchDetailed(event)
+		for _, match := range matches {
+			actual[match.ID] = sportsChannelScore{Score: match.Score, Reason: match.Reason, Evidence: match.Evidence, Confidence: match.Confidence}
+		}
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("fixture %s changed routing evidence: got %+v, want %+v", event.ID, actual, expected)
 		}
 	}
 }

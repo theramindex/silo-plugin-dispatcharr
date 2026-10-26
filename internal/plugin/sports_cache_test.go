@@ -12,6 +12,7 @@ import (
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
+	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -249,5 +250,36 @@ func TestSportsNewsRouteStopsWaitingWhenRequestIsCanceled(t *testing.T) {
 	}
 	if requests.Load() != 1 {
 		t.Fatalf("canceled caller caused a duplicate ESPN fetch: %d", requests.Load())
+	}
+}
+
+func TestSportsGuideCacheExpiresAtBroadcastBoundaryAndSnapshotChange(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.October, 26, 20, 0, 0, 0, time.UTC)
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{{ID: "mlb", Name: "MLB Extra Innings", CategoryName: "MLB"}},
+		Programs: []model.Program{{ID: "game", ChannelID: "mlb", Title: "Live: Atlanta Braves vs New York Mets", StartUnix: now.Add(-time.Hour).Unix(), EndUnix: now.Add(time.Minute).Unix()}},
+	}})
+	var guide sportsGuideCache
+	first := guide.get(store.Current(), now)
+	if len(first.Events) != 1 || !first.Events[0].Live {
+		t.Fatalf("expected the currently airing game: %+v", first.Events)
+	}
+	first.Events[0].Home.Name = "changed by consumer"
+	fresh := guide.get(store.Current(), now.Add(30*time.Second))
+	if fresh.Events[0].Home.Name == "changed by consumer" {
+		t.Fatal("a consumer changed the cached guide")
+	}
+	ended := guide.get(store.Current(), now.Add(time.Minute+time.Second))
+	if ended.Events[0].Live || !ended.Events[0].Completed {
+		t.Fatalf("the broadcast boundary must invalidate live state: %+v", ended.Events[0])
+	}
+	snapshot := store.Current()
+	snapshot.Catalog.Programs = []model.Program{{ID: "replacement", ChannelID: "mlb", Title: "New York Yankees vs Boston Red Sox", StartUnix: now.Unix(), EndUnix: now.Add(time.Hour).Unix()}}
+	store.Replace(snapshot)
+	replaced := guide.get(store.Current(), now.Add(2*time.Minute))
+	if len(replaced.Events) != 1 || !strings.Contains(replaced.Events[0].Name, "Yankees") {
+		t.Fatalf("snapshot change served the previous matchup: %+v", replaced.Events)
 	}
 }
