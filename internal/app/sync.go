@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"net/url"
 	"sort"
 	"strconv"
@@ -81,7 +82,10 @@ func (s *Service) syncNow(ctx context.Context, settings config.Settings, nowUnix
 			channels = append(channels, mapping.MapM3UChannel(entry))
 		}
 		if options.channelsOnly {
-			programs = s.preservedPrograms(settings, channels)
+			programs, err = s.preservedPrograms(ctx, settings, channels)
+			if err != nil {
+				return err
+			}
 		} else {
 			doc, err := s.fetchXMLTV(ctx, settings.EPGXMLURL, "", nil)
 			if err != nil {
@@ -195,7 +199,10 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 	programs := make([]model.Program, 0)
 	programIDs := map[string]struct{}{}
 	if options.channelsOnly {
-		programs = s.preservedPrograms(settings, channels)
+		programs, err = s.preservedPrograms(ctx, settings, channels)
+		if err != nil {
+			return err
+		}
 		content = mergePreservedContent(content, s.preservedContent(settings))
 	} else if upstreamPrograms, err := client.Programs(ctx); err == nil {
 		for _, upstream := range upstreamPrograms {
@@ -291,7 +298,10 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 	}
 
 	if options.channelsOnly {
-		programs = s.preservedPrograms(settings, channels)
+		programs, err = s.preservedPrograms(ctx, settings, channels)
+		if err != nil {
+			return err
+		}
 		content = mergePreservedContent(content, s.preservedContent(settings))
 	} else if !tightDeadline && strings.TrimSpace(settings.EPGXMLURL) != "" {
 		xmltvPrograms, err := s.xmltvProgramsForChannels(ctx, settings.EPGXMLURL, channels)
@@ -650,14 +660,37 @@ func programsForM3UEntries(entries []m3u.Entry, channels []model.Channel, doc xm
 	return programs
 }
 
-func (s *Service) preservedPrograms(settings config.Settings, channels []model.Channel) []model.Program {
+func (s *Service) preservedPrograms(ctx context.Context, settings config.Settings, channels []model.Channel) ([]model.Program, error) {
 	snapshot := s.store.Current()
 	if snapshot.ConfigKey != config.CatalogCacheKey(settings) {
-		return nil
+		return nil, nil
 	}
 	channelIDs := make(map[string]bool, len(channels))
 	for _, channel := range channels {
 		channelIDs[channel.ID] = true
+	}
+	if snapshot.Guide != nil {
+		complete := true
+		for _, id := range snapshot.Guide.Channels {
+			if id != "" && !channelIDs[id] {
+				complete = false
+				break
+			}
+		}
+		if complete {
+			return nil, nil
+		}
+		ids := make([]string, 0, len(channelIDs))
+		for id := range channelIDs {
+			ids = append(ids, id)
+		}
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		programs, err := snapshot.ProgramQuery(ctx, ids, math.MinInt64, math.MaxInt64)
+		if err != nil {
+			return nil, err
+		}
+		return programs, nil
 	}
 	programs := make([]model.Program, 0, len(snapshot.Catalog.Programs))
 	for _, program := range snapshot.Catalog.Programs {
@@ -665,7 +698,7 @@ func (s *Service) preservedPrograms(settings config.Settings, channels []model.C
 			programs = append(programs, program)
 		}
 	}
-	return programs
+	return programs, nil
 }
 
 func (s *Service) preservedContent(settings config.Settings) model.ContentState {

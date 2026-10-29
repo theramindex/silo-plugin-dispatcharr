@@ -335,14 +335,17 @@ func TestEventsPayloadIsCachedPerSnapshotVersionAndRules(t *testing.T) {
 	// apart, share a bucket and differ only by what they mean to invalidate.
 	now := time.Unix(time.Now().Unix()/eventsCacheTTLSeconds*eventsCacheTTLSeconds, 0)
 
-	first := server.eventsPayload(now)
+	first, err := server.eventsPayload(context.Background(), now)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(first.Events) != 1 {
 		t.Fatalf("expected one event, got %+v", first.Events)
 	}
 	index := server.guideIndex.get(store.Current())
 	// Mutating the cached result proves the second call reused it.
 	first.Events[0].Name = "cached marker"
-	if again := server.eventsPayload(now.Add(time.Second)); len(again.Events) != 1 || again.Events[0].Name != "cached marker" {
+	if again, err := server.eventsPayload(context.Background(), now.Add(time.Second)); err != nil || len(again.Events) != 1 || again.Events[0].Name != "cached marker" {
 		t.Fatalf("expected cached events payload, got %+v", again.Events)
 	}
 	if server.guideIndex.get(store.Current()) != index {
@@ -351,7 +354,7 @@ func TestEventsPayloadIsCachedPerSnapshotVersionAndRules(t *testing.T) {
 
 	// New rules invalidate without a snapshot change.
 	store.SetAdminSettings(json.RawMessage(`{"eventKeywords":[{"categoryId":"civic","categoryName":"Civic","keywords":["State of the Union"]}]}`))
-	if changed := server.eventsPayload(now.Add(2 * time.Second)); len(changed.Events) != 0 {
+	if changed, err := server.eventsPayload(context.Background(), now.Add(2*time.Second)); err != nil || len(changed.Events) != 0 {
 		t.Fatalf("expected rules change to recompute events, got %+v", changed.Events)
 	}
 	store.SetAdminSettings(nil)
@@ -361,7 +364,10 @@ func TestEventsPayloadIsCachedPerSnapshotVersionAndRules(t *testing.T) {
 		Channels: []model.Channel{{ID: "ch:abc", Name: "ABC East", CategoryName: "US | Locals"}},
 		Programs: []model.Program{{ID: "p:grammys", ChannelID: "ch:abc", Title: "Grammy Awards", StartUnix: start, EndUnix: start + 3600}},
 	}})
-	refreshed := server.eventsPayload(now.Add(3 * time.Second))
+	refreshed, err := server.eventsPayload(context.Background(), now.Add(3*time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(refreshed.Events) != 1 || refreshed.Events[0].Name != "Grammy Awards" {
 		t.Fatalf("expected recomputed events after snapshot change, got %+v", refreshed.Events)
 	}

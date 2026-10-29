@@ -1151,10 +1151,10 @@ func (s *memorySnapshotStorage) Load() (cache.Snapshot, bool, error) {
 	return s.snapshot, len(s.snapshot.Catalog.Channels) > 0, nil
 }
 
-func (s *memorySnapshotStorage) Save(snapshot cache.Snapshot) error {
+func (s *memorySnapshotStorage) Save(snapshot cache.Snapshot) (cache.Snapshot, error) {
 	s.snapshot = snapshot
 	s.saves++
-	return s.saveErr
+	return snapshot, s.saveErr
 }
 
 func (s *memorySnapshotStorage) Path() string {

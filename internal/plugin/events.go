@@ -3,7 +3,9 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"regexp"
 	"sort"
@@ -15,6 +17,7 @@ import (
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
+	"github.com/theramindex/silo-plugins/pkg/epg"
 )
 
 type EventsPayload struct {
@@ -68,7 +71,11 @@ func (s *HTTPRoutesServer) handleEvents(ctx context.Context, request *pluginv1.H
 	if request.GetMethod() != "" && request.GetMethod() != http.MethodGet {
 		return textResponse(http.StatusMethodNotAllowed, "method not allowed"), nil
 	}
-	return s.respondJSON(http.StatusOK, s.eventsPayload(time.Now()))
+	payload, err := s.eventsPayload(ctx, time.Now())
+	if err != nil {
+		return textResponse(http.StatusServiceUnavailable, "guide cache is temporarily unavailable"), nil
+	}
+	return s.respondJSON(http.StatusOK, payload)
 }
 
 // eventsCacheTTLSeconds bounds how stale live/completed flags can be when a
@@ -115,17 +122,28 @@ func eventRulesCacheKey(rules []EventKeywordRule) string {
 	return string(data)
 }
 
-func (s *HTTPRoutesServer) eventsPayload(now time.Time) EventsPayload {
-	snapshot := s.store.Current()
-	rules := s.eventKeywordRules()
-	key := eventsCacheKey{version: snapshot.Version, rules: eventRulesCacheKey(rules), bucket: now.Unix() / eventsCacheTTLSeconds}
-	if payload, ok := s.eventsCache.get(key); ok {
-		return payload
+func (s *HTTPRoutesServer) eventsPayload(ctx context.Context, now time.Time) (EventsPayload, error) {
+	ctx, cancel := context.WithTimeout(ctx, 7*time.Second)
+	defer cancel()
+	for attempt := 0; attempt < 2; attempt++ {
+		snapshot := s.store.Current()
+		rules := s.eventKeywordRules()
+		key := eventsCacheKey{version: snapshot.Version, rules: eventRulesCacheKey(rules), bucket: now.Unix() / eventsCacheTTLSeconds}
+		if payload, ok := s.eventsCache.get(key); ok {
+			return payload, nil
+		}
+		index, err := s.guideIndex.window(ctx, snapshot, nil, guideWindow{Start: math.MinInt64, End: now.AddDate(0, 0, 60).Unix() + 1})
+		if errors.Is(err, epg.ErrChanged) {
+			continue
+		}
+		if err != nil {
+			return EventsPayload{}, err
+		}
+		payload := buildEventsPayload(index, snapshot, now, rules)
+		s.eventsCache.put(key, payload)
+		return payload, nil
 	}
-	index := s.guideIndex.get(snapshot)
-	payload := buildEventsPayload(index, snapshot, now, rules)
-	s.eventsCache.put(key, payload)
-	return payload
+	return EventsPayload{}, epg.ErrChanged
 }
 
 func buildEventsPayload(index *guideIndex, snapshot cache.Snapshot, now time.Time, rules []EventKeywordRule) EventsPayload {

@@ -323,7 +323,10 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		if err != nil {
 			return textResponse(http.StatusBadRequest, err.Error()), nil
 		}
-		index := s.guideIndex.get(s.store.Current())
+		index, err := s.windowGuideIndex(ctx, query.ChannelIDs, query.Window)
+		if err != nil {
+			return textResponse(http.StatusServiceUnavailable, "guide cache is temporarily unavailable"), nil
+		}
 		return s.respondJSON(http.StatusOK, GuidePayload{Programs: index.query(query.ChannelIDs, query.Window)})
 	case "/dispatcharr/api/guide/ping":
 		return s.handleGuidePing(ctx, request)
@@ -469,7 +472,7 @@ func (s *HTTPRoutesServer) ensureCatalogHydrated(ctx context.Context) {
 		return
 	}
 	sourceMode := settings.EffectiveSourceMode()
-	if len(s.store.Current().Catalog.Programs) == 0 || (tightDeadline && (sourceMode == config.SourceModeDirectLogin || sourceMode == config.SourceModeAPIKey)) {
+	if s.store.Current().ProgramCount() == 0 || (tightDeadline && (sourceMode == config.SourceModeDirectLogin || sourceMode == config.SourceModeAPIKey)) {
 		_, _ = s.startBackgroundGuideWarm(settings)
 	}
 }
@@ -513,7 +516,7 @@ func (s *HTTPRoutesServer) ensureCatalogHydratedAsync() {
 // channels alone, and nothing else would load the guide before the scheduled
 // guide refresh. startBackgroundGuideWarm limits retries to one per cooldown.
 func (s *HTTPRoutesServer) startMissingGuideWarm(current cache.Snapshot, settings config.Settings) {
-	if len(current.Catalog.Programs) > 0 || current.Health.EPGStatus == "loading" {
+	if current.ProgramCount() > 0 || current.Health.EPGStatus == "loading" {
 		return
 	}
 	_, _ = s.startBackgroundGuideWarm(settings)
@@ -635,7 +638,12 @@ func (s *HTTPRoutesServer) handleGuidePing(ctx context.Context, request *pluginv
 
 	s.ensureCatalogHydrated(ctx)
 	channelIDs := normalizeChannelIDs(payload.ChannelIDs)
-	currentPrograms := currentProgramCountForChannels(s.store.Current().Catalog.Programs, channelIDs, time.Now().Unix())
+	nowUnix := time.Now().Unix()
+	currentGuide, err := s.store.Current().ProgramQuery(ctx, channelIDs, nowUnix, nowUnix+1)
+	if err != nil {
+		return textResponse(http.StatusServiceUnavailable, "guide cache is temporarily unavailable"), nil
+	}
+	currentPrograms := currentProgramCountForChannels(currentGuide, channelIDs, nowUnix)
 	if len(channelIDs) == 0 || currentPrograms >= len(channelIDs) {
 		return s.respondJSON(http.StatusOK, GuidePingPayload{Status: "fresh", CheckedChannels: len(channelIDs), CurrentPrograms: currentPrograms})
 	}

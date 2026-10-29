@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -255,31 +256,56 @@ func TestSportsNewsRouteStopsWaitingWhenRequestIsCanceled(t *testing.T) {
 
 func TestSportsGuideCacheExpiresAtBroadcastBoundaryAndSnapshotChange(t *testing.T) {
 	t.Parallel()
-	now := time.Date(2026, time.October, 26, 20, 0, 0, 0, time.UTC)
-	store := cache.NewStore()
-	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
-		Channels: []model.Channel{{ID: "mlb", Name: "MLB Extra Innings", CategoryName: "MLB"}},
-		Programs: []model.Program{{ID: "game", ChannelID: "mlb", Title: "Live: Atlanta Braves vs New York Mets", StartUnix: now.Add(-time.Hour).Unix(), EndUnix: now.Add(time.Minute).Unix()}},
-	}})
-	var guide sportsGuideCache
-	first := guide.get(store.Current(), now)
-	if len(first.Events) != 1 || !first.Events[0].Live {
-		t.Fatalf("expected the currently airing game: %+v", first.Events)
-	}
-	first.Events[0].Home.Name = "changed by consumer"
-	fresh := guide.get(store.Current(), now.Add(30*time.Second))
-	if fresh.Events[0].Home.Name == "changed by consumer" {
-		t.Fatal("a consumer changed the cached guide")
-	}
-	ended := guide.get(store.Current(), now.Add(time.Minute+time.Second))
-	if ended.Events[0].Live || !ended.Events[0].Completed {
-		t.Fatalf("the broadcast boundary must invalidate live state: %+v", ended.Events[0])
-	}
-	snapshot := store.Current()
-	snapshot.Catalog.Programs = []model.Program{{ID: "replacement", ChannelID: "mlb", Title: "New York Yankees vs Boston Red Sox", StartUnix: now.Unix(), EndUnix: now.Add(time.Hour).Unix()}}
-	store.Replace(snapshot)
-	replaced := guide.get(store.Current(), now.Add(2*time.Minute))
-	if len(replaced.Events) != 1 || !strings.Contains(replaced.Events[0].Name, "Yankees") {
-		t.Fatalf("snapshot change served the previous matchup: %+v", replaced.Events)
+	for _, sqlite := range []bool{false, true} {
+		name := "memory"
+		if sqlite {
+			name = "sqlite"
+		}
+		t.Run(name, func(t *testing.T) {
+			now := time.Date(2026, time.October, 26, 20, 0, 0, 0, time.UTC)
+			store := cache.NewStore()
+			store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+				Channels: []model.Channel{{ID: "mlb", Name: "MLB Extra Innings", CategoryName: "MLB"}},
+				Programs: []model.Program{{ID: "game", ChannelID: "mlb", Title: "Live: Atlanta Braves vs New York Mets", StartUnix: now.Add(-time.Hour).Unix(), EndUnix: now.Add(time.Minute).Unix()}},
+			}})
+			var storage *cache.FileSnapshotStorage
+			if sqlite {
+				storage = cache.NewFileSnapshotStorage(filepath.Join(t.TempDir(), "catalog.json"))
+				defer storage.Close()
+				store.SetStorage(storage)
+				if err := store.Persist(); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var guide sportsGuideCache
+			first := guide.get(store.Current(), now)
+			if len(first.Events) != 1 || !first.Events[0].Live {
+				t.Fatalf("expected the currently airing game: %+v", first.Events)
+			}
+			first.Events[0].Home.Name = "changed by consumer"
+			fresh := guide.get(store.Current(), now.Add(30*time.Second))
+			if fresh.Events[0].Home.Name == "changed by consumer" {
+				t.Fatal("a consumer changed the cached guide")
+			}
+			ended := guide.get(store.Current(), now.Add(time.Minute+time.Second))
+			if ended.Events[0].Live || !ended.Events[0].Completed {
+				t.Fatalf("the broadcast boundary must invalidate live state: %+v", ended.Events[0])
+			}
+			snapshot := store.Current()
+			snapshot.Catalog.Programs = []model.Program{{ID: "replacement", ChannelID: "mlb", Title: "New York Yankees vs Boston Red Sox", StartUnix: now.Unix(), EndUnix: now.Add(time.Hour).Unix()}}
+			store.Replace(snapshot)
+			replaced := guide.get(store.Current(), now.Add(2*time.Minute))
+			if len(replaced.Events) != 1 || !strings.Contains(replaced.Events[0].Name, "Yankees") {
+				t.Fatalf("snapshot change served the previous matchup: %+v", replaced.Events)
+			}
+			if sqlite {
+				if err := storage.Close(); err != nil {
+					t.Fatal(err)
+				}
+				if unavailable := guide.get(store.Current(), now.Add(10*time.Minute)); !unavailable.Unavailable {
+					t.Fatal("a cache read failure was accepted as an empty sports guide")
+				}
+			}
+		})
 	}
 }
