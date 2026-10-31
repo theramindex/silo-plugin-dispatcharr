@@ -266,6 +266,7 @@ func TestGlobalConfigSchema_AcceptsCompleteAdminSettings(t *testing.T) {
 
 	manifest := &pluginv1.PluginManifest{GlobalConfigSchema: GlobalConfigSchema()}
 	value := map[string]any{
+		"sportsGuide":                    map[string]any{"enabled": true, "groups": []any{map[string]any{"groupId": "nba", "leagueId": "nba", "mode": "matchup"}}, "overrides": []any{map[string]any{"channelId": "event-feed", "eventId": "espn:one"}, map[string]any{"channelId": "disabled-feed", "disabled": true}}},
 		"mode":                           "delimiter",
 		"delimiter":                      "pipe",
 		"virtualGroupLabel":              "Things",

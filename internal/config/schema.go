@@ -183,6 +183,72 @@ const categorySettingsJSONSchema = `{
       },
       "default": []
     },
+    "sportsGuide": {
+  "type": "object",
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "default": true
+    },
+    "groups": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "leagueId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "matchup",
+              "session",
+              "off"
+            ]
+          }
+        },
+        "required": [
+          "groupId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "overrides": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "properties": {
+          "channelId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "eventId": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "disabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "channelId"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+},
     "sportsTeamChannels": {
       "type": "array",
       "maxItems": 200,
