@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/theramindex/silo-plugins/pkg/sportsguide"
 )
 
 const DefaultAdminSettingsFile = "/var/lib/continuum/plugins/silo.ramindex.dispatcharr/category-settings.json"
@@ -236,6 +238,7 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 		"sportsEnabled":                  sportsEnabled,
 		"separateSportsApp":              separateSportsApp,
 		"sportsLibraryIds":               sportsLibraryIDs,
+		"sportsGuide":                    sportsguide.DecodePolicy(payload["sportsGuide"]),
 		"sportsTeamChannels":             sportsTeamChannels,
 		"liveRewindEnabled":              liveRewindEnabled,
 		"liveRewindCacheGB":              liveRewindCacheGB,

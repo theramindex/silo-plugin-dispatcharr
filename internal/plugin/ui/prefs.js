@@ -73,7 +73,7 @@ function defaultEventKeywordRules() {
   ];
 }
 function defaultAdminCategorySettings() {
-  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", appDisplayName: "Live TV (Dispatcharr)", sideMenuMode: "guide", onLaterEnabled: true, virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, flattenRedundantGroupWrappers: true, allowRecordingsByDefault: true, recordingPrePadMinutes: 0, recordingPostPadMinutes: 0, recordingComskipEnabled: false, sportsEnabled: true, separateSportsApp: false, sportsLibraryIds: [], sportsTeamChannels: [], sportsFirstPlayerEnabled: false, hlsBufferSeconds: 12, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], featuredEventIds: [], eventKeywords: defaultEventKeywordRules() };
+  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Groups", appDisplayName: "Live TV (Dispatcharr)", sideMenuMode: "guide", onLaterEnabled: true, virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, flattenRedundantGroupWrappers: true, allowRecordingsByDefault: true, recordingPrePadMinutes: 0, recordingPostPadMinutes: 0, recordingComskipEnabled: false, sportsEnabled: true, separateSportsApp: false, sportsLibraryIds: [], sportsTeamChannels: [], sportsGuide: { enabled: true, groups: [], overrides: [] }, sportsFirstPlayerEnabled: false, hlsBufferSeconds: 12, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], featuredEventIds: [], eventKeywords: defaultEventKeywordRules() };
 }
 function cloneAdminCategorySettings(settings) {
   try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -298,6 +298,8 @@ function normalizeAdminCategorySettings() {
   state.adminCategorySettings.recordingPostPadMinutes = Math.max(0, Math.min(60, Math.round(Number(state.adminCategorySettings.recordingPostPadMinutes) || 0)));
   state.adminCategorySettings.recordingComskipEnabled = state.adminCategorySettings.recordingComskipEnabled === true;
   state.adminCategorySettings.sportsEnabled = state.adminCategorySettings.sportsEnabled !== false;
+  const guidePolicy = state.adminCategorySettings.sportsGuide || {};
+  state.adminCategorySettings.sportsGuide = { enabled: guidePolicy.enabled !== false, groups: items(guidePolicy.groups), overrides: items(guidePolicy.overrides) };
   state.adminCategorySettings.separateSportsApp = state.adminCategorySettings.separateSportsApp === true;
   state.adminCategorySettings.sportsLibraryIds = uniqueIDs(items(state.adminCategorySettings.sportsLibraryIds).map(function(value) {
     const id = Number(value);

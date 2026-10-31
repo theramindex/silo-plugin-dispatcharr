@@ -11,6 +11,8 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/theramindex/silo-plugins/pkg/sportsguide"
 )
 
 type sportsProvider interface {
@@ -68,6 +70,7 @@ type sportsEventCache struct {
 }
 
 type sportsPreparedCache struct {
+	GuidePolicyKey   string
 	Payload          SportsPayload
 	ExpiresAfter     time.Time
 	GuideUpdatedUnix int64
@@ -80,6 +83,7 @@ type sportsPreparedCache struct {
 }
 
 type SportsPayload struct {
+	guideSchedule []sportsguide.Event
 	UpdatedAtUnix int64          `json:"updatedAtUnix"`
 	Source        string         `json:"source"`
 	Leagues       []SportsLeague `json:"leagues"`

@@ -4088,6 +4088,7 @@ document.addEventListener("click", function(event) {
     event.preventDefault();
     const sportsAction = adminSportsAction.getAttribute("data-admin-sports-action");
     if (sportsAction === "refresh-libraries") loadSportsLibraries(true);
+    if (sportsAction.indexOf("guide-") === 0) updateAdminSportsGuide(sportsAction, adminSportsAction);
     if (sportsAction === "add-team-channel" || sportsAction === "remove-team-channel") updateAdminSportsTeamChannels(sportsAction, adminSportsAction);
     return;
   }

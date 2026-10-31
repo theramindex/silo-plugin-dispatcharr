@@ -1090,6 +1090,9 @@ func (s *HTTPRoutesServer) handleAdminSettings(ctx context.Context, request *plu
 		return textResponse(http.StatusBadGateway, "could not save plugin settings"), nil
 	}
 	saved := s.store.SetAdminSettings(encoded)
+	s.sportsPreparedMu.Lock()
+	s.sportsPrepared.ExpiresAfter = time.Time{}
+	s.sportsPreparedMu.Unlock()
 	s.timeShiftConfig()
 	return s.respondJSON(http.StatusOK, json.RawMessage(saved))
 }

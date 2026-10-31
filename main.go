@@ -178,6 +178,7 @@ func main() {
 		return
 	}
 	store := cache.NewStore()
+	defer store.Close()
 	snapshotStorage := cache.NewFileSnapshotStorage("")
 	defer snapshotStorage.Close()
 	if snapshot, ok, err := snapshotStorage.Load(); err != nil {
