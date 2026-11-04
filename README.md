@@ -91,7 +91,7 @@ first-class Live TV provider capability.
 
 ## Shared playback and Live Rewind
 
-- Dispatcharr, XC, and HDHomeRun use the same guarded playback, viewer ownership, startup fallback, and cleanup library (SDK v0.30.0).
+- Dispatcharr, XC, and HDHomeRun use the same guarded playback, viewer ownership, startup fallback, and cleanup library (SDK v0.32.1).
 - Admin **Station alternatives** explicitly map equivalent channel IDs to one station key. Lower priority numbers win; another mapped source is tried before any stream bytes are sent. Names never imply equivalence. Interrupted streams need restarting.
 - Live Rewind is opt-in and limited to Dispatcharr Direct. H.264 MPEG-TS can be copied into keyframe-aligned HLS; unsupported rewind codecs can use GPU conversion with a bounded history.
 - Administrators control cache budget, rewind window, free-space reserve, and copy-buffer count. Defaults are 5 GiB, 30 minutes, 2 GiB free, and 20 buffers. GPU histories also respect the window and budget. Cache status and clear actions include both paths.
