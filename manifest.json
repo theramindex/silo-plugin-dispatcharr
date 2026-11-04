@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.dispatcharr",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -556,6 +556,7 @@
     }
   ],
   "metadata": {
+    "configuration_check": true,
     "display_name": "Dispatcharr for Silo",
     "summary": "Live TV, guide, sports, and DVR plugin for Silo, backed by Dispatcharr.",
     "jellyfin_api_integration": false

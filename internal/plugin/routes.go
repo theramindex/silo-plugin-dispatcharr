@@ -123,7 +123,7 @@ func NewHTTPRoutesServerWithCoordinatorAndSettingsFiles(store *cache.Store, sett
 }
 
 func newHTTPRoutesServer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
-	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, connectionTester: testConnection, sportsProvider: newSportarrSportsProvider(&http.Client{Timeout: 8 * time.Second}), sportsImages: newSportsImageCache(defaultSportsImageCacheDir, secureSportsImageHTTPClient()), timeShift: timeshift.NewViewerManager(""), streamTickets: map[string]streamTicket{}}
+	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, connectionTester: CheckConnection, sportsProvider: newSportarrSportsProvider(&http.Client{Timeout: 8 * time.Second}), sportsImages: newSportsImageCache(defaultSportsImageCacheDir, secureSportsImageHTTPClient()), timeShift: timeshift.NewViewerManager(""), streamTickets: map[string]streamTicket{}}
 	if syncer != nil {
 		server.coordinator = NewRefreshCoordinator(syncer)
 	}
@@ -1250,7 +1250,8 @@ func connectionFromAdminPayload(payload adminConnectionPayload, current config.C
 	return candidate
 }
 
-func testConnection(ctx context.Context, connection config.ConnectionSettings) error {
+// CheckConnection probes a source without saving it or refreshing its catalog.
+func CheckConnection(ctx context.Context, connection config.ConnectionSettings) error {
 	switch connection.SourceMode {
 	case config.SourceModeDirectLogin:
 		return dispatcharr.NewLoginClient(connection.DispatcharrURL, connection.DispatcharrUser, connection.DispatcharrPass).TestConnection(ctx)

@@ -8,6 +8,7 @@ import (
 	"os"
 	goruntime "runtime"
 	"sync"
+	"time"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	publicmanifest "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/manifest"
@@ -17,6 +18,7 @@ import (
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
 	pluginimpl "github.com/theramindex/silo-plugin-dispatcharr/internal/plugin"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 //go:embed manifest.json
@@ -29,8 +31,31 @@ var buildVersion string
 
 type runtimeServer struct {
 	runtimedefault.Server
+	pluginv1.UnimplementedConfigurationChecksServer
 	manifest *pluginv1.PluginManifest
 	settings *settingsState
+}
+
+func (s *runtimeServer) TestConfiguration(ctx context.Context, request *pluginv1.TestConfigurationRequest) (*pluginv1.TestConfigurationResponse, error) {
+	var draft config.Settings
+	for _, entry := range request.GetConfig() {
+		if entry.GetKey() == "connection" {
+			applyConnectionConfig(&draft, entry.GetValue().AsMap())
+		}
+	}
+	if err := draft.Validate(); err != nil {
+		return &pluginv1.TestConfigurationResponse{Message: err.Error()}, nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	if err := pluginimpl.CheckConnection(ctx, config.ConnectionFromSettings(draft)); err != nil {
+		message := "The source did not accept these settings. Check its address, credentials, and availability."
+		if ctx.Err() != nil {
+			message = "The connection check timed out or was cancelled. Check the source address and try again."
+		}
+		return &pluginv1.TestConfigurationResponse{Message: message}, nil
+	}
+	return &pluginv1.TestConfigurationResponse{Ok: true}, nil
 }
 
 type settingsState struct {
@@ -205,13 +230,18 @@ func main() {
 	}
 	coordinator := pluginimpl.NewRefreshCoordinator(service)
 
-	sdkruntime.Serve(sdkruntime.ServeConfig{
-		Servers: sdkruntime.CapabilityServers{
-			Runtime:       &runtimeServer{manifest: manifest, settings: settings},
-			ScheduledTask: pluginimpl.NewScheduledTaskServerWithCoordinator(coordinator, settingsProvider),
-			HttpRoutes:    pluginimpl.NewHTTPRoutesServerWithCoordinatorAndSettingsFiles(store, settingsProvider, coordinator, "", connectionStore),
-		},
-	})
+	runtime := &runtimeServer{manifest: manifest, settings: settings}
+	encodedManifest, err := protojson.Marshal(manifest)
+	if err != nil {
+		panic(err)
+	}
+	sdkruntime.ServeManifestWithOptions(encodedManifest, buildVersion, sdkruntime.CapabilityServers{
+		ScheduledTask: pluginimpl.NewScheduledTaskServerWithCoordinator(coordinator, settingsProvider),
+		HttpRoutes:    pluginimpl.NewHTTPRoutesServerWithCoordinatorAndSettingsFiles(store, settingsProvider, coordinator, "", connectionStore),
+	}, sdkruntime.WithConfigurationChecks(runtime), sdkruntime.WithConfigure(func(ctx context.Context, entries []*pluginv1.ConfigEntry) error {
+		_, err := runtime.Configure(ctx, &pluginv1.ConfigureRequest{Config: entries})
+		return err
+	}))
 }
 
 const catalogSourceURL = "https://github.com/theramindex/silo-plugin-dispatcharr"

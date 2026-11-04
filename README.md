@@ -47,6 +47,8 @@ first-class Live TV provider capability.
 
 ## Current behavior
 
+Silo's plugin settings can check an unsaved connection through the SDK configuration-check service. A check keeps saved secrets left blank, tests the draft source, and does not save settings, refresh the guide, or start playback. Source checks in Dispatcharr Admin remain available.
+
 - Validates admin configuration for Dispatcharr, Xtream, and M3U/XMLTV modes
 - Syncs Live TV channels, groups, guide data, VOD, and series through Dispatcharr REST
 - Keeps Xtream VOD and series support available when Xtream Codes mode is selected

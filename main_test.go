@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
@@ -15,6 +17,53 @@ import (
 	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
 	"google.golang.org/protobuf/types/known/structpb"
 )
+
+func TestConfigurationCheckUsesOnlyDraftCredentials(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status int
+		key    string
+		ok     bool
+	}{
+		{"accepted", http.StatusOK, "draft-sensitive-key", true},
+		{"rejected", http.StatusUnauthorized, "draft-sensitive-key", false},
+		{"cleared key", http.StatusOK, "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls atomic.Int32
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				if r.URL.Path != "/api/accounts/users/me/" || r.Header.Get("X-API-Key") != tc.key {
+					t.Error("check did not use the draft source and credentials")
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(`{"message":"draft-sensitive-key"}`))
+			}))
+			defer upstream.Close()
+			saved := config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://saved.example.invalid", XtreamPassword: "saved-sensitive-key"}
+			state := &settingsState{settings: saved}
+			server := &runtimeServer{settings: state}
+			value, err := structpb.NewStruct(map[string]any{"source_mode": "api_key", "base_url": upstream.URL, "api_key": tc.key})
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := server.TestConfiguration(t.Context(), &pluginv1.TestConfigurationRequest{Config: []*pluginv1.ConfigEntry{{Key: "connection", Value: value}}})
+			if err != nil || result.GetOk() != tc.ok {
+				t.Fatalf("configuration check = %v, %v", result, err)
+			}
+			if tc.key == "" && calls.Load() != 0 || tc.key != "" && calls.Load() != 1 {
+				t.Fatalf("upstream requests = %d", calls.Load())
+			}
+			if strings.Contains(result.GetMessage(), "sensitive-key") {
+				t.Fatal("configuration check exposed credentials from the response")
+			}
+			if !reflect.DeepEqual(state.Get(), saved) {
+				t.Fatal("configuration check changed the running settings")
+			}
+		})
+	}
+}
 
 func TestRuntimeConfigureReadsObjectShapedConfigEntries(t *testing.T) {
 	t.Parallel()
