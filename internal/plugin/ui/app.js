@@ -664,6 +664,7 @@ function applyAppRouteSnapshot(snapshot) {
 }
 function restoreAppRoute(snapshot) {
   snapshot = snapshot || readAppRouteHash();
+  const leavingPlayer = state.view === "player" && snapshot.view !== "player";
   if (snapshot.view === "player" && snapshot.channelID) {
     const channel = channelByID(snapshot.channelID);
     if (channel) {
@@ -675,6 +676,10 @@ function restoreAppRoute(snapshot) {
   applyAppRouteSnapshot(snapshot);
   setView(snapshot.view || defaultBrowseView(), { historyMode: "none", preserveBrowseState: true });
   if (snapshot.view === "admin" && state.app) setAdminTab(snapshot.adminTab || "source", { historyMode: "none" });
+  if (leavingPlayer) {
+    restorePlayerLaunchFocus(state.playerLaunchFocus);
+    state.playerLaunchFocus = "";
+  }
 }
 function sportsNavAvailable() {
   if (!sportsEnabled()) return false;
@@ -946,7 +951,7 @@ async function loadAdminApp() {
     getJSON("/dispatcharr/api/status").catch(function() { return {}; }),
     getJSON("/dispatcharr/api/admin-settings").catch(function() { return defaultAdminCategorySettings(); }),
     getJSON("/dispatcharr/api/admin-connection").catch(function(error) {
-      state.adminConnectionLoadError = readableError(error) || "Could not load the saved connection.";
+      state.adminConnectionLoadError = adminErrorDetail(error) || "Could not load the saved connection.";
       return null;
     })
   ]);
@@ -973,7 +978,7 @@ async function reloadAdminConnection() {
     state.savedAdminConnection = cloneAdminConnection(connection);
     if (state.app && state.app.source) state.app.source.mode = connection.sourceMode;
   } catch (error) {
-    state.adminConnectionLoadError = readableError(error) || "Could not load the saved connection.";
+    state.adminConnectionLoadError = adminErrorDetail(error) || "Could not load the saved connection.";
   } finally {
     state.adminConnectionLoading = false;
     renderAdminPage();
@@ -993,7 +998,7 @@ async function loadAdminSourceGroups(force) {
     state.profileChannelFilterMap = null;
     state.adminSourceGroupsLoaded = true;
   } catch (error) {
-    state.adminSourceGroupsError = readableError(error) || "Could not load source groups.";
+    state.adminSourceGroupsError = adminErrorDetail(error) || "Could not load source groups.";
   } finally {
     state.adminSourceGroupsLoading = false;
     renderAdminPage();
@@ -1544,10 +1549,12 @@ function handleAppBootFailure(error) {
   const root = byId("view");
   if (!root) return;
   root.setAttribute("role", "status");
-  root.innerHTML = emptyStateHTML(
-    isAdminRoute ? "Unable to load Dispatcharr Admin." : "Unable to load Live TV.",
-    isAdminRoute ? "Refresh this page or return to Silo Admin." : "Check your Dispatcharr connection in Dispatcharr Admin, then refresh this page."
-  );
+  const friendly = readableError(error);
+  const detail = isAdminRoute
+    ? (friendly || "Refresh this page or return to Silo Admin.")
+    : (friendly || "Live TV can't reach Dispatcharr right now. Try again in a few minutes. If it keeps happening, ask your Silo admin to check the connection.");
+  root.innerHTML = "<div class=\"empty\"><strong>" + escapeHTML(isAdminRoute ? "Unable to load Dispatcharr Admin." : "Unable to load Live TV.") + "</strong><div class=\"muted\">" + escapeHTML(detail) + "</div>"
+    + "<div class=\"recovery-actions\"><button type=\"button\" data-recovery-reload=\"true\">Try again</button></div></div>";
 }
 function friendlyCatalogError(message) {
   const text = lower(message);
@@ -2018,7 +2025,7 @@ function renderSearchPage() {
   const query = state.searchQuery || "";
   const filter = state.searchType || "all";
   const filterHTML = "<div class=\"search-scope-row\" aria-label=\"Search scope\">" + searchFilters().map(function(item) {
-    return "<button class=\"search-chip" + (filter === item.id ? " active" : "") + "\" type=\"button\" data-search-type=\"" + escapeHTML(item.id) + "\">" + escapeHTML(item.label) + "</button>";
+    return "<button class=\"search-chip" + (filter === item.id ? " active" : "") + "\" type=\"button\" data-search-type=\"" + escapeHTML(item.id) + "\" aria-pressed=\"" + (filter === item.id ? "true" : "false") + "\">" + escapeHTML(item.label) + "</button>";
   }).join("") + "</div>";
   const clear = query ? "<button class=\"search-query-clear\" type=\"button\" data-search-query-clear=\"true\" aria-label=\"Clear search\">" + icon("x") + "</button>" : "";
   root.innerHTML = "<div class=\"search-page\"><header class=\"search-commandbar\"><div class=\"search-commandbar-title\"><h2>Search</h2><span>Channels, shows, teams, fighters, leagues, and events</span></div><div class=\"search-form\"><label class=\"search-input-shell\"><span>" + icon("search") + "</span><input id=\"search-page-input\" class=\"search-field\" value=\"" + escapeHTML(query) + "\" placeholder=\"Search everything on TV\" autocomplete=\"off\" spellcheck=\"false\">" + clear + "</label><button class=\"search-cancel\" type=\"button\" data-search-cancel=\"true\">Done</button></div>" + filterHTML + "</header><div id=\"search-page-results\" class=\"search-page-results\" aria-live=\"polite\">" + renderSearchPageResults() + "</div></div>";
@@ -2223,8 +2230,9 @@ function loadEvents(force) {
     delete state.events.error;
     return state.events;
   }).catch(function(error) {
-    if (!state.events) state.events = { events: [], categories: [], error: readableError(error) };
-    else state.events.error = readableError(error);
+    const message = readableError(error) || "Events couldn't load right now. Try again in a few minutes.";
+    if (!state.events) state.events = { events: [], categories: [], error: message };
+    else state.events.error = message;
     showAppToast("Could not refresh events.");
     return state.events;
   }).finally(function() {
@@ -2281,9 +2289,9 @@ function broadcastEventShelves(events) {
 function renderEventCategoryFilters(payload) {
   const categories = items(payload && payload.categories);
   if (!categories.length) return "";
-  const chips = ["<button class=\"chip" + (!state.eventCategory ? " active" : "") + "\" data-event-category=\"\">All events</button>"].concat(categories.map(function(category) {
+  const chips = ["<button type=\"button\" class=\"chip" + (!state.eventCategory ? " active" : "") + "\" data-event-category=\"\" aria-pressed=\"" + (!state.eventCategory ? "true" : "false") + "\">All events</button>"].concat(categories.map(function(category) {
     const label = category.name || category.id || "Events";
-    return "<button class=\"chip" + (state.eventCategory === category.id ? " active" : "") + "\" data-event-category=\"" + escapeHTML(category.id) + "\">" + escapeHTML(label) + "</button>";
+    return "<button type=\"button\" class=\"chip" + (state.eventCategory === category.id ? " active" : "") + "\" data-event-category=\"" + escapeHTML(category.id) + "\" aria-pressed=\"" + (state.eventCategory === category.id ? "true" : "false") + "\">" + escapeHTML(label) + "</button>";
   }));
   return "<div class=\"sports-leagues\">" + chips.join("") + "</div>";
 }
@@ -2981,13 +2989,14 @@ function renderRecordingCard(recording) {
   const silo = recording && recording._silo ? recording._silo : {};
   const recordingID = String(silo.recording_id || recording.id || "");
   const actions = [];
-  if (playbackURL) actions.push("<button class=\"recording-action\" data-recording-playback=\"" + escapeHTML(playbackURL) + "\">" + icon("play") + "<span>Playback</span></button>");
+  const title = recordingTitle(recording);
+  if (playbackURL) actions.push("<button class=\"recording-action\" data-recording-playback=\"" + escapeHTML(playbackURL) + "\" aria-label=\"" + escapeHTML("Play " + title) + "\">" + icon("play") + "<span>Playback</span></button>");
   const admin = siloUserIsAdmin();
   if (admin && recordingID && (silo.can_stop || status === "pending" || status === "scheduled" || status === "recording")) {
-    actions.push("<button class=\"recording-action\" data-recording-stop=\"" + escapeHTML(recordingID) + "\">" + icon("stop") + "<span>Stop</span></button>");
+    actions.push("<button class=\"recording-action\" data-recording-stop=\"" + escapeHTML(recordingID) + "\" aria-label=\"" + escapeHTML("Stop recording " + title) + "\">" + icon("stop") + "<span>Stop</span></button>");
   }
   if (admin && recordingID && silo.can_delete !== false) {
-    actions.push("<button class=\"recording-action\" data-recording-delete=\"" + escapeHTML(recordingID) + "\">" + icon("trash") + "<span>Delete</span></button>");
+    actions.push("<button class=\"recording-action\" data-recording-delete=\"" + escapeHTML(recordingID) + "\" data-confirm-title=\"" + escapeHTML(title) + "\" aria-label=\"" + escapeHTML("Delete " + title) + "\">" + icon("trash") + "<span>Delete</span></button>");
   }
   return "<div class=\"recording-card\"><span><strong>" + escapeHTML(recordingTitle(recording)) + "</strong><span class=\"recording-meta\">" + escapeHTML(recordingChannelName(recording) + " - " + recordingWindow(recording)) + "</span></span><div class=\"recording-actions\">" + actions.join("") + "<span class=\"recording-badge " + escapeHTML(status) + "\">" + escapeHTML(status.split("_").join(" ")) + "</span></div></div>";
 }
@@ -3116,14 +3125,26 @@ function openSavedLineupEditor(categoryID, lineupID) {
   const existing = savedLineupByID(lineupID) || savedLineupForCategory(categoryID);
   const targetCategoryID = existing ? existing.categoryId : String(categoryID || state.category || "");
   if (!targetCategoryID) return;
+  savedLineupReturnFocus = { element: document.activeElement, categoryID: targetCategoryID };
   state.savedLineupEditor = existing
     ? { id: existing.id, categoryId: existing.categoryId, name: existing.name, hideFinalGroups: existing.hideFinalGroups === true, isNew: false }
     : { id: "", categoryId: targetCategoryID, name: savedLineupCategoryLabel(targetCategoryID), hideFinalGroups: false, isNew: true };
   renderSavedLineupModal();
 }
+let savedLineupReturnFocus = null;
 function closeSavedLineupEditor() {
   state.savedLineupEditor = null;
   renderSavedLineupModal();
+  const target = savedLineupReturnFocus;
+  savedLineupReturnFocus = null;
+  if (!target) return;
+  // Save and Remove re-render the page, so prefer the fresh button for the same
+  // category over the (possibly detached) element that opened the editor.
+  requestAnimationFrame(function() {
+    const fresh = document.querySelector("[data-saved-lineup-category=\"" + cssEscape(target.categoryID) + "\"]");
+    const element = fresh || (target.element && document.contains(target.element) ? target.element : null);
+    if (element && typeof element.focus === "function") element.focus();
+  });
 }
 function saveSavedLineupEditor() {
   const editor = state.savedLineupEditor;
@@ -3817,6 +3838,7 @@ async function toggleFullscreen() {
 function handlePlayerAction(action, button) {
   const video = byId("player");
   wakePlayerChrome();
+  rememberPlayerOverlayOpener(action, button);
   if (action === "back") {
     returnFromPlayer();
     return;
@@ -3982,6 +4004,8 @@ function returnFromPlayer() {
       guideScroll.scrollTop = context.guideScrollTop || 0;
       renderGuideWindow(true);
     }
+    restorePlayerLaunchFocus(context.launchFocus);
+    state.playerLaunchFocus = "";
   });
 }
 document.addEventListener("click", function(event) {
@@ -4449,7 +4473,10 @@ document.addEventListener("click", function(event) {
   const recordingDelete = event.target.closest("[data-recording-delete]");
   if (recordingDelete) {
     event.preventDefault();
-    deleteRecording(recordingDelete.getAttribute("data-recording-delete"), recordingDelete);
+    openInlineConfirm(recordingDelete, {
+      title: recordingDelete.getAttribute("data-confirm-title") || "this recording",
+      onConfirm: function(trigger) { deleteRecording(trigger.getAttribute("data-recording-delete"), trigger); }
+    });
     return;
   }
   const scheduleTarget = event.target.closest("[data-schedule-channel]");
@@ -4519,7 +4546,9 @@ document.addEventListener("click", function(event) {
   const adminConnectionBackdrop = event.target.closest("[data-admin-connection-backdrop]");
   if (adminConnectionBackdrop && event.target === adminConnectionBackdrop) {
     event.preventDefault();
-    discardAdminConnection();
+    // A drag that starts in a field and ends outside the dialog also "clicks" the
+    // backdrop; only a press that began on the backdrop counts as dismissal.
+    if (adminBackdropPointerDown === adminConnectionBackdrop) dismissAdminConnectionEditor();
     return;
   }
   const adminConnectionStep = event.target.closest("[data-admin-connection-step]");
@@ -4688,6 +4717,11 @@ document.addEventListener("focusout", function(event) {
   const target = overflowTooltipTarget(event);
   if (target) hideOverflowTooltip();
 });
+let adminBackdropPointerDown = null;
+document.addEventListener("pointerdown", function(event) {
+  adminBackdropPointerDown = event.target && event.target.closest ? event.target.closest("[data-admin-connection-backdrop]") : null;
+  if (adminBackdropPointerDown && event.target !== adminBackdropPointerDown) adminBackdropPointerDown = null;
+}, true);
 document.addEventListener("keydown", function(event) {
   if (state.folderGroupPickerOpen && event.key === "Escape") {
     event.preventDefault();
@@ -4703,9 +4737,10 @@ document.addEventListener("keydown", function(event) {
   }
   if (state.adminConnectionEditorOpen && event.key === "Escape") {
     event.preventDefault();
-    discardAdminConnection();
+    dismissAdminConnectionEditor();
     return;
   }
+  if (trapAdminConnectionFocus(event)) return;
   if (trapProgramModalFocus(event)) return;
   if (handleGuideKeyboard(event)) return;
   if (state.programDetails && event.key === "Escape") {
@@ -4726,19 +4761,19 @@ document.addEventListener("keydown", function(event) {
     return;
   }
   if (state.view !== "player") return;
-  const tag = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : "";
-  if (tag === "input" || tag === "textarea" || tag === "select") return;
-  if (event.key === "Escape" && state.playerSportsOpen) {
+  if (event.key === "Escape") {
     event.preventDefault();
-    togglePlayerSports(false);
+    if (!closeTopPlayerOverlay()) returnFromPlayer();
     return;
   }
+  const tag = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : "";
+  if (tag === "input" || tag === "textarea" || tag === "select") return;
   if (event.key === "ArrowDown" && sportsFirstPlayerActive() && !state.playerSportsOpen) {
     event.preventDefault();
     togglePlayerSports(true);
     return;
   }
-  if (event.key === " " || event.key === "k" || event.key === "K") {
+  if ((event.key === " " || event.key === "k" || event.key === "K") && !playerShortcutTargetIsControl(event.target)) {
     event.preventDefault();
     togglePlayPause();
   }

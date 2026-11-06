@@ -86,7 +86,7 @@ function renderPlayerPage() {
   const end = timeLabel(program.endUnix) || "Now";
   const playbackShellClass = (replayMode ? "playback-shell is-replay" : "playback-shell") + (sportsFirstPlayerActive() ? " sports-enabled" : "");
   const videoAttributes = " autoplay playsinline";
-  const modeTag = replayMode ? "Replay" : "AV";
+  const modeTag = replayMode ? "Replay" : "";
   const liveProgramWindow = !replayMode ? "<div class=\"player-live-window\"><span>Started " + escapeHTML(start) + "</span><strong><span class=\"live-dot\"></span>Live</strong><span>Ends " + escapeHTML(end) + "</span></div>" : "";
   const timeShiftControls = "<div id=\"player-timeshift-controls\" class=\"player-timeshift-controls hidden\"><button class=\"player-icon\" data-player-action=\"rewind-30\" aria-label=\"Rewind 30 seconds\">" + icon("rewind") + "</button><button id=\"player-timeshift-play\" class=\"player-icon\" data-player-action=\"play-toggle\" aria-label=\"Play\">" + icon("play") + "</button><button class=\"player-icon\" data-player-action=\"forward-30\" aria-label=\"Forward 30 seconds\">" + icon("forward") + "</button><input id=\"player-timeshift-range\" type=\"range\" min=\"0\" max=\"1\" step=\"0.25\" value=\"1\" aria-label=\"Live Rewind position\"><button class=\"player-live-button\" data-player-action=\"go-live\"><span class=\"live-dot\"></span><span id=\"player-timeshift-label\">LIVE</span></button></div>";
   const topActions = "<div class=\"player-top-actions\">"
@@ -99,7 +99,7 @@ function renderPlayerPage() {
     + "<button class=\"player-icon\" data-player-action=\"add-multiview\" aria-label=\"Add current channel to multiview\">" + icon("multiview") + "</button>"
     + "<button id=\"player-subtitles-button\" class=\"player-icon\" data-player-action=\"subtitles\" aria-label=\"Subtitles\" aria-pressed=\"false\">" + icon("captions") + "</button>"
     + "<button id=\"player-language-button\" class=\"player-icon\" data-player-action=\"language-menu\" aria-label=\"Audio language\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "</button></div>";
-  byId("view").innerHTML = "<section class=\"" + playbackShellClass + "\"><div class=\"playback-stage\">"
+  byId("view").innerHTML = "<section class=\"" + playbackShellClass + "\" tabindex=\"-1\" aria-label=\"" + escapeHTML(channelName + " player") + "\"><div class=\"playback-stage\">"
     + "<video id=\"player\" class=\"playback-video\"" + videoAttributes + "></video><div class=\"playback-scrim\"></div>"
     + "<button id=\"player-center-button\" class=\"player-center-button hidden\" data-player-action=\"play-toggle\" aria-label=\"Play\">" + icon("play") + "</button>"
     + "<div class=\"player-top\"><button class=\"player-exit player-icon\" data-player-action=\"back\" aria-label=\"Back to Live TV browse\">" + icon("arrow-left") + "</button>" + topActions + "</div>"
@@ -108,7 +108,7 @@ function renderPlayerPage() {
     + "<div id=\"player-sports-status\" class=\"sr-only\" role=\"status\"></div><div id=\"player-sports-drawer\" class=\"player-sports-drawer\"></div>"
     + "<div class=\"player-bottom\"><div class=\"player-bottom-row\"><div class=\"player-meta\">" + playerLogoHTML(channel)
     + "<div class=\"player-kicker\">" + escapeHTML(channelName) + "</div><h2 class=\"player-title\">" + escapeHTML(title) + "</h2>"
-    + "<p class=\"player-description\" data-overflow-description=\"true\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span id=\"player-mode-tag\" class=\"player-tag\">" + escapeHTML(modeTag) + "</span></div></div>"
+    + "<p class=\"player-description\" data-overflow-description=\"true\">" + escapeHTML(description) + "</p><div class=\"player-tags\"><span class=\"player-tag\">" + escapeHTML(categoryNameText) + "</span><span id=\"player-mode-tag\" class=\"player-tag\"" + (modeTag ? "" : " hidden") + ">" + escapeHTML(modeTag) + "</span></div></div>"
     + bottomActions + "</div>" + timeShiftControls + liveProgramWindow + "</div></div></section>";
   updateAudioMenu();
   updateVolumeMenu();
@@ -120,7 +120,89 @@ function renderPlayerPage() {
   }
   renderPlayerMoreMenu();
   updateFullscreenButton();
+  // Rendering replaced the launching control; give keyboard and remote users a
+  // focus point inside the player without pinning the chrome open.
+  const shell = document.querySelector(".playback-shell");
+  const active = document.activeElement;
+  if (shell && typeof shell.focus === "function" && (!active || active === document.body || !document.contains(active))) shell.focus({ preventScroll: true });
   wakePlayerChrome(1800);
+}
+
+// Shared with Xtream Codes plugin: keep in sync.
+// Player focus. The control that opened a player overlay is remembered so
+// Escape can return focus to it, and the control that launched playback is
+// saved as a selector so leaving the player can refocus its re-rendered copy
+// (keyboard and TV-remote users).
+const playerOverlayOpenerActions = ["audio-menu", "language-menu", "volume-menu", "more", "guide", "sports"];
+let playerOverlayOpener = null;
+let playerLastActivatedElement = null;
+// Safari does not focus buttons on click, so remember the last control that was
+// activated; playerLaunchFocusSelector falls back to it when nothing has focus.
+document.addEventListener("click", function(event) {
+  const target = event.target && event.target.closest ? event.target.closest("button, a, [tabindex]") : null;
+  if (target) playerLastActivatedElement = target;
+}, true);
+function rememberPlayerOverlayOpener(action, button) {
+  if (playerOverlayOpenerActions.indexOf(action) < 0) return;
+  // An item in the More menu disappears with the menu; the More button stands in.
+  playerOverlayOpener = button && button.closest && button.closest(".player-more-menu") ? byId("player-more-button") : (button || null);
+}
+function focusPlayerOverlayOpener(fallbackID) {
+  const opener = playerOverlayOpener;
+  playerOverlayOpener = null;
+  const target = opener && document.contains(opener) && !opener.hidden ? opener : (byId(fallbackID) || document.querySelector(".player-exit"));
+  if (target && typeof target.focus === "function") target.focus();
+}
+// closeTopPlayerOverlay closes the topmost open player overlay (popover menus,
+// then the guide panel, then the sports drawer) and refocuses its opener. It
+// returns false when nothing was open, so Escape can leave the player instead.
+function closeTopPlayerOverlay() {
+  let fallback = "";
+  if (state.moreMenuOpen || state.audioMenuOpen || state.volumeMenuOpen) {
+    fallback = state.moreMenuOpen ? "player-more-button" : (state.volumeMenuOpen ? "player-volume-button" : "player-audio-button");
+    closePlayerPopovers();
+  } else if (state.playerGuideOpen) {
+    state.playerGuideOpen = false;
+    renderPlayerGuidePanel();
+    fallback = "player-guide-button";
+  } else if (state.playerSportsOpen) {
+    togglePlayerSports(false);
+    fallback = "player-more-button";
+  } else {
+    return false;
+  }
+  focusPlayerOverlayOpener(fallback);
+  wakePlayerChrome();
+  return true;
+}
+// Space/K are playback shortcuts only when focus is not on something Space
+// would otherwise activate or type into.
+function playerShortcutTargetIsControl(target) {
+  return !!(target && target.closest && target.closest("button, [role=\"menuitem\"], summary, input, textarea, select, [contenteditable=\"true\"]"));
+}
+// playerLaunchFocusSelector describes the control that launched playback (the
+// focused element, else the last one clicked) by its id or data-* identity.
+function playerLaunchFocusSelector(element) {
+  const active = element || (document.activeElement && document.activeElement !== document.body ? document.activeElement : playerLastActivatedElement);
+  if (!active || active === document.body || !active.getAttributeNames || !document.contains(active) || (active.closest && active.closest(".playback-shell"))) return "";
+  if (active.id) return "#" + cssEscape(active.id);
+  const names = active.getAttributeNames().filter(function(name) { return name.indexOf("data-") === 0 && name !== "data-img-error" && name !== "data-img-load" && name !== "data-overflow-tooltip"; });
+  if (!names.length) return "";
+  return active.tagName.toLowerCase() + names.map(function(name) { return "[" + name + "=\"" + cssEscape(active.getAttribute(name) || "") + "\"]"; }).join("");
+}
+// restorePlayerLaunchFocus refocuses that control once the browse view has
+// re-rendered, unless something else already took focus.
+function restorePlayerLaunchFocus(selector) {
+  if (!selector) return;
+  requestAnimationFrame(function() {
+    if (state.view === "player") return;
+    const active = document.activeElement;
+    if (active && active !== document.body && document.contains(active)) return;
+    let target = null;
+    try { target = document.querySelector(selector); } catch (_) { target = null; }
+    if (!target || typeof target.focus !== "function") return;
+    try { target.focus({ preventScroll: true }); } catch (_) { target.focus(); }
+  });
 }
 
 function hasOpenPlayerOverlay() {
@@ -351,7 +433,11 @@ function updateTimeShiftUI() {
   const video = byId("player");
   const active = !!(state.timeShiftSession && state.timeShiftSession.ready && video && video.seekable && video.seekable.length);
   if (controls) controls.classList.toggle("hidden", !active);
-  if (tag) tag.textContent = active ? "Live Rewind" : (isRewindableChannel(state.currentChannel) ? "Replay" : "AV");
+  if (tag) {
+    // Plain live playback needs no mode tag; the live window already says Live.
+    tag.textContent = active ? "Live Rewind" : (isRewindableChannel(state.currentChannel) ? "Replay" : "");
+    tag.hidden = !tag.textContent;
+  }
   if (!active) return;
   const start = video.seekable.start(0);
   const end = video.seekable.end(video.seekable.length - 1);
@@ -590,8 +676,10 @@ async function playChannel(channel, options) {
       scrollY: window.scrollY,
       mainScrollTop: main ? main.scrollTop : 0,
       guideScrollTop: guideScroll ? guideScroll.scrollTop : 0,
-      guideScrollLeft: guideScroll ? guideScroll.scrollLeft : 0
+      guideScrollLeft: guideScroll ? guideScroll.scrollLeft : 0,
+      launchFocus: playerLaunchFocusSelector()
     };
+    state.playerLaunchFocus = state.playerReturnContext.launchFocus;
   }
   stopCompatibilitySession();
   stopTimeShiftSession();

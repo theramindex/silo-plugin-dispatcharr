@@ -430,7 +430,7 @@ function loadSportsLibraries(force) {
     });
     return state.sportsLibraries;
   }).catch(function(error) {
-    state.sportsLibrariesError = readableError(error);
+    state.sportsLibrariesError = adminErrorDetail(error);
     if (!state.sportsLibraries) state.sportsLibraries = [];
     return state.sportsLibraries;
   }).finally(function() {
@@ -558,7 +558,7 @@ function loadSportsReplays(force) {
     });
   }).catch(function(error) {
     if (generation === state.sportsReplayGeneration) {
-      state.sportsReplaysError = readableError(error);
+      state.sportsReplaysError = readableError(error) || "Replays are temporarily unavailable.";
     }
     return state.sportsReplayMatches;
   }).finally(function() {
@@ -579,13 +579,16 @@ function stopSportsPoll(resetAttempts) {
   state.sportsPollTimer = null;
   if (resetAttempts) state.sportsPollAttempts = 0;
 }
+const sportsPollMaxAttempts = 48;
 function scheduleSportsPoll() {
-  if (state.sportsPollTimer || state.sportsPollAttempts >= 48) return;
+  if (state.sportsPollTimer) return true;
+  if (state.sportsPollAttempts >= sportsPollMaxAttempts) return false;
   state.sportsPollAttempts += 1;
   state.sportsPollTimer = setTimeout(function() {
     state.sportsPollTimer = null;
     loadSports(true, true);
   }, state.sportsPollAttempts <= 12 ? 1500 : 3000);
+  return true;
 }
 function loadSports(force, preparedOnly) {
   if (!sportsEnabled()) return Promise.resolve({ events: [], leagues: [] });
@@ -600,12 +603,17 @@ function loadSports(force, preparedOnly) {
     applySportsFavoritesToPayload();
     if (state.sportsLeague) loadSportsLeagueTeams(sportsLeagueByID(state.sports, state.sportsLeague));
     loadSportsReplays(force && !preparedOnly);
-    if (state.sports.refreshing) scheduleSportsPoll();
-    else stopSportsPoll(true);
+    if (state.sports.refreshing && !scheduleSportsPoll()) {
+      // The server is still preparing after every poll; stop showing a
+      // spinner and offer Retry instead.
+      state.sports.refreshing = false;
+      state.sports.error = "Sports are taking longer than usual to load. Try again in a few minutes.";
+    } else if (!state.sports.refreshing) stopSportsPoll(true);
     return state.sports;
   }).catch(function(error) {
-    if (!state.sports) state.sports = { events: [], leagues: [], error: readableError(error) };
-    else state.sports.error = readableError(error);
+    const message = readableError(error) || "Sports couldn't load right now. Try again in a few minutes.";
+    if (!state.sports) state.sports = { events: [], leagues: [], error: message };
+    else state.sports.error = message;
     showAppToast("Could not refresh sports.");
     return state.sports;
   }).finally(function() {

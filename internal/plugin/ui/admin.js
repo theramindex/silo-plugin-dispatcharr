@@ -21,7 +21,7 @@ function saveAdminCategorySettings() {
     if (state.view === "admin") renderAdminPage();
   }).catch(function(error) {
     state.adminSaveStatus = "error";
-    state.adminSaveMessage = "Could not save plugin settings: " + readableError(error);
+    state.adminSaveMessage = "Could not save plugin settings: " + adminErrorDetail(error);
     if (state.view === "admin") renderAdminPage();
     try { console.warn("Dispatcharr admin plugin settings save failed", error); } catch (_) {}
   });
@@ -55,7 +55,7 @@ async function saveAdminOrganizationSettings() {
       state.sportsReplayMatches = {};
       state.sportsReplayStandaloneEvents = [];
     } catch (error) {
-      failures.push("Folder rules could not be saved: " + readableError(error));
+      failures.push("Folder rules could not be saved: " + adminErrorDetail(error));
     }
   }
   if (saveLineup) {
@@ -71,7 +71,7 @@ async function saveAdminOrganizationSettings() {
       refreshAdminStatus();
     } catch (error) {
       state.adminConnectionStatus = "error";
-      state.adminConnectionMessage = "Lineup could not be saved: " + readableError(error);
+      state.adminConnectionMessage = "Lineup could not be saved: " + adminErrorDetail(error);
       failures.push(state.adminConnectionMessage);
     }
   }
@@ -305,9 +305,78 @@ async function submitAdminConnection(action) {
     }
   } catch (error) {
     state.adminConnectionStatus = "error";
-    state.adminConnectionMessage = (action === "test" ? "Connection test failed: " : "Could not save source: ") + readableError(error);
+    state.adminConnectionMessage = (action === "test" ? "Connection test failed: " : "Could not save source: ") + adminErrorDetail(error);
   }
   renderAdminPage();
+}
+function adminConnectionComparable(value) {
+  const connection = normalizeAdminConnection(value);
+  return JSON.stringify(["sourceMode", "baseUrl", "username", "password", "apiKey", "channelProfiles", "channelGroups", "m3uUrl", "epgXmlUrl"].map(function(key) { return connection[key]; }));
+}
+function adminConnectionDirty() {
+  if (!state.adminConnectionEditorOpen) return false;
+  return adminConnectionComparable(state.adminConnection) !== adminConnectionComparable(state.savedAdminConnection);
+}
+// Escape and backdrop clicks are easy to trigger by accident, so they only close
+// an untouched editor. With edits, they explain how to discard and move focus to
+// Cancel; the explicit Cancel button still discards straight away.
+function dismissAdminConnectionEditor() {
+  if (!adminConnectionDirty()) {
+    discardAdminConnection();
+    return;
+  }
+  state.adminConnectionMessage = "You have unsaved changes. Choose Cancel to discard them, or Save Source to keep them.";
+  const message = byId("admin-connection-message");
+  if (message) {
+    message.classList.remove("hide");
+    message.classList.add("settings-warning");
+    message.textContent = state.adminConnectionMessage;
+  }
+  const cancel = document.querySelector(".source-dialog [data-admin-connection-action=\"cancel\"]");
+  if (cancel && typeof cancel.focus === "function") cancel.focus();
+}
+const adminDialogFocusAttributes = ["data-admin-connection-action", "data-admin-connection-step", "data-admin-connection-field", "data-admin-source-mode"];
+function adminDialogFocusSelector() {
+  const active = document.activeElement;
+  if (!active || !active.closest || !active.closest(".source-dialog")) return "";
+  for (let index = 0; index < adminDialogFocusAttributes.length; index += 1) {
+    const name = adminDialogFocusAttributes[index];
+    const value = active.getAttribute && active.getAttribute(name);
+    if (value) return ".source-dialog [" + name + "=\"" + cssEscape(value) + "\"]";
+  }
+  return ".source-dialog";
+}
+// renderAdminPage rebuilds the dialog; put focus back on the same control, or on
+// the dialog itself when that control is now disabled (Test/Save while busy).
+function restoreAdminDialogFocus(selector) {
+  if (!state.adminConnectionEditorOpen || !selector) return;
+  const target = document.querySelector(selector);
+  const dialog = document.querySelector(".source-dialog");
+  const element = target && !target.disabled ? target : dialog;
+  if (element && typeof element.focus === "function") element.focus({ preventScroll: true });
+}
+function trapAdminConnectionFocus(event) {
+  if (!state.adminConnectionEditorOpen || event.key !== "Tab") return false;
+  const dialog = document.querySelector(".source-dialog");
+  if (!dialog) return false;
+  const focusable = Array.prototype.slice.call(dialog.querySelectorAll("button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex=\"-1\"])"));
+  if (!focusable.length) return false;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  // Focus on the dialog itself (after a busy control was disabled) or outside
+  // it is not a tabbable control, so the browser would leave the dialog.
+  const onControl = focusable.indexOf(document.activeElement) !== -1;
+  if (event.shiftKey && (document.activeElement === first || !onControl)) {
+    event.preventDefault();
+    last.focus();
+    return true;
+  }
+  if (!event.shiftKey && (document.activeElement === last || !onControl)) {
+    event.preventDefault();
+    first.focus();
+    return true;
+  }
+  return false;
 }
 function discardAdminConnection() {
   state.adminConnection = cloneAdminConnection(state.savedAdminConnection);
@@ -339,7 +408,7 @@ function adminConnectionModeDefinitions() {
 }
 function adminConnectionModeOptions(connection) {
   return adminConnectionModeDefinitions().map(function(option) {
-    return "<button type=\"button\" data-admin-source-mode=\"" + option[0] + "\" class=\"" + (connection.sourceMode === option[0] ? "active" : "") + "\"><strong>" + option[1] + "</strong><span>" + option[2] + "</span></button>";
+    return "<button type=\"button\" data-admin-source-mode=\"" + option[0] + "\" class=\"" + (connection.sourceMode === option[0] ? "active" : "") + "\" aria-pressed=\"" + (connection.sourceMode === option[0] ? "true" : "false") + "\"><strong>" + option[1] + "</strong><span>" + option[2] + "</span></button>";
   }).join("");
 }
 function adminConnectionSecretField(connection, key, label) {
@@ -402,11 +471,11 @@ function renderAdminConnectionEditor() {
   if (step === "connection") content = "<div class=\"source-step-copy\"><h3>Connection</h3><p>Choose a login type, then enter its connection details.</p></div><div class=\"source-mode-options\">" + adminConnectionModeOptions(connection) + "</div><div class=\"source-form source-connection-fields\">" + renderAdminConnectionFields(connection) + "</div>";
   else content = "<div class=\"source-step-copy\"><h3>Lineup</h3><p>Control which Dispatcharr channels become available in Live TV.</p></div>" + renderAdminLineupFields(connection);
   const busy = state.adminConnectionStatus === "saving" || state.adminConnectionStatus === "testing";
-  return "<div class=\"source-dialog-backdrop\" data-admin-connection-backdrop=\"true\"><section class=\"source-dialog\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"source-dialog-title\">"
+  return "<div class=\"source-dialog-backdrop\" data-admin-connection-backdrop=\"true\"><section class=\"source-dialog\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"source-dialog-title\" tabindex=\"-1\">"
     + "<header><span class=\"source-dialog-icon\">" + icon("guide") + "</span><div><h2 id=\"source-dialog-title\">" + (state.savedAdminConnection && state.savedAdminConnection.configured ? "Edit Dispatcharr" : "Add Dispatcharr") + "</h2><p>Connect this Silo installation to its Live TV source.</p></div><button type=\"button\" class=\"source-close\" data-admin-connection-action=\"cancel\" aria-label=\"Close connection setup\">" + icon("x") + "</button></header>"
     + "<div class=\"source-dialog-body\"><nav class=\"source-dialog-nav\" aria-label=\"Connection setup steps\">"
-    + "<button type=\"button\" data-admin-connection-step=\"connection\" class=\"" + (step === "connection" ? "active" : "") + "\">" + icon("integrations") + "<span>Connection</span></button>"
-    + "<button type=\"button\" data-admin-connection-step=\"lineup\" class=\"" + (step === "lineup" ? "active" : "") + "\">" + icon("guide") + "<span>Lineup</span></button></nav>"
+    + "<button type=\"button\" data-admin-connection-step=\"connection\" class=\"" + (step === "connection" ? "active" : "") + "\"" + (step === "connection" ? " aria-current=\"step\"" : "") + ">" + icon("integrations") + "<span>Connection</span></button>"
+    + "<button type=\"button\" data-admin-connection-step=\"lineup\" class=\"" + (step === "lineup" ? "active" : "") + "\"" + (step === "lineup" ? " aria-current=\"step\"" : "") + ">" + icon("guide") + "<span>Lineup</span></button></nav>"
     + "<div class=\"source-dialog-content\">" + message + content + "</div></div>"
     + "<footer><button type=\"button\" data-admin-connection-action=\"cancel\"" + (busy ? " disabled" : "") + ">Cancel</button><button type=\"button\" class=\"admin-outline-action\" data-admin-connection-action=\"test\"" + (busy ? " disabled" : "") + ">" + icon("loader") + "<span>" + (state.adminConnectionStatus === "testing" ? "Testing" : "Test Connection") + "</span></button><button type=\"button\" class=\"admin-save\" data-admin-connection-action=\"save\"" + (busy ? " disabled" : "") + ">" + (state.adminConnectionStatus === "saving" ? "Saving" : "Save Connection") + "</button></footer></section></div>";
 }
@@ -436,12 +505,14 @@ function renderAdminPage() {
   const shell = document.querySelector(".shell");
   if (shell) shell.classList.toggle("is-admin-manager", state.adminTab === "manager");
   const content = byId("view");
+  const dialogFocus = adminDialogFocusSelector();
   if (content) {
     content.setAttribute("role", "tabpanel");
     content.setAttribute("aria-labelledby", "admin-tab-" + state.adminTab);
     const stackClass = "settings-stack" + (state.adminTab === "organization" ? " organization-settings" : "");
     content.innerHTML = state.adminTab === "manager" ? renderExternalChannelManager() : "<div class=\"" + stackClass + "\">" + (state.adminTab === "source" ? renderAdminConnectionTab() : (state.adminTab === "integrations" ? renderAdminIntegrationsTab() : renderAdminSettingsTab(state.adminTab))) + "</div>";
   }
+  restoreAdminDialogFocus(dialogFocus);
   if (state.adminTab === "general") {
     renderAdminIdentitySettings();
     renderAdminRecordingSettings();
@@ -806,7 +877,7 @@ async function refreshAdminCatalog() {
     showAppToast("Dispatcharr catalog refresh started.");
   } catch (error) {
     state.adminConnectionStatus = "error";
-    state.adminConnectionMessage = "Could not refresh catalog: " + readableError(error);
+    state.adminConnectionMessage = "Could not refresh catalog: " + adminErrorDetail(error);
     showAppToast("Could not refresh the Dispatcharr catalog.");
   } finally {
     state.adminStatusRefreshing = false;
@@ -1025,7 +1096,7 @@ function renderAdminFeaturedEventSettings() {
     getJSON("/dispatcharr/api/events").then(function(payload) {
       state.events = payload || { events: [], categories: [] };
     }).catch(function(error) {
-      state.events = { events: [], categories: [], error: readableError(error) };
+      state.events = { events: [], categories: [], error: adminErrorDetail(error) };
     }).finally(function() {
       state.eventsLoading = false;
       if (state.view === "admin" && state.adminTab === "events") renderAdminPage();
