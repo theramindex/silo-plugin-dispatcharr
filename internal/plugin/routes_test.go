@@ -1583,6 +1583,7 @@ const source = fs.readFileSync(%q, "utf8").replace(/startGuideAutoRefresh\(\);[\
 function makeElement() {
   return {
     innerHTML: "", textContent: "", style: {}, dataset: {},
+    remove: () => {},
     classList: { add: () => {}, remove: () => {}, toggle: () => {} },
     setAttribute: () => {}, removeAttribute: () => {}, querySelector: () => null,
     querySelectorAll: () => [], addEventListener: () => {}, focus: () => {}
@@ -1671,6 +1672,7 @@ function makeElement() {
     textContent: "",
     value: "",
     style: {},
+    remove: () => {},
     classList: { add: () => {}, remove: () => {}, toggle: () => {} },
     setAttribute: (name, value) => { attributes[name] = String(value); },
     getAttribute: (name) => attributes[name] || null,

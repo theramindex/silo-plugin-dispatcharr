@@ -114,6 +114,7 @@ function renderPlayerPage() {
   updateVolumeMenu();
   renderPlayerGuidePanel();
   renderPlayerSportsDrawer();
+  if (typeof startSportsCompanion === "function") startSportsCompanion();
   if (sportsFirstPlayerActive()) {
     loadSports(false);
     startPlayerSportsRefresh();

@@ -32,26 +32,64 @@ const (
 	sportsStatsFetchTimeout = 10 * time.Second
 )
 
+type SportsPlayerBoxScore struct {
+	Side     string                 `json:"side"`
+	Category string                 `json:"category"`
+	Columns  []string               `json:"columns"`
+	Players  []SportsBoxScorePlayer `json:"players"`
+}
+type SportsBoxScorePlayer struct {
+	Name       string   `json:"name"`
+	Headshot   string   `json:"headshot,omitempty"`
+	Jersey     string   `json:"jersey,omitempty"`
+	Position   string   `json:"position,omitempty"`
+	Starter    bool     `json:"starter"`
+	DidNotPlay bool     `json:"didNotPlay"`
+	Stats      []string `json:"stats"`
+}
+type espnPlayerBoxScore struct {
+	Team       espnStatsTeam `json:"team"`
+	Statistics []struct {
+		Name     string   `json:"name"`
+		Text     string   `json:"text"`
+		Labels   []string `json:"labels"`
+		Athletes []struct {
+			Athlete struct {
+				DisplayName string `json:"displayName"`
+				Headshot    any    `json:"headshot"`
+				Jersey      string `json:"jersey"`
+				Position    struct {
+					Abbreviation string `json:"abbreviation"`
+				} `json:"position"`
+			} `json:"athlete"`
+			Starter    bool     `json:"starter"`
+			DidNotPlay bool     `json:"didNotPlay"`
+			Stats      []string `json:"stats"`
+		} `json:"athletes"`
+	} `json:"statistics"`
+}
+
 type SportsGameStats struct {
-	Available     bool                 `json:"available"`
-	Message       string               `json:"message,omitempty"`
-	UpdatedAtUnix int64                `json:"updatedAtUnix"`
-	SourceURL     string               `json:"sourceUrl,omitempty"`
-	StatusText    string               `json:"statusText,omitempty"`
-	Live          bool                 `json:"live"`
-	Completed     bool                 `json:"completed"`
-	HomeScore     string               `json:"homeScore,omitempty"`
-	AwayScore     string               `json:"awayScore,omitempty"`
-	LastPlay      string               `json:"lastPlay,omitempty"`
-	Possession    string               `json:"possession,omitempty"`
-	FieldPosition string               `json:"fieldPosition,omitempty"`
-	Rows          []SportsGameStat     `json:"rows"`
-	Innings       []SportsGameInning   `json:"innings,omitempty"`
-	Situation     *SportsGameSituation `json:"situation,omitempty"`
-	Probables     []SportsGamePlayer   `json:"probables,omitempty"`
-	Leaders       []SportsGameLeader   `json:"leaders,omitempty"`
-	Plays         []SportsGamePlay     `json:"plays,omitempty"`
-	Videos        []SportsGameVideo    `json:"videos,omitempty"`
+	BoxScores     []SportsPlayerBoxScore `json:"boxScores,omitempty"`
+	Available     bool                   `json:"available"`
+	Message       string                 `json:"message,omitempty"`
+	UpdatedAtUnix int64                  `json:"updatedAtUnix"`
+	SourceURL     string                 `json:"sourceUrl,omitempty"`
+	StatusText    string                 `json:"statusText,omitempty"`
+	Live          bool                   `json:"live"`
+	Completed     bool                   `json:"completed"`
+	HomeScore     string                 `json:"homeScore,omitempty"`
+	AwayScore     string                 `json:"awayScore,omitempty"`
+	LastPlay      string                 `json:"lastPlay,omitempty"`
+	Possession    string                 `json:"possession,omitempty"`
+	FieldPosition string                 `json:"fieldPosition,omitempty"`
+	Rows          []SportsGameStat       `json:"rows"`
+	Innings       []SportsGameInning     `json:"innings,omitempty"`
+	Situation     *SportsGameSituation   `json:"situation,omitempty"`
+	Probables     []SportsGamePlayer     `json:"probables,omitempty"`
+	Leaders       []SportsGameLeader     `json:"leaders,omitempty"`
+	Plays         []SportsGamePlay       `json:"plays,omitempty"`
+	Videos        []SportsGameVideo      `json:"videos,omitempty"`
 }
 
 type SportsGameSituation struct {
@@ -206,7 +244,8 @@ type espnStatsEvent struct {
 type espnStatsSummary struct {
 	Header   espnStatsEvent `json:"header"`
 	Boxscore struct {
-		Teams []struct {
+		Players []espnPlayerBoxScore `json:"players"`
+		Teams   []struct {
 			Team       espnStatsTeam `json:"team"`
 			Statistics []struct {
 				Name         string `json:"name"`
@@ -564,6 +603,42 @@ func espnGameStats(event SportsEvent, summary espnStatsSummary) SportsGameStats 
 			result.AwayScore = side.Score
 		}
 	}
+	for _, team := range summary.Boxscore.Players {
+		side := ""
+		for _, competitor := range competition.Competitors {
+			if team.Team.ID != "" && team.Team.ID == competitor.Team.ID && (competitor.HomeAway == "home" || competitor.HomeAway == "away") {
+				side = competitor.HomeAway
+			}
+		}
+		if side == "" {
+			continue
+		}
+		for _, category := range team.Statistics {
+			if len(result.BoxScores) >= 12 || len(category.Labels) == 0 || len(category.Labels) > 24 {
+				continue
+			}
+			group := SportsPlayerBoxScore{Side: side, Category: category.Text, Columns: category.Labels}
+			if group.Category == "" {
+				group.Category = category.Name
+			}
+			for _, player := range category.Athletes {
+				if len(group.Players) >= 100 {
+					break
+				}
+				if strings.TrimSpace(player.Athlete.DisplayName) == "" || (!player.DidNotPlay && len(player.Stats) != len(group.Columns)) {
+					continue
+				}
+				photo := espnHeadshot(player.Athlete.Headshot)
+				if !strings.HasPrefix(photo, "https://") {
+					photo = ""
+				}
+				group.Players = append(group.Players, SportsBoxScorePlayer{Name: player.Athlete.DisplayName, Headshot: photo, Jersey: player.Athlete.Jersey, Position: player.Athlete.Position.Abbreviation, Starter: player.Starter, DidNotPlay: player.DidNotPlay, Stats: player.Stats})
+			}
+			if len(group.Players) > 0 {
+				result.BoxScores = append(result.BoxScores, group)
+			}
+		}
+	}
 	home, away := map[string]string{}, map[string]string{}
 	for _, team := range summary.Boxscore.Teams {
 		var target map[string]string
@@ -677,7 +752,7 @@ func espnGameStats(event SportsEvent, summary espnStatsSummary) SportsGameStats 
 		}
 		result.Videos = append(result.Videos, SportsGameVideo{Title: title, Thumbnail: thumbnail, URL: link, Stream: stream})
 	}
-	result.Available = (len(result.Rows) > 0 && (!baseball || result.Live || result.Completed)) || len(result.Plays) > 0 || len(result.Videos) > 0
+	result.Available = len(result.BoxScores) > 0 || (len(result.Rows) > 0 && (!baseball || result.Live || result.Completed)) || len(result.Plays) > 0 || len(result.Videos) > 0
 	if !result.Available {
 		result.Message = "No live box score is available for this game yet."
 	}

@@ -365,3 +365,18 @@ It survives restarts independently of provider EPG, preserves its last committed
 data when schedule refresh fails, and scopes entries to source configuration
 and policy. Renamed channels and entries older than 24 hours are excluded until
 regenerated. Generation never reads this overlay as EPG evidence. Admin controls use the installation's lineup.
+
+## Game companion
+
+Enable **Sports-first player** and launch a matched channel from Sports to use
+its compact score overlay and collapsible Game companion. The companion has
+Box score, Statistics and Play-by-play views, with team filters for player and
+team statistics. Available data depends on ESPN's coverage of that game.
+
+The Delay selector holds scores and statistics for up to five minutes and saves
+the setting to the active Silo profile. A new delay first builds a buffer and
+withholds scores; related game cards also hide their fresh scores. The delay
+uses a monotonic browser clock and a bounded in-memory history. Reloading or
+changing games rebuilds that buffer. Hide scores continues to hide the companion
+statistics as well. Temporary feed failures retain the last available snapshot
+and show delayed updates.

@@ -1,7 +1,7 @@
 // Part of the composed app.js bundle (order: ui_assets.go playerAppScriptParts).
 // User preferences: defaults, normalization, local app cache, Silo settings sync.
 function defaultPrefs() {
-  return { favorites: {}, favoriteOrder: [], autoFavorites: {}, hiddenCategories: {}, sportsFavoriteTeams: {}, sportsFavoriteTeamLabels: {}, sportsFavoriteLeagues: {}, sportsPreferredChannels: {}, sportsPreferredNetworks: {}, sportsSpoilersHidden: false, sportsPlayerSpoilersHidden: false, featuredEvents: {}, keywordPasses: [], recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, profileSelection: { mode: "all", profileIds: [] }, customGroups: [], customGroupMemberships: {}, savedLineups: [] };
+  return { favorites: {}, favoriteOrder: [], autoFavorites: {}, hiddenCategories: {}, sportsFavoriteTeams: {}, sportsFavoriteTeamLabels: {}, sportsFavoriteLeagues: {}, sportsPreferredChannels: {}, sportsPreferredNetworks: {}, sportsSpoilersHidden: false, sportsPlayerSpoilersHidden: false, sportsStatsDelaySeconds: 0, featuredEvents: {}, keywordPasses: [], recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, profileSelection: { mode: "all", profileIds: [] }, customGroups: [], customGroupMemberships: {}, savedLineups: [] };
 }
 function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
 function availableChannelProfiles() {
@@ -232,6 +232,7 @@ function mergePrefs(remote) {
     sportsPreferredNetworks: Object.assign({}, remote.sportsPreferredNetworks),
     sportsSpoilersHidden: remote.sportsSpoilersHidden === true,
     sportsPlayerSpoilersHidden: remote.sportsPlayerSpoilersHidden === true,
+    sportsStatsDelaySeconds: Math.max(0, Math.min(300, Number(remote.sportsStatsDelaySeconds) || 0)),
     featuredEvents: Object.assign({}, remote.featuredEvents),
     keywordPasses: normalizeKeywordPasses(remote.keywordPasses),
     recentSearches: uniqueIDs(items(remote.recentSearches).map(function(value) { return String(value || "").trim(); }).filter(Boolean)).slice(0, 12),
@@ -718,7 +719,7 @@ function remotePrefsFromValues(values) {
 // preferences.profiles[profileID]. Everything else stays top-level. A profile
 // with no section yet shows the legacy top-level values, and so does a viewer
 // with no profile id.
-const profileScopedPrefKeys = ["favorites", "favoriteOrder", "hiddenCategories"];
+const profileScopedPrefKeys = ["favorites", "favoriteOrder", "hiddenCategories", "sportsStatsDelaySeconds"];
 function activeViewerProfileID() { return coreStoredValue("profile_id") || ""; }
 function prefsProfileSection(remote, profileID) {
   const section = profileID && remote && prefsPlainObject(remote.profiles) ? remote.profiles[profileID] : null;
