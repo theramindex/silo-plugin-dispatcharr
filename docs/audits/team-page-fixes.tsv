@@ -1,0 +1,13 @@
+ts	phase	decision	why	evidence	result
+2026-10-04T20:00:00Z	start	correct the five team-page defects from the review while jonathan is away	this run starts here; earlier rows do not exist	agent 466100e5-ad81-4d3f-b4c1-3c899dd80381	open
+2026-10-04T20:01:00Z	measure	asked for the regular-season sheet with seasontype=2 and no season year	the unscoped Yankees statistics call was postseason type 3 with 3 games played, and seasontype=2 returned 161 games for 2026	internal/plugin/sports_news.go teamStatSheet	measured
+2026-10-04T20:02:00Z	cache	kept a failed stat sheet on its own short cache entry	a swallowed error was stored inside the 30 minute team summary	internal/plugin/sports_news.go teamStats	tests green
+2026-10-04T20:02:30Z	results	a guide-only team id is resolved by name to the Sportarr hub id	a sports-team id cannot be sent to previous-team, and search returned hubId 70037096-7c2a-484b-8632-f63ca196f0ed for the Yankees	internal/plugin/sports_sportarr.go sportarrTeamIDByName	tests green
+2026-10-04T20:03:00Z	names	nickname and location match, and a trailing State does not	Michigan must find Michigan Wolverines and must miss Michigan State	internal/plugin/sports_news_test.go TestSportarrRecentGamesKeepsLatestFive	tests green
+2026-10-04T20:03:30Z	dedupe	two finals collapse only when the start or the score is the same	the old 18 hour window hid a second game four hours later	scripts/sports-hub.test.mjs	tests green
+2026-10-04T20:04:11Z	publish	did not push or open a pull request	the branch against origin/main is about 70 files from the earlier review commit, so a pull request would publish that with these fixes	git diff --stat origin/main...HEAD	open
+2026-10-04T20:05:00Z	review	the cross-model trail review did not run	claude, gpt, and gemini were switched away by the other-models usage limit	Task tool error Other Models usage limit reached	open
+2026-10-04T20:16:30Z	review	Claude Opus 5.5 reviewed the trail with claude -p	the in-app models were refused, and this supersedes the open review row	.claude session 15bcea67-5e98-4084-be34-552a509e7183	done
+2026-10-04T20:16:30Z	sheet	the raw abbreviation fallback was removed and never logged	Claude flagged it as an unlogged behavior change in commit 78a891d	internal/plugin/sports_news.go sportsTeamStatSheet	open
+2026-10-04T20:40:00Z	history	split the mixed review commit into security, sync, sports, and UI commits, with the team page commits left on top	the old commit named four owners and the tree matches the backup tip	backup/review-findings-pre-split	tests green
+2026-11-06T00:00:00Z	completion	verified landed fixes and archived this historical trail	open rows above describe the October session, not outstanding work	docs/audits/team-page-fixes.md	closed
