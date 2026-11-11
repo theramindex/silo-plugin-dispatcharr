@@ -782,7 +782,7 @@ function renderSportsAppHeader() {
   const replayStatus = sportsReplayStatusLabel();
   const refreshLabel = (refreshing ? "Refreshing scores" : "Refresh scores") + " · Data by " + sportsDataSourceLabel(payload) + (replayStatus ? " · " + replayStatus : "");
   const refresh = "<button type=\"button\" class=\"topbar-icon sports-header-refresh" + (refreshing ? " is-loading" : "") + "\" data-sports-refresh=\"true\" aria-label=\"" + escapeHTML(refreshLabel) + "\" title=\"" + escapeHTML(refreshLabel) + "\"" + (refreshing ? " disabled aria-busy=\"true\"" : "") + ">" + icon(refreshing ? "loader" : "refresh") + "</button>";
-  return "<nav class=\"nav topnav sports-app-nav\" aria-label=\"Sports sections\">" + tabs + "</nav><div class=\"sports-header-teams\" role=\"group\" aria-label=\"Your teams\">" + teams + add + "</div>" + refresh;
+  return "<nav class=\"nav topnav sports-app-nav\" aria-label=\"Sports sections\">" + tabs + "</nav><div class=\"sports-header-teams\" role=\"group\" aria-label=\"Your teams\">" + teams + add + "</div>" + '<button type="button" class="topbar-icon" data-sports-practice aria-label="Sports practice" title="Try simulated games">' + icon("play") + "</button>" + refresh;
 }
 
 function openSportsTeam(key) {
