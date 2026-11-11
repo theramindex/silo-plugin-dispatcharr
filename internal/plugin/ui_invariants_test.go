@@ -161,7 +161,7 @@ func TestSavedGamePassKeepsIdentityWhenLiveTeamArrives(t *testing.T) {
 		`state.sports = { events: [{ leagueName:"MLB", home: { id:"live-yankees", name:"New York Yankees" } }], leagues: [{id:"mlb", name:"MLB"}] };`,
 		`state.app.preferences.sportsFavoriteLeagues.mlb = true;`,
 		`const html = myTVFollowingHTML();`,
-		`globalThis.__result = { stableResults: html.includes("New York Yankees") && html.includes("MLB team") && html.includes(id) && html.includes("teamlogo.png") && html.includes("Unfollow MLB") && !html.includes("Followed team") };`,
+		`globalThis.__result = { stableResults: html.includes("New York Yankees") && html.includes("MLB team") && html.includes(id) && html.includes("https://game-thumbs.swvn.io/mlb/new-york-yankees/logo.png") && html.includes("Unfollow MLB") && !html.includes("Followed team") };`,
 	})
 	if !result.StableResults {
 		t.Fatal("saved game passes must retain their team identity when search deduplicates a live roster entry")
