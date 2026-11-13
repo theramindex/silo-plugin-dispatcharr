@@ -17,8 +17,9 @@ The plugin owns Silo's Live TV presentation and playback sessions. The configure
 - **ECM is recommended.** Use Enhanced Channel Manager (ECM) with Dispatcharr for
   channel/group curation, lineup cleanup, and operational channel management.
 
-Native Jellyfin `/LiveTv/*` export can be added later if Silo exposes a
-first-class Live TV provider capability.
+The Ramindex fork can export channels through its optional Jellyfin `/LiveTv/*`
+bridge. That existing bridge is independent of the web premiere extension; an
+upstream host without a bridge still uses the plugin app for Live TV.
 
 ## Supported source modes
 
@@ -244,7 +245,7 @@ guide. Sports preparation keeps its derived matching index in memory.
   process-global plugin state.
 - Source-mode changes reset cached channel/guide state before rebuilding
 - Dispatcharr Direct does not silently fall back to Xtream Codes; Direct failures are surfaced in plugin health/status
-- Native Jellyfin `/LiveTv/*` export is not available until Silo exposes a Live TV provider SDK/host capability
+- Jellyfin `/LiveTv/*` export requires the host bridge; the plugin app and guide do not require the premiere extension.
 - The HTTP route SDK buffers each response. Live Rewind and hardware playback
   conversion serve bounded HLS segments through that interface; they never put
   an endless transport stream inside an RPC response. Continuous live streams use the host's loopback relay instead.
