@@ -30,13 +30,14 @@ type livetvInfo struct {
 }
 
 type livetvChannel struct {
-	ID      string   `json:"id"`
-	Number  string   `json:"number"`
-	Name    string   `json:"name"`
-	LogoURL string   `json:"logoUrl"`
-	GroupID string   `json:"groupId"`
-	Group   string   `json:"group"`
-	Folders []string `json:"folders,omitempty"`
+	WatchPath string   `json:"watchPath,omitempty"`
+	ID        string   `json:"id"`
+	Number    string   `json:"number"`
+	Name      string   `json:"name"`
+	LogoURL   string   `json:"logoUrl"`
+	GroupID   string   `json:"groupId"`
+	Group     string   `json:"group"`
+	Folders   []string `json:"folders,omitempty"`
 	// ProfileIDs are the Dispatcharr channel profiles the channel is in, and
 	// ProfileFolders its folders by profile, so Silo can apply a user's
 	// profile selection.
@@ -73,6 +74,7 @@ func (s *HTTPRoutesServer) handleLiveTVChannels(ctx context.Context) *pluginv1.H
 	lineup := make([]livetvChannel, 0, len(channels))
 	for _, channel := range channels {
 		lineup = append(lineup, livetvChannel{
+			WatchPath:      "/dispatcharr#/watch/" + url.PathEscape(channel.ID),
 			ID:             channel.ID,
 			Number:         channel.Number,
 			Name:           channel.Name,
