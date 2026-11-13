@@ -270,6 +270,38 @@ This plugin declares `/dispatcharr` that way. Admin-only plugin pages can use `n
 
 Scheduled task cadence is not read from the plugin manifest by current Silo host builds. The plugin exposes `scheduled_task.v1` capabilities, but Silo stores active schedules in its task trigger table. Configure `plugin:<installation_id>:dispatcharr-sync` or `plugin:<installation_id>:dispatcharr-refresh-channels` with a slower catalog interval such as 24 hours, and configure `plugin:<installation_id>:dispatcharr-refresh-epg` with a shorter guide interval such as 6 hours. A startup trigger is useful for immediate cache hydration after restarts.
 
+## Optional web premiere shortcuts
+
+The Ramindex Silo server extension can show a channel shortcut on a series,
+episode, or calendar card while a new episode is expected to premiere. Open
+**Calendar → Premiere reminders** to map a broadcaster to channels in your
+current profile. Series details also allow a show-specific override. One channel
+opens directly; multiple mapped feeds open a chooser.
+
+The server sends one reminder per episode/profile for eligible favorites,
+watchlist shows, and series with a completed episode. Existing notification
+preferences, series mutes, library access, and profile channel selections apply.
+The default shortcut window is 60 minutes, configurable from 15 to 240 minutes.
+
+Timing comes from the catalog's original episode date, series airtime, and
+timezone. Date-only metadata cannot produce a timed shortcut. This is an expected
+premiere: it does not confirm what a selected feed is actually showing. EPG
+refresh intervals and DVR enablement do not drive these reminders. Different
+regional feeds can air the episode at different times.
+
+**Older-server compatibility:** the plugin still works without this server
+extension. `watchPath` is an optional field on the existing `livetv/v1` channel
+response; older hosts ignore it. Existing channel IDs, guide, stream resolution,
+favorites, provider configuration, and playback routes keep their contracts.
+Only the library/calendar shortcut and reminder need a server advertising
+`GET /api/v2/premieres/capabilities`. The plugin does not call that endpoint or
+create reminder tables itself. These new controls are web-only; native clients
+are unchanged.
+
+Dispatcharr DVR scheduling and recordings remain available only in Direct mode.
+Premiere reminders also work with DVR disabled and in Xtream or M3U/XMLTV mode.
+
+
 ## Build
 
 ```bash
