@@ -12,12 +12,12 @@ The plugin owns Silo's Live TV presentation and playback sessions. The configure
 
 - **Dispatcharr Direct is preferred.** It is required for DVR scheduling and recordings. Xtream and M3U/XMLTV expose playback and guide capabilities only.
 - **Dispatcharr manages sources.** Stream health, output profiles, and recording behavior remain upstream responsibilities.
-- **Silo presents and plays.** Live channels use an authenticated continuous MPEG-TS/HLS relay. Provider URLs and credentials remain server-side, including nested HLS playlists and keys. This requires the Ramindex Silo fork's loopback relay support. Legacy credentialed non-HLS file routes still return `stream_requires_hls` (422).
+- **Silo presents and plays.** Live channels use an authenticated continuous MPEG-TS/HLS relay. Provider URLs and credentials remain server-side, including nested HLS playlists and keys. This requires the Ramedia Server's loopback relay support. Legacy credentialed non-HLS file routes still return `stream_requires_hls` (422).
 - **Compatible playback** uses host FFmpeg and a VAAPI GPU when source codecs cannot play in the browser. There is no software encoder fallback.
 - **ECM is recommended.** Use Enhanced Channel Manager (ECM) with Dispatcharr for
   channel/group curation, lineup cleanup, and operational channel management.
 
-The Ramindex fork can export channels through its optional Jellyfin `/LiveTv/*`
+Ramedia Server can export channels through its optional Jellyfin `/LiveTv/*`
 bridge. That existing bridge is independent of the web premiere extension; an
 upstream host without a bridge still uses the plugin app for Live TV.
 
@@ -273,7 +273,7 @@ Scheduled task cadence is not read from the plugin manifest by current Silo host
 
 ## Optional web premiere shortcuts
 
-The Ramindex Silo server extension can show a channel shortcut on a series,
+The Ramedia Server premiere extension can show a channel shortcut on a series,
 episode, or calendar card while a new episode is expected to premiere. Open
 **Calendar → Premiere reminders** to map a broadcaster to channels in your
 current profile. Series details also allow a show-specific override. One channel
