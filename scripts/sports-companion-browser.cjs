@@ -171,6 +171,15 @@ const root = require("node:path").resolve(__dirname, "..");
       await page
         .getByRole("button", { name: "Both teams", exact: true })
         .click();
+      for (const width of [320, 280]) {
+        await page.setViewportSize({ width, height: 844 });
+        assert.ok(
+          await page.locator(".companion-toolbar").evaluate(
+            el => el.scrollWidth <= el.clientWidth + 1,
+          ),
+          "Game companion delay controls must fit at " + width + "px",
+        );
+      }
       await page.setViewportSize({ width: 390, height: 844 });
       await page.screenshot({ path: "/tmp/" + repo + "-companion-mobile.png" });
       await page.locator("[data-companion-delay]").selectOption("60");

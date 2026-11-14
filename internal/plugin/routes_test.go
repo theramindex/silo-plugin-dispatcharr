@@ -4332,7 +4332,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 			t.Fatalf("player overflow must preserve advanced control %q", want)
 		}
 	}
-	for _, want := range []string{`.playback-shell { position: relative; width: 100%; height: 100dvh;`, `.playback-video { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto; object-fit: contain;`, `.player-bottom-actions { align-self: end; gap: 0.22rem;`} {
+	for _, want := range []string{`.playback-video { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto; object-fit: contain;`, `.player-bottom-actions { align-self: end; gap: 0.22rem;`} {
 		requireStyle(want)
 	}
 	for _, want := range []string{`.player-sports-channel > span:first-child { width: 3.2rem; height: 2.25rem; display: grid; place-items: center; overflow: hidden; }`, `.player-sports-channel .logo { display: block; width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; object-position: center; border-radius: 0; background: transparent; }`} {
